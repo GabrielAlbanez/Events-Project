@@ -9,15 +9,38 @@ import {
 } from "@react-google-maps/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Search, ArrowLeft, Route, Crosshair, Loader, Trash2 } from "lucide-react";
+import {
+  Search,
+  ArrowLeft,
+  Route,
+  Crosshair,
+  Loader,
+  Trash2,
+} from "lucide-react";
 import { SidebarTrigger } from "../ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import DrawerEventos from "@/components/MyComponents/DrawerEventos";
+
+type Evento = {
+  nome: string;
+  image: string;
+  descrição: string;
+  data: Date;
+  LinkParaCompraIngresso: string;
+  id: number;
+  endereco: string;
+  title: string;
+  lat?: number; // Será adicionado dinamicamente após conversão
+  lng?: number;
+};
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
   <div className="flex items-center justify-center w-full h-full">
     <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
-    <span className="ml-4 text-blue-600 text-lg font-semibold">Carregando Mapa...</span>
+    <span className="ml-4 text-blue-600 text-lg font-semibold">
+      Carregando Mapa...
+    </span>
   </div>
 );
 
@@ -35,6 +58,41 @@ const Mapa = () => {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const startRef = useRef<google.maps.places.Autocomplete | null>(null);
   const endRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [eventos, setEventos] = useState<Evento[]>([
+    {
+      id: 1,
+      nome: "Festival de Música São Paulo",
+      image: "https://via.placeholder.com/150", // URL da imagem do evento
+      descrição:
+        "Um festival com grandes nomes da música nacional e internacional.",
+      data: new Date("2024-08-15"),
+      LinkParaCompraIngresso: "https://festivaldemusica.com.br/ingressos",
+      endereco: "Avenida Paulista, São Paulo, SP",
+      title: "Festival de Música",
+    },
+    {
+      id: 2,
+      nome: "Feira de Artesanato",
+      image: "https://via.placeholder.com/150",
+      descrição: "Feira com produtos artesanais de artistas locais.",
+      data: new Date("2024-08-20"),
+      LinkParaCompraIngresso: "https://feiradeartesanato.com.br/ingressos",
+      endereco: "Praça da Sé, São Paulo, SP",
+      title: "Feira de Artesanato",
+    },
+    {
+      id: 3,
+      nome: "Exposição de Arte Moderna",
+      image: "https://via.placeholder.com/150",
+      descrição: "Uma exposição com as obras mais influentes da arte moderna.",
+      data: new Date("2024-08-25"),
+      LinkParaCompraIngresso: "https://expoartemoderna.com.br/ingressos",
+      endereco: "Rua Oscar Freire, São Paulo, SP",
+      title: "Exposição de Arte Moderna",
+    },
+  ]);
+
+  const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -101,10 +159,60 @@ const Mapa = () => {
   };
 
   const mapStyles = [
-    { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-    { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-    { featureType: "road", elementType: "labels", stylers: [{ visibility: "on" }] },
+    {
+      featureType: "poi",
+      elementType: "labels.icon",
+      stylers: [{ visibility: "off" }],
+    },
+    {
+      featureType: "transit",
+      elementType: "labels.icon",
+      stylers: [{ visibility: "off" }],
+    },
+    {
+      featureType: "road",
+      elementType: "labels",
+      stylers: [{ visibility: "on" }],
+    },
   ];
+
+  const convertAddressToCoordinates = (
+    endereco: string
+  ): Promise<google.maps.LatLngLiteral> => {
+    const geocoder = new window.google.maps.Geocoder();
+    return new Promise((resolve, reject) => {
+      geocoder.geocode({ address: endereco }, (results: any, status) => {
+        if (status === "OK" && results[0]) {
+          const location = results[0].geometry.location;
+          resolve({ lat: location.lat(), lng: location.lng() });
+        } else {
+          reject("Não foi possível converter o endereço.");
+        }
+      });
+    });
+  };
+
+  useEffect(() => {
+    const carregarCoordenadas = async () => {
+      const eventosAtualizados: Evento[] = [];
+      for (const evento of eventos) {
+        try {
+          const coordenadas = await convertAddressToCoordinates(
+            evento.endereco
+          );
+          eventosAtualizados.push({ ...evento, ...coordenadas });
+        } catch (error) {
+          console.error(
+            `Erro ao converter endereço "${evento.endereco}":`,
+            error
+          );
+        }
+      }
+      setEventos(eventosAtualizados);
+    };
+
+    if (isScriptLoaded) carregarCoordenadas();
+  }, [isScriptLoaded]);
 
   return (
     <div className="relative h-screen w-full flex flex-col lg:flex-row  md:flex-row">
@@ -136,7 +244,32 @@ const Mapa = () => {
               zoomControl: false,
             }}
           >
-            <Marker position={currentLocation} label="Você" />
+            <Marker
+              position={currentLocation}
+              icon={{
+                url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // URL da bolinha azul
+              }}
+            />
+
+            {eventos
+              .filter(
+                (evento) => evento.lat !== undefined && evento.lng !== undefined
+              )
+              .map((evento) => (
+                <Marker
+                  key={evento.id}
+                  position={{
+                    lat: evento.lat as number,
+                    lng: evento.lng as number,
+                  }}
+                  icon={{
+                    url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+                  }}
+                  title={evento.title}
+                  onClick={() => setEventoAtivo(evento)} // Atualiza o evento ativo
+                />
+              ))}
+
             {directions && <DirectionsRenderer directions={directions} />}
           </GoogleMap>
 
@@ -150,7 +283,6 @@ const Mapa = () => {
                   </button>
                 </SidebarTrigger>
 
-
                 <div className="h-6 w-px bg-gray-300 mx-4"></div>
 
                 <Search className="text-gray-400 mr-3" />
@@ -158,9 +290,27 @@ const Mapa = () => {
                   onLoad={(autocomplete) =>
                     (autocompleteRef.current = autocomplete)
                   }
+                  onPlaceChanged={() => {
+                    if (autocompleteRef.current) {
+                      const place = autocompleteRef.current.getPlace();
+                      if (place.geometry?.location) {
+                        setDestination({
+                          lat: place.geometry.location.lat(),
+                          lng: place.geometry.location.lng(),
+                        });
+                        setCurrentLocation({
+                          lat: place.geometry.location.lat(),
+                          lng: place.geometry.location.lng(),
+                        });
+                        toast.success("Localização encontrada!");
+                      } else {
+                        toast.error(
+                          "Não foi possível obter a localização do destino."
+                        );
+                      }
+                    }
+                  }}
                 >
-
-                
                   <input
                     type="text"
                     placeholder="Digite um destino"
@@ -168,28 +318,20 @@ const Mapa = () => {
                   />
                 </Autocomplete>
                 <div className="flex items-center justify-center gap-2">
-                <button
-                  className="ml-4 text-blue-600 hover:text-blue-800"
-                  onClick={() => setShowDirections(true)}
-                >
- 
+                  <button
+                    className="ml-4 text-blue-600 hover:text-blue-800"
+                    onClick={() => setShowDirections(true)}
+                  >
                     <Route className="w-5 h-5" />
-  
-      
-                </button>
+                  </button>
 
-
-                <button
-                  className="ml-4 text-blue-600 hover:text-blue-800"
-                  onClick={() => clearRoute()}
-                >
- 
+                  <button
+                    className="ml-4 text-blue-600 hover:text-blue-800"
+                    onClick={() => clearRoute()}
+                  >
                     <Trash2 className="w-5 h-5" color="red" />
-  
-      
-                </button>
+                  </button>
                 </div>
-                
               </div>
             ) : (
               <div>
@@ -240,6 +382,13 @@ const Mapa = () => {
           </button>
         </div>
       </LoadScript>
+      {/* Drawer do Evento */}
+      {eventoAtivo && (
+        <DrawerEventos
+          evento={eventoAtivo}
+          onClose={() => setEventoAtivo(null)} // Fecha o Drawer
+        />
+      )}
       <ToastContainer position="bottom-right" autoClose={5000} />
     </div>
   );
