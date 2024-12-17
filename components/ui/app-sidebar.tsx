@@ -1,6 +1,15 @@
 "use client";
 import React from "react";
-import { MapPin, Route, Trash2, LayoutDashboard, Settings, User, Flame } from "lucide-react";
+import {
+  MapPin,
+  Route,
+  Trash2,
+  LayoutDashboard,
+  Settings,
+  User,
+  Flame,
+  Calendar1Icon,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -8,30 +17,37 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-interface AppSidebarProps {
-  onGetLocation: () => void;
-  onTraceRoute: () => void;
-  onClearRoute: () => void;
-}
+export function AppSidebar() {
+  const router = useRouter();
 
-export function AppSidebar({ onGetLocation, onTraceRoute, onClearRoute }: AppSidebarProps) {
   return (
     <Sidebar className="w-64 h-screen bg-white shadow-lg rounded-r-lg overflow-hidden">
-
-
       {/* Menu */}
       <SidebarContent className="mt-4">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2">
+              <Flame className="w-5 h-5 mr-2 text-red-600" />
 
+              <Link href={"/"}>
+                {" "}
+                <span className="text-gray-800">Eventos</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={onClearRoute}
+              onClick={() => {
+                router.push("/CriarEvento");
+              }}
               className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
             >
-              <Flame className="w-5 h-5 mr-2 text-red-600" />
-              <span className="text-gray-800">Eventos</span>
+              <Calendar1Icon className="w-5 h-5 mr-2" />
+              <span className="text-gray-800">Criar Eventos</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
