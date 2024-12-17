@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -14,14 +13,20 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerDescription,
-  DrawerClose,
 } from "@/components/ui/drawer";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 type DrawerEventosProps = {
   evento: {
     nome: string;
-    image: string;
+    banner: string;
+    carrossel: string[];
     descrição: string;
     data: Date;
     LinkParaCompraIngresso: string;
@@ -33,16 +38,45 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const Content = (
-    <div className="p-4">
-      <img
-        src={evento.image}
-        alt={evento.nome}
-        className="w-full h-40 object-cover rounded mb-4"
-      />
-      <p className="mb-2">
+    <div className="p-4 h-[500px] overflow-y-auto overflow-x-hidden">
+      {/* Banner Principal */}
+      <div className="w-full mb-6">
+        <img
+          src={evento.banner}
+          alt="Banner Principal"
+          className="w-full h-64 object-cover rounded-lg shadow-lg"
+        />
+      </div>
+
+      {/* Carrossel de Imagens */}
+      {evento.carrossel.length > 0 && (
+        <div className="w-full mb-6">
+          <h3 className="text-lg font-semibold mb-2">Galeria de Imagens</h3>
+          <Carousel className="w-full">
+            <CarouselContent>
+              {evento.carrossel.map((image, index) => (
+                <CarouselItem key={index} className="basis-full">
+                  <div className="w-full h-40 flex items-center justify-center">
+                    <img
+                      src={image}
+                      alt={`Imagem ${index}`}
+                      className="w-full h-full object-cover rounded-lg shadow-md"
+                    />
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious />
+            <CarouselNext />
+          </Carousel>
+        </div>
+      )}
+
+      {/* Detalhes do Evento */}
+      <p className="mb-2 text-sm">
         <strong>Data:</strong> {evento.data.toLocaleDateString()}
       </p>
-      <p className="mb-4">{evento.descrição}</p>
+      <p className="mb-4 text-sm">{evento.descrição}</p>
       <a
         href={evento.LinkParaCompraIngresso}
         target="_blank"
@@ -56,14 +90,13 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
     </div>
   );
 
+  // Dialog para Desktop
   if (isDesktop) {
-    // Exibe Dialog em telas maiores
     return (
       <Dialog open={!!evento} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>{evento.nome}</DialogTitle>
-            <DialogDescription>{evento.descrição}</DialogDescription>
+            <DialogTitle className="text-2xl font-bold">{evento.nome}</DialogTitle>
           </DialogHeader>
           {Content}
         </DialogContent>
@@ -71,13 +104,12 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
     );
   }
 
-  // Exibe Drawer em telas menores
+  // Drawer para Mobile
   return (
     <Drawer open={!!evento} onOpenChange={onClose}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>{evento.nome}</DrawerTitle>
-          <DrawerDescription>{evento.descrição}</DrawerDescription>
+          <DrawerTitle className="text-lg font-semibold">{evento.nome}</DrawerTitle>
         </DrawerHeader>
         {Content}
       </DrawerContent>

@@ -18,19 +18,20 @@ import {
   Trash2,
 } from "lucide-react";
 import { SidebarTrigger } from "../ui/sidebar";
-import { AppSidebar } from "@/components/ui/app-sidebar";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
+import { usePathname } from "next/navigation";
 
 type Evento = {
   nome: string;
-  image: string;
+  banner: string; // Banner principal
+  carrossel: string[]; // Lista de URLs para imagens do carrossel
   descrição: string;
   data: Date;
   LinkParaCompraIngresso: string;
   id: number;
   endereco: string;
   title: string;
-  lat?: number; // Será adicionado dinamicamente após conversão
+  lat?: number;
   lng?: number;
 };
 
@@ -45,6 +46,7 @@ const CustomLoading = () => (
 );
 
 const Mapa = () => {
+  const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState({
     lat: -23.55052,
@@ -62,7 +64,11 @@ const Mapa = () => {
     {
       id: 1,
       nome: "Festival de Música São Paulo",
-      image: "https://via.placeholder.com/150", // URL da imagem do evento
+      banner: "https://via.placeholder.com/600x300",
+      carrossel: [
+        "https://via.placeholder.com/300x200",
+        "https://via.placeholder.com/300x200/FF5733",
+      ],
       descrição:
         "Um festival com grandes nomes da música nacional e internacional.",
       data: new Date("2024-08-15"),
@@ -70,26 +76,7 @@ const Mapa = () => {
       endereco: "Avenida Paulista, São Paulo, SP",
       title: "Festival de Música",
     },
-    {
-      id: 2,
-      nome: "Feira de Artesanato",
-      image: "https://via.placeholder.com/150",
-      descrição: "Feira com produtos artesanais de artistas locais.",
-      data: new Date("2024-08-20"),
-      LinkParaCompraIngresso: "https://feiradeartesanato.com.br/ingressos",
-      endereco: "Praça da Sé, São Paulo, SP",
-      title: "Feira de Artesanato",
-    },
-    {
-      id: 3,
-      nome: "Exposição de Arte Moderna",
-      image: "https://via.placeholder.com/150",
-      descrição: "Uma exposição com as obras mais influentes da arte moderna.",
-      data: new Date("2024-08-25"),
-      LinkParaCompraIngresso: "https://expoartemoderna.com.br/ingressos",
-      endereco: "Rua Oscar Freire, São Paulo, SP",
-      title: "Exposição de Arte Moderna",
-    },
+    // Outros eventos...
   ]);
 
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
@@ -108,7 +95,6 @@ const Mapa = () => {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
-          toast.success("Localização capturada com sucesso!");
         },
         () => toast.error("Não foi possível acessar sua localização.")
       );
@@ -118,9 +104,6 @@ const Mapa = () => {
   };
 
   // Executa automaticamente ao carregar o componente
-  useEffect(() => {
-    getCurrentLocation();
-  }, []);
 
   // Traça rota entre origem e destino
   const calculateRoute = () => {
@@ -194,12 +177,12 @@ const Mapa = () => {
 
   useEffect(() => {
     const carregarCoordenadas = async () => {
+
       const eventosAtualizados: Evento[] = [];
       for (const evento of eventos) {
         try {
-          const coordenadas = await convertAddressToCoordinates(
-            evento.endereco
-          );
+          const coordenadas =  await convertAddressToCoordinates(evento.endereco);
+        console.log("cordenadas", coordenadas)
           eventosAtualizados.push({ ...evento, ...coordenadas });
         } catch (error) {
           console.error(
@@ -208,188 +191,192 @@ const Mapa = () => {
           );
         }
       }
+      console.log("evento att", eventosAtualizados);
       setEventos(eventosAtualizados);
     };
 
-    if (isScriptLoaded) carregarCoordenadas();
+    carregarCoordenadas();
+    getCurrentLocation();
   }, [isScriptLoaded]);
 
   return (
     <div className="relative h-screen w-full flex flex-col lg:flex-row  md:flex-row">
-      {/* Sidebar */}
-      <AppSidebar
-        onGetLocation={getCurrentLocation}
-        onTraceRoute={calculateRoute}
-        onClearRoute={clearRoute}
-      />
+      {rota === "/" && (
+        <>
+          {/* Sidebar */}
 
-      {/* Google Maps */}
-      <LoadScript
-        googleMapsApiKey={apiKey}
-        libraries={["places"]}
-        onLoad={() => setIsScriptLoaded(true)}
-        onError={() => toast.error("Erro ao carregar o Google Maps")}
-        loadingElement={<CustomLoading />} // Componente personalizado de loading
-      >
-        <div className="relative flex-1">
-          <GoogleMap
-            mapContainerStyle={{ width: "100%", height: "100%" }}
-            center={currentLocation}
-            zoom={12}
-            options={{
-              fullscreenControl: false,
-              mapTypeControl: false,
-              streetViewControl: false,
-              styles: mapStyles,
-              zoomControl: false,
-            }}
-          >
-            <Marker
-              position={currentLocation}
-              icon={{
-                url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // URL da bolinha azul
+          {/* Google Maps */}
+          {/* <LoadScript
+            googleMapsApiKey={apiKey}
+            libraries={["places"]}
+            onLoad={() => setIsScriptLoaded(true)}
+            onError={() => toast.error("Erro ao carregar o Google Maps")}
+            loadingElement={<CustomLoading />} // Componente personalizado de loading
+          > */}
+          <div className="relative flex-1">
+            <GoogleMap
+              mapContainerStyle={{ width: "100%", height: "100%" }}
+              center={currentLocation}
+              zoom={12}
+              options={{
+                fullscreenControl: false,
+                mapTypeControl: false,
+                streetViewControl: false,
+                styles: mapStyles,
+                zoomControl: false,
               }}
-            />
+            >
+              <Marker
+                position={currentLocation}
+                icon={{
+                  url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // URL da bolinha azul
+                }}
+              />
 
-            {eventos
-              .filter(
-                (evento) => evento.lat !== undefined && evento.lng !== undefined
-              )
-              .map((evento) => (
-                <Marker
-                  key={evento.id}
-                  position={{
-                    lat: evento.lat as number,
-                    lng: evento.lng as number,
-                  }}
-                  icon={{
-                    url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
-                  }}
-                  title={evento.title}
-                  onClick={() => setEventoAtivo(evento)} // Atualiza o evento ativo
-                />
-              ))}
+              {eventos
+                .filter(
+                  (evento) =>
+                    evento.lat !== undefined && evento.lng !== undefined
+                )
+                .map((evento) => (
+                  <Marker
+                    key={evento.id}
+                    position={{
+                      lat: evento.lat as number,
+                      lng: evento.lng as number,
+                    }}
+                    icon={{
+                      url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+                    }}
+                    title={evento.title}
+                    onClick={() => setEventoAtivo(evento)} // Atualiza o evento ativo
+                  />
+                ))}
 
-            {directions && <DirectionsRenderer directions={directions} />}
-          </GoogleMap>
+              {directions && <DirectionsRenderer directions={directions} />}
+            </GoogleMap>
 
-          {/* Navbar / Directions */}
-          <div className="absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 bg-white/60 backdrop-blur-md shadow-lg rounded-lg px-6 py-4 transition-all duration-500">
-            {!showDirections ? (
-              <div className="flex items-center">
-                <SidebarTrigger>
-                  <button className="text-gray-600 hover:text-gray-800 mr-3">
-                    ☰
-                  </button>
-                </SidebarTrigger>
+            {/* Navbar / Directions */}
+            <div className="absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 bg-white/60 backdrop-blur-md shadow-lg rounded-lg px-6 py-4 transition-all duration-500">
+              {!showDirections ? (
+                <div className="flex items-center">
+                  <SidebarTrigger>
+                    <button className="text-gray-600 hover:text-gray-800 mr-3">
+                      ☰
+                    </button>
+                  </SidebarTrigger>
 
-                <div className="h-6 w-px bg-gray-300 mx-4"></div>
+                  <div className="h-6 w-px bg-gray-300 mx-4"></div>
 
-                <Search className="text-gray-400 mr-3" />
-                <Autocomplete
-                  onLoad={(autocomplete) =>
-                    (autocompleteRef.current = autocomplete)
-                  }
-                  onPlaceChanged={() => {
-                    if (autocompleteRef.current) {
-                      const place = autocompleteRef.current.getPlace();
-                      if (place.geometry?.location) {
-                        setDestination({
-                          lat: place.geometry.location.lat(),
-                          lng: place.geometry.location.lng(),
-                        });
-                        setCurrentLocation({
-                          lat: place.geometry.location.lat(),
-                          lng: place.geometry.location.lng(),
-                        });
-                        toast.success("Localização encontrada!");
-                      } else {
-                        toast.error(
-                          "Não foi possível obter a localização do destino."
-                        );
-                      }
+                  <Search className="text-gray-400 mr-3" />
+                  <Autocomplete
+                    onLoad={(autocomplete) =>
+                      (autocompleteRef.current = autocomplete)
                     }
-                  }}
-                >
-                  <input
-                    type="text"
-                    placeholder="Digite um destino"
-                    className="w-full border-none focus:outline-none bg-transparent truncate text-gray-700"
-                  />
-                </Autocomplete>
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    className="ml-4 text-blue-600 hover:text-blue-800"
-                    onClick={() => setShowDirections(true)}
+                    onPlaceChanged={() => {
+                      if (autocompleteRef.current) {
+                        const place = autocompleteRef.current.getPlace();
+                        if (place.geometry?.location) {
+                          setDestination({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          setCurrentLocation({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          toast.success("Localização encontrada!");
+                        } else {
+                          toast.error(
+                            "Não foi possível obter a localização do destino."
+                          );
+                        }
+                      }
+                    }}
                   >
-                    <Route className="w-5 h-5" />
-                  </button>
+                    <input
+                      type="text"
+                      placeholder="Digite um destino"
+                      className="w-full border-none focus:outline-none bg-transparent truncate text-gray-700"
+                    />
+                  </Autocomplete>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      className="ml-4 text-blue-600 hover:text-blue-800"
+                      onClick={() => setShowDirections(true)}
+                    >
+                      <Route className="w-5 h-5" />
+                    </button>
 
-                  <button
-                    className="ml-4 text-blue-600 hover:text-blue-800"
-                    onClick={() => clearRoute()}
-                  >
-                    <Trash2 className="w-5 h-5" color="red" />
-                  </button>
+                    <button
+                      className="ml-4 text-blue-600 hover:text-blue-800"
+                      onClick={() => clearRoute()}
+                    >
+                      <Trash2 className="w-5 h-5" color="red" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center mb-4">
-                  <ArrowLeft
-                    className="w-5 h-5 text-gray-600 cursor-pointer hover:text-gray-800 mr-4"
-                    onClick={() => setShowDirections(false)}
-                  />
-                  <h3 className="text-lg font-semibold">Directions</h3>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Autocomplete
-                    onLoad={(autocomplete) => (startRef.current = autocomplete)}
-                  >
-                    <input
-                      type="text"
-                      placeholder="Your location"
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none"
+              ) : (
+                <div>
+                  <div className="flex items-center mb-4">
+                    <ArrowLeft
+                      className="w-5 h-5 text-gray-600 cursor-pointer hover:text-gray-800 mr-4"
+                      onClick={() => setShowDirections(false)}
                     />
-                  </Autocomplete>
-                  <Autocomplete
-                    onLoad={(autocomplete) => (endRef.current = autocomplete)}
-                  >
-                    <input
-                      type="text"
-                      placeholder="Choose destination"
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none"
-                    />
-                  </Autocomplete>
-                  <button
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md mt-2 hover:bg-blue-800"
-                    onClick={calculateRoute}
-                  >
-                    Traçar Rota
-                  </button>
+                    <h3 className="text-lg font-semibold">Directions</h3>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Autocomplete
+                      onLoad={(autocomplete) =>
+                        (startRef.current = autocomplete)
+                      }
+                    >
+                      <input
+                        type="text"
+                        placeholder="Your location"
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none"
+                      />
+                    </Autocomplete>
+                    <Autocomplete
+                      onLoad={(autocomplete) => (endRef.current = autocomplete)}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Choose destination"
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none"
+                      />
+                    </Autocomplete>
+                    <button
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md mt-2 hover:bg-blue-800"
+                      onClick={calculateRoute}
+                    >
+                      Traçar Rota
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Botão Minha Localização */}
+            <button
+              className="absolute bottom-4 right-2 bg-white p-2 rounded-full shadow-md hover:bg-gray-200 transition-all"
+              onClick={getCurrentLocation}
+              title="Minha Localização"
+            >
+              <Crosshair className="w-6 h-6 text-blue-500" />
+            </button>
           </div>
-
-          {/* Botão Minha Localização */}
-          <button
-            className="absolute bottom-4 right-4 bg-white p-2 rounded-full shadow-md hover:bg-gray-200 transition-all"
-            onClick={getCurrentLocation}
-            title="Minha Localização"
-          >
-            <Crosshair className="w-6 h-6 text-blue-500" />
-          </button>
-        </div>
-      </LoadScript>
-      {/* Drawer do Evento */}
-      {eventoAtivo && (
-        <DrawerEventos
-          evento={eventoAtivo}
-          onClose={() => setEventoAtivo(null)} // Fecha o Drawer
-        />
+          {/* </LoadScript> */}
+          {/* Drawer do Evento */}
+          {eventoAtivo && (
+            <DrawerEventos
+              evento={eventoAtivo}
+              onClose={() => setEventoAtivo(null)} // Fecha o Drawer
+            />
+          )}
+          <ToastContainer position="bottom-right" autoClose={5000} />
+        </>
       )}
-      <ToastContainer position="bottom-right" autoClose={5000} />
     </div>
   );
 };
