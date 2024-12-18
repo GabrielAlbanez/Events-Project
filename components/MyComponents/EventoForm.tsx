@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { salvarEvento } from "@/app/eventos/actions";
+import { salvarEvento } from "@/app/(actions)/eventos/actions";
 import {
   Carousel,
   CarouselContent,

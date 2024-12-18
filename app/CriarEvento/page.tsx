@@ -6,7 +6,7 @@ export default function CriarEvento() {
     <div className="flex-1 flex flex-col gap-6 items-center justify-center p-6 bg-gray-50">
       {/* Conteúdo principal */}
       <div className="w-full max-w-3xl bg-white p-4 rounded-lg shadow-lg">
-        <div>
+        <div className="flex items-center justify-center"> 
           <SidebarTrigger>
             <button className="text-gray-600 hover:text-gray-800 mr-3">
               ☰
