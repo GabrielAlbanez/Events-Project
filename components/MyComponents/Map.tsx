@@ -20,6 +20,8 @@ import {
 import { SidebarTrigger } from "../ui/sidebar";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { usePathname } from "next/navigation";
+import { dataEvents } from "@/data/EventsData";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 
 type Evento = {
   nome: string;
@@ -60,28 +62,13 @@ const Mapa = () => {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const startRef = useRef<google.maps.places.Autocomplete | null>(null);
   const endRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [eventos, setEventos] = useState<Evento[]>([
-    {
-      id: 1,
-      nome: "Festival de Música São Paulo",
-      banner: "https://via.placeholder.com/600x300",
-      carrossel: [
-        "https://via.placeholder.com/300x200",
-        "https://via.placeholder.com/300x200/FF5733",
-      ],
-      descrição:
-        "Um festival com grandes nomes da música nacional e internacional.",
-      data: new Date("2024-08-15"),
-      LinkParaCompraIngresso: "https://festivaldemusica.com.br/ingressos",
-      endereco: "Avenida Paulista, São Paulo, SP",
-      title: "Festival de Música",
-    },
-    // Outros eventos...
-  ]);
+  const [eventos, setEventos] = useState<Evento[]>(dataEvents);
 
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   if (!apiKey) {
     console.error("Chave de API do Google Maps não configurada.");
@@ -91,10 +78,12 @@ const Mapa = () => {
   // Captura a localização atual
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
+      console.log("etrando inf")
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
+
         },
         () => toast.error("Não foi possível acessar sua localização.")
       );
@@ -182,7 +171,6 @@ const Mapa = () => {
       for (const evento of eventos) {
         try {
           const coordenadas =  await convertAddressToCoordinates(evento.endereco);
-        console.log("cordenadas", coordenadas)
           eventosAtualizados.push({ ...evento, ...coordenadas });
         } catch (error) {
           console.error(
@@ -191,7 +179,6 @@ const Mapa = () => {
           );
         }
       }
-      console.log("evento att", eventosAtualizados);
       setEventos(eventosAtualizados);
     };
 
@@ -199,8 +186,33 @@ const Mapa = () => {
     getCurrentLocation();
   }, [isScriptLoaded]);
 
+
+  // useEffect(() => {
+  //   if (mapRef.current) {
+  //     const map = mapRef.current;
+
+  //     const markers = eventos
+  //       .filter((evento) => evento.lat !== undefined && evento.lng !== undefined)
+  //       .map(
+  //         (evento) =>
+  //           new google.maps.Marker({
+  //             position: { lat: evento.lat as number, lng: evento.lng as number },
+  //             title: evento.title,
+  //             icon: {
+  //               url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+  //             },
+  //           })
+  //       );
+
+  //     // Cria o MarkerClusterer
+  //     new MarkerClusterer({ map, markers });
+  //   }
+  // }, [eventos]);
+
+
+
   return (
-    <div className="relative h-screen w-full flex flex-col lg:flex-row  md:flex-row">
+    <div className="relative h-screen  w-full flex z-10 flex-col lg:flex-row  md:flex-row">
       {rota === "/" && (
         <>
           {/* Sidebar */}

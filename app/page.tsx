@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="relative h-screen w-screen">
       {/* Renderiza o Mapa como Background */}
-      <div className="absolute inset-0 z-40">
+      <div className=" inset-0 z-40">
         <Mapa />
       </div>
     </div>
