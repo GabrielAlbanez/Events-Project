@@ -35,12 +35,12 @@ export default async function Layout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <div className="flex w-full h-screen">
+          <div className="flex z-50 w-full h-screen">
             {/* Sidebar */}
-            <AppSidebar />
+            <AppSidebar  />
 
             {/* Conteúdo Principal */}
-            <main className="flex-1 overflow-auto">
+            <main className=" flex-1 z-10 overflow-auto">
               {/* Carregamento global do Google Maps */}
               <GoogleMapsLoader>
                 {children}
