@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
 
+
 export default function ClientProviders({
   children,
   defaultOpen,
@@ -22,7 +23,9 @@ export default function ClientProviders({
           {/* Conteúdo Principal */}
           <main className="flex-1 z-10 overflow-auto">
             {/* Carregamento global do Google Maps */}
-            <GoogleMapsLoader>{children}</GoogleMapsLoader>
+            <GoogleMapsLoader>
+              {children}
+            </GoogleMapsLoader>
           </main>
         </div>
       </SidebarProvider>

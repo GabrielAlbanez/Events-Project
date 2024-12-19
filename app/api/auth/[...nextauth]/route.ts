@@ -26,12 +26,14 @@ declare module "next-auth" {
 // Configurações do NextAuth
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+  debug: true, // Ativa o modo de depuração
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_ID as string,
       clientSecret: process.env.GITHUB_SECRET as string,
     }),
     GoogleProvider({
+      name : "google",
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
@@ -41,9 +43,20 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt", // Usa JWT ao invés do banco de dados para sessões
   },
   callbacks: {
-    async jwt({ token, user }) {
+
+    // async redirect({ url, baseUrl }) {
+    //   if (url.startsWith(baseUrl)) {
+    //     return `${baseUrl}/?login=success`; // Adiciona ?login=success no redirecionamento
+    //   }
+    //   return `${baseUrl}/?login=success`;
+    // },
+
+
+    async jwt({ token, user,  }) {
       // Durante o login, o objeto `user` estará disponível
       if (user) {
+
+      console.log("user pego do auth",user)
         token.id = user.id; // Adiciona o ID do usuário ao token
         token.name = user.name;
         token.email = user.email;
@@ -53,14 +66,12 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       // Adiciona o ID do token à sessão
-      if (token.id || token.name || token.email || token.picture ) {
         session.user = {
             id: token.id as string,
             name: token.name || null,
             email: token.email || null,
             image: token.picture || null,
           };
-      }
       return session;
     },
   },

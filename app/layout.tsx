@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { cookies } from "next/headers";
 import ClientProviders from "@/components/Providers/ClientProviders";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,7 +33,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <ClientProviders defaultOpen={defaultOpen}>{children}</ClientProviders>
+        <ClientProviders defaultOpen={defaultOpen}>
+          <ToastContainer position="top-right" autoClose={3000} />
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );
