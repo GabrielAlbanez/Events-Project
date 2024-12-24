@@ -19,6 +19,8 @@ export function AppSidebar() {
 
   const { data, status: authenticated } = useSession();
 
+  console.log("dados vindo", data)
+
   return (
     <Sidebar className="w-64 h-screen bg-white shadow-lg rounded-r-lg overflow-hidden">
       {/* Menu */}
@@ -48,12 +50,13 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer */}
+
       {authenticated === "authenticated" ? (
         <div className="absolute bottom-4 left-0 w-full px-6">
           <div className="flex items-center gap-3 border-t pt-4">
             {data?.user.image ? (
               <img
-                src={`${data?.user.image}`}
+                src={`https://lh3.googleusercontent.com/a/ACg8ocIHPzb9ZL8tDhC-RzGdAz9uDDmNOHHv3tvvbHEVXdkD0SlrXQ63=s96-c`}
                 alt="User Profile"
                 className="w-8 h-8 rounded-full"
               />

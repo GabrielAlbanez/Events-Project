@@ -54,12 +54,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Senha incorreta");
         }
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-        };
+        return user
       },
     }),
     GoogleProvider({
@@ -122,6 +117,7 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.image = user.image;
       }
+      console.log("user",user)
       return token;
     },
   
