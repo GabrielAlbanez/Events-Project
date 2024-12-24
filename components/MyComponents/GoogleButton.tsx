@@ -13,14 +13,19 @@ export function GoogleButton({ textBody }: propsGoogleButton) {
 
   const handleGoogleLogin = async () => {
     try {
-      // Login sem redirecionamento automático
+      const session = await getSession();
+
+      if (session) {
+        toast.error("Você já está autenticado.");
+        return;
+      }
+
       await signIn("google", {
         callbackUrl: "/",
-        redirect: true, // Impede o redirecionamento automático
+        redirect: true,
       });
     } catch (error) {
-      console.error("Erro ao realizar login:", error);
-      toast.error("Erro inesperado ao realizar login.");
+      toast.error("Erro inesperado ao realizar login com o Google.");
     }
   };
 

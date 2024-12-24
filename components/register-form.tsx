@@ -13,6 +13,7 @@ import { registerUser } from "@/app/(actions)/Registro/action";
 import { useFormStatus } from "react-dom";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
@@ -30,19 +31,23 @@ export function RegisterForm({
 
   const { pending } = useFormStatus();
 
-  const redirect = useRouter();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const onSubmit = async (data: RegisterFormData) => {
-    const responseData = await registerUser(data);
-
-    if (responseData.status == "sucess") {
-      toast.success(responseData.message);
-      redirect.push("/login");
-    }
-
-    toast.error(responseData.error || "Erro ao registrar o usuário.");
-
-    console.log("Dados do registro:", data);
+    startTransition(async () => {
+      try {
+        const responseData = await registerUser(data);
+        if (responseData.status === "sucess") {
+          toast.success("Registro realizado com sucesso! Redirecionando...");
+          router.push("/login");
+        } else {
+          toast.error(responseData.error || "Erro ao registrar o usuário.");
+        }
+      } catch (error) {
+        toast.error("Erro inesperado durante o registro.");
+      }
+    });
   };
 
   return (

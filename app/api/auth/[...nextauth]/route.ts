@@ -72,23 +72,27 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!user?.email || !account) {
-        return false;
-      }
 
+      if(account?.provider === "credentials") return true
+
+      if (!user?.email || !account) {
+        throw new Error("Dados de usuário ou conta estão ausentes.");
+      }
+  
       const existingUser = await prisma.user.findUnique({
         where: { email: user.email },
         include: { accounts: true },
       });
-
+  
       if (existingUser) {
         const isSameProvider = existingUser.accounts.some(
           (acc) => acc.provider === account.provider
         );
-
+  
         if (!isSameProvider) {
           throw new Error(
-            `Esse e-mail já está vinculado ao provedor ${existingUser.accounts[0]?.provider}.`
+            encodeURIComponent( `Esse e-mail ja está vinculado ao um outro proverdor de autenticação.`)
+           
           );
         }
       } else {
@@ -107,10 +111,10 @@ export const authOptions: NextAuthOptions = {
           },
         });
       }
-
-      console.log("Callback signIn:", { user, account, profile });
+  
       return true;
     },
+  
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -118,23 +122,16 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.image = user.image;
       }
-      console.log("Callback jwt:", { token, user });
       return token;
     },
+  
     async session({ session, token }) {
-      if (token?.id) {
-        session.user = {
-          id: token.id as string,
-          name: token.name || null,
-          email: token.email || null,
-          image: typeof token.image === "string" ? token.image : null,
-        };
-      } else {
-        // Se token.id não estiver definido, lança um erro claro
-        throw new Error("Token inválido ou usuário não autenticado.");
-      }
-      console.log("Callback session:", { session, token });
-
+      session.user = {
+        id: token.id as string,
+        name: token.name || null,
+        email: token.email || null,
+        image: typeof token.image === "string" ? token.image : null,
+      };
       return session;
     },
   },

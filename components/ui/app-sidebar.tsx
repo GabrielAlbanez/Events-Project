@@ -1,10 +1,6 @@
 "use client";
 import React from "react";
-import {
-  Flame,
-  Calendar1Icon,
-  Settings,
-} from "lucide-react";
+import { Flame, Calendar1Icon, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,9 +18,6 @@ export function AppSidebar() {
   const router = useRouter();
 
   const { data, status: authenticated } = useSession();
-
-
-
 
   return (
     <Sidebar className="w-64 h-screen bg-white shadow-lg rounded-r-lg overflow-hidden">
@@ -78,14 +71,17 @@ export function AppSidebar() {
           <LogoutButton />
         </div>
       ) : (
-        <Button
-          onClick={() => {
-            router.push("/login");
-          }}
-          className="w-1/2 text-white"
-        >
-          Fazer Login
-        </Button>
+        <div className="flex w-full items-center justify-center mb-4">
+          <Button
+          
+            onClick={() => {
+              router.push("/login");
+            }}
+            className="w-1/2 text-white"
+          >
+            Fazer Login
+          </Button>
+        </div>
       )}
     </Sidebar>
   );

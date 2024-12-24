@@ -7,23 +7,43 @@ interface LoginUserInputData {
   email: string;
   password: string;
 }
-
 export async function validateUser(data: LoginUserInputData) {
   const { email, password } = data;
 
+  console.log("Dados recebidos para validação:", data);
+
   try {
-    const user = await prisma.user.findUnique({
+    const userWithAccounts = await prisma.user.findUnique({
       where: { email },
+      include: { accounts: true },
     });
 
-    if (!user || !user.password) {
+    console.log("Usuário encontrado:", userWithAccounts);
+
+    if (userWithAccounts) {
+      const hasDifferentProvider = userWithAccounts.accounts.some(
+        (account) => account.provider !== "credentials"
+      );
+
+      if (hasDifferentProvider) {
+        return {
+          status: "error",
+          error: `Este e-mail já está vinculado a outro provedor de autenticação.`,
+        };
+      }
+    }
+
+    if (!userWithAccounts || !userWithAccounts.password) {
       return {
         status: "error",
         error: "Email ou senha incorretos.",
       };
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      userWithAccounts.password
+    );
 
     if (!isPasswordValid) {
       return {
@@ -35,10 +55,10 @@ export async function validateUser(data: LoginUserInputData) {
     return {
       status: "success",
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
+        id: userWithAccounts.id,
+        name: userWithAccounts.name,
+        email: userWithAccounts.email,
+        image: userWithAccounts.image,
       },
     };
   } catch (error) {
@@ -49,3 +69,4 @@ export async function validateUser(data: LoginUserInputData) {
     };
   }
 }
+
