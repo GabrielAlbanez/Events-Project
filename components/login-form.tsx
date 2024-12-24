@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginFormSchema } from "@/schemas/LoiginSchema";
-import { GoogleLoginButton } from "./MyComponents/GoogleLoginButton";
+import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { validateUser } from "@/app/(actions)/Login/action";
+import { useFormStatus } from "react-dom";
+import { GoogleButton } from "./MyComponents/GoogleButton";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
@@ -24,8 +29,36 @@ export function LoginForm({
     resolver: zodResolver(loginFormSchema),
   });
 
-  const onSubmit = (data: LoginFormData) => {
-    console.log("Formulário enviado:", data);
+  const router = useRouter();
+  const { pending } = useFormStatus();
+
+  const onSubmit = async (data: LoginFormData) => {
+
+
+    // Chama a Server Action para validar as credenciais
+    const validationResponse = await validateUser(data);
+
+    console.log(
+      validationResponse.status
+    )
+
+    if (validationResponse.status === "success") {
+      // Se as credenciais forem válidas, chama o signIn
+      const signInResponse = await signIn("credentials", {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResponse?.ok) {
+        toast.success("Login realizado com sucesso!");
+        router.push("/"); // Redireciona para a página inicial
+      } else {
+        toast.error(validationResponse?.error || "Erro ao realizar login.");
+      }
+    } else {
+      toast.error(validationResponse.error);
+    }
   };
 
   return (
@@ -68,15 +101,16 @@ export function LoginForm({
             <p className="text-sm text-red-600">{errors.password.message}</p>
           )}
         </div>
-        <Button type="submit" className="w-full">
-          Login
+        <Button type="submit" className="w-full" disabled={pending}>
+          {pending ? "Logando..." : "Login"}
         </Button>
         <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
           <span className="relative z-10 bg-background px-2 text-muted-foreground">
-            Or continue with
+            Ou registre-se com
           </span>
         </div>
-        <GoogleLoginButton/>
+        <GoogleButton textBody={"Entrar com google"} />
+        
       </div>
       <div className="text-center text-sm">
         Don&apos;t have an account?{" "}

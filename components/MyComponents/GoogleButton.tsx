@@ -1,33 +1,23 @@
 "use client";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-export function GoogleLoginButton() {
+type propsGoogleButton = {
+  textBody: string;
+};
+
+export function GoogleButton({ textBody }: propsGoogleButton) {
   const router = useRouter();
 
   const handleGoogleLogin = async () => {
     try {
       // Login sem redirecionamento automático
-      const result = await signIn("google", {
-        redirect: false, // Evita redirecionamento imediato
-        callbackUrl: "/", // Define a URL para redirecionamento
+      await signIn("google", {
+        callbackUrl: "/",
+        redirect: true, // Impede o redirecionamento automático
       });
-
-      console.log("Resultado do signIn:", result);
-
-      if (result?.ok) {
-        // Exibe o toast e redireciona
-        toast.success("Login realizado com sucesso!");
-        setTimeout(() => {
-          router.push(result.url || "/");
-        }, 1000); // Atraso para garantir que o toast seja exibido
-      } else {
-        toast.error(
-          result?.error || "Erro ao realizar login. Tente novamente."
-        );
-      }
     } catch (error) {
       console.error("Erro ao realizar login:", error);
       toast.error("Erro inesperado ao realizar login.");
@@ -63,7 +53,7 @@ export function GoogleLoginButton() {
           d="M12 4.76c1.77 0 3.35.61 4.6 1.8l3.43-3.43C18.92 1.08 16.21 0 12 0 7.38 0 3.35 2.7 1.4 6.7l4.16 2.8c.9-2.74 3.44-4.74 6.44-4.74z"
         />
       </svg>
-      Login com Google
+      {textBody}
     </Button>
   );
 }

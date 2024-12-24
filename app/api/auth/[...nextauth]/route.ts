@@ -1,81 +1,149 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
-import GitHubProvider from "next-auth/providers/github";
+import bcrypt from "bcrypt";
+import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
-// Define as tipagens personalizadas
 declare module "next-auth" {
-    interface Session {
-      user: {
-        id: string; // ID do usuário
-        name: string | null;
-        email: string | null;
-        image: string | null;
-      };
-    }
-  
-    interface JWT {
-      id: string; // ID do usuário
-      name?: string | null;
-      email?: string | null;
-      picture?: string | null;
-    }
+  interface Session {
+    user: {
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null | undefined;
+    };
   }
 
-// Configurações do NextAuth
+  interface JWT {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    picture?: string | null;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  debug: true, // Ativa o modo de depuração
   providers: [
-    GitHubProvider({
-      clientId: process.env.GITHUB_ID as string,
-      clientSecret: process.env.GITHUB_SECRET as string,
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "text", placeholder: "email@example.com" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials.password) {
+          throw new Error("Email e senha são obrigatórios");
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user) {
+          throw new Error("Usuário não encontrado");
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.password || ""
+        );
+
+        if (!isPasswordValid) {
+          throw new Error("Senha incorreta");
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        };
+      },
     }),
     GoogleProvider({
-      name : "google",
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
   ],
-  secret: process.env.NEXTAUTH_SECRET, // Obrigatório para JWT
   session: {
-    strategy: "jwt", // Usa JWT ao invés do banco de dados para sessões
+    strategy: "jwt",
   },
   callbacks: {
-
-    // async redirect({ url, baseUrl }) {
-    //   if (url.startsWith(baseUrl)) {
-    //     return `${baseUrl}/?login=success`; // Adiciona ?login=success no redirecionamento
-    //   }
-    //   return `${baseUrl}/?login=success`;
-    // },
-
-
-    async jwt({ token, user,  }) {
-      // Durante o login, o objeto `user` estará disponível
-      if (user) {
-
-      console.log("user pego do auth",user)
-        token.id = user.id; // Adiciona o ID do usuário ao token
-        token.name = user.name;
-        token.email = user.email;
-        token.picture = user.image;
+    async signIn({ user, account, profile }) {
+      if (!user?.email || !account) {
+        return false;
       }
+
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+        include: { accounts: true },
+      });
+
+      if (existingUser) {
+        const isSameProvider = existingUser.accounts.some(
+          (acc) => acc.provider === account.provider
+        );
+
+        if (!isSameProvider) {
+          throw new Error(
+            `Esse e-mail já está vinculado ao provedor ${existingUser.accounts[0]?.provider}.`
+          );
+        }
+      } else {
+        await prisma.user.create({
+          data: {
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            accounts: {
+              create: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                type: account.type,
+              },
+            },
+          },
+        });
+      }
+
+      console.log("Callback signIn:", { user, account, profile });
+      return true;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.image = user.image;
+      }
+      console.log("Callback jwt:", { token, user });
       return token;
     },
     async session({ session, token }) {
-      // Adiciona o ID do token à sessão
+      if (token?.id) {
         session.user = {
-            id: token.id as string,
-            name: token.name || null,
-            email: token.email || null,
-            image: token.picture || null,
-          };
+          id: token.id as string,
+          name: token.name || null,
+          email: token.email || null,
+          image: typeof token.image === "string" ? token.image : null,
+        };
+      } else {
+        // Se token.id não estiver definido, lança um erro claro
+        throw new Error("Token inválido ou usuário não autenticado.");
+      }
+      console.log("Callback session:", { session, token });
+
       return session;
     },
+  },
+  pages: {
+    signIn: "/login", // Página de login personalizada
+    error: "/login", // Redireciona para login em caso de erro
   },
 };
 
 const handler = NextAuth(authOptions);
+
 export { handler as GET, handler as POST };

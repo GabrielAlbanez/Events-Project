@@ -1,23 +1,38 @@
 import Image from "next/image";
 import { LoginForm } from "@/components/login-form";
-import ImageBack from "@/assets/images/imagem.jpg"
+import ImageBack from "@/assets/images/imagem.jpg";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { toast } from "react-toastify";
 
 export default function LoginPage() {
+  // const searchParams = useSearchParams();
+  // const error = searchParams.get("error");
+
+  // useEffect(() => {
+  //   if (error) {
+  //     toast(decodeURIComponent(error));
+  //   }
+  // });
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start"></div>
         <div className="flex flex-1 items-center justify-center ">
           <div className="w-full  max-w-screen-xl p-12 shadow-xl  rounded-xl">
-          <div>
-          <SidebarTrigger>
-            <button type="button" className="text-gray-600 hover:text-gray-800 mr-3">
-              ☰
-            </button>
-          </SidebarTrigger>
-        </div>
-            <LoginForm  />
+            <div>
+              <SidebarTrigger>
+                <button
+                  type="button"
+                  className="text-gray-600 hover:text-gray-800 mr-3"
+                >
+                  ☰
+                </button>
+              </SidebarTrigger>
+            </div>
+            <LoginForm />
           </div>
         </div>
       </div>

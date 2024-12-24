@@ -58,7 +58,7 @@ export function AppSidebar() {
       {authenticated === "authenticated" ? (
         <div className="absolute bottom-4 left-0 w-full px-6">
           <div className="flex items-center gap-3 border-t pt-4">
-            {data.user.image ? (
+            {data?.user.image ? (
               <img
                 src={`${data?.user.image}`}
                 alt="User Profile"
