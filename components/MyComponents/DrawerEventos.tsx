@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { GoogleMap, DirectionsRenderer, DirectionsService } from "@react-google-maps/api";
+import { toast } from "react-toastify";
 
 type DrawerEventosProps = {
   evento: {
@@ -30,12 +32,17 @@ type DrawerEventosProps = {
     descrição: string;
     data: Date;
     LinkParaCompraIngresso: string;
+    lat: number;
+    lng: number;
   };
   onClose: () => void;
+  onTraceRoute: () => void; // Add this prop
+  isRouteTracing: boolean; // Add this prop
 };
 
-const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
+const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose, onTraceRoute, isRouteTracing }) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
 
   const Content = (
     <div className="p-4 h-[500px] overflow-y-auto overflow-x-hidden">
@@ -84,6 +91,9 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
       >
         <Button className="w-full mb-2">Comprar Ingressos</Button>
       </a>
+      <Button variant="outline" className="w-full mb-2" onClick={onTraceRoute}>
+        Traçar Rota
+      </Button>
       <Button variant="outline" className="w-full" onClick={onClose}>
         Fechar
       </Button>
@@ -94,11 +104,20 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
   if (isDesktop) {
     return (
       <Dialog open={!!evento} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className={`sm:max-w-[700px] ${isRouteTracing ? 'translate-x-full transition-transform duration-500' : ''}`}>
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">{evento.nome}</DialogTitle>
           </DialogHeader>
           {Content}
+          {directions && (
+            <GoogleMap
+              mapContainerStyle={{ width: "100%", height: "400px" }}
+              center={{ lat: evento.lat, lng: evento.lng }}
+              zoom={14}
+            >
+              <DirectionsRenderer directions={directions} />
+            </GoogleMap>
+          )}
         </DialogContent>
       </Dialog>
     );
@@ -107,11 +126,20 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({ evento, onClose }) => {
   // Drawer para Mobile
   return (
     <Drawer open={!!evento} onOpenChange={onClose}>
-      <DrawerContent>
+      <DrawerContent className={`${isRouteTracing ? 'translate-x-full transition-transform duration-500' : ''}`}>
         <DrawerHeader>
           <DrawerTitle className="text-lg font-semibold">{evento.nome}</DrawerTitle>
         </DrawerHeader>
         {Content}
+        {directions && (
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "400px" }}
+            center={{ lat: evento.lat, lng: evento.lng }}
+            zoom={14}
+          >
+            <DirectionsRenderer directions={directions} />
+          </GoogleMap>
+        )}
       </DrawerContent>
     </Drawer>
   );

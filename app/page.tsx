@@ -1,4 +1,5 @@
 "use client";
+
 import Mapa from "@/components/MyComponents/Map";
 
 export default function Home() {

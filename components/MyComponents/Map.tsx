@@ -59,6 +59,7 @@ const Mapa = () => {
   const [directions, setDirections] =
     useState<google.maps.DirectionsResult | null>(null);
   const [showDirections, setShowDirections] = useState(false);
+  const [isRouteTracing, setIsRouteTracing] = useState(false);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const startRef = useRef<google.maps.places.Autocomplete | null>(null);
   const endRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -78,12 +79,10 @@ const Mapa = () => {
   // Captura a localização atual
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
-      console.log("etrando inf")
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
-
         },
         () => toast.error("Não foi possível acessar sua localização.")
       );
@@ -92,31 +91,28 @@ const Mapa = () => {
     }
   };
 
-  // Executa automaticamente ao carregar o componente
-
   // Traça rota entre origem e destino
-  const calculateRoute = () => {
-    if (startRef.current && endRef.current) {
-      const origin = startRef.current.getPlace()?.geometry?.location;
-      const destination = endRef.current.getPlace()?.geometry?.location;
-      if (origin && destination) {
-        const directionsService = new google.maps.DirectionsService();
-        directionsService.route(
-          {
-            origin,
-            destination,
-            travelMode: google.maps.TravelMode.DRIVING,
-          },
-          (result, status) => {
-            if (status === google.maps.DirectionsStatus.OK) {
-              setDirections(result);
-              toast.success("Rota calculada com sucesso!");
-            } else {
-              toast.error("Erro ao calcular a rota.");
-            }
+  const calculateRoute = (destination: google.maps.LatLngLiteral) => {
+    const origin = currentLocation;
+    if (origin && destination) {
+      const directionsService = new google.maps.DirectionsService();
+      directionsService.route(
+        {
+          origin,
+          destination,
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === google.maps.DirectionsStatus.OK) {
+            setDirections(result);
+            toast.success("Rota calculada com sucesso!");
+            setIsRouteTracing(true); // Move the modal to the right
+            setEventoAtivo(null); // Close the modal
+          } else {
+            toast.error("Erro ao calcular a rota.");
           }
-        );
-      }
+        }
+      );
     }
   };
 
@@ -128,6 +124,7 @@ const Mapa = () => {
     }
     setDirections(null);
     toast.info("Rota limpa com sucesso.");
+    setIsRouteTracing(false); // Move the modal back to the center
   };
 
   const mapStyles = [
@@ -166,11 +163,10 @@ const Mapa = () => {
 
   useEffect(() => {
     const carregarCoordenadas = async () => {
-
       const eventosAtualizados: Evento[] = [];
       for (const evento of eventos) {
         try {
-          const coordenadas =  await convertAddressToCoordinates(evento.endereco);
+          const coordenadas = await convertAddressToCoordinates(evento.endereco);
           eventosAtualizados.push({ ...evento, ...coordenadas });
         } catch (error) {
           console.error(
@@ -186,33 +182,8 @@ const Mapa = () => {
     getCurrentLocation();
   }, [isScriptLoaded]);
 
-
-  // useEffect(() => {
-  //   if (mapRef.current) {
-  //     const map = mapRef.current;
-
-  //     const markers = eventos
-  //       .filter((evento) => evento.lat !== undefined && evento.lng !== undefined)
-  //       .map(
-  //         (evento) =>
-  //           new google.maps.Marker({
-  //             position: { lat: evento.lat as number, lng: evento.lng as number },
-  //             title: evento.title,
-  //             icon: {
-  //               url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
-  //             },
-  //           })
-  //       );
-
-  //     // Cria o MarkerClusterer
-  //     new MarkerClusterer({ map, markers });
-  //   }
-  // }, [eventos]);
-
-
-
   return (
-    <div className="relative h-screen  w-full flex z-10 flex-col lg:flex-row  md:flex-row">
+    <div className="relative h-screen w-full flex z-10 flex-col lg:flex-row md:flex-row">
       {rota === "/" && (
         <>
           {/* Sidebar */}
@@ -360,7 +331,13 @@ const Mapa = () => {
                     </Autocomplete>
                     <button
                       className="bg-blue-600 text-white px-4 py-2 rounded-md mt-2 hover:bg-blue-800"
-                      onClick={calculateRoute}
+                      onClick={() => {
+                        if (destination) {
+                          calculateRoute(destination);
+                        } else {
+                          toast.error("Destino não definido.");
+                        }
+                      }}
                     >
                       Traçar Rota
                     </button>
@@ -382,8 +359,10 @@ const Mapa = () => {
           {/* Drawer do Evento */}
           {eventoAtivo && (
             <DrawerEventos
-              evento={eventoAtivo}
+              evento={{ ...eventoAtivo, lat: eventoAtivo.lat!, lng: eventoAtivo.lng! }}
               onClose={() => setEventoAtivo(null)} // Fecha o Drawer
+              onTraceRoute={() => calculateRoute({ lat: eventoAtivo.lat!, lng: eventoAtivo.lng! })}
+              isRouteTracing={isRouteTracing} // Pass the state to DrawerEventos
             />
           )}
           <ToastContainer position="bottom-right" autoClose={5000} />
