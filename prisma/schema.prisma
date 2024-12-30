@@ -12,7 +12,7 @@ model User {
   name          String?
   email         String?   @unique
   password      String?
-  emailVerified DateTime?
+  emailVerified Boolean?
   image         String?
   accounts      Account[]
   sessions      Session[]

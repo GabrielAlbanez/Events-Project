@@ -12,6 +12,7 @@ declare module "next-auth" {
       name: string | null;
       email: string | null;
       image: string | null | undefined;
+      emailVerified : boolean | null;
     };
   }
 
@@ -116,6 +117,9 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
+        if ('emailVerified' in user) {
+          token.emailVerified = user.emailVerified;
+        }
       }
       console.log("user",user)
       return token;
@@ -127,6 +131,7 @@ export const authOptions: NextAuthOptions = {
         name: token.name || null,
         email: token.email || null,
         image: typeof token.image === "string" ? token.image : null,
+        emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
       };
       return session;
     },
