@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerFormSchema } from "@/schemas/registerFormSchema";
 import { GoogleButton } from "./MyComponents/GoogleButton";
-import { registerUser } from "@/app/(actions)/Registro/action";
-import { useFormStatus } from "react-dom";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -29,18 +27,23 @@ export function RegisterForm({
     resolver: zodResolver(registerFormSchema),
   });
 
-  const { pending } = useFormStatus();
-
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const onSubmit = async (data: RegisterFormData) => {
     startTransition(async () => {
       try {
-        const responseData = await registerUser(data);
-        if (responseData.status === "sucess") {
-          toast.success("Registro realizado com sucesso! Redirecionando...");
-          router.push("/login");
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        const responseData = await response.json();
+        if (responseData.status === "success") {
+          toast.success("Registro realizado com sucesso! Verifique seu email.");
         } else {
           toast.error(responseData.error || "Erro ao registrar o usuário.");
         }
@@ -108,8 +111,8 @@ export function RegisterForm({
             </p>
           )}
         </div>
-        <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "Registrando..." : "Registrar"}
+        <Button type="submit" className="w-full" disabled={isPending}>
+          {isPending ? "Registrando..." : "Registrar"}
         </Button>
         <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
           <span className="relative z-10 bg-background px-2 text-muted-foreground">

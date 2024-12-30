@@ -26,6 +26,7 @@
     "lucide-react": "^0.468.0",
     "next": "14.2.16",
     "next-auth": "^4.24.11",
+    "nodemailer": "^6.9.16",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.54.1",
@@ -40,8 +41,10 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.17",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/uuid": "^10.0.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.16",
     "postcss": "^8",

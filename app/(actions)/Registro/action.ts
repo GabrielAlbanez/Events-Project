@@ -1,6 +1,8 @@
 "use server";
 import prisma from "@/lib/prisma";
-import b from "bcrypt"
+import bcrypt from "bcrypt";
+import { v4 as uuidv4 } from "uuid";
+import nodemailer from "nodemailer";
 
 interface RegisterUserInput {
   name: string;
@@ -16,26 +18,45 @@ export async function registerUser(data: RegisterUserInput) {
 
   if (existingUser) {
     return {
-        status : "error",
-        error : "O email já está registrado"
-    }
+      status: "error",
+      error: "O email já está registrado",
+    };
   }
 
-  // Cria o usuário (adicione hash para a senha em produção)
+  // Generate verification token
+  const token = uuidv4();
+  const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/verifyEmail?token=${token}`;
 
-  const hashPassword = b.hashSync(data.password,10)
-
-  const newUser = await prisma.user.create({
+  // Save the user data and token temporarily
+  await prisma.verificationTokenEmail.create({
     data: {
-      name: data.name,
       email: data.email,
-      password: hashPassword, // Hash a senha com bcrypt em produção
+      token,
+      name: data.name,
+      password: bcrypt.hashSync(data.password, 10), // Hash the password
     },
   });
 
+  // Send verification email
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: data.email,
+    subject: "Email Verification",
+    text: `Please verify your email by clicking the following link: ${verificationLink}`,
+  };
+
+  await transporter.sendMail(mailOptions);
+
   return {
-    status : "sucess",
-    message: "Usuário registrado com sucesso",
-    user: newUser,
+    status: "success",
+    message: "Verificação de email enviada. Verifique seu email.",
   };
 }

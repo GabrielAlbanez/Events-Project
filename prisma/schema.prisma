@@ -16,8 +16,9 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
-  Events Events[]
+  Events        Events[]
 }
+
 
 model Account {
   id                String  @id @default(uuid())
@@ -37,19 +38,18 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-
 model Events {
-  id                String     @id @default(uuid()) // ID único
-  nome              String     // Nome do evento
-  banner            String     // URL do banner principal
-  carrossel         String[]   // URLs das imagens do carrossel
-  descricao         String     // Descrição do evento
-  data              DateTime   // Data do evento
-  linkParaCompra    String     // Link para compra de ingresso
-  endereco          String     // Endereço do evento
-  title             String     // Título do evento
-  userId            String?    // ID do usuário que criou o evento
-  user              User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid()) // ID único
+  nome           String // Nome do evento
+  banner         String // URL do banner principal
+  carrossel      String[] // URLs das imagens do carrossel
+  descricao      String // Descrição do evento
+  data           DateTime // Data do evento
+  linkParaCompra String // Link para compra de ingresso
+  endereco       String // Endereço do evento
+  title          String // Título do evento
+  userId         String? // ID do usuário que criou o evento
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("events") // Nome da tabela no banco de dados
 }
@@ -68,4 +68,13 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model VerificationTokenEmail {
+  id        Int      @id @default(autoincrement())
+  email     String
+  token     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
 }
