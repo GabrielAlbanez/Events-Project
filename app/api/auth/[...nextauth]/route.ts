@@ -13,8 +13,9 @@ declare module "next-auth" {
       email: string | null;
       image: string | null | undefined;
       emailVerified : boolean | null;
-    };
-  }
+      provider: string | null;
+  };
+}
 
   interface JWT {
     id: string;
@@ -111,12 +112,13 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
   
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
+        token.provider = account?.provider
         if ('emailVerified' in user) {
           token.emailVerified = user.emailVerified;
         }
@@ -130,6 +132,7 @@ export const authOptions: NextAuthOptions = {
         id: token.id as string,
         name: token.name || null,
         email: token.email || null,
+        provider : typeof token.provider === 'string' ? token.provider : null,
         image: typeof token.image === "string" ? token.image : null,
         emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
       };

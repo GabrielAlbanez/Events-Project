@@ -1,56 +1,35 @@
-"use client";
-import React, { ReactNode } from "react";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
-type ModalUniversalProps = {
-  title: string; // Título do modal
-  body: ReactNode; // Conteúdo principal do modal
-  footer?: ReactNode; // Conteúdo do rodapé (botões ou ações)
-  open: boolean; // Estado aberto/fechado do modal
-  onClose: () => void; // Fechar o modal
-};
+interface ModalUniversalProps {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  imageSrc: string;
+  onConfirm: () => void;
+}
 
-const ModalUniversal: React.FC<ModalUniversalProps> = ({
-  title,
-  body,
-  footer,
-  open,
-  onClose,
-}) => {
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-
-  const Content = (
-    <div className="p-4 space-y-4">
-      {/* Body */}
-      <div>{body}</div>
-
-      {/* Footer */}
-      {footer && <div className="flex gap-4 justify-end">{footer}</div>}
-    </div>
-  );
-
-  // Dialog para telas maiores
-  if (isDesktop) {
+const ModalUniversal: React.FC<ModalUniversalProps> = ({ open, onClose, title, imageSrc, onConfirm }) => {
+  // Modal para telas maiores
+  if (typeof window !== "undefined" && window.innerWidth >= 640) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
-          {Content}
+          <div className="flex flex-col items-center">
+            <img src={imageSrc} alt="Preview" className="w-64 h-64 rounded-full object-cover" />
+            <div className="mt-4 flex gap-4">
+              <button onClick={onConfirm} className="bg-green-500 text-white py-2 px-4 rounded">
+                Confirmar
+              </button>
+              <button onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">
+                Cancelar
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -63,7 +42,17 @@ const ModalUniversal: React.FC<ModalUniversalProps> = ({
         <DrawerHeader>
           <DrawerTitle>{title}</DrawerTitle>
         </DrawerHeader>
-        {Content}
+        <div className="flex flex-col items-center">
+          <img src={imageSrc} alt="Preview" className="w-64 h-64 rounded-full object-cover" />
+          <div className="mt-4 flex gap-4">
+            <button onClick={onConfirm} className="bg-green-500 text-white py-2 px-4 rounded">
+              Confirmar
+            </button>
+            <button onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">
+              Cancelar
+            </button>
+          </div>
+        </div>
       </DrawerContent>
     </Drawer>
   );

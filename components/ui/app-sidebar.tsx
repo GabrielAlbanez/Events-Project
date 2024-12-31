@@ -1,6 +1,11 @@
 "use client";
 import React from "react";
-import { Flame, Calendar1Icon, Settings } from "lucide-react";
+import {
+  Flame,
+  Calendar1Icon,
+  Settings,
+  PersonStandingIcon,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -36,6 +41,19 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {authenticated === "authenticated" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  router.push("/Profile");
+                }}
+                className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
+              >
+                <PersonStandingIcon className="w-5 h-5 mr-2" />
+                <span className="text-gray-800">Profile</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
 
           <SidebarMenuItem>
             <SidebarMenuButton
