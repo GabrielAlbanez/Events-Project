@@ -14,6 +14,7 @@ declare module "next-auth" {
       image: string | null | undefined;
       emailVerified : boolean | null;
       provider: string | null;
+      role : string | null;
   };
 }
 
@@ -22,6 +23,7 @@ declare module "next-auth" {
     name?: string | null;
     email?: string | null;
     picture?: string | null;
+    role : string | null;
   }
 }
 
@@ -123,6 +125,9 @@ export const authOptions: NextAuthOptions = {
         if ("emailVerified" in user) {
           token.emailVerified = user.emailVerified;
         }
+        if ("role" in user) {
+          token.role = user.role;
+        }
       }
     
       // Se o trigger for "update", busca os dados do banco de dados
@@ -137,6 +142,7 @@ export const authOptions: NextAuthOptions = {
             token.email = updatedUser.email;
             token.image = updatedUser.image;
             token.emailVerified = updatedUser.emailVerified;
+            token.role = updatedUser.role;
             
           }
         } catch (error) {
@@ -156,6 +162,7 @@ export const authOptions: NextAuthOptions = {
         provider : typeof token.provider === 'string' ? token.provider : null,
         image: typeof token.image === "string" ? token.image : null,
         emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
+        role : typeof token.role === 'string' ? token.role : null
       };
       return session;
     },

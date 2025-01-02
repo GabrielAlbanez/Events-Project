@@ -55,17 +55,19 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
 
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => {
-                router.push("/CriarEvento");
-              }}
-              className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
-            >
-              <Calendar1Icon className="w-5 h-5 mr-2" />
-              <span className="text-gray-800">Criar Eventos</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {data?.user.role === "ADMIN" && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    router.push("/CriarEvento");
+                  }}
+                  className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
+                >
+                  <Calendar1Icon className="w-5 h-5 mr-2" />
+                  <span className="text-gray-800">Criar Eventos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
         </SidebarMenu>
       </SidebarContent>
 

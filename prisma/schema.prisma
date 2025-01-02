@@ -13,12 +13,18 @@ model User {
   email         String?   @unique
   password      String?
   emailVerified Boolean?
+  role          Role      @default(BASIC)
   image         String?
   accounts      Account[]
   sessions      Session[]
   Events        Events[]
 }
 
+enum Role {
+  BASIC
+  ADMIN
+  PROMOTER
+}
 
 model Account {
   id                String  @id @default(uuid())

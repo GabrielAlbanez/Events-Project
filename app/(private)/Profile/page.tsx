@@ -42,6 +42,7 @@ const Profile: React.FC = () => {
 
   const user = useCurrentUser();
 
+
   const form = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
@@ -276,6 +277,17 @@ const Profile: React.FC = () => {
                 <FormControl>
                   <Input
                     value={user.data?.provider || "Não especificado"}
+                    disabled={true}
+                  />
+                </FormControl>
+              </FormItem>
+
+
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <FormControl>
+                  <Input
+                    value={user.data?.role ?? ""}
                     disabled={true}
                   />
                 </FormControl>
