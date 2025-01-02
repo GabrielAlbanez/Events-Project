@@ -112,18 +112,39 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
   
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
+      // Se for um novo login ou atualização de credenciais, adiciona os dados do usuário
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
-        token.provider = account?.provider
-        if ('emailVerified' in user) {
+        token.provider = account?.provider;
+        if ("emailVerified" in user) {
           token.emailVerified = user.emailVerified;
         }
       }
-      console.log("user",user)
+    
+      // Se o trigger for "update", busca os dados do banco de dados
+      if (trigger === "update") {
+        try {
+          const updatedUser = await prisma.user.findUnique({
+            where: { id: token.id as string }, // Usa o ID do token para buscar os dados atualizados
+          });
+    
+          if (updatedUser) {
+            token.name = updatedUser.name;
+            token.email = updatedUser.email;
+            token.image = updatedUser.image;
+            token.emailVerified = updatedUser.emailVerified;
+            
+          }
+        } catch (error) {
+          console.error("Erro ao atualizar dados do usuário no token:", error);
+        }
+      }
+    
+      console.log("JWT Token Atualizado:", token);
       return token;
     },
   

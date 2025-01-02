@@ -1,70 +1,88 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { IncomingForm } from 'formidable';
-import fs from 'fs';
-import path from 'path';
-import prisma from '@/lib/prisma';
-import multer from 'multer';
+import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import prisma from "@/lib/prisma";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-const uploadDir = path.join(process.cwd(), 'public/uploads');
+// Configuração do diretório de uploads
+const uploadDir = path.join(process.cwd(), "public/uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-      cb(null, `${Date.now()}-${file.originalname}`);
-    },
-  });
-  
-  const upload = multer({ storage });
-
-export  async function POST(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  upload.single('file')(req, res, async (err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error uploading the file' });
+export async function POST(request: Request) {
+  try {
+    // Verificar headers de multipart/form-data
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.startsWith("multipart/form-data")) {
+      return NextResponse.json(
+        { error: "Content-Type inválido. Use multipart/form-data." },
+        { status: 400 }
+      );
     }
 
-    const file = (req as any).file;
+    // Ler o corpo da requisição como um Blob
+    const formData = await request.formData();
+    const file = formData.get("file") as File;
+    const userId = formData.get("userId");
+
+    // Validações
     if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
     }
-
-    const filePath = path.join('/uploads', file.filename);
-    const userId = req.body.userId;
 
     if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
+      return NextResponse.json({ error: "O ID do usuário é obrigatório." }, { status: 400 });
     }
+
+    // Salvar o arquivo no servidor
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const filePath = path.join(uploadDir, `${Date.now()}-${file.name}`);
+    fs.writeFileSync(filePath, fileBuffer);
+
+    console.log("Arquivo salvo:", filePath);
+
+    // Atualizar o banco de dados com o caminho do arquivo
+    const relativeFilePath = `/uploads/${path.basename(filePath)}`;
+    await prisma.user.update({
+      where: { id: userId as string },
+      data: { image: relativeFilePath },
+    });
+
 
     try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { image: filePath },
+      // Obtém todas as imagens atualmente usadas por usuários
+      const usedImages = await prisma.user.findMany({
+        select: { image: true },
       });
-
-      res.status(200).json({ filePath });
-    } catch (dbError) {
-      console.error(dbError);
-      res.status(500).json({ error: 'Error saving file path to database' });
+  
+      const usedImagePaths = new Set(
+        usedImages
+          .filter((user) => user.image) // Filtra imagens não nulas
+          .map((user) => path.join(process.cwd(), "public", user.image!)) // Converte para paths completos
+      );
+  
+      // Obtém todos os arquivos do diretório de uploads
+      const uploadedFiles = fs.readdirSync(uploadDir);
+  
+      // Exclui arquivos que não estão sendo usados
+      uploadedFiles.forEach((file) => {
+        const filePath = path.join(uploadDir, file);
+        if (!usedImagePaths.has(filePath)) {
+          fs.unlinkSync(filePath); // Exclui o arquivo
+          console.log(`Imagem órfã excluída: ${filePath}`);
+        }
+      });
+    } catch (error) {
+      console.error("Erro ao excluir imagens órfãs:", error);
     }
-  });
+
+    return NextResponse.json({ filePath: relativeFilePath }, { status: 200 });
+  } catch (error) {
+    console.error("Erro ao processar o upload:", error);
+    return NextResponse.json({ error: "Erro interno no servidor." }, { status: 500 });
+  }
+  
+
+
 }
