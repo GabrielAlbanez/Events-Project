@@ -1,3 +1,4 @@
+"use client"
 import Image from "next/image";
 import { LoginForm } from "@/components/login-form";
 import ImageBack from "@/assets/images/imagem.jpg";
@@ -5,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "react-toastify";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function LoginPage() {
   // const searchParams = useSearchParams();
@@ -15,6 +17,16 @@ export default function LoginPage() {
   //     toast(decodeURIComponent(error));
   //   }
   // });
+
+  // const { data: user } = useCurrentUser();
+
+  // if (user) {
+  //   return (
+  //     <div>
+  //       <h1>vc ja esta logado</h1>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
