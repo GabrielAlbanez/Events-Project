@@ -22,6 +22,7 @@ import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { usePathname } from "next/navigation";
 import { dataEvents } from "@/data/EventsData";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
+import { useTheme } from "next-themes";
 
 type Evento = {
   nome: string;
@@ -48,6 +49,11 @@ const CustomLoading = () => (
 );
 
 const Mapa = () => {
+  const { theme } = useTheme();
+  const navbarBg =
+    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-gray-700";
+  const iconColor = theme === "dark" ? "text-white" : "text-gray-700";
+
   const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState({
@@ -145,6 +151,122 @@ const Mapa = () => {
     },
   ];
 
+  const darkMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#212121" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+    {
+      featureType: "administrative",
+      elementType: "geometry",
+      stylers: [{ color: "#757575" }],
+    },
+    {
+      featureType: "administrative.country",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9e9e9e" }],
+    },
+    {
+      featureType: "administrative.land_parcel",
+      stylers: [{ visibility: "off" }],
+    },
+    {
+      featureType: "administrative.locality",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#bdbdbd" }],
+    },
+    {
+      featureType: "poi",
+      elementType: "geometry",
+      stylers: [{ color: "#212121" }],
+    },
+    {
+      featureType: "poi",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#757575" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "geometry",
+      stylers: [{ color: "#181818" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#616161" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "labels.text.stroke",
+      stylers: [{ color: "#1b1b1b" }],
+    },
+    {
+      featureType: "road",
+      elementType: "geometry.fill",
+      stylers: [{ color: "#2c2c2c" }],
+    },
+    {
+      featureType: "road",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#8a8a8a" }],
+    },
+    {
+      featureType: "road.arterial",
+      elementType: "geometry",
+      stylers: [{ color: "#373737" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry",
+      stylers: [{ color: "#3c3c3c" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry.fill",
+      stylers: [{ color: "#2c2c2c" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#b3b3b3" }],
+    },
+    {
+      featureType: "road.local",
+      elementType: "geometry.fill",
+      stylers: [{ color: "#2c2c2c" }],
+    },
+    {
+      featureType: "road.local",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#bdbdbd" }],
+    },
+    {
+      featureType: "transit",
+      elementType: "geometry",
+      stylers: [{ color: "#2f2f2f" }],
+    },
+    {
+      featureType: "transit",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#757575" }],
+    },
+    {
+      featureType: "transit.station",
+      elementType: "geometry",
+      stylers: [{ color: "#212121" }],
+    },
+    {
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [{ color: "#000000" }],
+    },
+    {
+      featureType: "water",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#3d3d3d" }],
+    },
+  ];
+
   const convertAddressToCoordinates = (
     endereco: string
   ): Promise<google.maps.LatLngLiteral> => {
@@ -166,7 +288,9 @@ const Mapa = () => {
       const eventosAtualizados: Evento[] = [];
       for (const evento of eventos) {
         try {
-          const coordenadas = await convertAddressToCoordinates(evento.endereco);
+          const coordenadas = await convertAddressToCoordinates(
+            evento.endereco
+          );
           eventosAtualizados.push({ ...evento, ...coordenadas });
         } catch (error) {
           console.error(
@@ -205,7 +329,7 @@ const Mapa = () => {
                 fullscreenControl: false,
                 mapTypeControl: false,
                 streetViewControl: false,
-                styles: mapStyles,
+                styles: theme === "dark" ? darkMapStyle : mapStyles, // Aplica o estilo baseado no tema
                 zoomControl: false,
               }}
             >
@@ -240,11 +364,13 @@ const Mapa = () => {
             </GoogleMap>
 
             {/* Navbar / Directions */}
-            <div className="absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 bg-white/60 backdrop-blur-md shadow-lg rounded-lg px-6 py-4 transition-all duration-500">
+            <div
+              className={`absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 backdrop-blur-md shadow-lg rounded-lg px-6 py-4 ${navbarBg}`}
+            >
               {!showDirections ? (
                 <div className="flex items-center">
                   <SidebarTrigger>
-                    <button className="text-gray-600 hover:text-gray-800 mr-3">
+                    <button className="text-foreground hover:text-foreground mr-3">
                       ☰
                     </button>
                   </SidebarTrigger>
@@ -359,9 +485,15 @@ const Mapa = () => {
           {/* Drawer do Evento */}
           {eventoAtivo && (
             <DrawerEventos
-              evento={{ ...eventoAtivo, lat: eventoAtivo.lat!, lng: eventoAtivo.lng! }}
+              evento={{
+                ...eventoAtivo,
+                lat: eventoAtivo.lat!,
+                lng: eventoAtivo.lng!,
+              }}
               onClose={() => setEventoAtivo(null)} // Fecha o Drawer
-              onTraceRoute={() => calculateRoute({ lat: eventoAtivo.lat!, lng: eventoAtivo.lng! })}
+              onTraceRoute={() =>
+                calculateRoute({ lat: eventoAtivo.lat!, lng: eventoAtivo.lng! })
+              }
               isRouteTracing={isRouteTracing} // Pass the state to DrawerEventos
             />
           )}

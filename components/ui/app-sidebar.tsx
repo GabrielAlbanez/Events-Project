@@ -20,6 +20,7 @@ import { Button } from "./button";
 
 import Image from "next/image";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
+import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
 
 export function AppSidebar() {
   const router = useRouter();
@@ -34,10 +35,10 @@ export function AppSidebar() {
       <SidebarContent className="mt-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2">
+            <SidebarMenuButton className=" transition-all rounded-lg px-4 py-2">
               <Flame className="w-5 h-5 mr-2 text-red-600" />
               <Link href={"/"}>
-                <span className="text-gray-800">Eventos</span>
+                <span className="text-foreground">Eventos</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -47,10 +48,10 @@ export function AppSidebar() {
                 onClick={() => {
                   router.push("/Profile");
                 }}
-                className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
+                className=" transition-all rounded-lg px-4 py-2"
               >
                 <PersonStandingIcon className="w-5 h-5 mr-2" />
-                <span className="text-gray-800">Profile</span>
+                <span className="text-foreground">Profile</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
@@ -61,10 +62,10 @@ export function AppSidebar() {
                 onClick={() => {
                   router.push("/CriarEvento");
                 }}
-                className="hover:bg-gray-100 transition-all rounded-lg px-4 py-2"
+                className=" transition-all rounded-lg px-4 py-2"
               >
                 <Calendar1Icon className="w-5 h-5 mr-2" />
-                <span className="text-gray-800">Criar Eventos</span>
+                <span className="text-foreground">Criar Eventos</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
@@ -85,16 +86,16 @@ export function AppSidebar() {
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                <span className="text-gray-500">N/A</span>
+                <span className="text-foreground">N/A</span>
               </div>
             )}
             <div>
-              <p className="text-sm font-semibold text-gray-800">
+              <p className="text-sm font-semibold text-foreground">
                 {session?.user?.name || "Usuário"}
               </p>
-              <p className="text-xs text-gray-500">{session?.user?.email}</p>
+              <p className="text-xs text-foreground">{session?.user?.email}</p>
             </div>
-            <Settings className="ml-auto w-5 h-5 text-gray-400 hover:text-gray-700 cursor-pointer" />
+            <ThemeSwitcher/>
           </div>
           <LogoutButton />
         </div>
