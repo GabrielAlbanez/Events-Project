@@ -22,7 +22,6 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
-import { useTheme } from "next-themes";
 
 // Schema de validação com Zod
 const ProfileSchema = z.object({
@@ -34,9 +33,6 @@ const ProfileSchema = z.object({
 });
 
 const Profile: React.FC = () => {
-  const theme = useTheme();
-  const backgroundTheme =
-    theme.theme === "dark" ? "bg-black/90 text-white" : "bg-white text-gray-700 border-white";
   const [isPending, setIsPending] = useState(false);
   const [profileImage, setProfileImage] = useState<string>(
     "https://i.pinimg.com/736x/cb/5e/c0/cb5ec089e95555d7c5792b76a1779fc4.jpg"
@@ -45,6 +41,7 @@ const Profile: React.FC = () => {
   const [tempImage, setTempImage] = useState<string>("");
 
   const user = useCurrentUser();
+
 
   const form = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
@@ -154,18 +151,18 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className={`flex justify-center items-center min-h-screen ${theme.theme === 'dark' ? 'bg-black/40' : 'bg-white/90'} p-4`}>
-      <Card className={`w-full max-w-2xl p-6  ${backgroundTheme} `}>
+    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
+      <Card className="w-full max-w-2xl p-6">
         <CardHeader>
           <SidebarTrigger>
-            <button className="  mr-3">
+            <button className="text-gray-600 hover:text-gray-800 mr-3">
               ☰
             </button>
           </SidebarTrigger>
           <h1 className="text-2xl font-bold text-center">Perfil do Usuário</h1>
         </CardHeader>
         <CardContent>
-          <div className="  flex flex-col items-center gap-4 overflow-auto">
+          <div className="flex flex-col items-center gap-4 overflow-auto">
             <div className="relative">
               <img
                 src={profileImage}
@@ -288,10 +285,14 @@ const Profile: React.FC = () => {
                 </FormControl>
               </FormItem>
 
+
               <FormItem>
                 <FormLabel>Role</FormLabel>
                 <FormControl>
-                  <Input value={user.data?.role ?? ""} disabled={true} />
+                  <Input
+                    value={user.data?.role ?? ""}
+                    disabled={true}
+                  />
                 </FormControl>
               </FormItem>
 

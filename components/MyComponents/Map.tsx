@@ -22,7 +22,6 @@ import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { usePathname } from "next/navigation";
 import { dataEvents } from "@/data/EventsData";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
-import { useTheme } from "next-themes";
 
 type Evento = {
   nome: string;
@@ -49,11 +48,7 @@ const CustomLoading = () => (
 );
 
 const Mapa = () => {
-  const { theme } = useTheme();
-  const navbarBg =
-    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-gray-700";
-  const iconColor = theme === "dark" ? "text-white" : "text-gray-700";
-
+  
   const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState({
@@ -329,7 +324,6 @@ const Mapa = () => {
                 fullscreenControl: false,
                 mapTypeControl: false,
                 streetViewControl: false,
-                styles: theme === "dark" ? darkMapStyle : mapStyles, // Aplica o estilo baseado no tema
                 zoomControl: false,
               }}
             >
@@ -365,7 +359,7 @@ const Mapa = () => {
 
             {/* Navbar / Directions */}
             <div
-              className={`absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 backdrop-blur-md shadow-lg rounded-lg px-6 py-4 ${navbarBg}`}
+              className={`absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 bg-white shadow-lg rounded-lg px-6 py-4 `}
             >
               {!showDirections ? (
                 <div className="flex items-center">

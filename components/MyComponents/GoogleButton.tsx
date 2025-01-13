@@ -33,8 +33,9 @@ export function GoogleButton({ textBody }: propsGoogleButton) {
     <Button
       onClick={handleGoogleLogin}
       variant="outline"
-      className="w-full"
+      className="w-full "
       type="button"
+
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

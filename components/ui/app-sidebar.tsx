@@ -20,7 +20,6 @@ import { Button } from "./button";
 
 import Image from "next/image";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
-import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
 
 export function AppSidebar() {
   const router = useRouter();
@@ -95,7 +94,6 @@ export function AppSidebar() {
               </p>
               <p className="text-xs text-foreground">{session?.user?.email}</p>
             </div>
-            <ThemeSwitcher/>
           </div>
           <LogoutButton />
         </div>
@@ -105,7 +103,7 @@ export function AppSidebar() {
             onClick={() => {
               router.push("/login");
             }}
-            className="w-1/2 text-white"
+            className="w-1/2"
           >
             Fazer Login
           </Button>
