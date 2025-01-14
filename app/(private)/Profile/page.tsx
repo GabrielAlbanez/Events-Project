@@ -22,6 +22,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
+import { determineDefaultAvatar } from "@/utils/avatarUtils";
 
 // Schema de validação com Zod
 const ProfileSchema = z.object({
@@ -65,7 +66,7 @@ const Profile: React.FC = () => {
       });
       setProfileImage(
         user.data?.image ||
-          "https://i.pinimg.com/736x/cb/5e/c0/cb5ec089e95555d7c5792b76a1779fc4.jpg"
+        determineDefaultAvatar(user.data?.name || "")
       );
     }
   }, [user.data, form]);
