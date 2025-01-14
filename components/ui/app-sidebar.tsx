@@ -5,6 +5,8 @@ import {
   Calendar1Icon,
   Settings,
   PersonStandingIcon,
+  AmpersandIcon,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,17 +58,27 @@ export function AppSidebar() {
           )}
 
           {session?.user?.role === "ADMIN" && (
-            <SidebarMenuItem>
+            <><SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => {
                   router.push("/CriarEvento");
-                }}
+                } }
                 className=" transition-all rounded-lg px-4 py-2"
               >
                 <Calendar1Icon className="w-5 h-5 mr-2" />
                 <span className="text-foreground">Criar Eventos</span>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+            </SidebarMenuItem><SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    router.push("/admin");
+                  } }
+                  className=" transition-all rounded-lg px-4 py-2"
+                >
+                  <Shield className="w-5 h-5 mr-2" />
+                  <span className="text-foreground">Admin</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem></>
           )}
         </SidebarMenu>
       </SidebarContent>
