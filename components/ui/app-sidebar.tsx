@@ -22,6 +22,7 @@ import { Button } from "./button";
 
 import Image from "next/image";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
+import { determineDefaultAvatar } from "@/utils/avatarUtils";
 
 export function AppSidebar() {
   const router = useRouter();
@@ -58,27 +59,30 @@ export function AppSidebar() {
           )}
 
           {session?.user?.role === "ADMIN" && (
-            <><SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => {
-                  router.push("/CriarEvento");
-                } }
-                className=" transition-all rounded-lg px-4 py-2"
-              >
-                <Calendar1Icon className="w-5 h-5 mr-2" />
-                <span className="text-foreground">Criar Eventos</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem><SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    router.push("/CriarEvento");
+                  }}
+                  className=" transition-all rounded-lg px-4 py-2"
+                >
+                  <Calendar1Icon className="w-5 h-5 mr-2" />
+                  <span className="text-foreground">Criar Eventos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => {
                     router.push("/admin");
-                  } }
+                  }}
                   className=" transition-all rounded-lg px-4 py-2"
                 >
                   <Shield className="w-5 h-5 mr-2" />
                   <span className="text-foreground">Admin</span>
                 </SidebarMenuButton>
-              </SidebarMenuItem></>
+              </SidebarMenuItem>
+            </>
           )}
         </SidebarMenu>
       </SidebarContent>
@@ -91,13 +95,24 @@ export function AppSidebar() {
               <Image
                 width={32}
                 height={32}
-                src={session.user.image}
+                src={
+                  session.user.image
+                }
                 alt="User Profile"
                 className="w-8 h-8 rounded-full"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                <span className="text-foreground">N/A</span>
+                
+                <Image
+                  width={32}
+                  height={32}
+                  src={
+                    determineDefaultAvatar(session.user.name || "")
+                  }
+                  alt="User Profile"
+                  className="w-8 h-8 rounded-full"
+                />
               </div>
             )}
             <div>

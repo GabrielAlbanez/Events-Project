@@ -26,6 +26,7 @@ import { User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import axios from "axios";
 import { toast } from "react-toastify";
+import deleteUser from "@/app/(actions)/deleteUser/action";
 
 interface UserTableProps {
   users: UserType[];
@@ -81,22 +82,11 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     setIsPending(true);
 
     try {
-      await toast.promise(
-        () =>
-          new Promise<void>(async (resolve, reject) => {
-            try {
-              await axios.delete(`/api/deleteUser/${selectedUser.id}`);
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          }),
-        {
-          pending: "Excluindo usuário...",
-          success: "Usuário excluído com sucesso!",
-          error: "Erro ao excluir usuário.",
-        }
-      );
+      await toast.promise(deleteUser(selectedUser), {
+        pending: "Excluindo usuário...",
+        success: "Usuário deletado com sucesso!",
+        error: "Erro ao deletar usuário.",
+      });
 
       setUsers((prev) => prev.filter((user) => user.id !== selectedUser.id));
       handleCloseModalDelete();
@@ -108,7 +98,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     }
   };
 
-  const valuesDropwdown = [ "ADMIN", "BASIC", "PROMOTER", "GUEST"];
+  const valuesDropwdown = ["ADMIN", "BASIC", "PROMOTER", "GUEST"];
 
   const renderCell = (user: UserType, columnKey: string) => {
     const cellValue = user[columnKey as keyof UserType];
@@ -126,20 +116,25 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         );
       case "role":
         return (
-        <Dropdown className="flex flex-col items-center justify-center">
+          <Dropdown className="flex flex-col items-center justify-center">
             <DropdownTrigger>
-              <Button   endContent={<ChevronDownIcon />}><p className="text-sm">{user.role}</p></Button>
+              <Button endContent={<ChevronDownIcon />}>
+                <p className="text-sm">{user.role}</p>
+              </Button>
             </DropdownTrigger>
             <DropdownMenu>
-                {valuesDropwdown.map((valor)=>(
-                    <DropdownItem  onPress={() => console.log(valor)} key={valor}>
-                        {user.role === valor ? (<p className="text-green-400">{valor}</p>) : (<p>{valor}</p>)}
-                    </DropdownItem>
-                ))}
-
+              {valuesDropwdown.map((valor) => (
+                <DropdownItem onPress={() => console.log(valor)} key={valor}>
+                  {user.role === valor ? (
+                    <p className="text-green-400">{valor}</p>
+                  ) : (
+                    <p>{valor}</p>
+                  )}
+                </DropdownItem>
+              ))}
             </DropdownMenu>
-        </Dropdown>
-        ) 
+          </Dropdown>
+        );
       case "actions":
         return (
           <div className="flex gap-2 items-center justify-center">
@@ -178,8 +173,11 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           {(column) => (
             <TableColumn
               key={column.uid}
-              align={column.uid === "role" ||  column.uid === "actions" ? "center" : "start"}
-             
+              align={
+                column.uid === "role" || column.uid === "actions"
+                  ? "center"
+                  : "start"
+              }
             >
               {column.name}
             </TableColumn>
@@ -265,9 +263,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       : determineDefaultAvatar(selectedUser.name)
                   }
                   alt={selectedUser.name}
-                  className="rounded-full w-24 h-24"
+                  className="rounded-full w-32 h-32"
                 />
-                <p className="text-lg font-semibold">
+                <p className="text-lg">
                   Deseja excluir o usuário {selectedUser.name}?
                 </p>
               </div>

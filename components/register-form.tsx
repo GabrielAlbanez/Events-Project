@@ -44,6 +44,7 @@ export function RegisterForm({
         const responseData = await response.json();
         if (responseData.status === "success") {
           toast.success("Registro realizado com sucesso! Verifique seu email.");
+          router.push("/login");
         } else {
           toast.error(responseData.error || "Erro ao registrar o usuário.");
         }
