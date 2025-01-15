@@ -27,6 +27,7 @@ import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import axios from "axios";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
+import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
 
 interface UserTableProps {
   users: UserType[];
@@ -98,7 +99,29 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     }
   };
 
-  const valuesDropwdown = ["ADMIN", "BASIC", "PROMOTER", "GUEST"];
+  const alterRoleUSer = async (user: UserType, roleSelect: string) => {
+    const { id, role } = user;
+
+
+
+    try {
+
+
+      await toast.promise(alterRoleUser(user, roleSelect), {
+        pending: "Alterando papel do usuário...",
+        success: "Role do usuário alterado com sucesso!",
+        error: "Erro ao alterar papel do usuário.",
+      });
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, role: roleSelect } : u))
+      );
+    } catch (error) {
+      console.error("Erro ao alterar papel do usuário:", error);
+    }
+  };
+
+  const valuesDropwdown = ["ADMIN", "BASIC", "PROMOTER"];
 
   const renderCell = (user: UserType, columnKey: string) => {
     const cellValue = user[columnKey as keyof UserType];
@@ -124,13 +147,21 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             </DropdownTrigger>
             <DropdownMenu>
               {valuesDropwdown.map((valor) => (
-                <DropdownItem onPress={() => console.log(valor)} key={valor}>
+                <>
                   {user.role === valor ? (
-                    <p className="text-green-400">{valor}</p>
+                    <DropdownItem key={valor} className="text-green-400 opacity-45 cursor-not-allowed">{valor}</DropdownItem>
                   ) : (
-                    <p>{valor}</p>
+                    <DropdownItem key={valor} onPress={() => alterRoleUSer(user,valor)}>{valor}</DropdownItem>
                   )}
-                </DropdownItem>
+                </>
+
+                // <DropdownItem onPress={() => console.log(valor)} key={valor}>
+                //   {user.role === valor ? (
+                //     <button disabled={true} onClick={() => alterRoleUSer(user,valor)} className="text-green-400 opacity-45 cursor-not-allowed">{valor}</button>
+                //   ) : (
+                //     <button onClick={() => alterRoleUSer(user,valor)} >{valor}</button>
+                //   )}
+                // </DropdownItem>
               ))}
             </DropdownMenu>
           </Dropdown>

@@ -36,13 +36,13 @@ const VerifyEmailPage: React.FC = () => {
           setLoading(false);
         });
     }
-  }, [token, router, loading]);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
       <div
         className={`p-8 rounded-lg shadow-lg text-center transition-all duration-500 ${
-          verified ? "bg-green-100" : error ? "bg-red-100" : "bg-white"
+          verified && "bg-green-100"
         }`}
       >
         {showVerifyingMessage && (
@@ -59,14 +59,6 @@ const VerifyEmailPage: React.FC = () => {
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto animate-bounce" />
             <p className="text-xl font-semibold text-green-500 mt-4">
               Email verificado com sucesso!
-            </p>
-          </div>
-        )}
-        {error && (
-          <div className="mt-4">
-            <XCircle className="w-16 h-16 text-red-500 mx-auto animate-bounce" />
-            <p className="text-xl font-semibold text-red-500 mt-4">
-              Erro ao verificar o email.
             </p>
           </div>
         )}
