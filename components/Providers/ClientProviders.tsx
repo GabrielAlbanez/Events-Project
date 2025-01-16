@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
 import { NextUIProvider } from "@nextui-org/react";
+import { SocketProvider } from "@/context/SocketContext";
 
 export default function ClientProviders({
   children,
@@ -15,7 +16,8 @@ export default function ClientProviders({
 }) {
   return (
     <SessionProvider>
-      <NextUIProvider>
+      <SocketProvider>
+        <NextUIProvider>
           <SidebarProvider defaultOpen={defaultOpen}>
             <div className="flex z-50 w-full h-screen">
               {/* Sidebar */}
@@ -28,7 +30,8 @@ export default function ClientProviders({
               </main>
             </div>
           </SidebarProvider>
-      </NextUIProvider>
+        </NextUIProvider>
+      </SocketProvider>
     </SessionProvider>
   );
 }

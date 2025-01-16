@@ -150,7 +150,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
     
-      console.log("JWT Token Atualizado:", token);
+      // console.log("JWT Token Atualizado:", token);
       return token;
     },
   

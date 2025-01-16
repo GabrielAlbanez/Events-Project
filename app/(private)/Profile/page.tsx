@@ -43,7 +43,6 @@ const Profile: React.FC = () => {
 
   const user = useCurrentUser();
 
-
   const form = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
@@ -65,8 +64,7 @@ const Profile: React.FC = () => {
         emailVerified: user.data?.emailVerified || false,
       });
       setProfileImage(
-        user.data?.image ||
-        determineDefaultAvatar(user.data?.name || "")
+        user.data?.image || determineDefaultAvatar(user.data?.name || "")
       );
     }
   }, [user.data, form]);
@@ -286,14 +284,10 @@ const Profile: React.FC = () => {
                 </FormControl>
               </FormItem>
 
-
               <FormItem>
                 <FormLabel>Role</FormLabel>
                 <FormControl>
-                  <Input
-                    value={user.data?.role ?? ""}
-                    disabled={true}
-                  />
+                  <Input value={user.data?.role ?? ""} disabled={true} />
                 </FormControl>
               </FormItem>
 
@@ -324,6 +318,7 @@ const Profile: React.FC = () => {
               <Button type="submit" className="w-full" disabled={isPending}>
                 {isPending ? "Atualizando..." : "Atualizar Perfil"}
               </Button>
+              <Button type="button" onClick={() => user.update()}>Sicronizar dados</Button>
             </form>
           </Form>
         </CardContent>

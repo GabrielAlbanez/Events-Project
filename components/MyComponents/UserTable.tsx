@@ -28,6 +28,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
 import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
+import { useSocket } from "@/context/SocketContext";
 
 interface UserTableProps {
   users: UserType[];
@@ -48,6 +49,10 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isPending, setIsPending] = useState(false);
+
+
+  const socket = useSocket();
+
 
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
@@ -102,17 +107,29 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const alterRoleUSer = async (user: UserType, roleSelect: string) => {
     const { id, role } = user;
 
-
-
     try {
-
-
       await toast.promise(alterRoleUser(user, roleSelect), {
         pending: "Alterando papel do usuário...",
         success: "Role do usuário alterado com sucesso!",
         error: "Erro ao alterar papel do usuário.",
       });
 
+      console.log("conectd", socket.connected);
+
+      if (socket.connected) {
+        socket.emit(
+          "role-updated",
+          { userId: id, newRole: roleSelect },
+          (response: any) => {
+            console.log(
+              "Evento 'role-updated' enviado. Resposta do servidor:",
+              response || "Sem resposta."
+            );
+          }
+        );
+      } else {
+        console.error("Socket não está conectado. Evento não foi enviado.");
+      }
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? { ...u, role: roleSelect } : u))
       );
@@ -149,9 +166,19 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               {valuesDropwdown.map((valor) => (
                 <>
                   {user.role === valor ? (
-                    <DropdownItem key={valor} className="text-green-400 opacity-45 cursor-not-allowed">{valor}</DropdownItem>
+                    <DropdownItem
+                      key={valor}
+                      className="text-green-400 opacity-45 cursor-not-allowed"
+                    >
+                      {valor}
+                    </DropdownItem>
                   ) : (
-                    <DropdownItem key={valor} onPress={() => alterRoleUSer(user,valor)}>{valor}</DropdownItem>
+                    <DropdownItem
+                      key={valor}
+                      onPress={() => alterRoleUSer(user, valor)}
+                    >
+                      {valor}
+                    </DropdownItem>
                   )}
                 </>
 
