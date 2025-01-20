@@ -1,6 +1,6 @@
 "use client";
 
-import EventoForm from "@/components/MyComponents/EventoForm";
+import { EventoForm } from "@/components/MyComponents/EventoForm";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function CriarEvento() {

@@ -41,7 +41,7 @@ export function LoginForm({
     }
   }, [searchParams]);
 
-  const onSubmit = (data: LoginFormData) => {
+  const onSubmit: (data: LoginFormData) => void = (data: LoginFormData) => {
     startTransition(async () => {
       try {
         // Chama a Server Action para validar as credenciais e verificar vínculos

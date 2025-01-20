@@ -7,6 +7,7 @@ export const eventoSchema = z.object({
   data: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "A data deve ser válida",
   }),
+  endereco: z.string().min(3, "O endereço deve ter pelo menos 3 caracteres"),
   LinkParaCompraIngresso: z
     .string()
     .url("Insira uma URL válida para a compra de ingressos"),

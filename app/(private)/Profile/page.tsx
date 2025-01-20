@@ -318,7 +318,6 @@ const Profile: React.FC = () => {
               <Button type="submit" className="w-full" disabled={isPending}>
                 {isPending ? "Atualizando..." : "Atualizar Perfil"}
               </Button>
-              <Button type="button" onClick={() => user.update()}>Sicronizar dados</Button>
             </form>
           </Form>
         </CardContent>

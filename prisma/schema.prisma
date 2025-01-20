@@ -53,7 +53,6 @@ model Events {
   data           DateTime // Data do evento
   linkParaCompra String // Link para compra de ingresso
   endereco       String // Endereço do evento
-  title          String // Título do evento
   userId         String? // ID do usuário que criou o evento
   user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 

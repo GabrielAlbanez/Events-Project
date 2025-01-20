@@ -1,21 +1,12 @@
 "use client";
-import React, { useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { eventoSchema } from "@/schemas/eventoSchema";
-import { z } from "zod";
+
+import React, { useRef, useState, useTransition } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { salvarEvento } from "@/app/(actions)/eventos/actions";
 import {
   Carousel,
   CarouselContent,
@@ -24,32 +15,53 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { salvarEvento } from "@/app/(actions)/eventos/actions";
 
-type EventoFormData = z.infer<typeof eventoSchema>;
+type EventoFormData = {
+  nome: string;
+  descricao: string;
+  data: string;
+  LinkParaCompraIngresso: string;
+  endereco: string;
+};
 
-export default function EventoForm() {
+export function EventoForm({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<"form">) {
+  const form = useForm<EventoFormData>({
+    defaultValues: {
+      nome: "",
+      descricao: "",
+      data: "",
+      LinkParaCompraIngresso: "",
+      endereco: "",
+    },
+  });
+
+  const { handleSubmit, reset, formState } = form;
+  const { errors } = formState;
+
+  const { data } = useCurrentUser();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const carouselInputRef = useRef<HTMLInputElement | null>(null);
 
   const [previewBanner, setPreviewBanner] = useState<string | null>(null);
   const [selectedBanner, setSelectedBanner] = useState<File | null>(null);
-
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [selectedCarouselFiles, setSelectedCarouselFiles] = useState<File[]>([]);
 
-  const form = useForm<EventoFormData>({
-    resolver: zodResolver(eventoSchema),
-    defaultValues: {
-      nome: "",
-      descrição: "",
-      data: "",
-      LinkParaCompraIngresso: "",
-      banner: null || undefined,
-      carrossel: [],
-    },
-  });
-
-  // Função para o banner principal
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -61,13 +73,11 @@ export default function EventoForm() {
   const handleRemoveBanner = () => {
     setPreviewBanner(null);
     setSelectedBanner(null);
-
     if (bannerInputRef.current) {
       bannerInputRef.current.value = "";
     }
   };
 
-  // Função para o carrossel de imagens
   const handleCarouselChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length) {
@@ -80,46 +90,66 @@ export default function EventoForm() {
   const handleRemoveCarouselImage = (index: number) => {
     setCarouselImages((prev) => prev.filter((_, i) => i !== index));
     setSelectedCarouselFiles((prev) => prev.filter((_, i) => i !== index));
-
     if (carouselInputRef.current) {
       carouselInputRef.current.value = "";
     }
   };
 
-  const onSubmit = async (values: EventoFormData) => {
-    const formData = new FormData();
-    formData.append("nome", values.nome);
-    formData.append("descrição", values.descrição);
-    formData.append("data", values.data);
-    formData.append("LinkParaCompraIngresso", values.LinkParaCompraIngresso);
+  const onSubmit = (dataForm: EventoFormData) => {
+    console.log("Dados enviados:", dataForm);
+    console.log("Banner selecionado:", selectedBanner);
+    console.log("Arquivos do carrossel:", selectedCarouselFiles);
 
-    if (selectedBanner) {
-      formData.append("banner", selectedBanner);
-    }
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.append("nome", dataForm.nome);
+        formData.append("descricao", dataForm.descricao);
+        formData.append("data", dataForm.data);
+        formData.append("LinkParaCompraIngresso", dataForm.LinkParaCompraIngresso);
+        formData.append("endereco", dataForm.endereco);
 
-    selectedCarouselFiles.forEach((file, index) => {
-      formData.append("carrossel", file);
+        if (selectedBanner) {
+          formData.append("banner", selectedBanner);
+        }
+
+        selectedCarouselFiles.forEach((file) => {
+          formData.append("carrossel", file);
+        });
+
+        if (!data?.id) {
+          toast.error("Erro: ID do usuário não encontrado.");
+          return;
+        }
+
+        const result = await salvarEvento(formData, data.id);
+
+        if (result.success) {
+          toast.success("Evento criado com sucesso!");
+          reset();
+          handleRemoveBanner();
+          setCarouselImages([]);
+          setSelectedCarouselFiles([]);
+          router.push("/");
+        } else {
+          toast.error(result.message || "Erro ao salvar o evento.");
+        }
+      } catch (error) {
+        console.error("Erro ao criar o evento:", error);
+        toast.error("Erro inesperado ao criar o evento.");
+      }
     });
-
-    const result = await salvarEvento(formData);
-
-    if (result.success) {
-      console.log("Sucesso:", result.message);
-      form.reset();
-      handleRemoveBanner();
-      setCarouselImages([]);
-      setSelectedCarouselFiles([]);
-    } else {
-      console.error("Erro:", result.message);
-    }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <FormProvider {...form}>
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className={`space-y-4 ${className}`}
+        {...props}
+      >
         {/* Nome */}
         <FormField
-          control={form.control}
           name="nome"
           render={({ field }) => (
             <FormItem>
@@ -127,27 +157,54 @@ export default function EventoForm() {
               <FormControl>
                 <Input placeholder="Digite o nome do evento" {...field} />
               </FormControl>
-              <FormMessage />
+              <FormMessage>{errors.nome?.message}</FormMessage>
             </FormItem>
           )}
         />
 
         {/* Descrição */}
         <FormField
-          control={form.control}
-          name="descrição"
+          name="descricao"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Descrição</FormLabel>
               <FormControl>
                 <Textarea placeholder="Descreva o evento" {...field} />
               </FormControl>
-              <FormMessage />
+              <FormMessage>{errors.descricao?.message}</FormMessage>
             </FormItem>
           )}
         />
 
-        {/* Banner Principal */}
+        {/* Endereço */}
+        <FormField
+          name="endereco"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Endereço</FormLabel>
+              <FormControl>
+                <Input placeholder="Digite o endereço do evento" {...field} />
+              </FormControl>
+              <FormMessage>{errors.endereco?.message}</FormMessage>
+            </FormItem>
+          )}
+        />
+
+        {/* Link para Compra */}
+        <FormField
+          name="LinkParaCompraIngresso"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Link para Compra</FormLabel>
+              <FormControl>
+                <Input placeholder="https://exemplo.com/ingressos" {...field} />
+              </FormControl>
+              <FormMessage>{errors.LinkParaCompraIngresso?.message}</FormMessage>
+            </FormItem>
+          )}
+        />
+
+        {/* Banner */}
         <FormItem>
           <FormLabel>Banner Principal</FormLabel>
           <FormControl>
@@ -162,7 +219,7 @@ export default function EventoForm() {
             <div className="mt-4">
               <img
                 src={previewBanner}
-                alt="Banner Preview"
+                alt="Preview do banner"
                 className="w-full h-56 object-cover rounded mb-2"
               />
               <Button
@@ -176,7 +233,7 @@ export default function EventoForm() {
           )}
         </FormItem>
 
-        {/* Carrossel de Imagens */}
+        {/* Carrossel */}
         <FormItem>
           <FormLabel>Imagens do Carrossel</FormLabel>
           <FormControl>
@@ -192,8 +249,8 @@ export default function EventoForm() {
             <Carousel className="w-full mt-4">
               <CarouselContent>
                 {carouselImages.map((image, index) => (
-                  <CarouselItem key={index} className="basis-1/2">
-                    <Card className="relative">
+                  <CarouselItem key={index}>
+                    <Card>
                       <CardContent className="p-2">
                         <img
                           src={image}
@@ -204,7 +261,6 @@ export default function EventoForm() {
                           type="button"
                           variant="destructive"
                           size="sm"
-                          className="absolute top-1 right-1"
                           onClick={() => handleRemoveCarouselImage(index)}
                         >
                           Remover
@@ -214,32 +270,17 @@ export default function EventoForm() {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious type="button"/>
-              <CarouselNext  type="button"/>
+              <CarouselPrevious />
+              <CarouselNext />
             </Carousel>
           )}
         </FormItem>
 
-        {/* Link para Compra */}
-        <FormField
-          control={form.control}
-          name="LinkParaCompraIngresso"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Link para Compra</FormLabel>
-              <FormControl>
-                <Input placeholder="https://exemplo.com/ingressos" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Botão de Envio */}
+        {/* Botão de envio */}
         <Button type="submit" className="w-full">
-          Enviar Evento
+          {isPending ? "Enviando..." : "Enviar Evento"}
         </Button>
       </form>
-    </Form>
+    </FormProvider>
   );
 }
