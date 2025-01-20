@@ -107,6 +107,16 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const alterRoleUSer = async (user: UserType, roleSelect: string) => {
     const { id, role } = user;
 
+
+    if(role  === "ADMIN"){
+      toast.error("Este usuário não pode ter seu papel alterado.", {
+        theme: "colored",
+      });
+      return;
+    }
+
+    
+
     try {
       await toast.promise(alterRoleUser(user, roleSelect), {
         pending: "Alterando papel do usuário...",

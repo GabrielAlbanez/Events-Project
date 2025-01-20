@@ -9,6 +9,9 @@ const alterRoleUser = async (user: User, roleSelect : string) => {
   const { role, id } = user;
 
 
+  
+
+
 
   const alterRole = await prisma.user.update({
     where: {
