@@ -11,6 +11,10 @@
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.5.3",
+    "@heroui/calendar": "^2.2.10",
+    "@heroui/date-picker": "^2.3.10",
+    "@heroui/system": "^2.4.7",
+    "@heroui/theme": "^2.4.6",
     "@hookform/resolvers": "^3.9.1",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@nextui-org/button": "^2.2.9",

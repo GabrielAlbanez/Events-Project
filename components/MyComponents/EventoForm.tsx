@@ -8,27 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
-import { Card, CardContent } from "@/components/ui/card";
-import {
   FormField,
   FormItem,
   FormLabel,
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { salvarEvento } from "@/app/(actions)/eventos/actions";
+import { DatePicker } from "@nextui-org/react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type EventoFormData = {
   nome: string;
   descricao: string;
-  data: string;
+  data: string; // A data será manipulada como string
   LinkParaCompraIngresso: string;
   endereco: string;
 };
@@ -47,10 +40,10 @@ export function EventoForm({
     },
   });
 
-  const { handleSubmit, reset, formState } = form;
-  const { errors } = formState;
+  const { handleSubmit, reset, setValue, formState } = form;
 
-  const { data } = useCurrentUser();
+  const {data} = useCurrentUser()
+  const { errors } = formState;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -117,12 +110,7 @@ export function EventoForm({
           formData.append("carrossel", file);
         });
 
-        if (!data?.id) {
-          toast.error("Erro: ID do usuário não encontrado.");
-          return;
-        }
-
-        const result = await salvarEvento(formData, data.id);
+        const result = await salvarEvento(formData, data?.id ?? ""); // Substitua pelo ID do usuário real
 
         if (result.success) {
           toast.success("Evento criado com sucesso!");
@@ -175,6 +163,24 @@ export function EventoForm({
             </FormItem>
           )}
         />
+
+        {/* Data */}
+        <FormItem>
+          <FormLabel>Data do Evento</FormLabel>
+          <FormControl>
+            <DatePicker
+              isRequired
+              className="max-w-[284px]"
+              label="Escolha a data"
+              onChange={(value) => {
+                if (value) {
+                  setValue("data", value.toString());
+                }
+              }}
+            />
+          </FormControl>
+          <FormMessage>{errors.data?.message}</FormMessage>
+        </FormItem>
 
         {/* Endereço */}
         <FormField
@@ -246,33 +252,26 @@ export function EventoForm({
             />
           </FormControl>
           {carouselImages.length > 0 && (
-            <Carousel className="w-full mt-4">
-              <CarouselContent>
-                {carouselImages.map((image, index) => (
-                  <CarouselItem key={index}>
-                    <Card>
-                      <CardContent className="p-2">
-                        <img
-                          src={image}
-                          alt={`Carrossel ${index}`}
-                          className="h-32 w-full object-cover rounded"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleRemoveCarouselImage(index)}
-                        >
-                          Remover
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              <CarouselPrevious />
-              <CarouselNext />
-            </Carousel>
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              {carouselImages.map((image, index) => (
+                <div key={index} className="relative">
+                  <img
+                    src={image}
+                    alt={`Carrossel ${index}`}
+                    className="h-32 w-full object-cover rounded"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1"
+                    onClick={() => handleRemoveCarouselImage(index)}
+                  >
+                    Remover
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </FormItem>
 

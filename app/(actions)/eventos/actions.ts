@@ -38,38 +38,41 @@ export async function salvarEvento(formData: FormData, userId: string) {
     const descricao = formData.get("descricao")?.toString() || "";
     const linkParaCompra = formData.get("LinkParaCompraIngresso")?.toString() || "";
     const endereco = formData.get("endereco")?.toString() || "";
+    const data = formData.get("data")?.toString(); // Recebendo a data do formulário
     const bannerFile = formData.get("banner") as File;
     const carouselFiles = formData.getAll("carrossel") as File[];
-    
 
-     if(!nome || !descricao || !linkParaCompra || !endereco || !bannerFile || !carouselFiles) {
+    if (!nome || !descricao || !linkParaCompra || !endereco || !data || !bannerFile || !carouselFiles) {
       return { success: false, message: "Preencha todos os campos." };
-     }
+    }
 
     // Validações manuais
-    if (!nome || nome.length < 3) {
+    if (nome.length < 3) {
       return { success: false, message: "O nome deve ter pelo menos 3 caracteres." };
     }
-    if (!descricao || descricao.length < 10) {
+    if (descricao.length < 10) {
       return { success: false, message: "A descrição deve ter pelo menos 10 caracteres." };
     }
-    if (!linkParaCompra || !linkParaCompra.startsWith("http")) {
+    if (!linkParaCompra.startsWith("http")) {
       return { success: false, message: "O link para compra deve ser uma URL válida." };
     }
-    if (!endereco || endereco.length < 5) {
+    if (endereco.length < 5) {
       return { success: false, message: "O endereço deve ter pelo menos 5 caracteres." };
     }
 
+    // Conversão da data para um objeto Date
+    const eventDate = new Date(data);
+    if (isNaN(eventDate.getTime())) {
+      return { success: false, message: "A data do evento é inválida." };
+    }
+
     // Arquivo do banner
-    const bannerPath = bannerFile ? await saveFile(bannerFile) : null;
+    const bannerPath = await saveFile(bannerFile);
 
     // Arquivos do carrossel
     const carouselPaths = await Promise.all(
       carouselFiles.map((file) => saveFile(file))
     );
-
-    // Data do evento
-    const eventDate = new Date();
 
     // Verifica permissões do usuário
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -90,7 +93,7 @@ export async function salvarEvento(formData: FormData, userId: string) {
         descricao,
         data: eventDate,
         linkParaCompra,
-        banner: bannerPath || "",
+        banner: bannerPath,
         carrossel: carouselPaths,
         endereco,
         userId,
