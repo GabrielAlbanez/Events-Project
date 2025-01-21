@@ -7,6 +7,8 @@ import {
   PersonStandingIcon,
   AmpersandIcon,
   Shield,
+  Users,
+  CalendarCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -79,24 +81,38 @@ export function AppSidebar() {
                 }}
                 className=" transition-all rounded-lg px-4 py-2"
               >
-                <Shield className="w-5 h-5 mr-2" />
-                <span className="text-foreground">Admin</span>
+                <Users className="w-5 h-5 mr-2" />
+                <span className="text-foreground">Users</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {session?.user?.role === "ADMIN" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  router.push("/EventsCreated");
+                }}
+                className=" transition-all rounded-lg px-4 py-2"
+              >
+                <CalendarCheck className="w-5 h-5 mr-2" />
+                <span className="text-foreground">Events-Created</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
 
           {session?.user?.role === "PROMOTER" && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => {
-                    router.push("/CriarEvento");
-                  }}
-                  className=" transition-all rounded-lg px-4 py-2"
-                >
-                  <Calendar1Icon className="w-5 h-5 mr-2" />
-                  <span className="text-foreground">Criar Eventos</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  router.push("/CriarEvento");
+                }}
+                className=" transition-all rounded-lg px-4 py-2"
+              >
+                <Calendar1Icon className="w-5 h-5 mr-2" />
+                <span className="text-foreground">Criar Eventos</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           )}
         </SidebarMenu>
       </SidebarContent>

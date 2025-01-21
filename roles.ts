@@ -6,7 +6,7 @@ export const roles = {
   };
   
   export const roleRoutes = {
-    [roles.ADMIN]: ["/admin", "/Profile", "/","/CriarEvento", "/EditEvent", "/DashBoard"],
+    [roles.ADMIN]: ["/admin", "/Profile", "/","/CriarEvento", "/EditEvent", "/DashBoard", "/EventsCreated"],
     [roles.BASIC]: ["/Profile", "/"],
     [roles.PROMOTER]: ["/Profile", "/", "/CriarEvento"],
     [roles.GUEST]: ["/", "/login", "/register"],

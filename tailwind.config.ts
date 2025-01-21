@@ -9,7 +9,7 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./node_modules/@nextui-org/theme/dist/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/@heroui/theme/dist/components/(calendar|date-picker|button|ripple|spinner|date-input|form|popover).js"
+    "./node_modules/@heroui/theme/dist/components/(calendar|card|date-picker|button|ripple|spinner|date-input|form|popover).js"
   ],
   theme: {
   	extend: {

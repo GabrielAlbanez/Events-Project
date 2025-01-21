@@ -12,6 +12,7 @@
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.5.3",
     "@heroui/calendar": "^2.2.10",
+    "@heroui/card": "^2.2.10",
     "@heroui/date-picker": "^2.3.10",
     "@heroui/system": "^2.4.7",
     "@heroui/theme": "^2.4.6",

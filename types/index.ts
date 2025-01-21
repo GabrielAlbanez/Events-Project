@@ -21,6 +21,7 @@ export type Evento = {
   carrossel: string[]; // Lista de URLs para imagens do carrossel
   descricao: string;
   data: string;
+  user : User;
   LinkParaCompraIngresso: string;
   id: number;
   endereco: string;
