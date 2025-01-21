@@ -30,8 +30,8 @@ type DrawerEventosProps = {
     nome: string;
     banner: string;
     carrossel: string[];
-    descrição: string;
-    data: Date;
+    descricao: string;
+    data: string;
     LinkParaCompraIngresso: string;
     lat: number;
     lng: number;
@@ -53,6 +53,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
 
   const Content = (
     <>
+      <p className="font-medium text-large text-default-500">{evento.nome}</p>
       {/* Banner */}
       <div className="mb-6 ">
         <Image
@@ -92,10 +93,10 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
       {/* Descrição */}
       <p className="mb-2 text-sm">
         <p className="font-medium text-small text-default-500">Data:</p>{" "}
-        {evento.data.toLocaleDateString()}
+        {evento.data}
       </p>
       <p className="mb-4  font-medium text-small text-default-500">
-        {evento.descrição}
+        {evento.descricao}
       </p>
 
       {/* Mapa para traçar rota */}
@@ -151,9 +152,6 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
                 </svg>
               </Button>
             </Tooltip>
-            <p className="font-medium text-large text-default-500">
-              {evento.nome}
-            </p>
 
             <div className="w-full flex justify-start gap-2">
               <Tooltip content="copy link event page" showArrow>

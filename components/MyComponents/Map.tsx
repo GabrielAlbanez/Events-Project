@@ -22,20 +22,9 @@ import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { usePathname } from "next/navigation";
 import { dataEvents } from "@/data/EventsData";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
+import { Evento } from "@/types";
 
-type Evento = {
-  nome: string;
-  banner: string; // Banner principal
-  carrossel: string[]; // Lista de URLs para imagens do carrossel
-  descrição: string;
-  data: Date;
-  LinkParaCompraIngresso: string;
-  id: number;
-  endereco: string;
-  title: string;
-  lat?: number;
-  lng?: number;
-};
+
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
@@ -48,7 +37,6 @@ const CustomLoading = () => (
 );
 
 const Mapa = () => {
-  
   const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState({
@@ -64,7 +52,7 @@ const Mapa = () => {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const startRef = useRef<google.maps.places.Autocomplete | null>(null);
   const endRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [eventos, setEventos] = useState<Evento[]>(dataEvents);
+  const [eventos, setEventos] = useState<Evento[]>([]);
 
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
 
@@ -279,25 +267,33 @@ const Mapa = () => {
   };
 
   useEffect(() => {
-    const carregarCoordenadas = async () => {
-      const eventosAtualizados: Evento[] = [];
-      for (const evento of eventos) {
-        try {
-          const coordenadas = await convertAddressToCoordinates(
-            evento.endereco
-          );
-          eventosAtualizados.push({ ...evento, ...coordenadas });
-        } catch (error) {
-          console.error(
-            `Erro ao converter endereço "${evento.endereco}":`,
-            error
-          );
+    const carregarEventosReais = async () => {
+      try {
+        const response = await fetch("/api/AllEvents");
+        const eventosReais: Evento[] = await response.json();
+        const eventosAtualizados: Evento[] = [];
+
+        for (const evento of eventosReais) {
+          try {
+            const coordenadas = await convertAddressToCoordinates(
+              evento.endereco
+            );
+            eventosAtualizados.push({ ...evento, ...coordenadas });
+          } catch (error) {
+            console.error(
+              `Erro ao converter endereço "${evento.endereco}":`,
+              error
+            );
+          }
         }
+
+        setEventos(eventosAtualizados);
+      } catch (error) {
+        console.error("Erro ao carregar eventos reais:", error);
       }
-      setEventos(eventosAtualizados);
     };
 
-    carregarCoordenadas();
+    carregarEventosReais();
     getCurrentLocation();
   }, [isScriptLoaded]);
 
@@ -337,19 +333,15 @@ const Mapa = () => {
               {eventos
                 .filter(
                   (evento) =>
-                    evento.lat !== undefined && evento.lng !== undefined
+                    evento.lat !== undefined && evento.lng !== undefined && evento.validate
                 )
                 .map((evento) => (
                   <Marker
                     key={evento.id}
-                    position={{
-                      lat: evento.lat as number,
-                      lng: evento.lng as number,
-                    }}
+                    position={{ lat: evento.lat!, lng: evento.lng! }}
                     icon={{
                       url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
                     }}
-                    title={evento.title}
                     onClick={() => setEventoAtivo(evento)} // Atualiza o evento ativo
                   />
                 ))}
