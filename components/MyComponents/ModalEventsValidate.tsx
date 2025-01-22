@@ -16,14 +16,12 @@ interface ModalEventsValidateProps {
   event: Evento | null;
   isOpen: boolean;
   onClose: () => void;
-  onValidate: (eventId: number) => void;
 }
 
 const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
   event,
   isOpen,
   onClose,
-  onValidate,
 }) => {
   const targetRef = React.useRef(null);
   const { moveProps } = useDraggable({ targetRef, canOverflow: true, isDisabled: !isOpen });
@@ -73,15 +71,7 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               <Button color="danger" variant="light" onPress={onClose}>
                 Close
               </Button>
-              <Button
-                color="primary"
-                onPress={() => {
-                  onValidate(event.id);
-                  closeModal();
-                }}
-              >
-                Validate
-              </Button>
+
             </ModalFooter>
           </>
         )}

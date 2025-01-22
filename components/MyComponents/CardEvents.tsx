@@ -1,82 +1,158 @@
 "use client";
 import React, { useState } from "react";
-import { Evento } from "@/types";
-import { Card, CardFooter } from "@heroui/card";
-import { Button } from "@heroui/button";
+import {
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Checkbox,
+  Button,
+  Chip,
+  Tooltip,
+} from "@heroui/react";
 import ModalEventsValidate from "@/components/MyComponents/ModalEventsValidate";
-import { Image } from "@heroui/react";
+import { Evento } from "@/types";
 
-interface CardEventsProps {
+
+
+interface TableEventsProps {
   events: Evento[];
+  onDeleteEvents: (eventIds: number[]) => void;
+  onValidateEvents: (eventIds: number[]) => void;
 }
 
-const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
-  const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null); // Evento selecionado
-  const [isModalOpen, setIsModalOpen] = useState(false); // Controle do modal
+const TableEvents: React.FC<TableEventsProps> = ({
+  events,
+  onDeleteEvents,
+  onValidateEvents,
+}) => {
+  const [selectedEvents, setSelectedEvents] = useState<Set<number>>(new Set());
+  const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Abrir o modal
+  // Gerenciar seleção de eventos
+  const handleSelectEvent = (eventId: number) => {
+    setSelectedEvents((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(eventId)) {
+        updated.delete(eventId);
+      } else {
+        updated.add(eventId);
+      }
+      return updated;
+    });
+  };
+
+  // Abrir modal para ver detalhes
   const handleSeeMore = (event: Evento) => {
-    console.log("Abrindo modal para o evento:", event);
-    setSelectedEvent(event); // Define o evento selecionado
-    setIsModalOpen(true); // Abre o modal
+    setSelectedEvent(event);
+    setIsModalOpen(true);
   };
 
-  // Fechar o modal
+  // Fechar modal
   const handleCloseModal = () => {
-    setSelectedEvent(null); // Limpa o evento selecionado
-    setIsModalOpen(false); // Fecha o modal
+    setSelectedEvent(null);
+    setIsModalOpen(false);
   };
 
-  // Validar o evento
-  const handleValidateEvent = (eventId: number) => {
-    console.log(`Validando evento com ID: ${eventId}`);
-    setIsModalOpen(false); // Fecha o modal após a validação
+  // Validar eventos selecionados
+  const handleValidateSelected = () => {
+    const selectedEventIds = Array.from(selectedEvents);
+    onValidateEvents(selectedEventIds);
+    setSelectedEvents(new Set());
+  };
+
+  // Deletar eventos selecionados
+  const handleDeleteSelected = () => {
+    const selectedEventIds = Array.from(selectedEvents);
+    onDeleteEvents(selectedEventIds);
+    setSelectedEvents(new Set());
   };
 
   return (
-    <>
-      <div className="flex p-12">
-        {events.map((event) => (
-          <Card
-            key={event.id}
-            isFooterBlurred
-            className="w-[400px] h-[200px] col-span-12 sm:col-span-5"
+    <div className="p-6">
+      {/* Botões para ações em massa */}
+      {selectedEvents.size > 0 && (
+        <div className="flex items-center mb-6">
+          <Button
+            color="success"
+            onClick={handleValidateSelected}
+            className="mr-4"
           >
-            <Image
-              removeWrapper
-              alt={event.nome}
-              className="z-0 w-full h-full scale-125 -translate-y-6 object-cover"
-              src={event.banner}
-            />
-            <CardFooter className="absolute bg-white/30 bottom-0 border-t-1 border-zinc-100/50 z-10 justify-between">
-              <div>
-                <p className="text-black text-tiny">{event.nome}</p>
-              </div>
-              <div className="flex gap-4">
-                <Button
-                  className="text-tiny"
-                  color="primary"
-                  radius="full"
-                  size="sm"
-                  onClick={() => handleSeeMore(event)} // Corrigido para onClick
-                >
-                  See More
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+            Validate Selected ({selectedEvents.size})
+          </Button>
+          <Button color="danger" onClick={handleDeleteSelected}>
+            Delete Selected ({selectedEvents.size})
+          </Button>
+        </div>
+      )}
 
-      {/* Modal */}
-      <ModalEventsValidate
-        event={selectedEvent}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onValidate={handleValidateEvent}
-      />
-    </>
+      <Table aria-label="Event management table">
+        <TableHeader>
+          <TableColumn align="start">Select</TableColumn>
+          <TableColumn align="start">Event Name</TableColumn>
+          <TableColumn align="start">Address</TableColumn>
+          <TableColumn align="center">Status</TableColumn>
+          <TableColumn align="center">Actions</TableColumn>
+        </TableHeader>
+        <TableBody>
+          {events.map((event) => (
+            <TableRow key={event.id}>
+              {/* Checkbox para seleção */}
+              <TableCell>
+                <Checkbox
+                  isSelected={selectedEvents.has(event.id)}
+                  onValueChange={() => handleSelectEvent(event.id)}
+                  aria-label={`Select ${event.nome}`}
+                />
+              </TableCell>
+              {/* Nome do evento */}
+              <TableCell>{event.nome}</TableCell>
+              {/* Endereço do evento */}
+              <TableCell>{event.endereco}</TableCell>
+              {/* Status de verificação */}
+              <TableCell align="center">
+                <Chip
+                  color={event.validate ? "success" : "warning"}
+                  size="sm"
+                  variant="flat"
+                >
+                  {event.validate ? "Validated" : "Not validated"}
+                </Chip>
+              </TableCell>
+              {/* Ações individuais */}
+              <TableCell align="center">
+                <div className="flex gap-2 justify-center">
+                  <Tooltip content="See More">
+                    <Button
+                      color="primary"
+                      size="sm"
+                      onClick={() => handleSeeMore(event)}
+                    >
+                      Details
+                    </Button>
+                  </Tooltip>
+                  <Tooltip color="danger" content="Delete">
+                  </Tooltip>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Modal para detalhes do evento */}
+      {selectedEvent && (
+        <ModalEventsValidate
+          event={selectedEvent}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
+    </div>
   );
 };
 
-export default CardEvents;
+export default TableEvents;
