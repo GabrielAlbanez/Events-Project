@@ -70,9 +70,12 @@ const EventsCreated = () => {
   };
 
   return (
-    <div className="flex flex-col items-center p-6">
+    <div className="flex flex-col w-full h-full items-center p-6">
       {isLoading ? (
+        <div className="flex h-full w-full items-center justify-center">
         <p className="text-gray-600">Carregando eventos...</p>
+
+        </div>
       ) : (
         <>
           {/* Barra de Filtro */}

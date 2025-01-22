@@ -12,7 +12,7 @@ export type User =  {
   emailVerified: string | null;
   image: string;
   role: string;
-  Events: any[]; // Ajuste conforme a estrutura dos eventos
+  Events: Evento[]; // Ajuste conforme a estrutura dos eventos
 }
 
 export type Evento = {

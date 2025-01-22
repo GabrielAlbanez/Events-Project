@@ -20,9 +20,9 @@ import {
   DropdownMenu,
   DropdownItem,
 } from "@heroui/react";
-import { CalendarSearch } from "lucide-react";
+import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
-import { User as UserType } from "@/types";
+import { Evento, User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -50,9 +50,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isPending, setIsPending] = useState(false);
 
-
   const socket = useSocket();
-
 
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
@@ -107,15 +105,12 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const alterRoleUSer = async (user: UserType, roleSelect: string) => {
     const { id, role } = user;
 
-
-    if(role  === "ADMIN"){
+    if (role === "ADMIN") {
       toast.error("Este usuário não pode ter seu papel alterado.", {
         theme: "colored",
       });
       return;
     }
-
-    
 
     try {
       await toast.promise(alterRoleUser(user, roleSelect), {
@@ -166,7 +161,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         );
       case "role":
         return (
-          (<Dropdown className="flex flex-col items-center justify-center">
+          <Dropdown className="flex flex-col items-center justify-center">
             <DropdownTrigger>
               <Button endContent={<ChevronDownIcon />}>
                 <p className="text-sm">{user.role}</p>
@@ -174,7 +169,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             </DropdownTrigger>
             <DropdownMenu>
               {valuesDropwdown.map((valor) => (
-                (<>
+                <>
                   {user.role === valor ? (
                     <DropdownItem
                       key={valor}
@@ -190,7 +185,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       {valor}
                     </DropdownItem>
                   )}
-                </>)
+                </>
 
                 // <DropdownItem onPress={() => console.log(valor)} key={valor}>
                 //   {user.role === valor ? (
@@ -201,7 +196,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 // </DropdownItem>
               ))}
             </DropdownMenu>
-          </Dropdown>)
+          </Dropdown>
         );
       case "actions":
         return (
@@ -263,57 +258,66 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       </Table>
 
       {/* Modal de Eventos */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        className="max-h-screen overflow-y-auto"
-      >
-        <ModalContent>
-          <ModalHeader>
-            <div className="flex items-center gap-3">
-              <User
-                avatarProps={{
-                  src: selectedUser?.image
-                    ? selectedUser.image
-                    : determineDefaultAvatar(selectedUser?.name || "User"),
-                  size: "lg",
-                }}
-                name={selectedUser?.name}
-                description={selectedUser?.email}
-              />
-            </div>
-          </ModalHeader>
-          <ModalBody>
-            {selectedUser?.Events && selectedUser.Events.length > 0 ? (
-              <Table aria-label="Tabela de Eventos do Usuário">
-                <TableHeader>
-                  <TableColumn>Data</TableColumn>
-                  <TableColumn>Tipo</TableColumn>
-                  <TableColumn>Pontos</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {selectedUser.Events.map((event, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{`${event.dia}/${event.mes}`}</TableCell>
-                      <TableCell>{event.tipoEvento}</TableCell>
-                      <TableCell>{event.pontos}</TableCell>
-                    </TableRow>
+      {selectedUser && (
+        <Modal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          className="max-h-screen overflow-y-auto"
+        >
+          <ModalContent>
+            <ModalHeader>
+              <div className="flex items-center gap-3">
+                <User
+                  avatarProps={{
+                    src:
+                      selectedUser.image ||
+                      determineDefaultAvatar(selectedUser.name),
+                    size: "lg",
+                  }}
+                  name={selectedUser.name}
+                  description={selectedUser.email}
+                />
+              </div>
+            </ModalHeader>
+            <ModalBody>
+              {selectedUser.Events && selectedUser.Events.length > 0 ? (
+                <div className=" w-full grid grid-cols-1 gap-4">
+                  {selectedUser.Events.map((event: Evento, index: number) => (
+                    <div
+                      key={index}
+                      className="border rounded-lg p-4 shadow-md"
+                    >
+                      <img
+                        src={event.banner}
+                        alt={event.nome}
+                        className="w-full h-32 object-cover rounded-t-md mb-2"
+                      />
+                      <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                        {event.nome}
+                        {event.validate ? (
+                          <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <XCircleIcon className="w-5 h-5 text-red-500" />
+                        )}
+                      </h3>
+                      <p className="text-sm text-gray-500">{event.data}</p>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-center text-gray-500">
-                Nenhum evento registrado para este usuário.
-              </p>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button onPress={handleCloseModal} color="danger">
-              Fechar
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">
+                  Nenhum evento registrado para este usuário.
+                </p>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button onPress={handleCloseModal} color="danger">
+                Fechar
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
 
       {/* Modal de Confirmação de Exclusão */}
       <Modal isOpen={isOpenModalDelete} onClose={handleCloseModalDelete}>
@@ -323,7 +327,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           </ModalHeader>
           <ModalBody>
             {selectedUser && (
-              <div className="flex flex-col items-center justify-center gap-4">
+              <div className="flex flex-col items-center justify-center gap-4 ">
                 <img
                   src={
                     selectedUser.image
@@ -331,7 +335,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       : determineDefaultAvatar(selectedUser.name)
                   }
                   alt={selectedUser.name}
-                  className="rounded-full w-32 h-32"
+                  className="rounded-full w-32 h-32 object-cover"
                 />
                 <p className="text-lg">
                   Deseja excluir o usuário {selectedUser.name}?
