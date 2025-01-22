@@ -4,7 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
-import { NextUIProvider } from "@nextui-org/react";
+import { HeroUIProvider } from "@heroui/react";
 import { SocketProvider } from "@/context/SocketContext";
 
 export default function ClientProviders({
@@ -17,7 +17,7 @@ export default function ClientProviders({
   return (
     <SessionProvider>
       <SocketProvider>
-        <NextUIProvider>
+        <HeroUIProvider>
           <SidebarProvider defaultOpen={defaultOpen}>
             <div className="flex z-50 w-full h-screen">
               {/* Sidebar */}
@@ -30,7 +30,7 @@ export default function ClientProviders({
               </main>
             </div>
           </SidebarProvider>
-        </NextUIProvider>
+        </HeroUIProvider>
       </SocketProvider>
     </SessionProvider>
   );

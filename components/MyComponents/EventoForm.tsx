@@ -15,7 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { salvarEvento } from "@/app/(actions)/eventos/actions";
-import { DatePicker } from "@nextui-org/react";
+import { DatePicker } from "@heroui/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type EventoFormData = {

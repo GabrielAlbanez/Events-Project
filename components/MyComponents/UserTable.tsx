@@ -19,7 +19,7 @@ import {
   Dropdown,
   DropdownMenu,
   DropdownItem,
-} from "@nextui-org/react";
+} from "@heroui/react";
 import { CalendarSearch } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { User as UserType } from "@/types";
@@ -166,7 +166,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         );
       case "role":
         return (
-          <Dropdown className="flex flex-col items-center justify-center">
+          (<Dropdown className="flex flex-col items-center justify-center">
             <DropdownTrigger>
               <Button endContent={<ChevronDownIcon />}>
                 <p className="text-sm">{user.role}</p>
@@ -174,7 +174,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             </DropdownTrigger>
             <DropdownMenu>
               {valuesDropwdown.map((valor) => (
-                <>
+                (<>
                   {user.role === valor ? (
                     <DropdownItem
                       key={valor}
@@ -190,7 +190,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       {valor}
                     </DropdownItem>
                   )}
-                </>
+                </>)
 
                 // <DropdownItem onPress={() => console.log(valor)} key={valor}>
                 //   {user.role === valor ? (
@@ -201,7 +201,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 // </DropdownItem>
               ))}
             </DropdownMenu>
-          </Dropdown>
+          </Dropdown>)
         );
       case "actions":
         return (

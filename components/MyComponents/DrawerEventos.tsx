@@ -9,7 +9,7 @@ import {
   DrawerBody,
   Button,
   Image,
-} from "@nextui-org/react";
+} from "@heroui/react";
 import {
   Drawer as ShadDrawer,
   DrawerContent as ShadDrawerContent,
@@ -23,7 +23,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { Tooltip } from "@nextui-org/tooltip";
+import { Tooltip } from "@heroui/tooltip";
 
 type DrawerEventosProps = {
   evento: {

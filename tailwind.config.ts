@@ -1,6 +1,6 @@
 import {heroui} from '@heroui/theme';
 import type { Config } from "tailwindcss";
-const {nextui} = require("@nextui-org/react");
+const {heroui} = require("@heroui/react");
 
 const config: Config = {
     darkMode: ["class"],
@@ -8,7 +8,7 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/@nextui-org/theme/dist/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
     "./node_modules/@heroui/theme/dist/components/(calendar|card|date-picker|button|ripple|spinner|date-input|form|popover).js"
   ],
   theme: {
@@ -72,6 +72,6 @@ const config: Config = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate"),nextui(),heroui()],
+  plugins: [require("tailwindcss-animate"),heroui(),heroui()],
 };
 export default config;

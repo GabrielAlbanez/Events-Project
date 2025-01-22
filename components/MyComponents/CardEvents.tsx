@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import { Evento } from "@/types";
 import { Card, CardFooter } from "@heroui/card";
-import { Button, Image } from "@nextui-org/react";
+import { Button } from "@heroui/button";
 import ModalEventsValidate from "@/components/MyComponents/ModalEventsValidate";
+import { Image } from "@heroui/react";
 
 interface CardEventsProps {
   events: Evento[];

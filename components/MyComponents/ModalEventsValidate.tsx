@@ -2,12 +2,14 @@
 import React from "react";
 import {
   Modal,
+  ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
   Button,
-  Image,
-} from "@nextui-org/react";
+  useDisclosure,
+  useDraggable,
+} from "@heroui/react";
 import { Evento } from "@/types";
 
 interface ModalEventsValidateProps {
@@ -23,45 +25,67 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
   onClose,
   onValidate,
 }) => {
+  const targetRef = React.useRef(null);
+  const { moveProps } = useDraggable({ targetRef, canOverflow: true, isDisabled: !isOpen });
+
   if (!event) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalHeader>
-        <h2>{event.nome}</h2>
-      </ModalHeader>
-      <ModalBody>
-        <Image
-          src={event.user.image || "https://via.placeholder.com/150"}
-          alt={`${event.user.name}'s profile`}
-          className="rounded-full mb-4"
-          width={100}
-          height={100}
-        />
-        <p>
-          <strong>Description:</strong> {event.descricao}
-        </p>
-        <p>
-          <strong>Date:</strong> {event.data}
-        </p>
-        <p>
-          <strong>Address:</strong> {event.endereco}
-        </p>
-        <p>
-          <strong>Created by:</strong> {event.user.name} ({event.user.email})
-        </p>
-        <p>
-          <strong>Role:</strong> {event.user.role}
-        </p>
-      </ModalBody>
-      <ModalFooter>
-        <Button color="secondary" onClick={onClose}>
-          Close
-        </Button>
-        <Button color="primary" onClick={() => onValidate(event.id)}>
-          Validate
-        </Button>
-      </ModalFooter>
+    <Modal className="w-[700px] h-[500px] overflow-auto" ref={targetRef} isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <ModalContent>
+        {(closeModal) => (
+          <>
+            <ModalHeader {...moveProps} className="flex flex-col gap-1">
+              {event.nome}
+            </ModalHeader>
+            <ModalBody>
+              <img
+                src={event.banner || "https://via.placeholder.com/150"}
+                alt="Event Banner"
+                className="rounded-lg mb-4 w-full h-auto"
+              />
+              <p>
+                <strong>Description:</strong> {event.descricao}
+              </p>
+              <p>
+                <strong>Date:</strong> {event.data}
+              </p>
+              <p>
+                <strong>Address:</strong> {event.endereco}
+              </p>
+              <div className="mt-6 p-4 border rounded-lg shadow-md bg-gray-50">
+                <h3 className="text-lg font-semibold mb-2">About the Creator</h3>
+                <div className="flex items-center gap-4">
+                  <img
+                    src={event.user.image || "https://via.placeholder.com/100"}
+                    alt={event.user.name}
+                    className="w-20 h-20 rounded-full border object-cover"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-800">{event.user.name}</p>
+                    <p className="text-sm text-gray-600">{event.user.email}</p>
+                    <p className="text-sm text-gray-500">Role: {event.user.role}</p>
+                  </div>
+                </div>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button color="danger" variant="light" onPress={onClose}>
+                Close
+              </Button>
+              <Button
+                color="primary"
+                onPress={() => {
+                  onValidate(event.id);
+                  closeModal();
+                }}
+              >
+                Validate
+              </Button>
+            </ModalFooter>
+          </>
+        )}
+      </ModalContent>
     </Modal>
   );
 };
