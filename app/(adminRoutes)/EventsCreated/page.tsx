@@ -5,15 +5,20 @@ import CardEvents from "@/components/MyComponents/CardEvents";
 import { Evento } from "@/types";
 import { FilterBar } from "@/components/MyComponents/FilterBar";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
+import { socket } from "@/lib/socketClient";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const EventsCreated = () => {
+  const { data } = useCurrentUser();
+
   const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
   const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
   const [searchTerm, setSearchTerm] = useState(""); // Termo de busca
-  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all"); // Filtro por status
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "verified" | "unverified"
+  >("all"); // Filtro por status
   const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
 
-  // Buscar eventos na API
   useEffect(() => {
     const fetchEvents = async () => {
       try {
@@ -27,18 +32,18 @@ const EventsCreated = () => {
           throw new Error("Falha ao buscar eventos");
         }
 
-        const data: Evento[] = await response.json();
+        const data = await response.json();
         setEvents(data); // Atualiza os eventos
         setFilteredEvents(data); // Inicializa os eventos filtrados
         setIsLoading(false); // Finaliza o carregamento
       } catch (error) {
-        console.error(error);
+        console.error("Erro ao buscar eventos:", error);
         setIsLoading(false);
       }
     };
 
     fetchEvents();
-  }, []);
+  }, []); // Chamada única ao carregar o componente
 
   // Filtrar eventos por termo de busca e status
   useEffect(() => {
@@ -73,8 +78,7 @@ const EventsCreated = () => {
     <div className="flex flex-col w-full h-full items-center p-6">
       {isLoading ? (
         <div className="flex h-full w-full items-center justify-center">
-        <p className="text-gray-600">Carregando eventos...</p>
-
+          <p className="text-gray-600">Carregando eventos..</p>
         </div>
       ) : (
         <>
@@ -86,9 +90,11 @@ const EventsCreated = () => {
           />
 
           {/* Lista de Eventos */}
-          <div className="w-full">
-            <CardEvents events={filteredEvents} />
-          </div>
+          {data && (
+            <div className="w-full">
+              <CardEvents events={filteredEvents} adminId={data?.id} />
+            </div>
+          )}
         </>
       )}
     </div>

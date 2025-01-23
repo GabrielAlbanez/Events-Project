@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import next from "next";
 import { Server } from "socket.io";
 
+
 const dev = process.env.NODE_ENV !== "production";
 
 const hostname = process.env.HOSTAME || "localhost";
@@ -30,10 +31,10 @@ app.prepare().then(() => {
 
     socket.on("teste", () => {
       console.log("teste");
-    })
+    });
 
     socket.on("role-updated", ({ userId, newRole }) => {
-      console.log("entrou no role updated")
+      console.log("entrou no role updated");
       const targetSocket = Array.from(io.sockets.sockets.values()).find(
         (s) => s.data.userId === userId
       );
@@ -43,11 +44,18 @@ app.prepare().then(() => {
       }
     });
 
-    socket.on("create-event", ({ user, event }) => {
-      console.log(`Event created by ${user.name}:`, event);
+    socket.on("create-event",  ({ user }) => {
+      try {
+        console.log("Evento criado por:", user.nome);
 
-      // Enviar o evento para todos os usuários conectados
-      io.emit("new-event", { user, event });
+        // Busca os eventos do banco
+        // const dataEvents =  getAllDataEvents();
+
+        // // Emite os eventos atualizados
+        // io.emit("allEvents", dataEvents);
+      } catch (error) {
+        console.error("Erro ao criar evento:", error);
+      }
     });
 
     socket.on("join-room", ({ room, username }) => {

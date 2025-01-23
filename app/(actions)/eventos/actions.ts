@@ -61,10 +61,8 @@ export async function salvarEvento(formData: FormData, userId: string) {
     }
 
     // Conversão da data para um objeto Date
-    const eventDate = new Date(data);
-    if (isNaN(eventDate.getTime())) {
-      return { success: false, message: "A data do evento é inválida." };
-    }
+    const eventDate = data
+
 
     // Arquivo do banner
     const bannerPath = await saveFile(bannerFile);

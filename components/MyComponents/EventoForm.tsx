@@ -17,6 +17,7 @@ import {
 import { salvarEvento } from "@/app/(actions)/eventos/actions";
 import { DatePicker } from "@heroui/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { socket } from "@/lib/socketClient";
 
 type EventoFormData = {
   nome: string;
@@ -42,7 +43,9 @@ export function EventoForm({
 
   const { handleSubmit, reset, setValue, formState } = form;
 
-  const {data} = useCurrentUser()
+
+
+  const { data } = useCurrentUser()
   const { errors } = formState;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -113,7 +116,10 @@ export function EventoForm({
         const result = await salvarEvento(formData, data?.id ?? ""); // Substitua pelo ID do usuário real
 
         if (result.success) {
+          const event = formData
           toast.success("Evento criado com sucesso!");
+          socket.emit("create-event", { user: data});
+
           reset();
           handleRemoveBanner();
           setCarouselImages([]);

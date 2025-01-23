@@ -23,7 +23,7 @@ export type Evento = {
   data: string;
   user : User;
   LinkParaCompraIngresso: string;
-  id: number;
+  id: string;
   endereco: string;
   lat?: number;
   lng?: number;
