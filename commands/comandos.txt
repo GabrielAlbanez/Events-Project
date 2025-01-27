@@ -1,0 +1,3 @@
+npm run dev:scoket - inicar o next junto com o server do scoket io
+
+node scripts/criarRota.js - comando para gerar uma rota ja pre criada

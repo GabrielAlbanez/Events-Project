@@ -5,24 +5,38 @@ import TableEvents from "@/components/MyComponents/TableEvents";
 import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import CardEvents from "@/components/MyComponents/CardEvents";
 
-const EventsCreated = () => {
+const myEvents = () => {
   const { data } = useCurrentUser();
 
   const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
   const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
   const [searchTerm, setSearchTerm] = useState(""); // Termo de busca
-  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all"); // Filtro por status
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "verified" | "unverified"
+  >("all"); // Filtro por status
   const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
 
   // Função para buscar eventos da API
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchEvents = async (idUser: string) => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-        console.log("Buscando eventos da URL:", `${baseUrl}/api/AllEvents`);
+        const baseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        console.log(
+          "Buscando eventos da URL:",
+          `${baseUrl}/api/EventsForUserById`
+        );
 
-        const response = await fetch(`${baseUrl}/api/AllEvents`);
+        // Fazendo a requisição com o ID do usuário no corpo da requisição
+        const response = await fetch(`${baseUrl}/api/EventsForUserById`, {
+          method: "POST", // Usando POST para enviar dados no body
+          headers: {
+            "Content-Type": "application/json", // Define o tipo de conteúdo
+          },
+          body: JSON.stringify({ idUser }), // Envia o ID do usuário
+        });
 
         if (!response.ok) {
           throw new Error("Falha ao buscar eventos");
@@ -31,8 +45,8 @@ const EventsCreated = () => {
         const data = await response.json();
         console.log("Eventos recebidos da API:", data);
 
-        setEvents(data); // Atualiza os eventos
-        setFilteredEvents(data); // Inicializa os eventos filtrados
+        setEvents(data.events || []); // Atualiza os eventos
+        setFilteredEvents(data.events || []); // Inicializa os eventos filtrados
         setIsLoading(false); // Finaliza o carregamento
       } catch (error) {
         console.error("Erro ao buscar eventos:", error);
@@ -40,7 +54,9 @@ const EventsCreated = () => {
       }
     };
 
-    fetchEvents();
+    if (data?.id) {
+      fetchEvents(data?.id);
+    }
   }, []); // Chamada única ao carregar o componente
 
   // Função para filtrar eventos (status e termo de busca)
@@ -70,7 +86,7 @@ const EventsCreated = () => {
 
     console.log("Eventos filtrados:", filtered);
     setFilteredEvents(filtered); // Atualiza os eventos filtrados
-    console.log("evento filtrado para", filtered)
+    console.log("evento filtrado para", filtered);
   }, [searchTerm, filterStatus, events]); // Executa sempre que searchTerm, filterStatus ou events mudar
 
   // Função para atualizar o termo de busca
@@ -101,9 +117,9 @@ const EventsCreated = () => {
           />
 
           {/* Lista de Eventos */}
-          {data &&  (
+          {data && (
             <div className="w-full">
-              <TableEvents events={filteredEvents} adminId={data?.id} />
+              <CardEvents events={filteredEvents} adminId={data?.id} />
             </div>
           )}
         </>
@@ -112,4 +128,4 @@ const EventsCreated = () => {
   );
 };
 
-export default EventsCreated;
+export default myEvents;

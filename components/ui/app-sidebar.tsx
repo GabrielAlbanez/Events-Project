@@ -8,6 +8,7 @@ import {
   AmpersandIcon,
   Shield,
   Users,
+  CalendarSearch,
   CalendarCheck,
 } from "lucide-react";
 import {
@@ -16,6 +17,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+   
 } from "@/components/ui/sidebar";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -111,6 +113,34 @@ export function AppSidebar() {
               >
                 <Calendar1Icon className="w-5 h-5 mr-2" />
                 <span className="text-foreground">Criar Eventos</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {session?.user?.role === "ADMIN" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  router.push("/myEvents");
+                }}
+                className=" transition-all rounded-lg px-4 py-2"
+              >
+                <CalendarSearch className="w-5 h-5 mr-2" />
+                <span className="text-foreground">My events</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {session?.user?.role === "PROMOTER" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  router.push("/myEvents");
+                }}
+                className=" transition-all rounded-lg px-4 py-2"
+              >
+                <CalendarSearch className="w-5 h-5 mr-2" />
+                <span className="text-foreground">My events</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

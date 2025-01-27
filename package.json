@@ -2,6 +2,9 @@
    "name": "y",
    "version": "0.1.0",
    "private": true,
+   "bin": {
+      "criar-rota": "./scripts/criarRota.js"
+   },
    "scripts": {
       "dev": "next dev",
       "dev:socket": "set NODE_OPTIONS=--loader=ts-node/esm --trace-warnings --no-warnings && ts-node server.mts",
@@ -44,6 +47,7 @@
       "embla-carousel-react": "^8.5.1",
       "formidable": "^3.5.2",
       "framer-motion": "^11.15.0",
+      "inquirer": "^12.3.2",
       "lucide-react": "^0.468.0",
       "multer": "^1.4.5-lts.1",
       "next": "^14.2.17",
