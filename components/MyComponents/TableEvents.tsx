@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -20,16 +20,22 @@ import { validateEvents } from "@/app/(actions)/validateEvents/action";
 import { deleteEvents } from "@/app/(actions)/deleteEvents/action";
 
 interface TableEventsProps {
-  events: Evento[]; // Eventos filtrados passados como props
-  adminId: string; // ID do administrador para as ações
+  events: Evento[];
+  adminId: string;
 }
 
 const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
+  const [eventList, setEventList] = useState<Evento[]>(events); // Estado local dos eventos
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   console.log("Eventos recebidos no CardEvents:", events);
+
+  // Atualizar estado quando eventos forem alterados
+  useEffect(() => {
+    setEventList(events);
+  }, [events]);
 
   // Gerenciar seleção de eventos
   const handleSelectEvent = (eventId: string) => {
@@ -56,13 +62,13 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
     setIsModalOpen(false);
   };
 
-  // Validar eventos selecionados
+  // Validar eventos selecionados e atualizar a lista
   const handleValidateSelected = async () => {
     const selectedEventIds = Array.from(selectedEvents);
 
     // Filtrar eventos já validados
     const unvalidatedEventIds = selectedEventIds.filter((id) => {
-      const event = events.find((e) => e.id === id);
+      const event = eventList.find((e) => e.id === id);
       return event && !event.validate;
     });
 
@@ -73,10 +79,18 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
 
     toast.promise(
       validateEvents(unvalidatedEventIds, adminId)
-        .then((response) => {
+        .then(() => {
+          // Atualiza localmente o estado dos eventos sem precisar refetch
+          setEventList((prev) =>
+            prev.map((event) =>
+              unvalidatedEventIds.includes(event.id)
+                ? { ...event, validate: true }
+                : event
+            )
+          );
+
+          setSelectedEvents(new Set()); // Limpar seleção após validação
           toast.success("🎉 Eventos validados com sucesso!");
-          setSelectedEvents(new Set()); // Limpe a seleção
-          return response.message; // Retorna a mensagem para o toast
         })
         .catch((error) => {
           console.error("Erro ao validar eventos:", error);
@@ -84,13 +98,13 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
         }),
       {
         pending: "Validando eventos...",
-        success: "🎉 evento verificado",
-        error: "❌ erro ao verificar evento",
+        success: "🎉 Evento verificado",
+        error: "❌ Erro ao verificar evento",
       }
     );
   };
 
-  // Deletar eventos selecionados
+  // Deletar eventos selecionados e remover da lista
   const handleDeleteSelected = async () => {
     const selectedEventIds = Array.from(selectedEvents);
 
@@ -101,10 +115,13 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
 
     toast.promise(
       deleteEvents(selectedEventIds, adminId)
-        .then((response) => {
-          toast.success("🎉 Eventos excluídos com sucesso!");
-          setSelectedEvents(new Set()); // Limpe a seleção
-          return response.message; // Retorna a mensagem para o toast
+        .then(() => {
+          // Remove eventos deletados da lista local
+          setEventList((prev) =>
+            prev.filter((event) => !selectedEventIds.includes(event.id))
+          );
+
+          setSelectedEvents(new Set()); // Limpar seleção após deletar
         })
         .catch((error) => {
           console.error("Erro ao excluir eventos:", error);
@@ -113,19 +130,19 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
       {
         pending: "Excluindo eventos...",
         success: "🎉 Evento excluído com sucesso",
-        error: "❌ erro ao excluir evento",
+        error: "❌ Erro ao excluir evento",
       }
     );
   };
 
   // Caso não haja eventos para exibir
-  if (events.length === 0) {
+  if (eventList.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <h1 className="text-gray-600">Nenhum evento foi criado ainda...</h1>
       </div>
     );
-  } 
+  }
 
   return (
     <div className="p-6">
@@ -137,31 +154,31 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
             onClick={handleValidateSelected}
             className="mr-4"
           >
-            Validate Selected ({selectedEvents.size})
+            Validar Selecionados ({selectedEvents.size})
           </Button>
           <Button color="danger" onClick={handleDeleteSelected}>
-            Delete Selected ({selectedEvents.size})
+            Excluir Selecionados ({selectedEvents.size})
           </Button>
         </div>
       )}
 
       <Table aria-label="Event management table">
         <TableHeader>
-          <TableColumn align="start">Select</TableColumn>
-          <TableColumn align="start">Event Name</TableColumn>
-          <TableColumn align="start">Address</TableColumn>
+          <TableColumn align="start">Selecionar</TableColumn>
+          <TableColumn align="start">Nome do Evento</TableColumn>
+          <TableColumn align="start">Endereço</TableColumn>
           <TableColumn align="center">Status</TableColumn>
-          <TableColumn align="center">Actions</TableColumn>
+          <TableColumn align="center">Ações</TableColumn>
         </TableHeader>
         <TableBody>
-          {events.map((event) => (
+          {eventList.map((event) => (
             <TableRow key={event.id}>
               {/* Checkbox para seleção */}
               <TableCell>
                 <Checkbox
                   isSelected={selectedEvents.has(event.id)}
                   onValueChange={() => handleSelectEvent(event.id)}
-                  aria-label={`Select ${event.nome}`}
+                  aria-label={`Selecionar ${event.nome}`}
                 />
               </TableCell>
               {/* Nome do evento */}
@@ -175,19 +192,19 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
                   size="sm"
                   variant="flat"
                 >
-                  {event.validate ? "Validated" : "Not validated"}
+                  {event.validate ? "Validado" : "Não Validado"}
                 </Chip>
               </TableCell>
               {/* Ações individuais */}
               <TableCell align="center">
                 <div className="flex gap-2 justify-center">
-                  <Tooltip content="See More">
+                  <Tooltip content="Ver Detalhes">
                     <Button
                       color="primary"
                       size="sm"
                       onClick={() => handleSeeMore(event)}
                     >
-                      Details
+                      Detalhes
                     </Button>
                   </Tooltip>
                 </div>

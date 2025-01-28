@@ -43,9 +43,7 @@ export function EventoForm({
 
   const { handleSubmit, reset, setValue, formState } = form;
 
-
-
-  const { data } = useCurrentUser()
+  const { data } = useCurrentUser();
   const { errors } = formState;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -56,7 +54,9 @@ export function EventoForm({
   const [previewBanner, setPreviewBanner] = useState<string | null>(null);
   const [selectedBanner, setSelectedBanner] = useState<File | null>(null);
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
-  const [selectedCarouselFiles, setSelectedCarouselFiles] = useState<File[]>([]);
+  const [selectedCarouselFiles, setSelectedCarouselFiles] = useState<File[]>(
+    []
+  );
 
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,43 +96,48 @@ export function EventoForm({
     console.log("Banner selecionado:", selectedBanner);
     console.log("Arquivos do carrossel:", selectedCarouselFiles);
 
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.append("nome", dataForm.nome);
-        formData.append("descricao", dataForm.descricao);
-        formData.append("data", dataForm.data);
-        formData.append("LinkParaCompraIngresso", dataForm.LinkParaCompraIngresso);
-        formData.append("endereco", dataForm.endereco);
+    if (data?.id) {
+      startTransition(async () => {
+        try {
+          const formData = new FormData();
+          formData.append("nome", dataForm.nome);
+          formData.append("descricao", dataForm.descricao);
+          formData.append("data", dataForm.data);
+          formData.append(
+            "LinkParaCompraIngresso",
+            dataForm.LinkParaCompraIngresso
+          );
+          formData.append("endereco", dataForm.endereco);
 
-        if (selectedBanner) {
-          formData.append("banner", selectedBanner);
+          if (selectedBanner) {
+            formData.append("banner", selectedBanner);
+          }
+
+          selectedCarouselFiles.forEach((file) => {
+            formData.append("carrossel", file);
+          });
+
+          const result = await salvarEvento(formData, data?.id ?? ""); // Substitua pelo ID do usuário real
+
+          if (result.success) {
+            const event = formData;
+            toast.success("Evento criado com sucesso!");
+            socket.emit("create-event", { user: data });
+
+            reset();
+            handleRemoveBanner();
+            setCarouselImages([]);
+            setSelectedCarouselFiles([]);
+            router.push("/");
+          } else {
+            toast.error(result.message || "Erro ao salvar o evento.");
+          }
+        } catch (error) {
+          console.error("Erro ao criar o evento:", error);
+          toast.error("Erro inesperado ao criar o evento.");
         }
-
-        selectedCarouselFiles.forEach((file) => {
-          formData.append("carrossel", file);
-        });
-
-        const result = await salvarEvento(formData, data?.id ?? ""); // Substitua pelo ID do usuário real
-
-        if (result.success) {
-          const event = formData
-          toast.success("Evento criado com sucesso!");
-          socket.emit("create-event", { user: data});
-
-          reset();
-          handleRemoveBanner();
-          setCarouselImages([]);
-          setSelectedCarouselFiles([]);
-          router.push("/");
-        } else {
-          toast.error(result.message || "Erro ao salvar o evento.");
-        }
-      } catch (error) {
-        console.error("Erro ao criar o evento:", error);
-        toast.error("Erro inesperado ao criar o evento.");
-      }
-    });
+      });
+    }
   };
 
   return (
@@ -211,7 +216,9 @@ export function EventoForm({
               <FormControl>
                 <Input placeholder="https://exemplo.com/ingressos" {...field} />
               </FormControl>
-              <FormMessage>{errors.LinkParaCompraIngresso?.message}</FormMessage>
+              <FormMessage>
+                {errors.LinkParaCompraIngresso?.message}
+              </FormMessage>
             </FormItem>
           )}
         />

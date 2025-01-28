@@ -7,7 +7,12 @@ import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import CardEvents from "@/components/MyComponents/CardEvents";
 
-const myEvents = () => {
+type ResponseApi = {
+  status: string;
+  message: string;
+};
+
+const MyEvents = () => {
   const { data } = useCurrentUser();
 
   const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
@@ -17,55 +22,66 @@ const myEvents = () => {
     "all" | "verified" | "unverified"
   >("all"); // Filtro por status
   const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
+  const [responseApi, setResponseApi] = useState<ResponseApi | null>(null); // Resposta da API
 
   // Função para buscar eventos da API
   useEffect(() => {
-    const fetchEvents = async (idUser: string) => {
+    if (!data) {
+      console.log("ID do usuário não disponível.");
+      setResponseApi({ status: "error", message: "carregando..." });
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchEvents = async () => {
       try {
         const baseUrl =
           process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-        console.log(
-          "Buscando eventos da URL:",
-          `${baseUrl}/api/EventsForUserById`
-        );
 
-        // Fazendo a requisição com o ID do usuário no corpo da requisição
-        const response = await fetch(`${baseUrl}/api/EventsForUserById`, {
-          method: "POST", // Usando POST para enviar dados no body
+        const response = await fetch(`${baseUrl}/api/EventsUser`, {
+          method: "POST",
           headers: {
-            "Content-Type": "application/json", // Define o tipo de conteúdo
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify({ idUser }), // Envia o ID do usuário
+          body: JSON.stringify({ idUser: data.id }),
         });
 
         if (!response.ok) {
-          throw new Error("Falha ao buscar eventos");
+          console.error("Erro na requisição:", response.statusText);
+          setResponseApi({
+            status: "error",
+            message: "Erro na requisição ao servidor.",
+          });
+          return;
         }
 
-        const data = await response.json();
-        console.log("Eventos recebidos da API:", data);
+        const result = await response.json();
+        console.log("Eventos recebidos:", result);
+        setResponseApi({ status: result.status, message: result.message });
 
-        setEvents(data.events || []); // Atualiza os eventos
-        setFilteredEvents(data.events || []); // Inicializa os eventos filtrados
-        setIsLoading(false); // Finaliza o carregamento
+        if (result.status === "error") {
+          console.error("Erro no servidor:", result.message);
+          return;
+        }
+
+        setEvents(result.events || []);
+        setFilteredEvents(result.events || []);
       } catch (error) {
         console.error("Erro ao buscar eventos:", error);
+        setResponseApi({
+          status: "error",
+          message: "Erro interno ao buscar eventos.",
+        });
+      } finally {
         setIsLoading(false);
       }
     };
 
-    if (data?.id) {
-      fetchEvents(data?.id);
-    }
-  }, []); // Chamada única ao carregar o componente
+    fetchEvents();
+  }, [data]);
 
   // Função para filtrar eventos (status e termo de busca)
   useEffect(() => {
-    console.log("Filtrando eventos com:");
-    console.log("searchTerm:", searchTerm);
-    console.log("filterStatus:", filterStatus);
-    console.log("Eventos disponíveis para filtrar:", events);
-
     const filtered = events.filter((event) => {
       const matchesSearch =
         event.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -77,55 +93,66 @@ const myEvents = () => {
         (filterStatus === "verified" && event.validate) ||
         (filterStatus === "unverified" && !event.validate);
 
-      console.log(
-        `Evento "${event.nome}" -> matchesSearch: ${matchesSearch}, matchesStatus: ${matchesStatus}`
-      );
-
       return matchesSearch && matchesStatus;
     });
 
-    console.log("Eventos filtrados:", filtered);
     setFilteredEvents(filtered); // Atualiza os eventos filtrados
-    console.log("evento filtrado para", filtered);
   }, [searchTerm, filterStatus, events]); // Executa sempre que searchTerm, filterStatus ou events mudar
 
   // Função para atualizar o termo de busca
   const handleFilterChange = (value: string) => {
-    console.log("Atualizando searchTerm para:", value);
     setSearchTerm(value);
   };
 
   // Função para atualizar o filtro de validação
   const handleStatusChange = (status: "all" | "verified" | "unverified") => {
-    console.log("Atualizando filterStatus para:", status);
     setFilterStatus(status);
   };
 
+  // Renderização condicional com lógica separada
+  const renderLoading = () => (
+    <div className="flex h-full w-full items-center justify-center">
+      {responseApi && <p className="text-red-500">{responseApi.message}</p>}
+      <p className="text-gray-600">Carregando eventos...</p>
+    </div>
+  );
+
+  const renderError = () => (
+    <div className="flex h-full w-full items-center justify-center">
+      <p className="text-red-500">{responseApi?.message}</p>
+    </div>
+  );
+
+  const renderNoEvents = () => (
+    <div className="flex h-full w-full items-center justify-center">
+      <p className="text-gray-600">Nenhum evento encontrado.</p>
+    </div>
+  );
+
+  const renderEvents = () => (
+    <>
+      <div className="w-full pt-6">
+        {data && <CardEvents events={filteredEvents} adminId={data?.id} />}
+      </div>
+    </>
+  );
+
   return (
     <div className="flex flex-col w-full h-full items-center p-6">
-      {isLoading ? (
-        <div className="flex h-full w-full items-center justify-center">
-          <p className="text-gray-600">Carregando eventos..</p>
-        </div>
-      ) : (
-        <>
-          {/* Barra de Filtro */}
-          <FilterBarEvents
-            filterValue={searchTerm}
-            onFilterChange={handleFilterChange}
-            onStatusChange={handleStatusChange}
-          />
-
-          {/* Lista de Eventos */}
-          {data && (
-            <div className="w-full">
-              <CardEvents events={filteredEvents} adminId={data?.id} />
-            </div>
-          )}
-        </>
-      )}
+      <FilterBarEvents
+        filterValue={searchTerm}
+        onFilterChange={handleFilterChange}
+        onStatusChange={handleStatusChange}
+      />
+      {isLoading
+        ? renderLoading()
+        : responseApi?.status === "error"
+        ? renderError()
+        : events.length === 0
+        ? renderNoEvents()
+        : renderEvents()}
     </div>
   );
 };
 
-export default myEvents;
+export default MyEvents;

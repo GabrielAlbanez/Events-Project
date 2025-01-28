@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -7,7 +7,6 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-  useDisclosure,
   useDraggable,
 } from "@heroui/react";
 import { Evento } from "@/types";
@@ -24,12 +23,30 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
   onClose,
 }) => {
   const targetRef = React.useRef(null);
-  const { moveProps } = useDraggable({ targetRef, canOverflow: true, isDisabled: !isOpen });
+  const { moveProps } = useDraggable({
+    targetRef,
+    canOverflow: true,
+    isDisabled: !isOpen,
+  });
+
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   if (!event) return null;
 
+  const toggleDescription = () => setShowFullDescription(!showFullDescription);
+
+  // Definir o tamanho limite da descrição antes de encurtá-la
+  const maxDescriptionLength = 100;
+
   return (
-    <Modal className="w-[700px] h-[500px] overflow-auto" ref={targetRef} isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Modal
+      className="w-[500px] h-[500px] overflow-auto"
+      ref={targetRef}
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <ModalContent>
         {(closeModal) => (
           <>
@@ -37,22 +54,42 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               {event.nome}
             </ModalHeader>
             <ModalBody>
+              {/* Banner */}
               <img
                 src={event.banner || "https://via.placeholder.com/150"}
                 alt="Event Banner"
-                className="rounded-lg mb-4 w-full h-auto"
+                className="rounded-lg w-full h-auto"
               />
+
+              {/* Descrição com truncamento */}
+              <p className="mt-2">
+                <strong>Descrição:</strong>{" "}
+                {showFullDescription
+                  ? event.descricao
+                  : event.descricao.length > maxDescriptionLength
+                  ? `${event.descricao.substring(0, maxDescriptionLength)}...`
+                  : event.descricao}
+                {/* Botão de "Ver mais" */}
+                {event.descricao.length > maxDescriptionLength && (
+                  <button
+                    onClick={toggleDescription}
+                    className="text-blue-500 hover:underline text-sm"
+                  >
+                    {showFullDescription ? "Ver menos" : "Ver mais"}
+                  </button>
+                )}
+              </p>
+
               <p>
-                <strong>Description:</strong> {event.descricao}
+                <strong>Data:</strong> {event.data}
               </p>
               <p>
-                <strong>Date:</strong> {event.data}
+                <strong>Endereço:</strong> {event.endereco}
               </p>
-              <p>
-                <strong>Address:</strong> {event.endereco}
-              </p>
+
+              {/* Criador do Evento */}
               <div className="mt-6 p-4 border rounded-lg shadow-md bg-gray-50">
-                <h3 className="text-lg font-semibold mb-2">About the Creator</h3>
+                <h3 className="text-lg font-semibold mb-2">Sobre o Criador</h3>
                 <div className="flex items-center gap-4">
                   <img
                     src={event.user.image || "https://via.placeholder.com/100"}
@@ -60,18 +97,21 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
                     className="w-20 h-20 rounded-full border object-cover"
                   />
                   <div>
-                    <p className="font-medium text-gray-800">{event.user.name}</p>
+                    <p className="font-medium text-gray-800">
+                      {event.user.name}
+                    </p>
                     <p className="text-sm text-gray-600">{event.user.email}</p>
-                    <p className="text-sm text-gray-500">Role: {event.user.role}</p>
+                    <p className="text-sm text-gray-500">
+                      Role: {event.user.role}
+                    </p>
                   </div>
                 </div>
               </div>
             </ModalBody>
             <ModalFooter>
               <Button color="danger" variant="light" onPress={onClose}>
-                Close
+                Fechar
               </Button>
-
             </ModalFooter>
           </>
         )}
