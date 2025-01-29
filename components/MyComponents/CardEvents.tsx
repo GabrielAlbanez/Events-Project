@@ -122,7 +122,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
             </ModalHeader>
             <ModalBody className="overflow-y-auto max-h-[80vh]">
               {/* Banner do evento */}
-              <div className="relative w-full h-[350px] mb-4 rounded-lg overflow-hidden">
+              <div className="relative w-full h-[350px]  rounded-lg overflow-hidden">
                 <Image
                   alt="Banner do evento"
                   src={selectedEvent.banner}
