@@ -8,9 +8,11 @@ const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
 const port = parseInt(process.env.PORT || "3000", 10);
 
-console.log("🔥 Prisma está sendo inicializado...");
 const prisma = new PrismaClient();
-console.log("📢 [PRISMA] Modelos disponíveis:", Object.values(Prisma.ModelName));
+console.log(
+  "📢 [PRISMA] Modelos disponíveis:",
+  Object.values(Prisma.ModelName)
+);
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -58,21 +60,25 @@ app.prepare().then(async () => {
   // 🔥 **Monitorando banco para mudanças**
   setInterval(async () => {
     try {
-      const currentEvents = await prisma.events.findMany();
-      
-      if (!_.isEqual(currentEvents, lastEvents)) { // 🔄 Somente emite se houver mudanças
+
+      const currentEvents = await prisma.events.findMany({
+        include: {
+          validator: true, // 🔹 Inclui os dados do validador
+        },
+      });
+
+      if (!_.isEqual(currentEvents, lastEvents)) {
+        // 🔄 Somente emite se houver mudanças
         io!.emit("update-events", currentEvents);
         lastEvents = currentEvents; // Atualiza o cache
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }, 5000); // Verifica mudanças a cada 5 segundos
 });
 
 // 🔥 **Middleware do Prisma para capturar eventos no banco e emitir via WebSocket**
 prisma.$use(async (params, next) => {
-
   const result = await next(params);
 
   if (
@@ -80,17 +86,20 @@ prisma.$use(async (params, next) => {
     params.model.toLowerCase() === "events" &&
     ["create", "update", "delete"].includes(params.action)
   ) {
-
     try {
-      const updatedEvents = await prisma.events.findMany();
+      const updatedEvents = await prisma.events.findMany({
+        include: {
+          validator: true, // 🔹 Inclui os dados do validador
+        },
+      });
 
-      if (!_.isEqual(updatedEvents, lastEvents)) { // 🔄 Somente emite se houver mudanças
+      if (!_.isEqual(updatedEvents, lastEvents)) {
+        // 🔄 Somente emite se houver mudanças
         io?.emit("update-events", updatedEvents);
         lastEvents = updatedEvents; // Atualiza o cache
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   return result;

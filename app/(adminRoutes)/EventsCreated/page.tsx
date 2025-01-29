@@ -54,7 +54,8 @@ const EventsCreated = () => {
       const matchesSearch =
         event.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.data.toLowerCase().includes(searchTerm.toLowerCase());
+        event.dataInicio.toLowerCase().includes(searchTerm.toLowerCase());
+        event.dataFim.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
         filterStatus === "all" ||

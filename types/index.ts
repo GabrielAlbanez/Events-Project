@@ -4,8 +4,7 @@ export type IconSvgProps = SVGProps<SVGSVGElement> & {
   size?: number;
 };
 
-
-export type User =  {
+export type User = {
   id: string;
   name: string;
   email: string;
@@ -13,21 +12,21 @@ export type User =  {
   image: string;
   role: string;
   Events: Evento[]; // Ajuste conforme a estrutura dos eventos
-}
+};
 
 export type Evento = {
   nome: string;
   banner: string; // Banner principal
   carrossel: string[]; // Lista de URLs para imagens do carrossel
   descricao: string;
-  data: string;
-  user : User;
+  dataInicio: string; // 🔹 Alterado para data de início
+  dataFim: string;
+  user: User;
   LinkParaCompraIngresso: string;
   id: string;
   endereco: string;
   lat?: number;
   lng?: number;
   validate: boolean;
-  validator : User;
-  
+  validator: User;
 };

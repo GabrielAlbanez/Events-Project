@@ -30,7 +30,7 @@ async function cleanOrphanedFiles(usedPaths: Set<string>, directory: string) {
   });
 }
 
-// Função para salvar um evento
+// Função para salvar um evento com data de início e fim
 export async function salvarEvento(formData: FormData, userId: string) {
   try {
     // Extraindo campos do FormData
@@ -38,31 +38,25 @@ export async function salvarEvento(formData: FormData, userId: string) {
     const descricao = formData.get("descricao")?.toString() || "";
     const linkParaCompra = formData.get("LinkParaCompraIngresso")?.toString() || "";
     const endereco = formData.get("endereco")?.toString() || "";
-    const data = formData.get("data")?.toString(); // Recebendo a data do formulário
+
+    // 🔹 Agora recebemos dataInicio e dataFim do formulário
+    const dataInicio = formData.get("dataInicio")?.toString();
+    const dataFim = formData.get("dataFim")?.toString();
+
     const bannerFile = formData.get("banner") as File;
     const carouselFiles = formData.getAll("carrossel") as File[];
 
-    if (!nome || !descricao || !linkParaCompra || !endereco || !data || !bannerFile || !carouselFiles) {
+    if (!nome || !descricao || !linkParaCompra || !endereco || !dataInicio || !dataFim || !bannerFile || !carouselFiles) {
       return { success: false, message: "Preencha todos os campos." };
     }
 
-    // Validações manuais
-    if (nome.length < 3) {
-      return { success: false, message: "O nome deve ter pelo menos 3 caracteres." };
-    }
-    if (descricao.length < 10) {
-      return { success: false, message: "A descrição deve ter pelo menos 10 caracteres." };
-    }
-    if (!linkParaCompra.startsWith("http")) {
-      return { success: false, message: "O link para compra deve ser uma URL válida." };
-    }
-    if (endereco.length < 5) {
-      return { success: false, message: "O endereço deve ter pelo menos 5 caracteres." };
-    }
+    // 🔹 Validações das datas
+    const eventStartDate = new Date(dataInicio);
+    const eventEndDate = new Date(dataFim);
 
-    // Conversão da data para um objeto Date
-    const eventDate = data
-
+    if (eventStartDate > eventEndDate) {
+      return { success: false, message: "A data de início não pode ser maior que a data de fim." };
+    }
 
     // Arquivo do banner
     const bannerPath = await saveFile(bannerFile);
@@ -84,12 +78,13 @@ export async function salvarEvento(formData: FormData, userId: string) {
       };
     }
 
-    // Salvamento do evento no banco
+    // 🔹 Salvamento do evento no banco com dataInicio e dataFim
     const novoEvento = await prisma.events.create({
       data: {
         nome,
         descricao,
-        data: eventDate,
+        dataInicio: eventStartDate.toString(),
+        dataFim: eventEndDate.toString(),
         linkParaCompra,
         banner: bannerPath,
         carrossel: carouselPaths,
@@ -100,7 +95,7 @@ export async function salvarEvento(formData: FormData, userId: string) {
 
     console.log("Evento criado:", novoEvento);
 
-    // Limpeza de arquivos órfãos (banners, carrossel e imagens de usuários)
+    // Limpeza de arquivos órfãos
     try {
       const usedBanners = await prisma.events.findMany({
         select: { banner: true },
@@ -114,14 +109,12 @@ export async function salvarEvento(formData: FormData, userId: string) {
 
       const usedPaths = new Set<string>();
 
-      // Adiciona os banners usados
       usedBanners.forEach((event) => {
         if (event.banner) {
           usedPaths.add(path.join(uploadDir, path.basename(event.banner)));
         }
       });
 
-      // Adiciona os arquivos de carrossel usados
       usedCarousels.forEach((event) => {
         if (event.carrossel) {
           event.carrossel.forEach((carouselPath) => {
@@ -130,7 +123,6 @@ export async function salvarEvento(formData: FormData, userId: string) {
         }
       });
 
-      // Adiciona as imagens usadas por usuários
       usedUserImages.forEach((user) => {
         if (user.image) {
           usedPaths.add(path.join(uploadDir, path.basename(user.image)));

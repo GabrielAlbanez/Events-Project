@@ -46,24 +46,23 @@ model Account {
 }
 
 model Events {
-  id             String   @id @default(uuid()) // ID único
-  nome           String // Nome do evento
-  banner         String // URL do banner principal
-  carrossel      String[] // URLs das imagens do carrossel
-  descricao      String // Descrição do evento
-  data           String // Data do evento
-  linkParaCompra String // Link para compra de ingresso
-  endereco       String // Endereço do evento
-  userId         String? // ID do usuário que criou o evento
+  id             String   @id @default(uuid()) 
+  nome           String 
+  banner         String 
+  carrossel      String[] 
+  descricao      String 
+  dataInicio     String  // 🔹 Alterado para data de início
+  dataFim        String  // 🔹 Nova data de término
+  linkParaCompra String 
+  endereco       String 
+  userId         String? 
   user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  validate       Boolean?  @default(false) // Indica se o evento foi validado
-  validatedBy    String? // ID do administrador que validou o evento
+  validate       Boolean?  @default(false) 
+  validatedBy    String? 
   validator      User?    @relation("EventValidator", fields: [validatedBy], references: [id], onDelete: SetNull)
-  validatedAt    DateTime? // Data e hora da validação
+  validatedAt    DateTime? 
 
-
-
-  @@map("events") // Nome da tabela no banco de dados
+  @@map("events") 
 }
 
 model Session {

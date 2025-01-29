@@ -31,7 +31,8 @@ type DrawerEventosProps = {
     banner: string;
     carrossel: string[];
     descricao: string;
-    data: string;
+    intialDate: string;
+    finishDate: string;
     LinkParaCompraIngresso: string;
     lat: number;
     lng: number;
@@ -92,8 +93,9 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
 
       {/* Descrição */}
       <p className="mb-2 text-sm">
-        <p className="font-medium text-small text-default-500">Data:</p>{" "}
-        {evento.data}
+        <span className="font-medium text-small text-default-500">Data:</span>{" "}
+        {evento.intialDate ? evento.intialDate : "Não definida"} -{" "}
+        {evento.finishDate ? evento.finishDate : "Não definida"}
       </p>
       <p className="mb-4  font-medium text-small text-default-500">
         {evento.descricao}

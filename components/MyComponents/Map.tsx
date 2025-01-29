@@ -20,11 +20,7 @@ import {
 import { SidebarTrigger } from "../ui/sidebar";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { usePathname } from "next/navigation";
-import { dataEvents } from "@/data/EventsData";
-import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Evento } from "@/types";
-
-
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
@@ -333,7 +329,9 @@ const Mapa = () => {
               {eventos
                 .filter(
                   (evento) =>
-                    evento.lat !== undefined && evento.lng !== undefined && evento.validate
+                    evento.lat !== undefined &&
+                    evento.lng !== undefined &&
+                    evento.validate
                 )
                 .map((evento) => (
                   <Marker
@@ -475,6 +473,8 @@ const Mapa = () => {
                 ...eventoAtivo,
                 lat: eventoAtivo.lat!,
                 lng: eventoAtivo.lng!,
+                intialDate: eventoAtivo.dataInicio,
+                finishDate: eventoAtivo.dataFim,
               }}
               onClose={() => setEventoAtivo(null)} // Fecha o Drawer
               onTraceRoute={() =>

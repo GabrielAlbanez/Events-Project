@@ -81,7 +81,11 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               </p>
 
               <p>
-                <strong>Data:</strong> {event.data}
+                <span className="font-medium text-small text-default-500">
+                  Data:
+                </span>{" "}
+                {event.dataInicio ? event.dataInicio : "Não definida"} -{" "}
+                {event.dataFim ? event.dataFim : "Não definida"}
               </p>
               <p>
                 <strong>Endereço:</strong> {event.endereco}

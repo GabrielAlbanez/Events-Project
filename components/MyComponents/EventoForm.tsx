@@ -15,14 +15,25 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { salvarEvento } from "@/app/(actions)/eventos/actions";
-import { DatePicker } from "@heroui/react";
+import { DatePicker, DateRangePicker, RangeCalendar } from "@heroui/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { socket } from "@/lib/socketClient";
+import { today, getLocalTimeZone } from "@internationalized/date";
+import { motion } from "framer-motion";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "../ui/carousel";
+import { XCircle } from "lucide-react";
 
 type EventoFormData = {
   nome: string;
   descricao: string;
-  data: string; // A data será manipulada como string
+  dataInicio: string; // Nova estrutura para range de datas
+  dataFim: string;
   LinkParaCompraIngresso: string;
   endereco: string;
 };
@@ -35,7 +46,8 @@ export function EventoForm({
     defaultValues: {
       nome: "",
       descricao: "",
-      data: "",
+      dataInicio: "",
+      dataFim: "",
       LinkParaCompraIngresso: "",
       endereco: "",
     },
@@ -57,6 +69,11 @@ export function EventoForm({
   const [selectedCarouselFiles, setSelectedCarouselFiles] = useState<File[]>(
     []
   );
+
+  const [selectedDateRange, setSelectedDateRange] = useState({
+    start: today(getLocalTimeZone()),
+    end: today(getLocalTimeZone()).add({ weeks: 1 }),
+  });
 
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,7 +119,8 @@ export function EventoForm({
           const formData = new FormData();
           formData.append("nome", dataForm.nome);
           formData.append("descricao", dataForm.descricao);
-          formData.append("data", dataForm.data);
+          formData.append("dataInicio", selectedDateRange.start.toString());
+          formData.append("dataFim", selectedDateRange.end.toString());
           formData.append(
             "LinkParaCompraIngresso",
             dataForm.LinkParaCompraIngresso
@@ -175,22 +193,22 @@ export function EventoForm({
           )}
         />
 
-        {/* Data */}
+        {/* Intervalo de datas */}
         <FormItem>
-          <FormLabel>Data do Evento</FormLabel>
+          <FormLabel>Período do Evento</FormLabel>
           <FormControl>
-            <DatePicker
+            <DateRangePicker
               isRequired
-              className="max-w-[284px]"
-              label="Escolha a data"
+              className="max-w-xs"
+              defaultValue={selectedDateRange}
+              label="Selecione o período"
               onChange={(value) => {
                 if (value) {
-                  setValue("data", value.toString());
+                  setSelectedDateRange(value);
                 }
               }}
             />
           </FormControl>
-          <FormMessage>{errors.data?.message}</FormMessage>
         </FormItem>
 
         {/* Endereço */}
@@ -252,7 +270,6 @@ export function EventoForm({
           )}
         </FormItem>
 
-        {/* Carrossel */}
         <FormItem>
           <FormLabel>Imagens do Carrossel</FormLabel>
           <FormControl>
@@ -265,29 +282,63 @@ export function EventoForm({
             />
           </FormControl>
           {carouselImages.length > 0 && (
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              {carouselImages.map((image, index) => (
-                <div key={index} className="relative">
-                  <img
-                    src={image}
-                    alt={`Carrossel ${index}`}
-                    className="h-32 w-full object-cover rounded"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-1 right-1"
-                    onClick={() => handleRemoveCarouselImage(index)}
-                  >
-                    Remover
-                  </Button>
-                </div>
-              ))}
+            <div className="relative">
+              <Carousel opts={{ align: "start", loop: true }}>
+                <CarouselContent className="-ml-4">
+                  {carouselImages.map((image, index) => (
+                    <CarouselItem key={index} className="pl-4 basis-1/3">
+                      <div className="relative">
+                        {/* Botão de exclusão */}
+                        <button
+                          className="absolute top-2 right-2 bg-white p-1 rounded-full shadow-md"
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            e.preventDefault();
+                            const updatedImages = carouselImages.filter(
+                              (_, i) => i !== index
+                            );
+                            const updatedFiles = selectedCarouselFiles.filter(
+                              (_, i) => i !== index
+                            );
+                            setCarouselImages(updatedImages);
+                            setSelectedCarouselFiles(updatedFiles);
+
+                            // Atualiza o valor do input
+                            if (carouselInputRef.current) {
+                              const dataTransfer = new DataTransfer();
+                              updatedFiles.forEach((file) =>
+                                dataTransfer.items.add(file)
+                              );
+                              carouselInputRef.current.files =
+                                dataTransfer.files;
+                            }
+
+                            if (updatedImages.length === 0) {
+                              toast.info("Todas as imagens foram removidas.");
+                            }
+                          }}
+                        >
+                          <XCircle
+                            type="button"
+                            size={20}
+                            className="text-red-500"
+                          />
+                        </button>
+                        <img
+                          src={image}
+                          alt={`Carrossel ${index}`}
+                          className="h-32 w-full object-cover rounded"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious type="button" />
+                <CarouselNext type="button" />
+              </Carousel>
             </div>
           )}
         </FormItem>
-
         {/* Botão de envio */}
         <Button type="submit" className="w-full">
           {isPending ? "Enviando..." : "Enviar Evento"}

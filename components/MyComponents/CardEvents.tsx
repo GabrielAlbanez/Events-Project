@@ -29,7 +29,20 @@ interface CardEventsProps {
 const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [expandedDescriptions, setExpandedDescriptions] = useState<{ [key: string]: boolean }>({});
+  const [expandedDescriptions, setExpandedDescriptions] = useState<{
+    [key: string]: boolean;
+  }>({});
+
+  // 🟢 Log para verificar os eventos recebidos
+  console.log("📡 Eventos recebidos:", events);
+
+  // Log individual de cada evento
+  events.forEach((event) => {
+    console.log(
+      `📢 Evento: ${event.nome}, ID: ${event.id}, Validator:`,
+      event.validator
+    );
+  });
 
   const toggleDescription = (eventId: string) => {
     setExpandedDescriptions((prev) => ({
@@ -39,6 +52,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
   };
 
   const openModal = (event: Evento) => {
+    console.log("🔎 Evento selecionado para modal:", event); // Log do evento no modal
     setSelectedEvent(event);
     setIsModalOpen(true);
   };
@@ -95,7 +109,13 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
             </CardBody>
 
             <CardFooter className="flex justify-between items-center p-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500">{event.data}</p>
+              <p className="text-sm text-gray-500">
+                <span className="font-medium text-small text-default-500">
+                  Data:
+                </span>{" "}
+                {event.dataInicio ? event.dataInicio : "Não definida"} -{" "}
+                {event.dataFim ? event.dataFim : "Não definida"}
+              </p>
               <Button
                 radius="full"
                 size="sm"
@@ -122,7 +142,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
             </ModalHeader>
             <ModalBody className="overflow-y-auto max-h-[80vh]">
               {/* Banner do evento */}
-              <div className="relative w-full h-[350px]  rounded-lg overflow-hidden">
+              <div className="relative w-full h-[350px] rounded-lg overflow-hidden">
                 <Image
                   alt="Banner do evento"
                   src={selectedEvent.banner}
@@ -161,25 +181,12 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
               <div className="mt-4 space-y-2">
                 <p>
                   <span className="font-semibold">Descrição:</span>{" "}
-                  {selectedEvent.descricao.length > 100 ? (
-                    <>
-                      {expandedDescriptions[selectedEvent.id]
-                        ? selectedEvent.descricao
-                        : `${selectedEvent.descricao.substring(0, 100)}...`}{" "}
-                      <button
-                        onClick={() => toggleDescription(selectedEvent.id)}
-                        className="text-blue-500 hover:underline text-sm inline"
-                      >
-                        {expandedDescriptions[selectedEvent.id] ? "Ver menos" : "Ver mais"}
-                      </button>
-                    </>
-                  ) : (
-                    selectedEvent.descricao
-                  )}
+                  {selectedEvent.descricao}
                 </p>
                 <p>
                   <span className="font-semibold">Data:</span>{" "}
-                  {selectedEvent.data}
+                  {selectedEvent.dataInicio ? selectedEvent.dataInicio : "Não definida"} -{" "}
+                  {selectedEvent.dataFim ? selectedEvent.dataFim : "Não definida"}
                 </p>
                 <p>
                   <span className="font-semibold">Endereço:</span>{" "}
@@ -193,14 +200,23 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
                   <h3 className="text-lg font-semibold mb-2">Validado por</h3>
                   <div className="flex items-center gap-4">
                     <img
-                      src={selectedEvent.validator?.image || "https://via.placeholder.com/100"}
+                      src={
+                        selectedEvent.validator?.image ||
+                        "https://via.placeholder.com/100"
+                      }
                       alt={selectedEvent.validator?.name}
                       className="w-20 h-20 rounded-full border object-cover"
                     />
                     <div>
-                      <p className="font-medium text-gray-800">{selectedEvent.validator?.name}</p>
-                      <p className="text-sm text-gray-600">{selectedEvent.validator?.email}</p>
-                      <p className="text-sm text-gray-500">Role: {selectedEvent.validator?.role}</p>
+                      <p className="font-medium text-gray-800">
+                        {selectedEvent.validator?.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {selectedEvent.validator?.email}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Role: {selectedEvent.validator?.role}
+                      </p>
                     </div>
                   </div>
                 </div>

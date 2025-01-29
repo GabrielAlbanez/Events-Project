@@ -6,35 +6,64 @@ import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import CardEvents from "@/components/MyComponents/CardEvents";
-import { useSocket } from "@/context/SocketContext"; // Usando o contexto do socket
+import { useSocket } from "@/context/SocketContext";
 
 const MyEvents = () => {
   const { data } = useCurrentUser();
-  const socket = useSocket(); // Obtendo a instância do WebSocket
+  const socket = useSocket(); 
 
-  const [events, setEvents] = useState<Evento[]>([]); // Lista de eventos vinda do WebSocket
-  const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
-  const [searchTerm, setSearchTerm] = useState(""); // Termo de busca
-  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all"); // Filtro por status
-  const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
+  const [events, setEvents] = useState<Evento[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 🔹 Contador de renderizações
+  console.log("🔄 Renderizando MyEvents...");
+
+  // 🔹 Busca inicial dos eventos ao carregar a página
   useEffect(() => {
-    console.log("🔄 Página MyEvents renderizada.");
-  });
+    if (!data?.id) return;
 
-  // 📡 Conectar ao WebSocket e escutar eventos em tempo real
+    console.log("📡 Buscando eventos do usuário via API...");
+
+    const fetchEvents = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const response = await fetch(`${baseUrl}/api/EventsUser`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idUser: data.id }),
+        });
+
+        if (!response.ok) throw new Error(`Erro: ${response.statusText}`);
+
+        const result = await response.json();
+        console.log("✅ Eventos carregados da API:", result);
+
+        if (result.status !== "error") {
+          setEvents(result.events || []);
+          setFilteredEvents(result.events || []);
+        }
+      } catch (error) {
+        console.error("❌ Erro ao buscar eventos:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [data?.id]);
+
+  // 📡 Atualizações via WebSocket
   useEffect(() => {
     if (!socket) return;
 
     const handleUpdateEvents = (updatedEvents: Evento[]) => {
-      setEvents((prevEvents) => {
-        if (JSON.stringify(prevEvents) !== JSON.stringify(updatedEvents)) {
-          setIsLoading(false);
-          return updatedEvents;
-        }
-        return prevEvents;
-      });
+      console.log("📡 Atualização via WebSocket:", updatedEvents);
+
+      if (updatedEvents.length > 0) {
+        setEvents(updatedEvents);
+      }
     };
 
     socket.on("update-events", handleUpdateEvents);
@@ -44,13 +73,14 @@ const MyEvents = () => {
     };
   }, [socket]);
 
-  // 🔍 Filtro de eventos
+  // 🔍 Aplicação de filtros
   useEffect(() => {
     const filtered = events.filter((event) => {
       const matchesSearch =
         event.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.data.toLowerCase().includes(searchTerm.toLowerCase());
+        event.dataInicio.toLowerCase().includes(searchTerm.toLowerCase());
+        event.dataFim.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
         filterStatus === "all" ||
@@ -60,12 +90,7 @@ const MyEvents = () => {
       return matchesSearch && matchesStatus;
     });
 
-    setFilteredEvents((prevFilteredEvents) => {
-      if (JSON.stringify(prevFilteredEvents) !== JSON.stringify(filtered)) {
-        return filtered;
-      }
-      return prevFilteredEvents;
-    });
+    setFilteredEvents(filtered);
   }, [searchTerm, filterStatus, events]);
 
   return (
