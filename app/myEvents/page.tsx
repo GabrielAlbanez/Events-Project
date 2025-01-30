@@ -52,7 +52,7 @@ const MyEvents = () => {
     };
 
     fetchEvents();
-  }, [data?.id]);
+  }, [data?.id,events]);
 
   // 📡 Atualizações via WebSocket
   useEffect(() => {

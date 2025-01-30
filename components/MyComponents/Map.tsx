@@ -349,12 +349,12 @@ const Mapa = () => {
 
             {/* Navbar / Directions */}
             <div
-              className={`absolute top-4 left-4 right-4 lg:left-[50px] right-auto z-10 bg-white shadow-lg rounded-lg px-6 py-4 `}
+              className={`absolute bg-background text-foreground top-4 left-4 right-4 lg:left-[50px] right-auto z-10  shadow-lg rounded-lg px-6 py-4 `}
             >
               {!showDirections ? (
                 <div className="flex items-center">
                   <SidebarTrigger>
-                    <button className="text-foreground hover:text-foreground mr-3">
+                    <button className=" mr-3">
                       ☰
                     </button>
                   </SidebarTrigger>
@@ -390,7 +390,7 @@ const Mapa = () => {
                     <input
                       type="text"
                       placeholder="Digite um destino"
-                      className="w-full border-none focus:outline-none bg-transparent truncate text-gray-700"
+                      className="w-full border-none focus:outline-none bg-transparent truncate text-foreground"
                     />
                   </Autocomplete>
                   <div className="flex items-center justify-center gap-2">

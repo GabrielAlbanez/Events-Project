@@ -19,7 +19,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { CheckCheck, XCircle } from "lucide-react"; // Ícones de validação
+import { CheckCheck, XCircle,  } from "lucide-react"; // Ícones de validação
 
 interface CardEventsProps {
   events: Evento[];
@@ -109,10 +109,8 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
             </CardBody>
 
             <CardFooter className="flex justify-between items-center p-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500">
-                <span className="font-medium text-small text-default-500">
-                  Data:
-                </span>{" "}
+              <p className="text-sm text-gray-500 flex  items-start gap-1  ">
+
                 {event.dataInicio ? event.dataInicio : "Não definida"} -{" "}
                 {event.dataFim ? event.dataFim : "Não definida"}
               </p>

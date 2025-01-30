@@ -83,8 +83,8 @@ export async function salvarEvento(formData: FormData, userId: string) {
       data: {
         nome,
         descricao,
-        dataInicio: eventStartDate.toString(),
-        dataFim: eventEndDate.toString(),
+        dataInicio,
+        dataFim,
         linkParaCompra,
         banner: bannerPath,
         carrossel: carouselPaths,
