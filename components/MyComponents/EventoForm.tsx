@@ -340,7 +340,7 @@ export function EventoForm({
           )}
         </FormItem>
         {/* Botão de envio */}
-        <Button type="submit" className="w-full">
+        <Button type="submit" className=" w-full ">
           {isPending ? "Enviando..." : "Enviar Evento"}
         </Button>
       </form>

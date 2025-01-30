@@ -58,12 +58,10 @@ const MyEvents = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleUpdateEvents = (updatedEvents: Evento[]) => {
+    const handleUpdateEvents = (updatedEvents: Evento[] ) => {
       console.log("📡 Atualização via WebSocket:", updatedEvents);
 
-      if (updatedEvents.length > 0) {
         setEvents(updatedEvents);
-      }
     };
 
     socket.on("update-events", handleUpdateEvents);

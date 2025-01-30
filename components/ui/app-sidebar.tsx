@@ -17,7 +17,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-   
 } from "@/components/ui/sidebar";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -27,6 +26,7 @@ import { Button } from "./button";
 import Image from "next/image";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
+import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
 
 export function AppSidebar() {
   const router = useRouter();
@@ -171,8 +171,10 @@ export function AppSidebar() {
               </div>
             )}
             <div>
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-sm font-semibold text-foreground flex  items-center justify-start">
                 {session?.user?.name || "Usuário"}
+                <ThemeSwitcher />
+
               </p>
               <p className="text-xs text-foreground">{session?.user?.email}</p>
             </div>
