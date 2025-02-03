@@ -158,7 +158,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
                           <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg">
                             <Image
                               alt={`Imagem ${index + 1} do evento`}
-                              className="w-full h-full object-cover"
+                              className="w-[1000px] h-[300px] object-cover"
                               src={img}
                             />
                           </div>

@@ -54,13 +54,13 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
 
   const Content = (
     <>
-      <p className="font-medium text-large text-default-500">{evento.nome}</p>
+      <p className="font-medium text-large ">{evento.nome}</p>
       {/* Banner */}
-      <div className="mb-6 ">
+      <div className="mb-6 w-full flex items-center justify-center ">
         <Image
           isZoomed
           alt="Banner Principal"
-          className=" w-full hover:scale-110"
+          className="w-[1000px] hover:scale-110"
           src={evento.banner}
         />
       </div>
@@ -68,7 +68,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
       {/* Carrossel */}
       {evento.carrossel.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-medium text-medium text-default-500 mb-2">
+          <h3 className="font-medium text-medium mb-2">
             Galeria de Imagens
           </h3>
           <Carousel className="w-full">
@@ -80,7 +80,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
                       isBlurred
                       isZoomed
                       alt="Banner Principal"
-                      className=" w-full hover:scale-110 "
+                      className=" w-[1000px] hover:scale-110 object-center  "
                       src={image}
                     />
                   </div>
@@ -93,11 +93,11 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
 
       {/* Descrição */}
       <p className="mb-2 text-sm">
-        <span className="font-medium text-small text-default-500">Data:</span>{" "}
+        <span className="font-medium text-small">Data:</span>{" "}
         {evento.intialDate ? evento.intialDate : "Não definida"} -{" "}
         {evento.finishDate ? evento.finishDate : "Não definida"}
       </p>
-      <p className="mb-4  font-medium text-small text-default-500">
+      <p className="mb-4 font-medium text-small">
         {evento.descricao}
       </p>
 
@@ -134,7 +134,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
             <Tooltip content="close event">
               <Button
                 isIconOnly
-                className="text-default-400"
+                className=""
                 size="sm"
                 variant="light"
                 onPress={onClose}
@@ -158,7 +158,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
             <div className="w-full flex justify-start gap-2">
               <Tooltip content="copy link event page" showArrow>
                 <Button
-                  className="font-medium text-small text-default-500"
+                  className="font-medium text-small"
                   size="sm"
                   startContent={
                     <svg
@@ -182,7 +182,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
               <Tooltip content="Trace route" showArrow>
                 <Button
                   onPress={onTraceRoute}
-                  className="font-medium text-small text-default-500"
+                  className="font-medium text-small "
                   endContent={
                     <svg
                       fill="none"
@@ -209,7 +209,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
               <Tooltip>
                 <Button
                   isIconOnly
-                  className="text-default-500"
+                  className=""
                   size="sm"
                   variant="flat"
                 >
@@ -231,7 +231,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
               <Tooltip>
                 <Button
                   isIconOnly
-                  className="text-default-500"
+                  className=""
                   size="sm"
                   variant="flat"
                 >

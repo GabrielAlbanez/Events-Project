@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import io from "socket.io-client"; // Importa o socket
 import TableEvents from "@/components/MyComponents/TableEvents";
 import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+
+const socket = io(); // Conecta ao servidor Socket.io
 
 const EventsCreated = () => {
   const { data } = useCurrentUser();
@@ -15,7 +18,7 @@ const EventsCreated = () => {
   const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all"); // Filtro por status
   const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
 
-  // Função para buscar eventos da API
+  // Buscar eventos da API inicialmente
   useEffect(() => {
     const fetchEvents = async () => {
       try {
@@ -41,7 +44,18 @@ const EventsCreated = () => {
     };
 
     fetchEvents();
-  }, []); // Chamada única ao carregar o componente
+
+    // Configuração do socket para receber eventos em tempo real
+    socket.on("update-events", (updatedEvents: Evento[]) => {
+      console.log("📢 Atualização de eventos recebida via Socket.io", updatedEvents);
+      setEvents(updatedEvents);
+      setFilteredEvents(updatedEvents);
+    });
+
+    return () => {
+      socket.off("update-events"); // Limpar evento ao desmontar o componente
+    };
+  }, []); // Executa apenas uma vez ao montar o componente
 
   // Função para filtrar eventos (status e termo de busca)
   useEffect(() => {
@@ -54,7 +68,7 @@ const EventsCreated = () => {
       const matchesSearch =
         event.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.dataInicio.toLowerCase().includes(searchTerm.toLowerCase());
+        event.dataInicio.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.dataFim.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
@@ -62,27 +76,19 @@ const EventsCreated = () => {
         (filterStatus === "verified" && event.validate) ||
         (filterStatus === "unverified" && !event.validate);
 
-      console.log(
-        `Evento "${event.nome}" -> matchesSearch: ${matchesSearch}, matchesStatus: ${matchesStatus}`
-      );
-
       return matchesSearch && matchesStatus;
     });
 
-    console.log("Eventos filtrados:", filtered);
-    setFilteredEvents(filtered); // Atualiza os eventos filtrados
-    console.log("evento filtrado para", filtered)
-  }, [searchTerm, filterStatus, events]); // Executa sempre que searchTerm, filterStatus ou events mudar
+    setFilteredEvents(filtered);
+  }, [searchTerm, filterStatus, events]);
 
   // Função para atualizar o termo de busca
   const handleFilterChange = (value: string) => {
-    console.log("Atualizando searchTerm para:", value);
     setSearchTerm(value);
   };
 
   // Função para atualizar o filtro de validação
   const handleStatusChange = (status: "all" | "verified" | "unverified") => {
-    console.log("Atualizando filterStatus para:", status);
     setFilterStatus(status);
   };
 
@@ -90,7 +96,7 @@ const EventsCreated = () => {
     <div className="flex flex-col w-full h-full items-center p-6">
       {isLoading ? (
         <div className="flex h-full w-full items-center justify-center">
-          <p className="text-gray-600">Carregando eventos..</p>
+          <p className="text-gray-600">Carregando eventos...</p>
         </div>
       ) : (
         <>
@@ -102,7 +108,7 @@ const EventsCreated = () => {
           />
 
           {/* Lista de Eventos */}
-          {data &&  (
+          {data && (
             <div className="w-full">
               <TableEvents events={filteredEvents} adminId={data?.id} />
             </div>

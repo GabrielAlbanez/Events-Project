@@ -67,7 +67,7 @@ const Profile: React.FC = () => {
         emailVerified: user.data?.emailVerified || false,
       });
       setProfileImage(
-        user.data?.image || determineDefaultAvatar(user.data?.name || "")
+        user.data.image || determineDefaultAvatar(user.data.name || "")
       );
     }
   }, [user.data, form]);

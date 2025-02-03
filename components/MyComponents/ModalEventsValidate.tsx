@@ -32,7 +32,8 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
   const [showFullDescription, setShowFullDescription] = useState(false);
 
   if (!event) return null;
-
+  if(!event.user) return (<><p>carregando...</p></>)
+ 
   const toggleDescription = () => setShowFullDescription(!showFullDescription);
 
   // Definir o tamanho limite da descrição antes de encurtá-la

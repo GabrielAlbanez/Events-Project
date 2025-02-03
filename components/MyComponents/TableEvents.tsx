@@ -138,7 +138,7 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
   // Caso não haja eventos para exibir
   if (eventList.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-[90vh] w-full items-center justify-center">
         <h1 className="text-gray-600">Nenhum evento foi criado ainda...</h1>
       </div>
     );

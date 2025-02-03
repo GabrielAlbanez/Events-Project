@@ -55,5 +55,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/Profile", "/CriarEvento", "/", "/login", "/register"], // Inclua as rotas relevantes
+  matcher: ["/admin", "/Profile", "/CriarEvento", "/", "/login", "/register", "/myEvents"], // Inclua as rotas relevantes
 };
