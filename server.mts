@@ -18,7 +18,9 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 let io: Server | null = null;
-let lastEvents: any[] = []; // 🔹 Cache dos eventos anteriores
+let lastEvents: any[] = []; // Cache dos eventos anteriores
+let lastUsers: any[] = []; // Cache dos usuários anteriores
+const activeUsers = new Map<string, string>();
 
 app.prepare().then(async () => {
   const httpServer = createServer(handle);
@@ -29,7 +31,13 @@ app.prepare().then(async () => {
 
     socket.on("register-user", (userId) => {
       socket.data.userId = userId;
+      activeUsers.set(socket.id, userId);
       console.log(`✔️ Socket ${socket.id} associado ao usuário ${userId}`);
+      io!.emit("active-users", Array.from(activeUsers.values()));
+    });
+
+    socket.on("request-active-users", () => {
+      socket.emit("active-users", Array.from(activeUsers.values()));
     });
 
     socket.on("role-updated", ({ userId, newRole }) => {
@@ -49,7 +57,9 @@ app.prepare().then(async () => {
     });
 
     socket.on("disconnect", () => {
-      console.log(`🔴 user disconnected: ${socket.id}`);
+      console.log(`🔴 User disconnected: ${socket.id}`);
+      activeUsers.delete(socket.id);
+      io!.emit("active-users", Array.from(activeUsers.values()));
     });
   });
 
@@ -57,27 +67,38 @@ app.prepare().then(async () => {
     console.log(`🚀 Ready on http://${hostname}:${port}`);
   });
 
-  // 🔥 **Monitorando banco para mudanças**
+  // Monitorando banco para mudanças nos eventos
   setInterval(async () => {
     try {
-
       const currentEvents = await prisma.events.findMany({
-        include: {
-          validator: true, // 🔹 Inclui os dados do validador
-        },
+        include: { validator: true },
       });
 
       if (!_.isEqual(currentEvents, lastEvents)) {
-        // 🔄 Somente emite se houver mudanças
         io!.emit("update-events", currentEvents);
-        lastEvents = currentEvents; // Atualiza o cache
-      } else {
+        lastEvents = currentEvents;
       }
-    } catch (error) {}
-  }, 5000); // Verifica mudanças a cada 5 segundos
+    } catch (error) {
+      console.error("Erro ao verificar mudanças em events:", error);
+    }
+  }, 5000);
+
+  // Monitorando banco para mudanças nos usuários
+  setInterval(async () => {
+    try {
+      const currentUsers = await prisma.user.findMany();
+
+      if (!_.isEqual(currentUsers, lastUsers)) {
+        io!.emit("update-users", currentUsers);
+        lastUsers = currentUsers;
+      }
+    } catch (error) {
+      console.error("Erro ao verificar mudanças em users:", error);
+    }
+  }, 5000);
 });
 
-// 🔥 **Middleware do Prisma para capturar eventos no banco e emitir via WebSocket**
+// Middleware do Prisma para capturar mudanças nas tabelas
 prisma.$use(async (params, next) => {
   const result = await next(params);
 
@@ -88,18 +109,27 @@ prisma.$use(async (params, next) => {
   ) {
     try {
       const updatedEvents = await prisma.events.findMany({
-        include: {
-          validator: true, // 🔹 Inclui os dados do validador
-        },
+        include: { validator: true },
       });
+      io?.emit("update-events", updatedEvents);
+      lastEvents = updatedEvents;
+    } catch (error) {
+      console.error("Erro ao emitir atualização de eventos:", error);
+    }
+  }
 
-      if (!_.isEqual(updatedEvents, lastEvents)) {
-        // 🔄 Somente emite se houver mudanças
-        io?.emit("update-events", updatedEvents);
-        lastEvents = updatedEvents; // Atualiza o cache
-      } else {
-      }
-    } catch (error) {}
+  if (
+    params.model &&
+    params.model.toLowerCase() === "users" &&
+    ["create", "update", "delete"].includes(params.action)
+  ) {
+    try {
+      const updatedUsers = await prisma.user.findMany();
+      io?.emit("update-users", updatedUsers);
+      lastUsers = updatedUsers;
+    } catch (error) {
+      console.error("Erro ao emitir atualização de usuários:", error);
+    }
   }
 
   return result;

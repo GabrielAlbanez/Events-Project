@@ -1,5 +1,5 @@
 "use client";
-import React, { use, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -10,6 +10,7 @@ import {
   User,
   Tooltip,
   Button,
+  Chip, // 🔹 Componente para status ativo/inativo
   Modal,
   ModalContent,
   ModalHeader,
@@ -24,7 +25,6 @@ import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { Evento, User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
-import axios from "axios";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
 import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
@@ -33,14 +33,13 @@ import { useSocket } from "@/context/SocketContext";
 interface UserTableProps {
   users: UserType[];
   setUsers: React.Dispatch<React.SetStateAction<UserType[]>>;
-  onOpenModal: (user: UserType) => void;
-  onOpenDeleteModal: (user: UserType) => void;
 }
 
 const columns = [
-  { name: "id", uid: "id" },
+  { name: "ID", uid: "id" },
   { name: "Name", uid: "name" },
   { name: "Role", uid: "role" },
+  { name: "Status", uid: "status" }, // 🔹 Nova coluna de status ativo/inativo
   { name: "Actions", uid: "actions" },
 ];
 
@@ -49,8 +48,25 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [activeUsers, setActiveUsers] = useState<string[]>([]); // 🔹 Estado para armazenar usuários ativos
 
   const socket = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.emit("request-active-users"); // 🔹 Solicita a lista de usuários ativos
+
+    socket.on("active-users", (users: string[]) => {
+      setActiveUsers(users);
+    });
+
+    return () => {
+      socket.off("active-users");
+    };
+  }, [socket]);
+
+  const isUserActive = (userId: string) => activeUsers.includes(userId);
 
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
@@ -76,9 +92,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     if (!selectedUser) return;
 
     if (selectedUser.role === "ADMIN") {
-      toast.error("Este usuário não pode ser excluído.", {
-        theme: "colored",
-      });
+      toast.error("Este usuário não pode ser excluído.", { theme: "colored" });
       handleCloseModalDelete();
       return;
     }
@@ -96,16 +110,13 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       handleCloseModalDelete();
     } catch (error) {
       console.error("Erro ao excluir usuário:", error);
-      handleCloseModalDelete();
     } finally {
       setIsPending(false);
     }
   };
 
-  const alterRoleUSer = async (user: UserType, roleSelect: string) => {
-    const { id, role } = user;
-
-    if (role === "ADMIN") {
+  const alterRoleUserHandler = async (user: UserType, roleSelect: string) => {
+    if (user.role === "ADMIN") {
       toast.error("Este usuário não pode ter seu papel alterado.", {
         theme: "colored",
       });
@@ -115,38 +126,23 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     try {
       await toast.promise(alterRoleUser(user, roleSelect), {
         pending: "Alterando papel do usuário...",
-        success: "Role do usuário alterado com sucesso!",
+        success: "Papel do usuário alterado com sucesso!",
         error: "Erro ao alterar papel do usuário.",
       });
 
-      console.log("conectd", socket.connected);
-
-      if (socket.connected) {
-        socket.emit(
-          "role-updated",
-          { userId: id, newRole: roleSelect },
-          (response: any) => {
-            console.log(
-              "Evento 'role-updated' enviado. Resposta do servidor:",
-              response || "Sem resposta."
-            );
-          }
-        );
-      } else {
-        console.error("Socket não está conectado. Evento não foi enviado.");
+      if (socket?.connected) {
+        socket.emit("role-updated", { userId: user.id, newRole: roleSelect });
       }
+
       setUsers((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, role: roleSelect } : u))
+        prev.map((u) => (u.id === user.id ? { ...u, role: roleSelect } : u))
       );
     } catch (error) {
       console.error("Erro ao alterar papel do usuário:", error);
     }
   };
 
-  const valuesDropwdown = ["ADMIN", "BASIC", "PROMOTER"];
-
-  const renderCell = (user: UserType, columnKey: string) => {
-    const cellValue = user[columnKey as keyof UserType];
+  const renderCell = (user: UserType, columnKey: string): React.ReactNode => {
     switch (columnKey) {
       case "name":
         return (
@@ -159,6 +155,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             description={user.email}
           />
         );
+
       case "role":
         return (
           <Dropdown className="flex flex-col items-center justify-center">
@@ -168,36 +165,33 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              {valuesDropwdown.map((valor) => (
-                <>
-                  {user.role === valor ? (
-                    <DropdownItem
-                      key={valor}
-                      className="text-green-400 opacity-45 cursor-not-allowed"
-                    >
-                      {valor}
-                    </DropdownItem>
-                  ) : (
-                    <DropdownItem
-                      key={valor}
-                      onPress={() => alterRoleUSer(user, valor)}
-                    >
-                      {valor}
-                    </DropdownItem>
-                  )}
-                </>
-
-                // <DropdownItem onPress={() => console.log(valor)} key={valor}>
-                //   {user.role === valor ? (
-                //     <button disabled={true} onClick={() => alterRoleUSer(user,valor)} className="text-green-400 opacity-45 cursor-not-allowed">{valor}</button>
-                //   ) : (
-                //     <button onClick={() => alterRoleUSer(user,valor)} >{valor}</button>
-                //   )}
-                // </DropdownItem>
+              {["ADMIN", "BASIC", "PROMOTER"].map((valor) => (
+                <DropdownItem
+                  key={valor}
+                  className={
+                    user.role === valor ? "text-green-400 opacity-45" : ""
+                  }
+                  onPress={() =>
+                    user.role !== valor && alterRoleUserHandler(user, valor)
+                  }
+                >
+                  {valor}
+                </DropdownItem>
               ))}
             </DropdownMenu>
           </Dropdown>
         );
+
+      case "status":
+        return (
+          <Chip
+            color={isUserActive(user.id) ? "success" : "danger"} // 🔹 Verde se ativo, vermelho se inativo
+            variant="flat"
+          >
+            {isUserActive(user.id) ? "Active" : "Inactive"}
+          </Chip>
+        );
+
       case "actions":
         return (
           <div className="flex gap-2 items-center justify-center">
@@ -224,8 +218,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             </Tooltip>
           </div>
         );
+
       default:
-        return cellValue;
+        return user[columnKey as keyof UserType]?.toString() || "";
     }
   };
 
@@ -234,14 +229,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       <Table aria-label="Tabela de usuários">
         <TableHeader columns={columns}>
           {(column) => (
-            <TableColumn
-              key={column.uid}
-              align={
-                column.uid === "role" || column.uid === "actions"
-                  ? "center"
-                  : "start"
-              }
-            >
+            <TableColumn key={column.uid} align="start">
               {column.name}
             </TableColumn>
           )}
@@ -300,7 +288,6 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                           <XCircleIcon className="w-5 h-5 text-red-500" />
                         )}
                       </h3>
-                      <p className="text-sm text-gray-500">{event.data}</p>
                     </div>
                   ))}
                 </div>

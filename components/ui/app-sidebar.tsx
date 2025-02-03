@@ -157,7 +157,7 @@ export function AppSidebar() {
                 height={32}
                 src={session.user.image}
                 alt="User Profile"
-                className="w-8 h-8 rounded-full"
+                className="w-8 h-8 rounded-full object-cover"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">

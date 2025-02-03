@@ -92,7 +92,7 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               </p>
 
               {/* Criador do Evento */}
-              <div className="mt-6 p-4 border rounded-lg shadow-md bg-gray-50">
+              <div className="mt-6 p-4 border rounded-lg shadow-md ">
                 <h3 className="text-lg font-semibold mb-2">Sobre o Criador</h3>
                 <div className="flex items-center gap-4">
                   <img
@@ -101,11 +101,11 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
                     className="w-20 h-20 rounded-full border object-cover"
                   />
                   <div>
-                    <p className="font-medium text-gray-800">
+                    <p className="font-medium ">
                       {event.user.name}
                     </p>
-                    <p className="text-sm text-gray-600">{event.user.email}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm ">{event.user.email}</p>
+                    <p className="text-sm ">
                       Role: {event.user.role}
                     </p>
                   </div>

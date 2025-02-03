@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -23,6 +22,8 @@ import "react-toastify/dist/ReactToastify.css";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
+import { useTheme } from "next-themes";
+import { Button } from "@heroui/button";
 
 // Schema de validação com Zod
 const ProfileSchema = z.object({
@@ -42,6 +43,8 @@ const Profile: React.FC = () => {
   const [tempImage, setTempImage] = useState<string>("");
 
   const user = useCurrentUser();
+
+  const tema = useTheme();
 
   const form = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
@@ -150,8 +153,12 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
-      <Card className="w-full max-w-2xl p-6">
+    <div className="flex justify-center items-center min-h-screen  p-4">
+      <Card
+        className={`w-full max-w-2xl p-6 ${
+          tema.theme === "dark" ? "bg-zinc-900" : ""
+        }`}
+      >
         <CardHeader>
           <SidebarTrigger>
             <button className="text-gray-600 hover:text-gray-800 mr-3">
@@ -175,7 +182,9 @@ const Profile: React.FC = () => {
                 className="absolute bottom-0 right-0 opacity-0 w-full h-full cursor-pointer"
               />
               <Button
-                className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full shadow-md"
+                className="absolute inset-0 w-full h-full flex items-center justify-center 
+              bg-black bg-opacity-0 group-hover:bg-opacity-40 
+              text-white rounded-full transition-all duration-300"
                 onClick={() =>
                   (
                     document.querySelector(
@@ -185,7 +194,8 @@ const Profile: React.FC = () => {
                 }
                 disabled={isPending}
               >
-                <FaEdit />
+                {/* Ícone aparece apenas no hover */}
+                <FaEdit className=" text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Button>
             </div>
           </div>
@@ -315,7 +325,7 @@ const Profile: React.FC = () => {
               />
 
               {/* Botão de envio */}
-              <Button type="submit" className="w-full" disabled={isPending}>
+              <Button type="submit" className="w-full " disabled={isPending}>
                 {isPending ? "Atualizando..." : "Atualizar Perfil"}
               </Button>
             </form>

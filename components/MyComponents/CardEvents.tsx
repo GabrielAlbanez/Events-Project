@@ -71,7 +71,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
         return (
           <Card
             key={event.id}
-            className="relative w-[320px] h-[350px] rounded-lg shadow-md transition-transform transform hover:scale-105 hover:shadow-xl overflow-hidden bg-white"
+            className="relative w-[320px] h-[350px] rounded-lg shadow-md transition-transform transform hover:scale-105 hover:shadow-xl overflow-hidden "
           >
             {/* Ícone de status (Check ou X) no canto superior direito */}
             <div className="absolute top-2 right-2 z-30 bg-white p-1 rounded-full shadow-md">
@@ -91,7 +91,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
 
             <CardBody className="p-4">
               <h4 className="font-bold text-lg truncate">{event.nome}</h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm ">
                 {isExpanded
                   ? event.descricao
                   : event.descricao.length > maxDescriptionLength
@@ -109,7 +109,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
             </CardBody>
 
             <CardFooter className="flex justify-between items-center p-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500 flex  items-start gap-1  ">
+              <p className="text-sm  flex  items-start gap-1  ">
 
                 {event.dataInicio ? event.dataInicio : "Não definida"} -{" "}
                 {event.dataFim ? event.dataFim : "Não definida"}
@@ -132,7 +132,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
         <Modal
           isOpen={isModalOpen}
           onClose={closeModal}
-          className="w-[600px] h-[500px] font-sans bg-white rounded-lg shadow-lg flex items-center justify-center flex-col gap-6"
+          className="w-[600px] h-[500px] font-sans  rounded-lg shadow-lg flex items-center justify-center flex-col gap-6 py-6"
         >
           <ModalContent>
             <ModalHeader>
@@ -149,13 +149,13 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
               </div>
 
               {/* Carrossel de imagens */}
-              <div className="w-full flex justify-center items-center">
+              <div className="w-full h-full flex justify-center items-center">
                 {selectedEvent.carrossel.length > 0 ? (
                   <Carousel className="relative w-full max-w-[600px] mx-auto">
                     <CarouselContent className="flex items-center">
                       {selectedEvent.carrossel.map((img, index) => (
                         <CarouselItem key={index} className="w-full">
-                          <div className="w-full h-[300px] flex items-center justify-center overflow-hidden rounded-lg">
+                          <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg">
                             <Image
                               alt={`Imagem ${index + 1} do evento`}
                               className="w-full h-full object-cover"
@@ -165,11 +165,11 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
                         </CarouselItem>
                       ))}
                     </CarouselContent>
-                    <CarouselPrevious className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white rounded-full" />
-                    <CarouselNext className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white rounded-full" />
+                    <CarouselPrevious className="absolute left-2 top-1/2 transform -translate-y-1/2  rounded-full" />
+                    <CarouselNext className="absolute right-2 top-1/2 transform -translate-y-1/2  rounded-full" />
                   </Carousel>
                 ) : (
-                  <p className="text-center text-gray-500">
+                  <p className="text-center ">
                     Sem imagens disponíveis
                   </p>
                 )}
@@ -194,7 +194,7 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
 
               {/* Criador do Evento */}
               {selectedEvent.validate && (
-                <div className="mt-6 p-4 border rounded-lg shadow-md bg-gray-50">
+                <div className="mt-6 p-4 border rounded-lg shadow-md ">
                   <h3 className="text-lg font-semibold mb-2">Validado por</h3>
                   <div className="flex items-center gap-4">
                     <img
@@ -206,10 +206,10 @@ const CardEvents: React.FC<CardEventsProps> = ({ events }) => {
                       className="w-20 h-20 rounded-full border object-cover"
                     />
                     <div>
-                      <p className="font-medium text-gray-800">
+                      <p className="font-medium ">
                         {selectedEvent.validator?.name}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm ">
                         {selectedEvent.validator?.email}
                       </p>
                       <p className="text-sm text-gray-500">
