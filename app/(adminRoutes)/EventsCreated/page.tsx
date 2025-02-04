@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import io from "socket.io-client"; // Importa o socket
-import TableEvents from "@/components/MyComponents/TableEvents";
 import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import TableEventsClient from "@/components/MyComponents/TableEventsClient";
+import TableEventsAdmin from "@/components/MyComponents/TableEventsAdmin";
 
 const socket = io(); // Conecta ao servidor Socket.io
 
@@ -15,14 +16,17 @@ const EventsCreated = () => {
   const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
   const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
   const [searchTerm, setSearchTerm] = useState(""); // Termo de busca
-  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "unverified">("all"); // Filtro por status
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "verified" | "unverified"
+  >("all"); // Filtro por status
   const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
 
   // Buscar eventos da API inicialmente
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const baseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         console.log("Buscando eventos da URL:", `${baseUrl}/api/AllEvents`);
 
         const response = await fetch(`${baseUrl}/api/AllEvents`);
@@ -47,7 +51,10 @@ const EventsCreated = () => {
 
     // Configuração do socket para receber eventos em tempo real
     socket.on("update-events", (updatedEvents: Evento[]) => {
-      console.log("📢 Atualização de eventos recebida via Socket.io", updatedEvents);
+      console.log(
+        "📢 Atualização de eventos recebida via Socket.io",
+        updatedEvents
+      );
       setEvents(updatedEvents);
       setFilteredEvents(updatedEvents);
     });
@@ -107,10 +114,21 @@ const EventsCreated = () => {
             onStatusChange={handleStatusChange}
           />
 
-          {/* Lista de Eventos */}
-          {data && (
+          {/* Lista de Eventos - Admin */}
+          {data && data.role === "ADMIN" && (
             <div className="w-full">
-              <TableEvents events={filteredEvents} adminId={data?.id} />
+              <TableEventsAdmin events={filteredEvents} adminId={data?.id} />
+            </div>
+          )}
+
+          {/* Lista de Eventos - Admin */}
+          {data && data.role !== "ADMIN" && (
+            <div className="w-full">
+              <TableEventsClient
+                role={data.role}
+                events={filteredEvents}
+                adminId={data?.id}
+              />
             </div>
           )}
         </>

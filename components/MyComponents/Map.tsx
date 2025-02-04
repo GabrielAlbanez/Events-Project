@@ -19,9 +19,9 @@ import {
 } from "lucide-react";
 import { SidebarTrigger } from "../ui/sidebar";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
-import { usePathname } from "next/navigation";
 import { Evento } from "@/types";
 import { useTheme } from "next-themes";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
@@ -50,75 +50,82 @@ const Mapa = () => {
   const startRef = useRef<google.maps.places.Autocomplete | null>(null);
   const endRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [eventos, setEventos] = useState<Evento[]>([]);
+  const [isAddressLoaded, setIsAddressLoaded] = useState({
+    lat: 0,
+    lng : 0
+  });
 
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  const tema = useTheme()
-
+  const tema = useTheme();
 
   const darkMapStyle = [
-    { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
-    { "elementType": "labels.icon", "stylers": [{ "visibility": "on" }] }, 
-    { "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
-    { "elementType": "labels.text.stroke", "stylers": [{ "color": "#212121" }] },
+    { elementType: "geometry", stylers: [{ color: "#212121" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
     {
-      "featureType": "administrative",
-      "elementType": "geometry",
-      "stylers": [{ "color": "#757575" }]
+      featureType: "administrative",
+      elementType: "geometry",
+      stylers: [{ color: "#757575" }],
     },
     {
-      "featureType": "administrative.locality",
-      "elementType": "labels.text.fill",
-      "stylers": [{ "color": "#bdbdbd" }]
+      featureType: "administrative.locality",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#bdbdbd" }],
     },
     {
-      "featureType": "poi",
-      "elementType": "geometry",
-      "stylers": [{ "color": "#2b2b2b" }]
+      featureType: "poi",
+      elementType: "geometry",
+      stylers: [{ color: "#2b2b2b" }],
     },
     {
-      "featureType": "poi",
-      "elementType": "labels.text.fill",
-      "stylers": [{ "color": "#ffffff" }]
+      featureType: "poi",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#ffffff" }],
     },
     {
-      "featureType": "poi.business",
-      "elementType": "labels.text",
-      "stylers": [{ "visibility": "on" }] 
+      featureType: "poi.business",
+      elementType: "labels.text",
+      stylers: [{ visibility: "on" }],
     },
     {
-      "featureType": "poi.park",
-      "elementType": "geometry",
-      "stylers": [{ "color": "#181818" }]
+      featureType: "poi.park",
+      elementType: "geometry",
+      stylers: [{ color: "#181818" }],
     },
     {
-      "featureType": "poi.park",
-      "elementType": "labels.text.fill",
-      "stylers": [{ "color": "#616161" }]
+      featureType: "poi.park",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#616161" }],
     },
     {
-      "featureType": "road",
-      "elementType": "geometry.fill",
-      "stylers": [{ "color": "#2c2c2c" }]
+      featureType: "road",
+      elementType: "geometry.fill",
+      stylers: [{ color: "#2c2c2c" }],
     },
     {
-      "featureType": "road",
-      "elementType": "labels.text.fill",
-      "stylers": [{ "color": "#8a8a8a" }]
+      featureType: "road",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#8a8a8a" }],
     },
     {
-      "featureType": "water",
-      "elementType": "geometry",
-      "stylers": [{ "color": "#000000" }]
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [{ color: "#000000" }],
     },
     {
-      "featureType": "water",
-      "elementType": "labels.text.fill",
-      "stylers": [{ "color": "#3d3d3d" }]
-    }
+      featureType: "water",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#3d3d3d" }],
+    },
   ];
+
+  const searchParams = useSearchParams();
+  const enderecoParam = searchParams.get("endereco");
+  const router = useRouter();
 
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -134,6 +141,8 @@ const Mapa = () => {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
+
+          router.replace("/");
         },
         () => toast.error("Não foi possível acessar sua localização.")
       );
@@ -144,7 +153,7 @@ const Mapa = () => {
 
   // Traça rota entre origem e destino
   const calculateRoute = (destination: google.maps.LatLngLiteral) => {
-    const origin = currentLocation;
+    const origin = isAddressLoaded;
     if (origin && destination) {
       const directionsService = new google.maps.DirectionsService();
       directionsService.route(
@@ -196,8 +205,6 @@ const Mapa = () => {
     },
   ];
 
-
-
   const convertAddressToCoordinates = (
     endereco: string
   ): Promise<google.maps.LatLngLiteral> => {
@@ -212,6 +219,20 @@ const Mapa = () => {
         }
       });
     });
+  };
+
+  const verifyEnderecoSerachParams = () => {
+
+    
+    if (enderecoParam) {
+      convertAddressToCoordinates(decodeURIComponent(enderecoParam))
+        .then((location) => {
+          setCurrentLocation(location);
+          setIsAddressLoaded(location)
+
+        })
+        .catch(() => toast.error("Erro ao localizar endereço."));
+    }
   };
 
   useEffect(() => {
@@ -241,9 +262,21 @@ const Mapa = () => {
       }
     };
 
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setCurrentLocation({ lat: latitude, lng: longitude })
+
+        },
+        () => toast.error("Não foi possível acessar sua localização.")
+      );
+    } else {
+      toast.error("Geolocalização não suportada pelo navegador.");
+    }
+    verifyEnderecoSerachParams();
     carregarEventosReais();
-    getCurrentLocation();
-  }, [isScriptLoaded]);
+  }, [isScriptLoaded, enderecoParam,isAddressLoaded]);
 
   return (
     <div className="relative h-screen w-full flex z-10 flex-col lg:flex-row md:flex-row">
@@ -307,9 +340,7 @@ const Mapa = () => {
               {!showDirections ? (
                 <div className="flex items-center">
                   <SidebarTrigger>
-                    <button className=" mr-3">
-                      ☰
-                    </button>
+                    <button className=" mr-3">☰</button>
                   </SidebarTrigger>
 
                   <div className="h-6 w-px bg-gray-300 mx-4"></div>

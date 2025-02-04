@@ -22,9 +22,14 @@ import { deleteEvents } from "@/app/(actions)/deleteEvents/action";
 interface TableEventsProps {
   events: Evento[];
   adminId: string;
+  role?: string | null;
 }
 
-const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
+const TableEventsAdmin: React.FC<TableEventsProps> = ({
+  events,
+  adminId,
+  role,
+}) => {
   const [eventList, setEventList] = useState<Evento[]>(events); // Estado local dos eventos
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
@@ -220,10 +225,11 @@ const TableEvents: React.FC<TableEventsProps> = ({ events, adminId }) => {
           event={selectedEvent}
           isOpen={isModalOpen}
           onClose={handleCloseModal}
+          role={role}
         />
       )}
     </div>
   );
 };
 
-export default TableEvents;
+export default TableEventsAdmin;
