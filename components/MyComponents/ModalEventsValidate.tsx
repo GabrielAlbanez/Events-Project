@@ -13,13 +13,13 @@ import {
 import { Evento } from "@/types";
 import { TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface ModalEventsValidateProps {
   event: Evento | null;
   isOpen: boolean;
   onClose: () => void;
-  role?: string | null;
+  role?: string | null | undefined;
 }
 
 const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
@@ -46,12 +46,10 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
     );
 
   const toggleDescription = () => setShowFullDescription(!showFullDescription);
-  const router = useRouter(); 
-
+  const router = useRouter();
 
   // Definir o tamanho limite da descrição antes de encurtá-la
   const maxDescriptionLength = 100;
-
 
   const handleOpenMap = () => {
     if (!event.endereco) {
@@ -60,7 +58,9 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
     }
 
     const encodedAddress = encodeURIComponent(event.endereco);
-    
+
+    const { data: User } = useCurrentUser();
+
     // Redireciona para a página principal com o endereço na URL
     router.push(`/?endereco=${encodedAddress}`);
   };
@@ -119,7 +119,7 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               </p>
 
               {/* Criador do Evento */}
-              {role === "ADMIN" && (
+              {User?.role === "ADMIN" && (
                 <div className="mt-6 p-4 border rounded-lg shadow-md ">
                   <h3 className="text-lg font-semibold mb-2">
                     Sobre o Criador
@@ -141,14 +141,14 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
                 </div>
               )}
 
-              <div className="flex flex-col gap-4 items-start justify-center">
-
-              </div>
+              <div className="flex flex-col gap-4 items-start justify-center"></div>
             </ModalBody>
             <ModalFooter className="flex items-center justify-between">
-            <Tooltip content="see it on the map">
-                  <Button   variant="light" className="" onPress={handleOpenMap}><TrendingUp size={20} className="text-current"  /></Button>
-                </Tooltip>
+              <Tooltip content="see it on the map">
+                <Button variant="light" className="" onPress={handleOpenMap}>
+                  <TrendingUp size={20} className="text-current" />
+                </Button>
+              </Tooltip>
               <Button color="danger" variant="light" onPress={onClose}>
                 Fechar
               </Button>

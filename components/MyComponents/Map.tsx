@@ -36,6 +36,7 @@ const CustomLoading = () => (
 const Mapa = () => {
   const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+   const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
     lat: -23.55052,
     lng: -46.633308,
@@ -153,7 +154,8 @@ const Mapa = () => {
 
   // Traça rota entre origem e destino
   const calculateRoute = (destination: google.maps.LatLngLiteral) => {
-    const origin = isAddressLoaded;
+    // const origin = currentLocation;
+    const origin = userLocation;
     if (origin && destination) {
       const directionsService = new google.maps.DirectionsService();
       directionsService.route(
@@ -185,6 +187,7 @@ const Mapa = () => {
     setDirections(null);
     toast.info("Rota limpa com sucesso.");
     setIsRouteTracing(false); // Move the modal back to the center
+    router.replace("/");
   };
 
   const mapStyles = [
@@ -228,7 +231,6 @@ const Mapa = () => {
       convertAddressToCoordinates(decodeURIComponent(enderecoParam))
         .then((location) => {
           setCurrentLocation(location);
-          setIsAddressLoaded(location)
 
         })
         .catch(() => toast.error("Erro ao localizar endereço."));
@@ -267,6 +269,7 @@ const Mapa = () => {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude })
+          setUserLocation( {lat: latitude, lng: longitude} )
 
         },
         () => toast.error("Não foi possível acessar sua localização.")

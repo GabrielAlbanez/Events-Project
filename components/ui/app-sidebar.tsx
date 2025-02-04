@@ -89,7 +89,6 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
 
-          {session?.user?.role === "ADMIN" && (
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => {
@@ -101,7 +100,6 @@ export function AppSidebar() {
                 <span className="text-foreground">Events-Created</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          )}
 
           {session?.user?.role === "PROMOTER" && (
             <SidebarMenuItem>
