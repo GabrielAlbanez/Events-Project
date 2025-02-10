@@ -36,6 +36,8 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
   });
 
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const { data : User } = useCurrentUser();
+
 
   if (!event) return null;
   if (!event.user)
@@ -59,7 +61,6 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
 
     const encodedAddress = encodeURIComponent(event.endereco);
 
-    const { data: User } = useCurrentUser();
 
     // Redireciona para a página principal com o endereço na URL
     router.push(`/?endereco=${encodedAddress}`);
@@ -119,7 +120,6 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
               </p>
 
               {/* Criador do Evento */}
-              {User?.role === "ADMIN" && (
                 <div className="mt-6 p-4 border rounded-lg shadow-md ">
                   <h3 className="text-lg font-semibold mb-2">
                     Sobre o Criador
@@ -139,7 +139,6 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
 
               <div className="flex flex-col gap-4 items-start justify-center"></div>
             </ModalBody>

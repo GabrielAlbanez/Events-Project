@@ -11,7 +11,9 @@ import TableEventsAdmin from "@/components/MyComponents/TableEventsAdmin";
 const socket = io(); // Conecta ao servidor Socket.io
 
 const EventsCreated = () => {
-  const { data } = useCurrentUser();
+  const { data: User } = useCurrentUser();
+
+  console.log("role", User?.role);
 
   const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
   const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
@@ -99,6 +101,8 @@ const EventsCreated = () => {
     setFilterStatus(status);
   };
 
+  const isAdmin = User?.role === "ADMIN";
+
   return (
     <div className="flex flex-col w-full h-full items-center p-6">
       {isLoading ? (
@@ -114,23 +118,20 @@ const EventsCreated = () => {
             onStatusChange={handleStatusChange}
           />
 
-          {/* Lista de Eventos - Admin */}
-          {data && data.role === "ADMIN" && (
-            <div className="w-full">
-              <TableEventsAdmin events={filteredEvents} adminId={data?.id} />
-            </div>
-          )}
-
-          {/* Lista de Eventos - Admin */}
-          {data && data.role !== "ADMIN" && (
-            <div className="w-full">
-              <TableEventsClient
-                role={data.role}
+          <div className="w-full">
+            {isAdmin ? (
+              <TableEventsAdmin
                 events={filteredEvents}
-                adminId={data?.id}
+                adminId={User?.id ?? ""}
               />
-            </div>
-          )}
+            ) : (
+              <TableEventsClient
+                role={User?.role ?? ""}
+                events={filteredEvents}
+                adminId={User?.id ?? ""}
+              />
+            )}
+          </div>
         </>
       )}
     </div>
