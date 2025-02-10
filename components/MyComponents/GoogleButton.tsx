@@ -25,6 +25,7 @@ export function GoogleButton({ textBody }: propsGoogleButton) {
         redirect: true,
       });
     } catch (error) {
+      console.log(error)
       toast.error("Erro inesperado ao realizar login com o Google.");
     }
   };

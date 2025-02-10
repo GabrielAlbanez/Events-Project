@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from "react";
 import {
   Input,
@@ -9,6 +10,7 @@ import {
 } from "@heroui/react";
 import { SearchIcon, ChevronDownIcon } from "@/components/icons";
 import { SidebarTrigger } from "../ui/sidebar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 // Atualizar o tipo de onStatusChange
 interface FilterBarProps {
@@ -22,9 +24,10 @@ export const FilterBarEvents: React.FC<FilterBarProps> = ({
   onFilterChange,
   onStatusChange,
 }) => {
-  const [selectedStatus, setSelectedStatus] = useState<"all" | "verified" | "unverified">(
-    "all"
-  ); // Estado para o status selecionado
+  const [selectedStatus, setSelectedStatus] = useState<
+    "all" | "verified" | "unverified"
+  >("all"); // Estado para o status selecionado
+  const { data: User } = useCurrentUser();
 
   // Função para manipular a mudança de status
   const handleStatusChange = (status: "all" | "verified" | "unverified") => {
@@ -47,38 +50,40 @@ export const FilterBarEvents: React.FC<FilterBarProps> = ({
         startContent={<SearchIcon />}
         value={filterValue}
         onChange={(e) => onFilterChange(e.target.value)}
-        className="w-full md:w-1/2"
+        className={`w-full ${User?.role === "ADMIN" ? "md:w-1/2" : "w-full"}`}
       />
 
       {/* Dropdown de Filtro */}
-      <Dropdown>
-        <DropdownTrigger>
-          <Button endContent={<ChevronDownIcon />}>
-            {selectedStatus === "all"
-              ? "All"
-              : selectedStatus === "verified"
-              ? "Verified"
-              : "Unverified"}
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu>
-          <DropdownItem onPress={() => handleStatusChange("all")} key="All">
-            All
-          </DropdownItem>
-          <DropdownItem
-            onPress={() => handleStatusChange("verified")}
-            key="Verified"
-          >
-            Verified
-          </DropdownItem>
-          <DropdownItem
-            onPress={() => handleStatusChange("unverified")}
-            key="Unverified"
-          >
-            UnVerified
-          </DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
+      {User?.role === "ADMIN" && (
+        <Dropdown>
+          <DropdownTrigger>
+            <Button endContent={<ChevronDownIcon />}>
+              {selectedStatus === "all"
+                ? "All"
+                : selectedStatus === "verified"
+                ? "Verified"
+                : "Unverified"}
+            </Button>
+          </DropdownTrigger>
+          <DropdownMenu>
+            <DropdownItem onPress={() => handleStatusChange("all")} key="All">
+              All
+            </DropdownItem>
+            <DropdownItem
+              onPress={() => handleStatusChange("verified")}
+              key="Verified"
+            >
+              Verified
+            </DropdownItem>
+            <DropdownItem
+              onPress={() => handleStatusChange("unverified")}
+              key="Unverified"
+            >
+              UnVerified
+            </DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
+      )}
     </div>
   );
 };

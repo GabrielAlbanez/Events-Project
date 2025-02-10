@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import TableEvents from "@/components/MyComponents/TableEvents";
 import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -52,7 +51,7 @@ const MyEvents = () => {
     };
 
     fetchEvents();
-  }, [data?.id,events]);
+  }, []);
 
   // 📡 Atualizações via WebSocket
   useEffect(() => {

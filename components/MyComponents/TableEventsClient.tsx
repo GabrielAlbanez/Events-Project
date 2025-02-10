@@ -23,7 +23,11 @@ interface TableEventsProps {
   role?: string | null;
 }
 
-const TableEventsClient: React.FC<TableEventsProps> = ({ events, adminId, role }) => {
+const TableEventsClient: React.FC<TableEventsProps> = ({
+  events,
+  adminId,
+  role,
+}) => {
   const [eventList, setEventList] = useState<Evento[]>(events); // Estado local dos eventos
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
@@ -38,7 +42,6 @@ const TableEventsClient: React.FC<TableEventsProps> = ({ events, adminId, role }
 
   // Gerenciar seleção de eventos
 
-
   // Abrir modal para ver detalhes
   const handleSeeMore = (event: Evento) => {
     setSelectedEvent(event);
@@ -51,9 +54,6 @@ const TableEventsClient: React.FC<TableEventsProps> = ({ events, adminId, role }
     setIsModalOpen(false);
   };
 
-
-
-
   // Caso não haja eventos para exibir
   if (eventList.length === 0) {
     return (
@@ -63,46 +63,48 @@ const TableEventsClient: React.FC<TableEventsProps> = ({ events, adminId, role }
     );
   }
 
-
-
-
   return (
     <div className="p-6">
+      {eventList.some((event) => event.validate) ? (
+        <Table aria-label="Event management table">
+          <TableHeader>
+            <TableColumn align="start">Nome do Evento</TableColumn>
+            <TableColumn align="start">Endereço</TableColumn>
+            <TableColumn align="center">Ações</TableColumn>
+          </TableHeader>
+          <TableBody>
+            {eventList
+              .filter((event) => event.validate) // Filtra apenas eventos validados
+              .map((event) => (
+                <TableRow key={event.id}>
+                  {/* Nome do evento */}
+                  <TableCell>{event.nome}</TableCell>
+                  {/* Endereço do evento */}
+                  <TableCell>{event.endereco}</TableCell>
+                  {/* Ações individuais */}
+                  <TableCell align="center">
+                    <div className="flex gap-2 justify-center">
+                      <Tooltip content="Ver Detalhes">
+                        <Button
+                          color="primary"
+                          size="sm"
+                          onPress={() => handleSeeMore(event)}
+                        >
+                          Detalhes
+                        </Button>
+                      </Tooltip>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <div className="text-center text-gray-500 text-lg">
+          Nenhum evento validado disponível.
+        </div>
+      )}
 
-      <Table aria-label="Event management table">
-        <TableHeader>
-          <TableColumn align="start">Nome do Evento</TableColumn>
-          <TableColumn align="start">Endereço</TableColumn>
-          <TableColumn align="center">Ações</TableColumn>
-        </TableHeader>
-        <TableBody>
-          {eventList.map((event) => (
-            <TableRow key={event.id}>
-              {/* Checkbox para seleção */}
-              {/* Nome do evento */}
-              <TableCell>{event.nome}</TableCell>
-              {/* Endereço do evento */}
-              <TableCell>{event.endereco}</TableCell>
-              {/* Ações individuais */}
-              <TableCell align="center">
-                <div className="flex gap-2 justify-center">
-                  <Tooltip content="Ver Detalhess">
-                    <Button
-                      color="primary"
-                      size="sm"
-                      onPress={() => handleSeeMore(event)}
-                    >
-                      Detalhes
-                    </Button>
-                  </Tooltip>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-
-      {/* Modal para detalhes do evento */}
       {selectedEvent && (
         <ModalEventsValidate
           event={selectedEvent}
