@@ -49,23 +49,35 @@ export async function POST(request: Request) {
       data: { image: relativeFilePath },
     });
 
-
     try {
       // Obtém todas as imagens atualmente usadas por usuários
-      const usedImages = await prisma.user.findMany({
+      const usedUserImages = await prisma.user.findMany({
         select: { image: true },
       });
-  
+
+      // Obtém todas as imagens atualmente usadas em eventos
+      const usedEventImages = await prisma.events.findMany({
+        select: { banner: true, carrossel: true },
+      });
+
+      // Criar um conjunto de imagens que estão sendo utilizadas
       const usedImagePaths = new Set(
-        usedImages
-          .filter((user) => user.image) // Filtra imagens não nulas
-          .map((user) => path.join(process.cwd(), "public", user.image!)) // Converte para paths completos
+        [
+          ...usedUserImages
+            .filter((user) => user.image) // Filtra imagens não nulas
+            .map((user) => path.join(process.cwd(), "public", user.image!)), // Converte para paths completos
+          ...usedEventImages
+            .map((event) => path.join(process.cwd(), "public", event.banner)), // Inclui banners de eventos
+          ...usedEventImages.flatMap((event) =>
+            event.carrossel.map((img) => path.join(process.cwd(), "public", img))
+          ), // Inclui imagens do carrossel
+        ]
       );
-  
+
       // Obtém todos os arquivos do diretório de uploads
       const uploadedFiles = fs.readdirSync(uploadDir);
-  
-      // Exclui arquivos que não estão sendo usados
+
+      // Exclui arquivos que não estão sendo usados em usuários nem em eventos
       uploadedFiles.forEach((file) => {
         const filePath = path.join(uploadDir, file);
         if (!usedImagePaths.has(filePath)) {
@@ -82,7 +94,4 @@ export async function POST(request: Request) {
     console.error("Erro ao processar o upload:", error);
     return NextResponse.json({ error: "Erro interno no servidor." }, { status: 500 });
   }
-  
-
-
 }
