@@ -9,6 +9,7 @@ import {
 } from "@react-google-maps/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import {Spinner} from "@heroui/spinner";
 import {
   Search,
   ArrowLeft,
@@ -36,7 +37,8 @@ const CustomLoading = () => (
 const Mapa = () => {
   const rota = usePathname();
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
-   const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
+  const [userLocation, setUserLocation] =
+    useState<google.maps.LatLngLiteral | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
     lat: -23.55052,
     lng: -46.633308,
@@ -53,7 +55,7 @@ const Mapa = () => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [isAddressLoaded, setIsAddressLoaded] = useState({
     lat: 0,
-    lng : 0
+    lng: 0,
   });
 
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
@@ -225,13 +227,10 @@ const Mapa = () => {
   };
 
   const verifyEnderecoSerachParams = () => {
-
-    
     if (enderecoParam) {
       convertAddressToCoordinates(decodeURIComponent(enderecoParam))
         .then((location) => {
           setCurrentLocation(location);
-
         })
         .catch(() => toast.error("Erro ao localizar endereço."));
     }
@@ -268,9 +267,8 @@ const Mapa = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
-          setCurrentLocation({ lat: latitude, lng: longitude })
-          setUserLocation( {lat: latitude, lng: longitude} )
-
+          setCurrentLocation({ lat: latitude, lng: longitude });
+          setUserLocation({ lat: latitude, lng: longitude });
         },
         () => toast.error("Não foi possível acessar sua localização.")
       );
@@ -279,23 +277,15 @@ const Mapa = () => {
     }
     verifyEnderecoSerachParams();
     carregarEventosReais();
-  }, [isScriptLoaded, enderecoParam,isAddressLoaded]);
+  }, [isScriptLoaded, enderecoParam, isAddressLoaded]);
 
   return (
     <div className="relative h-screen w-full flex z-10 flex-col lg:flex-row md:flex-row">
       {rota === "/" && (
         <>
-          {/* Sidebar */}
-
-          {/* Google Maps */}
-          {/* <LoadScript
-            googleMapsApiKey={apiKey}
-            libraries={["places"]}
-            onLoad={() => setIsScriptLoaded(true)}
-            onError={() => toast.error("Erro ao carregar o Google Maps")}
-            loadingElement={<CustomLoading />} // Componente personalizado de loading
-          > */}
           <div className="relative flex-1">
+            {/* Loading enquanto o mapa não carregou */}
+
             <GoogleMap
               mapContainerStyle={{ width: "100%", height: "100%" }}
               center={currentLocation}
