@@ -37,6 +37,14 @@ export async function registerUser(data: RegisterUserInput) {
     },
   });
 
+  await prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      password: bcrypt.hashSync(data.password, 10),
+    },
+  });
+
   // Send verification email
   const transporter = nodemailer.createTransport({
     service: "gmail",

@@ -6,55 +6,54 @@ type Role = keyof typeof roles;
 
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req });
-  const path = req.nextUrl.pathname.replace(/\/$/, ""); // remove barra no final
+  const { pathname } = req.nextUrl;
 
-  console.log("Request Path:", path);
+  console.log("Request Pathname:", pathname);
   console.log("Token:", token);
 
-  // Role padrão
+  // Define role como GUEST se não houver token
   const userRole: Role = (token?.role as Role) || roles.GUEST;
   console.log("User Role:", userRole);
 
-  // Rota pública
-  if (publicRoutes.includes(path)) {
-    console.log("Public route:", path);
+  // Verifica se a rota é pública
+  const isPublicRoute = publicRoutes.includes(pathname);
+
+  // Se for uma rota pública, permite o acesso
+  if (isPublicRoute) {
+    console.log("Public route accessed:", pathname);
     return NextResponse.next();
   }
 
-  // Bloqueia login/register para usuários autenticados
-  if (["/login", "/register"].includes(path)) {
+  // Verifica se é uma rota restrita a GUEST
+  if (pathname === "/login" || pathname === "/register") {
     if (userRole !== roles.GUEST) {
-      console.log("Authenticated user trying to access guest-only route:", path);
+      console.log("Authenticated user trying to access GUEST-only route:", pathname);
       return NextResponse.redirect(new URL("/", req.url));
     }
+    console.log("GUEST accessing allowed route:", pathname);
     return NextResponse.next();
   }
 
-  // Usuário não autenticado → redireciona
+  // Se o token estiver ausente, redireciona para /login
   if (!token) {
     console.log("No token found, redirecting to login");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Verifica rotas permitidas pela role
+  // Busca as rotas permitidas com base na role
   const allowedRoutes = roleRoutes[userRole] || [];
-  if (!allowedRoutes.includes(path)) {
-    console.log("Access denied to route:", path);
-    return NextResponse.redirect(new URL("/403", req.url)); // melhor UX
+  console.log("Allowed Routes for Role:", allowedRoutes);
+
+  // Redireciona para a página inicial se a rota não for permitida
+  if (!allowedRoutes.includes(pathname)) {
+    console.log("Access denied to route:", pathname);
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  console.log("Access granted:", path);
+  console.log("Access granted to route:", pathname);
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/",
-    "/admin/:path*",
-    "/Profile/:path*",
-    "/CriarEvento/:path*",
-    "/myEvents/:path*",
-    "/login",
-    "/register",
-  ],
+  matcher: ["/admin", "/Profile", "/CriarEvento", "/", "/login", "/register", "/myEvents"], // Inclua as rotas relevantes
 };

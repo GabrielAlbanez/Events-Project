@@ -32,6 +32,13 @@ export async function validateUser(data: LoginUserInputData) {
         };
       }
     }
+      
+    if(!userWithAccounts?.emailVerified) {
+      return {
+        status: "error",
+        error: "Por favor, verifique seu e-mail antes de fazer login.",
+      };
+    }
 
     if (!userWithAccounts || !userWithAccounts.password) {
       return {

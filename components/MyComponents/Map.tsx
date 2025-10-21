@@ -397,6 +397,26 @@ const Mapa = () => {
                   </div>
                   <div className="flex flex-col gap-2">
                     <Autocomplete
+                    onPlaceChanged={() => {
+                      if (autocompleteRef.current) {
+                        const place = autocompleteRef.current.getPlace();
+                        if (place.geometry?.location) {
+                          setDestination({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          setCurrentLocation({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          toast.success("Localização de partida selecioanda!");
+                        } else {
+                          toast.error(
+                            "Não foi possível obter a localização do destino."
+                          );
+                        }
+                      }
+                    }}
                       onLoad={(autocomplete) =>
                         (startRef.current = autocomplete)
                       }
@@ -408,6 +428,26 @@ const Mapa = () => {
                       />
                     </Autocomplete>
                     <Autocomplete
+                    onPlaceChanged={() => {
+                      if (autocompleteRef.current) {
+                        const place = autocompleteRef.current.getPlace();
+                        if (place.geometry?.location) {
+                          setDestination({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          setCurrentLocation({
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                          });
+                          toast.success("destino selecionado!");
+                        } else {
+                          toast.error(
+                            "Não foi possível obter a localização do destino."
+                          );
+                        }
+                      }
+                    }}
                       onLoad={(autocomplete) => (endRef.current = autocomplete)}
                     >
                       <input

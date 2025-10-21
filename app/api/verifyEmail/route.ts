@@ -25,20 +25,30 @@ export  async function  GET(
     }
 
     // Create the user in the database
-    const newUser = await prisma.user.create({
-      data: {
-        name: verificationToken.name,
-        email: verificationToken.email,
-        password: verificationToken.password,
-      },
-    });
+    // const newUser = await prisma.user.create({
+    //   data: {
+    //     name: verificationToken.name,
+    //     email: verificationToken.email,
+    //     password: verificationToken.password,
+    //   },
+    // });
 
-    await prisma.user.update({
+     const userUpdateted = await prisma.user.update({
       where : { email: verificationToken.email },
       data: {
         emailVerified: true,
       }
     })
+
+    if (!userUpdateted) {
+      return NextResponse.json({ status: "error", message: "User not found" }, { status: 404 });
+    }
+
+    const UserGet = await prisma.user.findUnique({
+      where: { email: verificationToken.email },
+    })
+
+    const newUser = UserGet;
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
