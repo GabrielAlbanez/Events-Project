@@ -6,54 +6,55 @@ type Role = keyof typeof roles;
 
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req });
-  const { pathname } = req.nextUrl;
+  const path = req.nextUrl.pathname.replace(/\/$/, ""); // remove barra no final
 
-  console.log("Request Pathname:", pathname);
+  console.log("Request Path:", path);
   console.log("Token:", token);
 
-  // Define role como GUEST se não houver token
+  // Role padrão
   const userRole: Role = (token?.role as Role) || roles.GUEST;
   console.log("User Role:", userRole);
 
-  // Verifica se a rota é pública
-  const isPublicRoute = publicRoutes.includes(pathname);
-
-  // Se for uma rota pública, permite o acesso
-  if (isPublicRoute) {
-    console.log("Public route accessed:", pathname);
+  // Rota pública
+  if (publicRoutes.includes(path)) {
+    console.log("Public route:", path);
     return NextResponse.next();
   }
 
-  // Verifica se é uma rota restrita a GUEST
-  if (pathname === "/login" || pathname === "/register") {
+  // Bloqueia login/register para usuários autenticados
+  if (["/login", "/register"].includes(path)) {
     if (userRole !== roles.GUEST) {
-      console.log("Authenticated user trying to access GUEST-only route:", pathname);
+      console.log("Authenticated user trying to access guest-only route:", path);
       return NextResponse.redirect(new URL("/", req.url));
     }
-    console.log("GUEST accessing allowed route:", pathname);
     return NextResponse.next();
   }
 
-  // Se o token estiver ausente, redireciona para /login
+  // Usuário não autenticado → redireciona
   if (!token) {
     console.log("No token found, redirecting to login");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Busca as rotas permitidas com base na role
+  // Verifica rotas permitidas pela role
   const allowedRoutes = roleRoutes[userRole] || [];
-  console.log("Allowed Routes for Role:", allowedRoutes);
-
-  // Redireciona para a página inicial se a rota não for permitida
-  if (!allowedRoutes.includes(pathname)) {
-    console.log("Access denied to route:", pathname);
-    return NextResponse.redirect(new URL("/", req.url));
+  if (!allowedRoutes.includes(path)) {
+    console.log("Access denied to route:", path);
+    return NextResponse.redirect(new URL("/403", req.url)); // melhor UX
   }
 
-  console.log("Access granted to route:", pathname);
+  console.log("Access granted:", path);
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin", "/Profile", "/CriarEvento", "/", "/login", "/register", "/myEvents"], // Inclua as rotas relevantes
+  matcher: [
+    "/",
+    "/admin/:path*",
+    "/Profile/:path*",
+    "/CriarEvento/:path*",
+    "/myEvents/:path*",
+    "/login",
+    "/register",
+  ],
 };

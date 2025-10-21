@@ -99,45 +99,45 @@ app.prepare().then(async () => {
 });
 
 // Middleware do Prisma para capturar mudanças nas tabelas
-prisma.$use(async (params, next) => {
-  const result = await next(params);
+// prisma.$use(async (params, next) => {
+//   const result = await next(params);
 
-  if (
-    params.model &&
-    params.model.toLowerCase() === "events" &&
-    ["create", "update", "delete"].includes(params.action)
-  ) {
-    try {
-      const updatedEvents = await prisma.events.findMany({
-        include: { validator: true },
-      });
-      io?.emit("update-events", updatedEvents);
-      lastEvents = updatedEvents;
-    } catch (error) {
-      console.error("Erro ao emitir atualização de eventos:", error);
-    }
-  }
+//   if (
+//     params.model &&
+//     params.model.toLowerCase() === "events" &&
+//     ["create", "update", "delete"].includes(params.action)
+//   ) {
+//     try {
+//       const updatedEvents = await prisma.events.findMany({
+//         include: { validator: true },
+//       });
+//       io?.emit("update-events", updatedEvents);
+//       lastEvents = updatedEvents;
+//     } catch (error) {
+//       console.error("Erro ao emitir atualização de eventos:", error);
+//     }
+//   }
 
-  if (
-    params.model &&
-    params.model.toLowerCase() === "users" &&
-    ["create", "update", "delete"].includes(params.action)
-  ) {
-    try {
-      const updatedUsers = await prisma.user.findMany();
-      io?.emit("update-users", updatedUsers);
-      lastUsers = updatedUsers;
-    } catch (error) {
-      console.error("Erro ao emitir atualização de usuários:", error);
-    }
-  }
+//   if (
+//     params.model &&
+//     params.model.toLowerCase() === "users" &&
+//     ["create", "update", "delete"].includes(params.action)
+//   ) {
+//     try {
+//       const updatedUsers = await prisma.user.findMany();
+//       io?.emit("update-users", updatedUsers);
+//       lastUsers = updatedUsers;
+//     } catch (error) {
+//       console.error("Erro ao emitir atualização de usuários:", error);
+//     }
+//   }
 
 
 
   
 
-  return result;
-});
+//   return result;
+// });
 
 
 
