@@ -12,6 +12,7 @@ import { GoogleButton } from "./MyComponents/GoogleButton";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { useSocket } from "@/context/SocketContext";
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
@@ -30,6 +31,8 @@ export function RegisterForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const socket = useSocket()
+
   const onSubmit = async (data: RegisterFormData) => {
     startTransition(async () => {
       try {
@@ -44,6 +47,9 @@ export function RegisterForm({
         const responseData = await response.json();
         if (responseData.status === "success") {
           toast.success("Registro realizado com sucesso! Verifique seu email.");
+          if (socket) {
+            socket.emit("request-update-users"); // novo evento
+          }
           router.push("/login");
         } else {
           toast.error(responseData.error || "Erro ao registrar o usuário.");

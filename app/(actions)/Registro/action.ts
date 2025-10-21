@@ -4,7 +4,6 @@ import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 
-
 interface RegisterUserInput {
   name: string;
   email: string;
@@ -45,6 +44,8 @@ export async function registerUser(data: RegisterUserInput) {
       password: bcrypt.hashSync(data.password, 10),
     },
   });
+
+
 
   // Send verification email
   const transporter = nodemailer.createTransport({
