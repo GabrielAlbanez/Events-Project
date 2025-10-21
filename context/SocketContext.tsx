@@ -25,9 +25,15 @@ export const SocketProvider = ({ children }: SocketProviderProps) => {
       console.log(`Usuário registrado no Socket.IO: ${session.user.id}`);
     }
 
+    const handleBeforeUnload = () => {
+      socket.emit("user-disconnected", session?.user?.id);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     // Cleanup: desconecta o socket ao desmontar o componente
     return () => {
-
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [session]);
 
