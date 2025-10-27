@@ -8,6 +8,7 @@ import { UserTable } from "@/components/MyComponents/UserTable";
 import { User as UserType } from "@/types";
 import { ToastContainer, toast } from "react-toastify";
 import { useSocket } from "@/context/SocketContext";
+import CustomLoading from "@/components/MyComponents/CustomLoading";
 
 interface UserWithStatus extends UserType {
   online?: boolean;
@@ -113,7 +114,7 @@ const AdminPage: React.FC = () => {
     return true;
   });
 
-  if (loading) return <p>Carregando...</p>;
+  if (loading) return <CustomLoading />;
   if (error) return <p>{error}</p>;
 
   return (

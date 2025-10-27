@@ -24,6 +24,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Tooltip } from "@heroui/tooltip";
+import { ToastContainer, toast } from "react-toastify";
 
 type DrawerEventosProps = {
   evento: {
@@ -33,7 +34,7 @@ type DrawerEventosProps = {
     descricao: string;
     intialDate: string;
     finishDate: string;
-    LinkParaCompraIngresso: string;
+    linkParaCompra: string;
     lat: number;
     lng: number;
   };
@@ -51,6 +52,20 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [directions, setDirections] =
     useState<google.maps.DirectionsResult | null>(null);
+    console.log(evento.linkParaCompra);
+
+
+
+    const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text).then(
+        () => {
+          toast.success("Link copiado com sucesso!"); // Pode substituir isso por um Toaster ou algo mais estilizado
+        },
+        (err) => {
+          toast.error("Falha ao copiar o link: " + err);
+        }
+      );
+    };
 
   const Content = (
     <>
@@ -64,6 +79,8 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
           src={evento.banner}
         />
       </div>
+
+      
 
       {/* Carrossel */}
       {evento.carrossel.length > 0 && (
@@ -158,6 +175,7 @@ const DrawerEventos: React.FC<DrawerEventosProps> = ({
             <div className="w-full flex justify-start gap-2">
               <Tooltip content="copy link event page" showArrow>
                 <Button
+                onPress={() => copyToClipboard(evento.linkParaCompra)}
                   className="font-medium text-small"
                   size="sm"
                   startContent={

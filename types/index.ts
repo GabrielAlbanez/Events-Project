@@ -22,7 +22,7 @@ export type Evento = {
   dataInicio: string; // 🔹 Alterado para data de início
   dataFim: string;
   user: User;
-  LinkParaCompraIngresso: string;
+  linkParaCompra: string;
   id: string;
   endereco: string;
   lat?: number;

@@ -1,8 +1,13 @@
 "use client";
 
 import Mapa from "@/components/MyComponents/Map";
+import { useSession } from "next-auth/react";
 
 export default function Home() {
+
+
+
+
   return (
     <div className="relative h-screen w-screen">
       {/* Renderiza o Mapa como Background */}

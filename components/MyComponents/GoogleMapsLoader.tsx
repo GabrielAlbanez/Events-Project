@@ -3,11 +3,14 @@ import { LoadScript } from "@react-google-maps/api";
 import { useState } from "react";
 import { toast } from "react-toastify";
 import CustomLoading from "./CustomLoading";
+import { useSession } from "next-auth/react";
 
 const GoogleMapsLoader = ({ children }: { children: React.ReactNode }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+
+  
 
 
   if (!apiKey) {

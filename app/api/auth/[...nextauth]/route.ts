@@ -68,6 +68,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+
   },
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -166,6 +167,10 @@ export const authOptions: NextAuthOptions = {
       };
       return session;
     },
+  },
+  jwt : {
+    secret : process.env.NEXTAUTH_SECRETT,
+    maxAge : 60 * 3,
   },
   pages: {
     signIn: "/login", // Página de login personalizada

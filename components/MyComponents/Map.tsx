@@ -139,6 +139,7 @@ const Mapa = () => {
 
   // Captura a localização atual
   const getCurrentLocation = () => {
+    console.log("Obtendo localização atual...");
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -294,6 +295,7 @@ const Mapa = () => {
                 fullscreenControl: false,
                 mapTypeControl: false,
                 streetViewControl: false,
+                rotateControl: false,
                 zoomControl: false,
                 styles: tema.theme === "dark" ? darkMapStyle : undefined,
               }}
@@ -328,7 +330,7 @@ const Mapa = () => {
 
             {/* Navbar / Directions */}
             <div
-              className={`absolute bg-background text-foreground top-4 left-4 right-4 lg:left-[50px] right-auto z-10  shadow-lg rounded-lg px-6 py-4 `}
+              className={`absolute  bg-background text-foreground top-4 left-auto  md:left-[30px] right-auto z-10  shadow-lg rounded-lg px-6 py-4 `}
             >
               {!showDirections ? (
                 <div className="flex items-center">
@@ -485,6 +487,7 @@ const Mapa = () => {
           {/* </LoadScript> */}
           {/* Drawer do Evento */}
           {eventoAtivo && (
+            
             <DrawerEventos
               evento={{
                 ...eventoAtivo,
@@ -492,6 +495,7 @@ const Mapa = () => {
                 lng: eventoAtivo.lng!,
                 intialDate: eventoAtivo.dataInicio,
                 finishDate: eventoAtivo.dataFim,
+                 
               }}
               onClose={() => setEventoAtivo(null)} // Fecha o Drawer
               onTraceRoute={() =>

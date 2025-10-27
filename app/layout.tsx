@@ -34,7 +34,7 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
         <ClientProviders defaultOpen={defaultOpen}>
-          <ToastContainer position="top-right" autoClose={3000} />
+          <ToastContainer  position="top-right" autoClose={3000} />
           {children}
         </ClientProviders>
       </body>
