@@ -7,15 +7,7 @@ const nextConfig = {
       "pbs.twimg.com",
     ], // Adicione o domínio do Google para imagens externas
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.watchOptions = {
-        ignored: /node_modules/, // Ignora mudanças na pasta node_modules
-        poll: 1000, // Verifica mudanças a cada 1 segundo (para evitar problemas no OneDrive)
-      };
-    }
-    return config;
-  },
+  // Removido polling do webpack para evitar rebuilds constantes em dev
 };
 
 export default nextConfig;

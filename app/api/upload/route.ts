@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import fs from "fs";
 import path from "path";
 import prisma from "@/lib/prisma";
@@ -12,6 +13,11 @@ if (!fs.existsSync(uploadDir)) {
 
 export async function POST(request: Request) {
   try {
+    // Require authenticated user
+    const token = await getToken({ req: request as any });
+    if (!token?.id) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
     // Verificar headers de multipart/form-data
     const contentType = request.headers.get("content-type");
     if (!contentType || !contentType.startsWith("multipart/form-data")) {
@@ -35,9 +41,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "O ID do usuário é obrigatório." }, { status: 400 });
     }
 
+    // Validate file size (e.g., max 5MB) and type
+    const maxSizeBytes = 5 * 1024 * 1024;
+    // Basic type allowlist
+    const allowedTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/avif",
+    ]);
+    if ((file as any).size && (file as any).size > maxSizeBytes) {
+      return NextResponse.json({ error: "Arquivo muito grande." }, { status: 413 });
+    }
+    if (file.type && !allowedTypes.has(file.type)) {
+      return NextResponse.json({ error: "Tipo de arquivo não permitido." }, { status: 415 });
+    }
+
+    // Create a safe filename without path traversal
+    const originalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
     // Salvar o arquivo no servidor
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const filePath = path.join(uploadDir, `${Date.now()}-${file.name}`);
+    const filePath = path.join(uploadDir, `${Date.now()}-${originalName}`);
     fs.writeFileSync(filePath, fileBuffer);
 
     console.log("Arquivo salvo:", filePath);

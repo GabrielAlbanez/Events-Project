@@ -3,10 +3,12 @@ import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { FilterBar } from "@/components/MyComponents/FilterBar";
-import { UserTable } from "@/components/MyComponents/UserTable";
+import dynamic from "next/dynamic";
+const FilterBar = dynamic(() => import("@/components/MyComponents/FilterBar").then(m => m.FilterBar), { ssr: false });
+const UserTable = dynamic(() => import("@/components/MyComponents/UserTable").then(m => m.UserTable), { ssr: false });
 import { User as UserType } from "@/types";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
+const ToastContainer = dynamic(() => import("react-toastify").then(m => m.ToastContainer), { ssr: false });
 import { useSocket } from "@/context/SocketContext";
 import CustomLoading from "@/components/MyComponents/CustomLoading";
 

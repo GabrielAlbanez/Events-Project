@@ -29,6 +29,8 @@ declare module "next-auth" {
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+  // Ensure a strong secret is provided via env; this is required for JWT/session integrity
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -169,7 +171,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
   jwt : {
-    secret : process.env.NEXTAUTH_SECRETT,
+    // Use the correct env var and avoid typos that break signing
+    secret: process.env.NEXTAUTH_SECRET,
     maxAge : 60 * 3,
   },
   pages: {

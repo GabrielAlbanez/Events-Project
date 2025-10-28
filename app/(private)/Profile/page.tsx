@@ -24,6 +24,7 @@ import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { useTheme } from "next-themes";
 import { Button } from "@heroui/button";
+import { useSocket } from "@/context/SocketContext";
 
 // Schema de validação com Zod
 const ProfileSchema = z.object({
@@ -45,7 +46,7 @@ const Profile: React.FC = () => {
   const user = useCurrentUser();
 
   const tema = useTheme();
-
+  const socket = useSocket();
   const form = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
@@ -82,6 +83,9 @@ const Profile: React.FC = () => {
     if (response.status === "success") {
       toast.success(response.message);
       await user.update();
+      if (socket) {
+        socket.emit("request-update-users"); // novo evento
+      }
     } else {
       toast.error(response.message);
     }
@@ -139,6 +143,9 @@ const Profile: React.FC = () => {
       await user.update({
         user: { ...user, image: result.filePath },
       }); // Atualiza os dados do usuário
+      if (socket) {
+        socket.emit("request-update-users"); // novo evento
+      }
     } catch (error) {
       console.error(error);
       toast.error("Erro ao carregar a imagem.");

@@ -1,7 +1,6 @@
 "use client";
 
 import Mapa from "@/components/MyComponents/Map";
-import { useSession } from "next-auth/react";
 
 export default function Home() {
 

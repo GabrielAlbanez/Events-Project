@@ -8,8 +8,8 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req });
   const { pathname } = req.nextUrl;
 
+  // Avoid logging token or sensitive auth artifacts
   console.log("Request Pathname:", pathname);
-  console.log("Token:", token);
 
   // Define role como GUEST se não houver token
   const userRole: Role = (token?.role as Role) || roles.GUEST;
@@ -55,5 +55,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/Profile", "/CriarEvento", "/", "/login", "/register", "/myEvents"], // Inclua as rotas relevantes
+  // Limit middleware to protected application routes only; avoid applying on static/assets
+  matcher: ["/admin", "/Profile", "/CriarEvento", "/myEvents"],
 };

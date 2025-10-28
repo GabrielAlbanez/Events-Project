@@ -14,6 +14,7 @@ import { signIn } from "next-auth/react";
 import { validateUser } from "@/app/(actions)/Login/action";
 import { GoogleButton } from "./MyComponents/GoogleButton";
 import { useEffect, useTransition } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
@@ -61,6 +62,7 @@ export function LoginForm({
 
         if (signInResponse?.ok) {
           toast.success("Login realizado com sucesso!");
+
 
           // Adiciona um refresh explícito
           setTimeout(() => {
