@@ -56,5 +56,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Limit middleware to protected application routes only; avoid applying on static/assets
-  matcher: ["/admin", "/Profile", "/CriarEvento", "/myEvents"],
+  matcher: ["/admin", "/Profile", "/CriarEvento", "/myEvents", "/login", "/register"],
 };
