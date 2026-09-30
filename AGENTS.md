@@ -2,6 +2,12 @@
 
 ## Contexto do projeto
 
+# Diretriz principal de Front-end
+
+Este projeto deve ter suas interfaces e experiências visuais desenvolvidas seguindo as diretrizes do agente especialista em Front-end descritas abaixo.
+
+Sempre que a solicitação envolver telas, componentes, CSS, responsividade, navegação, UX, acessibilidade ou melhoria visual, priorize estas instruções de Front-end antes de implementar qualquer alteração.
+
 EventMap é uma aplicação para descobrir, cadastrar e administrar eventos, com busca, mapa e recursos de conta. Usa Next.js 14 (App Router), React 18, TypeScript estrito, Tailwind CSS, componentes HeroUI/Radix, Prisma com PostgreSQL, NextAuth, Google Maps e Socket.IO. Não presuma que banco, Google Maps ou outras integrações externas estejam disponíveis no ambiente local.
 
 - `app/`: páginas, layouts, grupos de rotas (`(auth)`, `(private)`, `(adminRoutes)`, `(publicRoutes)`), handlers em `api/` e server actions em `(actions)/`.
