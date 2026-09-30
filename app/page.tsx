@@ -1,5 +1,7 @@
 "use client";
 
+import PublicEventFilters, { DiscoveryFilter, emptyDiscoveryFilter, filterDiscovery } from "@/components/MyComponents/PublicEventFilters";
+import { useSocket } from "@/context/SocketContext";
 import Mapa from "@/components/MyComponents/Map";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Evento } from "@/types";
@@ -40,6 +42,8 @@ const filters: { label: string; value: Period }[] = [
 ];
 
 export default function Home() {
+  const socket = useSocket();
+  const [discovery, setDiscovery] = useState<DiscoveryFilter>(emptyDiscoveryFilter);
   const [events, setEvents] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -52,22 +56,25 @@ export default function Home() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/AllEvents", { signal: controller.signal })
+    const refresh = () => { void fetch("/api/AllEvents", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Falha ao carregar eventos");
         return response.json();
       })
-      .then((data: Evento[]) => setEvents(Array.isArray(data) ? data.filter((event) => event.validate) : []))
+      .then((data: Evento[]) => { setLoadError(false); setEvents(Array.isArray(data) ? data.filter((event) => event.validate && event.status !== "CANCELLED") : []); })
       .catch(() => { if (!controller.signal.aborted) setLoadError(true); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, []);
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); }); };
+    refresh();
+    socket.on("update-events", refresh);
+    socket.on("connect", refresh);
+    return () => { controller.abort(); socket.off("update-events", refresh); socket.off("connect", refresh); };
+  }, [socket]);
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
-    return events.filter((event) => matchesPeriod(event, period) &&
+    return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) &&
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
-  }, [events, period, search]);
+  }, [events, period, search, discovery]);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#FAF9FF] text-zinc-950 dark:bg-[#111018] dark:text-white">
@@ -103,6 +110,7 @@ export default function Home() {
               {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-violet-700 text-white shadow-md shadow-violet-700/20" : "border border-zinc-200 bg-white text-zinc-600 hover:border-violet-300 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300"}`}>{filter.label}</button>)}
             </div>
           </div>
+          <div className="px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} /></div>
           <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-white/10">
             <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-zinc-400">{filteredEvents.length} encontrados</span></div>
             <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-6 md:px-5">

@@ -8,6 +8,7 @@ import nextEnv from "@next/env";
 import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server.js";
 import type { Socket } from "socket.io";
+import { startNotificationWorker } from "./server/notificationWorker.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -95,6 +96,8 @@ app.prepare().then(async () => {
   });
 
   await CreateAdminUser();
+  const stopNotifications = startNotificationWorker(prisma, (userId, event) => io!.to("user:" + userId).emit(event), () => io!.emit("update-events"));
+  httpServer.on("close", stopNotifications);
 
   // The NextAuth JWT is carried by the HTTP upgrade request. Anonymous sockets
   // may receive public event updates, but never acquire a user identity.

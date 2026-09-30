@@ -9,21 +9,23 @@ import CardEvents from "@/components/MyComponents/CardEvents";
 import { useSocket } from "@/context/SocketContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getRecentEventHistory } from "@/app/(actions)/eventHistory/action";
+import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/types/features";
 
-type StatusFilter = "all" | "verified" | "unverified";
+type StatusFilter = "all" | EventStatus;
 type HistoryEntry = {
   id: string;
   eventId: string;
   eventName: string;
   actorName: string | null;
-  action: "CREATED" | "VALIDATED" | "DELETED";
+  action: EventHistoryAction;
+  note?: string | null;
   createdAt: string;
 };
 const filters: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "Todos" },
-  { value: "verified", label: "Validados" },
-  { value: "unverified", label: "Aguardando validação" },
+  ...Object.entries(eventStatusLabels).map(([value, label]) => ({ value: value as EventStatus, label })),
 ];
+const historyLabels: Record<EventHistoryAction, string> = { CREATED: "Criado", VALIDATED: "Publicado", DELETED: "Excluído", UPDATED: "Atualizado", CHANGES_REQUESTED: "Correção solicitada", CANCELLED: "Cancelado", SUBMITTED: "Enviado para análise", DUPLICATED: "Duplicado" };
 
 export default function MyEvents() {
   const { data: user, status } = useCurrentUser();
@@ -117,12 +119,12 @@ export default function MyEvents() {
     return events.filter((event) => {
       const matchesSearch = !query || [event.nome, event.descricao, event.endereco]
         .some((value) => value?.toLocaleLowerCase("pt-BR").includes(query));
-      const matchesStatus = filterStatus === "all" ||
-        (filterStatus === "verified" ? event.validate : !event.validate);
+      const matchesStatus = filterStatus === "all" || event.status === filterStatus;
       return matchesSearch && matchesStatus;
     });
   }, [events, searchTerm, filterStatus]);
-  const validatedCount = events.filter((event) => event.validate).length;
+  const publishedCount = events.filter((event) => event.status === "PUBLISHED").length;
+  const pendingCount = events.filter((event) => event.status === "PENDING").length;
 
   return (
     <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
@@ -133,7 +135,7 @@ export default function MyEvents() {
             <div>
               <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Painel de eventos</p>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meus eventos</h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">Acompanhe seus eventos e veja quais já foram validados.</p>
+              <p className="mt-2 max-w-2xl text-muted-foreground">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
             </div>
           </div>
           <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
@@ -144,8 +146,8 @@ export default function MyEvents() {
         {!isLoading && !error && events.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Total de eventos</p><p className="mt-1 text-2xl font-bold">{events.length}</p></div>
-            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Validados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{validatedCount}</p></div>
-            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Aguardando validação</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{events.length - validatedCount}</p></div>
+            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Publicados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{publishedCount}</p></div>
+            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Em análise</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p></div>
           </div>
         )}
 
@@ -153,9 +155,9 @@ export default function MyEvents() {
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 id="event-history-title" className="text-xl font-semibold">Atividade recente</h2><p className="mt-1 text-sm text-muted-foreground">Um registro das últimas mudanças, inclusive de eventos excluídos.</p></div></div>
           {historyLoading ? <p role="status" className="py-5 text-sm text-muted-foreground">Carregando atividade...</p> : historyError ? <div role="alert" className="py-3 text-sm"><p>{historyError}</p><button type="button" onClick={() => { setHistoryLoading(true); setHistoryRetry((count) => count + 1); }} className="mt-2 font-semibold text-primary underline underline-offset-4">Tentar novamente</button></div> : history.length === 0 ? <p className="py-5 text-sm text-muted-foreground">As mudanças dos seus eventos aparecerão aqui.</p> : <ol className="divide-y divide-border">{history.slice(0, 6).map((entry) => {
             const Icon = entry.action === "VALIDATED" ? CheckCircle2 : entry.action === "DELETED" ? Trash2 : Clock3;
-            const actionLabel = entry.action === "VALIDATED" ? "Validado" : entry.action === "DELETED" ? "Excluído" : "Criado";
+            const actionLabel = historyLabels[entry.action];
             const date = new Date(entry.createdAt);
-            return <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium">{actionLabel}: {entry.eventName}</p><p className="mt-1 text-xs text-muted-foreground">{entry.actorName ? `Por ${entry.actorName} · ` : ""}{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></div></li>;
+            return <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium">{actionLabel}: {entry.eventName}</p>{entry.note && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.note}</p>}<p className="mt-1 text-xs text-muted-foreground">{entry.actorName ? `Por ${entry.actorName} · ` : ""}{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></div></li>;
           })}</ol>}
         </section>
 
@@ -166,7 +168,7 @@ export default function MyEvents() {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input id="event-search" type="search" placeholder="Busque por nome, descrição ou endereço" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-xl border bg-background pl-10 pr-4 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary" />
             </div>
-            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por validação">
+            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
               {filters.map((filter) => (
                 <button key={filter.value} type="button" aria-pressed={filterStatus === filter.value} onClick={() => setFilterStatus(filter.value)} className={`min-h-10 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${filterStatus === filter.value ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
                   {filter.label}

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { notifyEventAudience } from "@/lib/eventNotifications";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 
 export async function validateEvents(eventIds: string[], adminId: string) {
@@ -29,10 +30,12 @@ export async function validateEvents(eventIds: string[], adminId: string) {
       const changed = await transaction.events.updateMany({
         where: {
           id: event.id,
-          OR: [{ validate: false }, { validate: null }],
+          status: "PENDING",
         },
         data: {
           validate: true,
+          status: "PUBLISHED",
+          reviewNote: null,
           validatedBy: adminId,
           validatedAt,
         },
@@ -50,6 +53,7 @@ export async function validateEvents(eventIds: string[], adminId: string) {
           createdAt: validatedAt,
         },
       });
+      await notifyEventAudience(transaction, { ...event, status: "PUBLISHED" }, { title: "Evento publicado", message: event.nome + " foi aprovado e está disponível no EventMap.", includeFollowers: true });
       changedIds.push(event.id);
     }
     return changedIds;

@@ -33,9 +33,12 @@ type NavItem = { label: string; href: string; icon: typeof Compass; roles?: stri
 const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarCheck },
+  { label: "Minha agenda", href: "/salvos", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Criar evento", href: "/CriarEvento", icon: CalendarPlus, roles: ["ADMIN", "PROMOTER"] },
   { label: "Meus eventos", href: "/myEvents", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
   { label: "Usuários", href: "/admin", icon: UsersRound, roles: ["ADMIN"] },
+  { label: "Resultados", href: "/resultados", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
+  { label: "Notificações", href: "/notificacoes", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Meu perfil", href: "/Profile", icon: UserRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
 ];
 

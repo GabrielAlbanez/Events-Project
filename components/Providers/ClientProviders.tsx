@@ -8,6 +8,7 @@ import { HeroUIProvider } from "@heroui/react";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import DevAdminAutoLogin from "@/components/Providers/DevAdminAutoLogin";
+import NotificationBell from "@/components/MyComponents/NotificationBell";
 
 export default function ClientProviders({
   children,
@@ -28,6 +29,7 @@ export default function ClientProviders({
               <div className="flex min-h-screen w-full">
                 {/* Sidebar */}
                 <AppSidebar />
+                <NotificationBell />
                 {/* Conteúdo Principal */}
                 <main className="relative z-10 min-w-0 flex-1 overflow-auto bg-background/70 text-foreground backdrop-blur-[2px]">
                   {/* Carregamento global do Google Maps */}

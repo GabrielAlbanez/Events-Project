@@ -1,5 +1,6 @@
 "use server";
 
+import { notifyEventAudience } from "@/lib/eventNotifications";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 import fs from "fs";
@@ -21,7 +22,7 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
   const { deletedCount, eventsToDelete } = await prisma.$transaction(async (transaction) => {
     const events = await transaction.events.findMany({
       where: { id: { in: Array.from(new Set(eventIds)) } },
-      select: { id: true, nome: true, userId: true, banner: true, carrossel: true },
+      select: { id: true, nome: true, userId: true, banner: true, carrossel: true, status: true },
     });
     const admin = await transaction.user.findUnique({
       where: { id: adminId },
@@ -41,6 +42,10 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
         createdAt: deletedAt,
       })),
     });
+    for (const event of events) {
+      await notifyEventAudience(transaction, event, { title: "Evento removido", message: event.nome + " foi removido pela administração." });
+      await transaction.notification.updateMany({ where: { href: "/eventos/" + event.id }, data: { href: "/EventsCreated" } });
+    }
     const deleted = await transaction.events.deleteMany({
       where: { id: { in: events.map((event) => event.id) } },
     });
@@ -50,6 +55,9 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
   // Clean files only after the database transaction commits.
   for (const event of eventsToDelete) {
     for (const file of [event.banner, ...event.carrossel]) {
+      if (!file.startsWith("/uploads/")) continue;
+      const referenced = await prisma.events.count({ where: { OR: [{ banner: file }, { carrossel: { has: file } }] } });
+      if (referenced) continue;
       const filePath = path.join(uploadDir, path.basename(file));
       try {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);

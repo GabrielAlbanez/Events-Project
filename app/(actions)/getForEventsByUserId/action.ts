@@ -1,5 +1,6 @@
 "use server";
 
+import { publicEventSelect } from "@/lib/eventQueries";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 
@@ -23,43 +24,10 @@ export async function getForEventsForUserById(idUser: string) {
     // Busca os eventos relacionados ao usuário
     const userEvents = await prisma.events.findMany({
       where: { userId: idUser },
-      select: {
-        id: true,
-        nome: true,
-        banner: true,
-        carrossel: true,
-        descricao: true,
-        dataInicio : true,
-        dataFim : true,
-        endereco: true,
-        linkParaCompra: true,
-        validate: true,
-        validatedAt: true,
-        userId: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            role: true
-          }
-        },
-        validator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            role: true
-          }
-        }
-      }
+      select: { ...publicEventSelect, reviewNote: true },
+      orderBy: { updatedAt: "desc" },
     });
 
-    if (userEvents.length === 0) {
-      return { status: "error", message: "Nenhum evento encontrado." };
-    }
 
     return {
       status: "success",

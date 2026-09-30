@@ -1,5 +1,6 @@
 "use server";
 
+import { EventHistoryAction } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 
@@ -10,7 +11,8 @@ type HistoryEntry = {
   promoterId: string | null;
   actorId: string;
   actorName: string | null;
-  action: "CREATED" | "VALIDATED" | "DELETED";
+  action: EventHistoryAction;
+  note: string | null;
   createdAt: string;
 };
 
@@ -21,7 +23,8 @@ function serializeHistory(entry: {
   promoterId: string | null;
   actorId: string;
   actorName: string | null;
-  action: "CREATED" | "VALIDATED" | "DELETED";
+  action: EventHistoryAction;
+  note: string | null;
   createdAt: Date;
 }): HistoryEntry {
   return { ...entry, createdAt: entry.createdAt.toISOString() };
@@ -53,7 +56,8 @@ export async function getEventHistory(eventId: string) {
         where: { eventId, promoterId: user.id },
         select: { id: true },
       });
-      if (!owned) return { status: "error" as const, message: "Acesso negado." };
+      const event = owned ? null : await prisma.events.findFirst({ where: { id: eventId, userId: user.id }, select: { id: true } });
+      if (!owned && !event) return { status: "error" as const, message: "Acesso negado." };
     }
 
     const entries = await prisma.eventHistory.findMany({

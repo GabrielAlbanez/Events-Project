@@ -19,6 +19,13 @@ model User {
   sessions      Session[]
   Events        Events[]
   validatedEvents Events[] @relation("EventValidator") // Relação com eventos validados pelo admin
+  bio           String    @default("")
+  contactUrl    String    @default("")
+  favorites     Favorite[]
+  notifications Notification[]
+  subscriptions PushSubscription[]
+  following     Follow[] @relation("Follower")
+  followers     Follow[] @relation("Promoter")
 }
 
 enum Role {
@@ -61,6 +68,21 @@ model Events {
   validatedBy    String? 
   validator      User?    @relation("EventValidator", fields: [validatedBy], references: [id], onDelete: SetNull)
   validatedAt    DateTime? 
+  status         EventStatus @default(PENDING)
+  category       String @default("Outros")
+  isFree         Boolean @default(false)
+  priceCents     Int @default(0)
+  lat            Float?
+  lng            Float?
+  startTime      String?
+  endTime        String?
+  timezone       String @default("America/Sao_Paulo")
+  reviewNote     String?
+  views          Int @default(0)
+  ticketClicks   Int @default(0)
+  updatedAt      DateTime @default(now()) @updatedAt
+  favorites      Favorite[]
+  metrics        EventMetric[]
 
   @@map("events") 
 }
@@ -69,6 +91,20 @@ enum EventHistoryAction {
   CREATED
   VALIDATED
   DELETED
+  UPDATED
+  CHANGES_REQUESTED
+  CANCELLED
+  SUBMITTED
+  DUPLICATED
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING
+  CHANGES_REQUESTED
+  PUBLISHED
+  CANCELLED
+  ENDED
 }
 
 model EventHistory {
@@ -80,10 +116,67 @@ model EventHistory {
   actorName  String?
   action     EventHistoryAction
   createdAt  DateTime           @default(now())
+  note       String?
 
   // Snapshot IDs keep the audit trail after an event or user is deleted.
   @@index([eventId, createdAt])
   @@index([promoterId, createdAt])
+}
+
+model Favorite {
+  userId          String
+  eventId         String
+  createdAt       DateTime @default(now())
+  reminderMinutes Int?
+  reminderSentAt  DateTime?
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event           Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  @@id([userId, eventId])
+  @@index([eventId])
+}
+
+model Follow {
+  userId     String
+  promoterId String
+  createdAt  DateTime @default(now())
+  user       User @relation("Follower", fields: [userId], references: [id], onDelete: Cascade)
+  promoter   User @relation("Promoter", fields: [promoterId], references: [id], onDelete: Cascade)
+  @@id([userId, promoterId])
+  @@index([promoterId])
+}
+
+model Notification {
+  id        String @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  href      String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  pushedAt  DateTime?
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@index([pushedAt])
+}
+
+model PushSubscription {
+  id        String @id @default(uuid())
+  userId    String
+  endpoint  String @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model EventMetric {
+  eventId      String
+  day          String
+  views        Int @default(0)
+  ticketClicks Int @default(0)
+  event        Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  @@id([eventId, day])
 }
 
 model Session {

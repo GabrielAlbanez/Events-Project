@@ -1,15 +1,8 @@
-export const roles = {
-    ADMIN: "ADMIN",
-    BASIC: "BASIC",
-    PROMOTER: "PROMOTER",
-    GUEST: "GUEST",
-  };
-  
-  export const roleRoutes = {
-    [roles.ADMIN]: ["/admin", "/Profile", "/", "/CriarEvento", "/EditEvent", "/DashBoard", "/myEvents"],
-    [roles.BASIC]: ["/Profile", "/"],
-    [roles.PROMOTER]: ["/Profile", "/", "/CriarEvento", "/myEvents"],
-    [roles.GUEST]: ["/", "/login", "/register"],
-  };
-  
-  export const publicRoutes = ["/", "/EventsCreated"];
+export const roles = { ADMIN: "ADMIN", BASIC: "BASIC", PROMOTER: "PROMOTER", GUEST: "GUEST" } as const;
+export const roleRoutes: Record<string, string[]> = {
+ ADMIN: ["/admin", "/Profile", "/", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes"],
+ BASIC: ["/Profile", "/", "/salvos", "/notificacoes"],
+ PROMOTER: ["/Profile", "/", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes"],
+ GUEST: ["/", "/login", "/register"],
+};
+export const publicRoutes = ["/", "/EventsCreated"];

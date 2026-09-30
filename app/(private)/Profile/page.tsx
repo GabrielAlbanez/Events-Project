@@ -16,6 +16,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSocket } from "@/context/SocketContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
+import { getMyPublicProfile, updatePromoterProfile } from "@/app/(actions)/engagement/action";
+import { Textarea } from "@/components/ui/textarea";
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
@@ -44,6 +46,11 @@ export default function Profile() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bio, setBio] = useState("");
+  const [contactUrl, setContactUrl] = useState("");
+  const [publicProfileLoading, setPublicProfileLoading] = useState(false);
+  const [publicProfileSaving, setPublicProfileSaving] = useState(false);
+  const [publicProfileError, setPublicProfileError] = useState("");
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: { name: "", password: "", newPassword: "" },
@@ -58,6 +65,35 @@ export default function Profile() {
   useEffect(() => () => {
     if (previewImage) URL.revokeObjectURL(previewImage);
   }, [previewImage]);
+
+  useEffect(() => {
+    if (user.data?.role !== "PROMOTER") return;
+    let active = true;
+    setPublicProfileLoading(true);
+    void getMyPublicProfile().then((profile) => {
+      if (!active) return;
+      setBio(profile.bio ?? "");
+      setContactUrl(profile.contactUrl ?? "");
+      setPublicProfileError("");
+    }).catch(() => { if (active) setPublicProfileError("Não foi possível carregar o perfil público."); }).finally(() => { if (active) setPublicProfileLoading(false); });
+    return () => { active = false; };
+  }, [user.data?.id, user.data?.role]);
+
+  const savePublicProfile = async () => {
+    if (publicProfileSaving) return;
+    if (contactUrl.trim()) {
+      try { const url = new URL(contactUrl.trim()); if (!(["http:", "https:"].includes(url.protocol))) throw new Error("Invalid protocol"); }
+      catch { setPublicProfileError("Use um link completo começando com https://."); return; }
+    }
+    setPublicProfileSaving(true);
+    try {
+      const result = await updatePromoterProfile({ bio: bio.trim(), contactUrl: contactUrl.trim() });
+      if (!result.success) { setPublicProfileError(result.message); return; }
+      setPublicProfileError("");
+      toast.success("Perfil público atualizado.");
+    } catch { setPublicProfileError("Não foi possível salvar o perfil público."); }
+    finally { setPublicProfileSaving(false); }
+  };
 
   const account = user.data;
   const canChangePassword = account?.provider !== "google" && account?.provider !== "dev-admin";
@@ -168,6 +204,7 @@ export default function Profile() {
           </Card>
 
           <div className="min-w-0 space-y-6">
+            {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
             <Card className="rounded-2xl shadow-sm">
               <CardContent className="p-5 sm:p-7">
                 <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>

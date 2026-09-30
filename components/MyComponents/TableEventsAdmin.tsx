@@ -19,6 +19,8 @@ import { Evento } from "@/types";
 import { validateEvents } from "@/app/(actions)/validateEvents/action";
 import { deleteEvents } from "@/app/(actions)/deleteEvents/action";
 import { useSocket } from "@/context/SocketContext";
+import { solicitarCorrecao } from "@/app/(actions)/eventos/actions";
+import { eventStatusLabels, type EventStatus } from "@/types/features";
 
 interface TableEventsProps {
   events: Evento[];
@@ -35,6 +37,9 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [correctionEvent, setCorrectionEvent] = useState<Evento | null>(null);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [isCorrecting, setIsCorrecting] = useState(false);
   const socket = useSocket();
 
 
@@ -75,11 +80,11 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
     // Filtrar eventos já validados
     const unvalidatedEventIds = selectedEventIds.filter((id) => {
       const event = eventList.find((e) => e.id === id);
-      return event && !event.validate;
+      return event?.status === "PENDING";
     });
 
     if (unvalidatedEventIds.length === 0) {
-      toast.warning("Nenhum evento não validado foi selecionado.");
+      toast.warning("Selecione ao menos um evento em análise.");
       return;
     }
 
@@ -90,8 +95,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
           // Atualiza localmente o estado dos eventos sem precisar refetch
           setEventList((prev) =>
             prev.map((event) =>
-              unvalidatedEventIds.includes(event.id)
-                ? { ...event, validate: true }
+              (result.validatedEventIds ?? []).includes(event.id)
+                ? { ...event, validate: true, status: "PUBLISHED" }
                 : event
             )
           );
@@ -109,6 +114,22 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
         error: "❌ Erro ao verificar evento",
       }
     );
+  };
+
+  const handleRequestCorrection = async () => {
+    if (!correctionEvent || !correctionReason.trim()) return;
+    setIsCorrecting(true);
+    try {
+      const result = await solicitarCorrecao(correctionEvent.id, correctionReason.trim());
+      if (!result.success) { toast.error(result.message); return; }
+      setEventList((list) => list.map((event) => event.id === correctionEvent.id ? { ...event, status: "CHANGES_REQUESTED", reviewNote: correctionReason.trim() } : event));
+      setSelectedEvents((selected) => { const next = new Set(selected); next.delete(correctionEvent.id); return next; });
+      socket.emit("events-changed");
+      toast.success("Pedido de correção enviado ao promotor.");
+      setCorrectionEvent(null);
+      setCorrectionReason("");
+    } catch { toast.error("Não foi possível solicitar a correção."); }
+    finally { setIsCorrecting(false); }
   };
 
   // Deletar eventos selecionados e remover da lista
@@ -163,7 +184,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
             onClick={handleValidateSelected}
             className="mr-4"
           >
-            Validar Selecionados ({selectedEvents.size})
+            Publicar selecionados ({selectedEvents.size})
           </Button>
           <Button color="danger" onClick={handleDeleteSelected}>
             Excluir Selecionados ({selectedEvents.size})
@@ -186,6 +207,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
               <TableCell>
                 <Checkbox
                   isSelected={selectedEvents.has(event.id)}
+                  isDisabled={event.status !== "PENDING"}
                   onValueChange={() => handleSelectEvent(event.id)}
                   aria-label={`Selecionar ${event.nome}`}
                 />
@@ -197,11 +219,11 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
               {/* Status de verificação */}
               <TableCell align="center">
                 <Chip
-                  color={event.validate ? "success" : "warning"}
+                  color={event.status === "PUBLISHED" ? "success" : event.status === "CHANGES_REQUESTED" ? "danger" : "warning"}
                   size="sm"
                   variant="flat"
                 >
-                  {event.validate ? "Validado" : "Não Validado"}
+                  {eventStatusLabels[(event.status ?? "PENDING") as EventStatus] ?? "Em análise"}
                 </Chip>
               </TableCell>
               {/* Ações individuais */}
@@ -216,6 +238,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
                       Detalhes
                     </Button>
                   </Tooltip>
+                  {event.status === "PENDING" && <Button size="sm" variant="flat" color="warning" onClick={() => { setCorrectionEvent(event); setCorrectionReason(""); }}>Pedir correção</Button>}
                 </div>
               </TableCell>
             </TableRow>
@@ -232,6 +255,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
           role={role}
         />
       )}
+      {correctionEvent && <div role="dialog" aria-modal="true" aria-labelledby="correction-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl"><h2 id="correction-title" className="text-xl font-semibold">Solicitar correção</h2><p className="mt-2 text-sm text-muted-foreground">Explique ao promotor o que precisa mudar em “{correctionEvent.nome}”.</p><label htmlFor="correction-reason" className="mt-5 block text-sm font-medium">Motivo</label><textarea id="correction-reason" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} rows={5} maxLength={1000} className="mt-2 w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" placeholder="Ex.: Atualize o endereço e inclua o horário de início." /><div className="mt-5 flex justify-end gap-2"><Button variant="flat" onClick={() => setCorrectionEvent(null)} disabled={isCorrecting}>Voltar</Button><Button color="primary" onClick={() => void handleRequestCorrection()} disabled={isCorrecting || correctionReason.trim().length < 5}>{isCorrecting ? "Enviando..." : "Enviar pedido"}</Button></div></div></div>}
     </div>
   );
 };

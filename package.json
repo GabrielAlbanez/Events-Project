@@ -12,7 +12,12 @@
     "prisma:generate": "prisma generate",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "push:configure": "node scripts/configure-web-push.cjs",
+    "start:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=production node dist/server.mjs",
+    "test:features": "node scripts/verify-event-platform.cjs",
+    "test:features:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-event-platform.cjs",
+    "test:features:http": "node scripts/smoke-event-platform.cjs"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.5.3",
@@ -71,6 +76,7 @@
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
     "vaul": "^1.1.2",
+    "web-push": "^3.6.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -83,6 +89,7 @@
     "@types/react-dom": "^18",
     "@types/socket.io": "^3.0.1",
     "@types/uuid": "^10.0.0",
+    "@types/web-push": "^3.6.4",
     "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.23",
