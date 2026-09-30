@@ -1,27 +1,12 @@
-import { Server as HttpServer } from "http";
-import { Server as SocketIOServer } from "socket.io";
+import { NextResponse } from "next/server";
 
-let io: SocketIOServer | undefined;
-
-export default function handler(req: any, res: any) {
-  if (!io) {
-    const httpServer: HttpServer = res.socket.server;
-    io = new SocketIOServer(httpServer, {
-      path: "/api/socket",
-    });
-
-    io.on("connection", (socket) => {
-      console.log("New client connected:", socket.id);
-
-      socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
-      });
-    });
-
-    res.socket.server.io = io;
-  }
-
-  res.end();
+/**
+ * O Socket.IO é inicializado pelo servidor customizado em `server.mts`.
+ * Esta rota existe apenas como verificação de disponibilidade da API.
+ */
+export async function GET() {
+  return NextResponse.json({
+    service: "socket.io",
+    status: "available",
+  });
 }
-
-export const getIO = () => io;

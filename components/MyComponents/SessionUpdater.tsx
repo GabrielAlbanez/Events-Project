@@ -1,6 +1,5 @@
 "use client"
 import { useEffect } from "react";
-import { getSession, signOut, useSession } from "next-auth/react";
 import { useSocket } from "@/context/SocketContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -10,8 +9,8 @@ interface RoleUpdatedPayload {
 }
 
 const SessionUpdater = () => {
-  const { socket } = useSocket();
-  const {data,status,update} = useCurrentUser()
+  const socket = useSocket();
+  const { data, update } = useCurrentUser();
 
   useEffect(() => {
     if (!socket) return;
@@ -29,7 +28,7 @@ const SessionUpdater = () => {
     return () => {
       socket.off("roleUpdated");
     };
-  }, [socket]);
+  }, [socket, data?.id, update]);
 
   return null;
 };

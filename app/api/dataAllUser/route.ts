@@ -1,6 +1,8 @@
 import { getAllUsers } from '@/app/(actions)/getAllUsers/action';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 
 type ResponseData = {
   status: string;

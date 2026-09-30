@@ -66,12 +66,12 @@ const updateRolesFile = (routePath: string, roles: string[]) => {
 
   const updatedContent = roles.reduce((content, role) => {
     const roleRegex = new RegExp(`\\[roles\\.${role}\\]: \\[(.*?)\\]`);
-    return content.replace(roleRegex, (match, routes) => {
-      const routesArray = routes.split(",").map((route) => route.trim().replace(/['"]+/g, ""));
+    return content.replace(roleRegex, (_match: string, routes: string) => {
+      const routesArray = routes.split(",").map((route: string) => route.trim().replace(/['"]+/g, ""));
       if (!routesArray.includes(routePath)) {
         routesArray.push(routePath);
       }
-      return `[roles.${role}]: [${routesArray.map((route) => `"${route}"`).join(", ")}]`;
+      return `[roles.${role}]: [${routesArray.map((route: string) => `"${route}"`).join(", ")}]`;
     });
   }, rolesFileContent);
 

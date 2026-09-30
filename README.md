@@ -2,6 +2,29 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Para iniciar o Next.js e o Socket.IO juntos:
+
+```bash
+npm install
+npm run prisma:generate
+npm run dev:socket
+```
+
+Gere o cliente Prisma na configuração inicial e depois de alterar `prisma/schema.prisma`,
+sempre com os servidores do projeto parados. No Windows, gerar o cliente enquanto
+o servidor usa a DLL do Prisma pode causar `EPERM`.
+
+`npm run dev:socket` compila `server.mts` e inicia o servidor sem o
+loader experimental do ts-node e sem substituir a DLL do Prisma. Configure `DATABASE_URL` no `.env` para os recursos
+que usam banco de dados. A URL aparece no terminal (`PORT` no `.env`, ou 8081 por padrão).
+Use essa mesma URL em `NEXTAUTH_URL` e `NEXT_PUBLIC_BASE_URL`.
+
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` é opcional e pode ficar vazia. Sem a chave,
+as páginas continuam disponíveis, a tela inicial oferece acesso à lista de eventos
+e o cadastro aceita endereços digitados manualmente. Mapa, rotas e sugestões de
+endereços do Google ficam disponíveis quando uma chave válida é configurada.
+Reinicie o servidor depois de alterar a chave.
+
 First, run the development server:
 
 ```bash

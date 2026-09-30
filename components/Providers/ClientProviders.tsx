@@ -21,11 +21,11 @@ export default function ClientProviders({
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
             <SidebarProvider defaultOpen={defaultOpen}>
-              <div className="flex z-50 w-full h-screen">
+              <div className="flex min-h-screen w-full">
                 {/* Sidebar */}
                 <AppSidebar />
                 {/* Conteúdo Principal */}
-                <main className="flex-1 z-10 overflow-auto text-foreground bg-background ">
+                <main className="relative z-10 min-w-0 flex-1 overflow-auto bg-background/70 text-foreground backdrop-blur-[2px]">
                   {/* Carregamento global do Google Maps */}
                   <GoogleMapsLoader>{children}</GoogleMapsLoader>
                 </main>

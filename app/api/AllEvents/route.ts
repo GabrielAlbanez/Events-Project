@@ -1,6 +1,8 @@
 import getAllEvents from '@/app/(actions)/getAlllEvents/action';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 
 type ResponseData = {
   status: string;

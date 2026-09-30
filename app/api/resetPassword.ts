@@ -17,7 +17,7 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
 
     await prisma.user.update({
         where: { email: verificationTokenEmail.email },
-        data: { emailVerified: new Date() },
+        data: { emailVerified: true },
       });
 
     // Hash the new password

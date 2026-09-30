@@ -1,42 +1,82 @@
 "use client";
-import React, { useRef, useState, useEffect } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import {
-  LoadScript,
   GoogleMap,
   Marker,
   DirectionsRenderer,
-  Autocomplete,
 } from "@react-google-maps/api";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import {Spinner} from "@heroui/spinner";
 import {
-  Search,
   ArrowLeft,
   Route,
   Crosshair,
-  Loader,
-  Trash2,
+  MapPin,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
-import { SidebarTrigger } from "../ui/sidebar";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { Evento } from "@/types";
 import { useTheme } from "next-themes";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useGoogleMaps } from "./GoogleMapsLoader";
+import { PlaceAutocomplete } from "./PlaceAutocomplete";
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
-  <div className="flex items-center justify-center w-full h-full">
-    <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
-    <span className="ml-4 text-blue-600 text-lg font-semibold">
-      Carregando Mapa...
-    </span>
+  <div className="flex h-full min-h-[420px] items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+    <div className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/90 px-5 py-3 shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Preparando o mapa…</span>
+    </div>
   </div>
 );
 
-const Mapa = () => {
-  const rota = usePathname();
-  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#19191b" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#a1a1aa" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#19191b" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#3f3f46" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#202023" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#18181b" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2a2a2e" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#111113" }] },
+];
+
+const USER_MARKER_ICON = { url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png" };
+const EVENT_MARKER_ICON = { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" };
+const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
+
+const EventMarkers = memo(function EventMarkers({
+  events,
+  onSelect,
+  highlightedId,
+}: {
+  events: Evento[];
+  onSelect: (event: Evento) => void;
+  highlightedId: string | null;
+}) {
+  return events.map((event) => (
+    <Marker
+      key={event.id}
+      position={{ lat: event.lat!, lng: event.lng! }}
+      icon={EVENT_MARKER_ICON}
+      zIndex={event.id === highlightedId ? 1000 : undefined}
+      opacity={highlightedId && event.id !== highlightedId ? 0.6 : 1}
+      onClick={() => onSelect(event)}
+    />
+  ));
+});
+
+type MapProps = {
+  events: Evento[];
+  selectedId: string | null;
+  highlightedId: string | null;
+  onSelectEvent: (id: string | null) => void;
+};
+
+const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapProps) => {
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
@@ -49,102 +89,25 @@ const Mapa = () => {
     useState<google.maps.DirectionsResult | null>(null);
   const [showDirections, setShowDirections] = useState(false);
   const [isRouteTracing, setIsRouteTracing] = useState(false);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const startRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const endRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [eventos, setEventos] = useState<Evento[]>([]);
-  const [isAddressLoaded, setIsAddressLoaded] = useState({
-    lat: 0,
-    lng: 0,
-  });
-
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
-
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-  const tema = useTheme();
-
-  const darkMapStyle = [
-    { elementType: "geometry", stylers: [{ color: "#212121" }] },
-    { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-    {
-      featureType: "administrative",
-      elementType: "geometry",
-      stylers: [{ color: "#757575" }],
-    },
-    {
-      featureType: "administrative.locality",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#bdbdbd" }],
-    },
-    {
-      featureType: "poi",
-      elementType: "geometry",
-      stylers: [{ color: "#2b2b2b" }],
-    },
-    {
-      featureType: "poi",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#ffffff" }],
-    },
-    {
-      featureType: "poi.business",
-      elementType: "labels.text",
-      stylers: [{ visibility: "on" }],
-    },
-    {
-      featureType: "poi.park",
-      elementType: "geometry",
-      stylers: [{ color: "#181818" }],
-    },
-    {
-      featureType: "poi.park",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#616161" }],
-    },
-    {
-      featureType: "road",
-      elementType: "geometry.fill",
-      stylers: [{ color: "#2c2c2c" }],
-    },
-    {
-      featureType: "road",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#8a8a8a" }],
-    },
-    {
-      featureType: "water",
-      elementType: "geometry",
-      stylers: [{ color: "#000000" }],
-    },
-    {
-      featureType: "water",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#3d3d3d" }],
-    },
-  ];
+  const { resolvedTheme } = useTheme();
 
   const searchParams = useSearchParams();
   const enderecoParam = searchParams.get("endereco");
   const router = useRouter();
 
   const mapRef = useRef<google.maps.Map | null>(null);
-
-  if (!apiKey) {
-    console.error("Chave de API do Google Maps não configurada.");
-    return <div>Erro: Chave de API não configurada.</div>;
-  }
+  const handleMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; }, []);
+  const handleMapUnmount = useCallback(() => { mapRef.current = null; }, []);
 
   // Captura a localização atual
-  const getCurrentLocation = () => {
-    console.log("Obtendo localização atual...");
+  const getCurrentLocation = useCallback(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
+          setUserLocation({ lat: latitude, lng: longitude });
 
           router.replace("/");
         },
@@ -153,11 +116,10 @@ const Mapa = () => {
     } else {
       toast.error("Geolocalização não suportada pelo navegador.");
     }
-  };
+  }, [router]);
 
   // Traça rota entre origem e destino
-  const calculateRoute = (destination: google.maps.LatLngLiteral) => {
-    // const origin = currentLocation;
+  const calculateRoute = useCallback((destination: google.maps.LatLngLiteral) => {
     const origin = userLocation;
     if (origin && destination) {
       const directionsService = new google.maps.DirectionsService();
@@ -179,10 +141,10 @@ const Mapa = () => {
         }
       );
     }
-  };
+  }, [userLocation]);
 
   // Limpa a rota
-  const clearRoute = () => {
+  const clearRoute = useCallback(() => {
     if (!directions) {
       toast.warning("Nenhuma rota traçada para limpar.");
       return;
@@ -191,31 +153,15 @@ const Mapa = () => {
     toast.info("Rota limpa com sucesso.");
     setIsRouteTracing(false); // Move the modal back to the center
     router.replace("/");
-  };
+  }, [directions, router]);
 
-  const mapStyles = [
-    {
-      featureType: "poi",
-      elementType: "labels.icon",
-      stylers: [{ visibility: "off" }],
-    },
-    {
-      featureType: "transit",
-      elementType: "labels.icon",
-      stylers: [{ visibility: "off" }],
-    },
-    {
-      featureType: "road",
-      elementType: "labels",
-      stylers: [{ visibility: "on" }],
-    },
-  ];
-
-  const convertAddressToCoordinates = (
+  const convertAddressToCoordinates = useCallback((
     endereco: string
   ): Promise<google.maps.LatLngLiteral> => {
+    const cached = geocodeCache.get(endereco);
+    if (cached) return cached;
     const geocoder = new window.google.maps.Geocoder();
-    return new Promise((resolve, reject) => {
+    const request = new Promise<google.maps.LatLngLiteral>((resolve, reject) => {
       geocoder.geocode({ address: endereco }, (results: any, status) => {
         if (status === "OK" && results[0]) {
           const location = results[0].geometry.location;
@@ -225,45 +171,12 @@ const Mapa = () => {
         }
       });
     });
-  };
-
-  const verifyEnderecoSerachParams = () => {
-    if (enderecoParam) {
-      convertAddressToCoordinates(decodeURIComponent(enderecoParam))
-        .then((location) => {
-          setCurrentLocation(location);
-        })
-        .catch(() => toast.error("Erro ao localizar endereço."));
-    }
-  };
+    geocodeCache.set(endereco, request);
+    request.catch(() => geocodeCache.delete(endereco));
+    return request;
+  }, []);
 
   useEffect(() => {
-    const carregarEventosReais = async () => {
-      try {
-        const response = await fetch("/api/AllEvents");
-        const eventosReais: Evento[] = await response.json();
-        const eventosAtualizados: Evento[] = [];
-
-        for (const evento of eventosReais) {
-          try {
-            const coordenadas = await convertAddressToCoordinates(
-              evento.endereco
-            );
-            eventosAtualizados.push({ ...evento, ...coordenadas });
-          } catch (error) {
-            console.error(
-              `Erro ao converter endereço "${evento.endereco}":`,
-              error
-            );
-          }
-        }
-
-        setEventos(eventosAtualizados);
-      } catch (error) {
-        console.error("Erro ao carregar eventos reais:", error);
-      }
-    };
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -271,221 +184,133 @@ const Mapa = () => {
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
         },
-        () => toast.error("Não foi possível acessar sua localização.")
+        () => undefined,
+        { enableHighAccuracy: false, maximumAge: 300000, timeout: 7000 }
       );
-    } else {
-      toast.error("Geolocalização não suportada pelo navegador.");
     }
-    verifyEnderecoSerachParams();
-    carregarEventosReais();
-  }, [isScriptLoaded, enderecoParam, isAddressLoaded]);
+  }, []);
+
+  useEffect(() => {
+    if (!enderecoParam) return;
+    convertAddressToCoordinates(decodeURIComponent(enderecoParam))
+      .then(setCurrentLocation)
+      .catch(() => toast.error("Erro ao localizar endereço."));
+  }, [convertAddressToCoordinates, enderecoParam]);
+
+  const [geocodedEvents, setGeocodedEvents] = useState<Evento[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled(events.map(async (event) => ({
+      ...event,
+      ...(event.lat != null && event.lng != null
+        ? { lat: event.lat, lng: event.lng }
+        : await convertAddressToCoordinates(event.endereco)),
+    }))).then((results) => {
+      if (!cancelled) setGeocodedEvents(
+        results.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+      );
+    });
+    return () => { cancelled = true; };
+  }, [events, convertAddressToCoordinates]);
+
+  const mapOptions = useMemo<google.maps.MapOptions>(() => ({
+    fullscreenControl: false,
+    mapTypeControl: false,
+    streetViewControl: false,
+    rotateControl: false,
+    zoomControl: false,
+    clickableIcons: false,
+    gestureHandling: "greedy",
+    keyboardShortcuts: true,
+    styles: resolvedTheme === "dark" ? DARK_MAP_STYLE : undefined,
+  }), [resolvedTheme]);
+
+  const visibleEvents = useMemo(
+    () => geocodedEvents.filter((event) => event.lat != null && event.lng != null),
+    [geocodedEvents]
+  );
+  const handleEventSelect = useCallback((event: Evento) => onSelectEvent(event.id), [onSelectEvent]);
+  const selectedEvent = useMemo(
+    () => visibleEvents.find((event) => event.id === selectedId) ?? null,
+    [visibleEvents, selectedId]
+  );
+  useEffect(() => {
+    if (selectedEvent?.lat != null && selectedEvent?.lng != null) {
+      mapRef.current?.panTo({ lat: selectedEvent.lat, lng: selectedEvent.lng });
+    }
+  }, [selectedEvent]);
+  const changeZoom = useCallback((delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setZoom((map.getZoom() ?? 12) + delta);
+  }, []);
 
   return (
-    <div className="relative h-screen w-full flex z-10 flex-col lg:flex-row md:flex-row">
-      {rota === "/" && (
-        <>
-          <div className="relative flex-1">
-            {/* Loading enquanto o mapa não carregou */}
+    <div className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-zinc-100 md:flex-row dark:bg-zinc-900">
+          <div className="relative min-h-0 flex-1 isolate">
 
             <GoogleMap
-              mapContainerStyle={{ width: "100%", height: "100%" }}
+              mapContainerClassName="h-full w-full"
               center={currentLocation}
               zoom={12}
-              options={{
-                fullscreenControl: false,
-                mapTypeControl: false,
-                streetViewControl: false,
-                rotateControl: false,
-                zoomControl: false,
-                styles: tema.theme === "dark" ? darkMapStyle : undefined,
-              }}
+              options={mapOptions}
+              onLoad={handleMapLoad}
+              onUnmount={handleMapUnmount}
             >
-              <Marker
-                position={currentLocation}
-                icon={{
-                  url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // URL da bolinha azul
-                }}
-              />
+              {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} />}
 
-              {eventos
-                .filter(
-                  (evento) =>
-                    evento.lat !== undefined &&
-                    evento.lng !== undefined &&
-                    evento.validate
-                )
-                .map((evento) => (
-                  <Marker
-                    key={evento.id}
-                    position={{ lat: evento.lat!, lng: evento.lng! }}
-                    icon={{
-                      url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
-                    }}
-                    onClick={() => setEventoAtivo(evento)} // Atualiza o evento ativo
-                  />
-                ))}
+              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} highlightedId={highlightedId} />
 
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
 
-            {/* Navbar / Directions */}
-            <div
-              className={`absolute  bg-background text-foreground top-4 left-auto  md:left-[30px] right-auto z-10  shadow-lg rounded-lg px-6 py-4 `}
-            >
-              {!showDirections ? (
-                <div className="flex items-center">
-                  <SidebarTrigger>
-                    <button className=" mr-3">☰</button>
-                  </SidebarTrigger>
-
-                  <div className="h-6 w-px bg-gray-300 mx-4"></div>
-
-                  <Search className="text-gray-400 mr-3" />
-                  <Autocomplete
-                    onLoad={(autocomplete) =>
-                      (autocompleteRef.current = autocomplete)
-                    }
-                    onPlaceChanged={() => {
-                      if (autocompleteRef.current) {
-                        const place = autocompleteRef.current.getPlace();
-                        if (place.geometry?.location) {
-                          setDestination({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          setCurrentLocation({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          toast.success("Localização encontrada!");
-                        } else {
-                          toast.error(
-                            "Não foi possível obter a localização do destino."
-                          );
-                        }
-                      }
-                    }}
-                  >
-                    <input
-                      type="text"
-                      placeholder="Digite um destino"
-                      className="w-full border-none focus:outline-none bg-transparent truncate text-foreground"
-                    />
-                  </Autocomplete>
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      className="ml-4 text-blue-600 hover:text-blue-800"
-                      onClick={() => setShowDirections(true)}
-                    >
-                      <Route className="w-5 h-5" />
-                    </button>
-
-                    <button
-                      className="ml-4 text-blue-600 hover:text-blue-800"
-                      onClick={() => clearRoute()}
-                    >
-                      <Trash2 className="w-5 h-5" color="red" />
-                    </button>
-                  </div>
+            {showDirections && (
+              <div className="absolute left-3 right-3 top-3 z-10 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5 md:w-80">
+                <button type="button" onClick={() => setShowDirections(false)} className="mb-3 flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" /> Planejar rota</button>
+                <div className="space-y-3">
+                  <PlaceAutocomplete className="w-full rounded-xl border border-zinc-200 dark:border-white/10" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => setUserLocation({ lat, lng })} />
+                  <PlaceAutocomplete className="w-full rounded-xl border border-zinc-200 dark:border-white/10" placeholder="Destino" onPlaceSelect={({ lat, lng }) => setDestination({ lat, lng })} />
+                  <button type="button" className="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700" onClick={() => destination ? calculateRoute(destination) : toast.error("Selecione um destino.")}>Traçar rota</button>
+                  {directions && <button type="button" className="w-full text-xs text-zinc-500 hover:text-violet-600" onClick={clearRoute}>Limpar rota</button>}
                 </div>
-              ) : (
-                <div>
-                  <div className="flex items-center mb-4">
-                    <ArrowLeft
-                      className="w-5 h-5 text-gray-600 cursor-pointer hover:text-gray-800 mr-4"
-                      onClick={() => setShowDirections(false)}
-                    />
-                    <h3 className="text-lg font-semibold">Directions</h3>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Autocomplete
-                    onPlaceChanged={() => {
-                      if (autocompleteRef.current) {
-                        const place = autocompleteRef.current.getPlace();
-                        if (place.geometry?.location) {
-                          setDestination({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          setCurrentLocation({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          toast.success("Localização de partida selecioanda!");
-                        } else {
-                          toast.error(
-                            "Não foi possível obter a localização do destino."
-                          );
-                        }
-                      }
-                    }}
-                      onLoad={(autocomplete) =>
-                        (startRef.current = autocomplete)
-                      }
-                    >
-                      <input
-                        type="text"
-                        placeholder="Your location"
-                        className="w-full px-3 py-2 border rounded-md focus:outline-none"
-                      />
-                    </Autocomplete>
-                    <Autocomplete
-                    onPlaceChanged={() => {
-                      if (autocompleteRef.current) {
-                        const place = autocompleteRef.current.getPlace();
-                        if (place.geometry?.location) {
-                          setDestination({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          setCurrentLocation({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng(),
-                          });
-                          toast.success("destino selecionado!");
-                        } else {
-                          toast.error(
-                            "Não foi possível obter a localização do destino."
-                          );
-                        }
-                      }
-                    }}
-                      onLoad={(autocomplete) => (endRef.current = autocomplete)}
-                    >
-                      <input
-                        type="text"
-                        placeholder="Choose destination"
-                        className="w-full px-3 py-2 border rounded-md focus:outline-none"
-                      />
-                    </Autocomplete>
-                    <button
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md mt-2 hover:bg-blue-800"
-                      onClick={() => {
-                        if (destination) {
-                          calculateRoute(destination);
-                        } else {
-                          toast.error("Destino não definido.");
-                        }
-                      }}
-                    >
-                      Traçar Rota
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
+            )}
+
+            {selectedEvent && !showDirections && (
+              <div className="absolute left-3 right-3 top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-white/70 bg-white/95 p-3 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5">
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-violet-600">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-zinc-500">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-violet-600" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
+                <button type="button" aria-label="Fechar evento" className="self-start text-zinc-400" onClick={() => onSelectEvent(null)}>×</button>
+              </div>
+            )}
+
+            {!showDirections && !selectedEvent && <div className="absolute right-4 top-4 z-10 flex flex-col gap-2 md:right-5 md:top-5">
+              <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/70 bg-white/90 text-violet-600 shadow-lg backdrop-blur hover:bg-violet-50 dark:border-white/10 dark:bg-zinc-950/90" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota"><Route className="h-4 w-4" /></button>
+            </div>}
+            <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 md:bottom-5 md:right-5">
+              <div className="overflow-hidden rounded-2xl border border-white/70 bg-white/90 shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
+                <button className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(1)} title="Aumentar zoom">
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+                <div className="mx-2 h-px bg-zinc-200 dark:bg-white/10" />
+                <button className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(-1)} title="Diminuir zoom">
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                className="grid h-11 w-11 place-items-center rounded-2xl border border-white/70 bg-white/90 shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:bg-violet-50 dark:border-white/10 dark:bg-zinc-950/90"
+                onClick={getCurrentLocation}
+                title="Minha localização"
+              >
+                <Crosshair className="h-5 w-5 text-violet-600" />
+              </button>
             </div>
 
-            {/* Botão Minha Localização */}
-            <button
-              className="absolute bottom-4 right-2 bg-white p-2 rounded-full shadow-md hover:bg-gray-200 transition-all"
-              onClick={getCurrentLocation}
-              title="Minha Localização"
-            >
-              <Crosshair className="w-6 h-6 text-blue-500" />
-            </button>
+            <div className="absolute bottom-5 left-5 z-10 hidden items-center gap-2 rounded-full border border-white/70 bg-white/90 px-3 py-2 text-xs font-medium text-zinc-600 shadow-lg backdrop-blur md:flex dark:border-white/10 dark:bg-zinc-950/90 dark:text-zinc-300">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />
+              {visibleEvents.length} eventos no mapa
+            </div>
           </div>
-          {/* </LoadScript> */}
-          {/* Drawer do Evento */}
           {eventoAtivo && (
             
             <DrawerEventos
@@ -504,11 +329,22 @@ const Mapa = () => {
               isRouteTracing={isRouteTracing} // Pass the state to DrawerEventos
             />
           )}
-          <ToastContainer position="bottom-right" autoClose={5000} />
-        </>
-      )}
     </div>
   );
 };
 
-export default Mapa;
+export default function Mapa(props: MapProps) {
+  const { isLoaded, isLoading, error } = useGoogleMaps();
+  if (isLoaded) return <MapaGoogle {...props} />;
+  if (isLoading) return <CustomLoading />;
+
+  return (
+    <section className="flex h-full min-h-[520px] items-center justify-center bg-gradient-to-br from-violet-100 via-zinc-100 to-orange-50 p-8 dark:from-violet-950 dark:via-zinc-900 dark:to-zinc-950">
+      <div className="max-w-sm rounded-3xl border border-white/70 bg-white/80 p-6 text-center shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/80">
+        <MapPin className="mx-auto mb-3 h-7 w-7 text-violet-600" />
+        <h2 className="text-lg font-semibold">Mapa indisponível</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-500">{error || "Você ainda pode explorar e filtrar os eventos na lista."}</p>
+      </div>
+    </section>
+  );
+}

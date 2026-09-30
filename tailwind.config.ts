@@ -1,4 +1,3 @@
-import {heroui} from '@heroui/theme';
 import type { Config } from "tailwindcss";
 const {heroui} = require("@heroui/react");
 
@@ -72,6 +71,6 @@ const config: Config = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate"),heroui(),heroui()],
+  plugins: [require("tailwindcss-animate"), heroui()],
 };
 export default config;

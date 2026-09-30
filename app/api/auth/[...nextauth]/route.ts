@@ -27,7 +27,7 @@ declare module "next-auth" {
   }
 }
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   // Ensure a strong secret is provided via env; this is required for JWT/session integrity
   secret: process.env.NEXTAUTH_SECRET,
@@ -66,6 +66,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      httpOptions: {
+        timeout: 15000,
+      },
     }),
   ],
   session: {

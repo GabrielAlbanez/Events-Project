@@ -19,7 +19,8 @@ import { DatePicker, DateRangePicker, RangeCalendar } from "@heroui/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { socket } from "@/lib/socketClient";
 import { today, getLocalTimeZone } from "@internationalized/date";
-import { Autocomplete } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapsLoader";
+import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { motion } from "framer-motion";
 import {
   Carousel,
@@ -45,6 +46,7 @@ export function EventoForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"form">) {
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     defaultValues: {
       nome: "",
@@ -76,12 +78,14 @@ export function EventoForm({
   );
 
   // Estado e Ref para Autocomplete
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null
   );
 
-  const [selectedDateRange, setSelectedDateRange] = useState({
+  // O HeroUI fornece o tipo concreto do intervalo no callback do componente.
+  // Mantemos o estado estrutural para evitar conflito entre cópias transitivas de
+  // @internationalized/date presentes nas dependências atuais.
+  const [selectedDateRange, setSelectedDateRange] = useState<any>({
     start: today(getLocalTimeZone()),
     end: today(getLocalTimeZone()).add({ weeks: 1 }),
   });
@@ -116,25 +120,6 @@ export function EventoForm({
     setSelectedCarouselFiles((prev) => prev.filter((_, i) => i !== index));
     if (carouselInputRef.current) {
       carouselInputRef.current.value = "";
-    }
-  };
-
-  const handlePlaceChanged = () => {
-    if (autocompleteRef.current) {
-      const place = autocompleteRef.current.getPlace();
-      if (place.geometry?.location) {
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-
-        setLocation({ lat, lng });
-        setValue("lat", lat);
-        setValue("lng", lng);
-
-        setValue("endereco", place.formatted_address || "");
-        toast.success("📍 Localização encontrada!");
-      } else {
-        toast.error("❌ Não foi possível obter a localização do endereço.");
-      }
     }
   };
 
@@ -248,18 +233,21 @@ export function EventoForm({
             <FormItem>
               <FormLabel>Endereço</FormLabel>
               <FormControl>
-                <Autocomplete
-                  onLoad={(autocomplete) =>
-                    (autocompleteRef.current = autocomplete)
-                  }
-                  onPlaceChanged={handlePlaceChanged}
-                >
-                  <Input
-                    type="text"
+                {mapsLoaded ? (
+                  <PlaceAutocomplete
+                    className="w-full overflow-visible rounded-xl border border-input bg-background"
                     placeholder="Digite o endereço do evento"
-                    {...field}
+                    onPlaceSelect={({ address, lat, lng }) => {
+                      setLocation({ lat, lng });
+                      setValue("lat", lat);
+                      setValue("lng", lng);
+                      field.onChange(address);
+                      toast.success("Localização encontrada!");
+                    }}
                   />
-                </Autocomplete>
+                ) : (
+                  <Input type="text" placeholder="Digite o endereço do evento" {...field} />
+                )}
               </FormControl>
               <FormMessage>{errors.endereco?.message}</FormMessage>
             </FormItem>

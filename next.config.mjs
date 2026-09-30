@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Evita que next build sobrescreva os arquivos servidos por next dev.
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   images: {
     domains: [
       "lh3.googleusercontent.com",

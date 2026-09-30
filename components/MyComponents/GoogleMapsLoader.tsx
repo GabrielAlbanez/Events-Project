@@ -1,36 +1,41 @@
 "use client";
-import { LoadScript } from "@react-google-maps/api";
-import { useState } from "react";
-import { toast } from "react-toastify";
-import CustomLoading from "./CustomLoading";
-import { useSession } from "next-auth/react";
 
-const GoogleMapsLoader = ({ children }: { children: React.ReactNode }) => {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useJsApiLoader, type Libraries } from "@react-google-maps/api";
 
-  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+type MapsStatus = { isLoaded: boolean; isLoading: boolean; error: string | null };
+const GoogleMapsContext = createContext<MapsStatus>({ isLoaded: false, isLoading: false, error: null });
+const libraries: Libraries = ["places"];
+export const useGoogleMaps = () => useContext(GoogleMapsContext);
 
-  
-
-
-  if (!apiKey) {
-    console.error("Chave de API do Google Maps não configurada.");
-    return <div>Erro: Chave de API não configurada.</div>;
-  }
-
+function ConfiguredGoogleMaps({ apiKey, children }: { apiKey: string; children: ReactNode }) {
+  const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey: apiKey, libraries });
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (isLoaded || loadError) return;
+    const timer = window.setTimeout(() => setTimedOut(true), 15000);
+    return () => window.clearTimeout(timer);
+  }, [isLoaded, loadError]);
+  const error = loadError
+    ? "O Google Maps não pôde ser carregado. Verifique a chave, as APIs habilitadas e a conexão."
+    : timedOut && !isLoaded
+      ? "O Google Maps demorou para responder. Verifique sua conexão e tente atualizar a página."
+      : null;
   return (
-    <LoadScript
-        googleMapsApiKey={apiKey!}
-        libraries={["places"]}
-        onLoad={() => setIsScriptLoaded(true)}
-        onError={() => toast.error("Erro ao carregar o Google Maps")}
-        loadingElement={<CustomLoading />} // 🔵 Exibe um loading até o script carregar
-      >
-        {!isScriptLoaded ? <CustomLoading /> : null} {/* 🔵 Garante que o loading apareça */}
-
+    <GoogleMapsContext.Provider value={{ isLoaded, isLoading: !isLoaded && !error, error }}>
       {children}
-    </LoadScript>
+    </GoogleMapsContext.Provider>
   );
-};
+}
 
-export default GoogleMapsLoader;
+export default function GoogleMapsLoader({ children }: { children: ReactNode }) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  if (!apiKey) {
+    return (
+      <GoogleMapsContext.Provider value={{ isLoaded: false, isLoading: false, error: "Configure a chave do Google Maps para visualizar o mapa." }}>
+        {children}
+      </GoogleMapsContext.Provider>
+    );
+  }
+  return <ConfiguredGoogleMaps apiKey={apiKey}>{children}</ConfiguredGoogleMaps>;
+}

@@ -3,6 +3,9 @@ import next from "next";
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import nextEnv from "@next/env";
+
+nextEnv.loadEnvConfig(process.cwd());
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -153,4 +156,11 @@ app.prepare().then(async () => {
   httpServer.listen(port, () => {
     console.log(`🚀 Ready on http://${hostname}:${port}`);
   });
+  httpServer.on("error", (error) => {
+    console.error("Erro ao iniciar o servidor HTTP/Socket.IO:", error);
+    process.exit(1);
+  });
+}).catch((error) => {
+  console.error("Erro ao preparar o Next.js:", error);
+  process.exit(1);
 });
