@@ -1,11 +1,19 @@
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import next from "next";
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import nextEnv from "@next/env";
+import { getToken } from "next-auth/jwt";
+import { NextRequest } from "next/server.js";
+import type { Socket } from "socket.io";
 
 nextEnv.loadEnvConfig(process.cwd());
+
+if (process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true") {
+  process.env.DEV_ADMIN_RUN_ID = randomUUID();
+}
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -13,6 +21,9 @@ const port = parseInt(process.env.PORT || "8081", 10);
 
 const prisma = new PrismaClient();
 const activeUsers = new Map<string, string>();
+const recentlyNotifiedValidations = new Map<string, number>();
+
+type AuthenticatedSocket = Socket & { data: { userId?: string } };
 
 let io: Server | null = null;
 
@@ -24,35 +35,42 @@ export const getIoServer = () => {
 
 // Criação do usuário admin, caso não exista
 export async function CreateAdminUser() {
+  if (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true") return;
+
+  const adminPassword = process.env.DEV_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.info("Skipping development admin bootstrap: DEV_ADMIN_PASSWORD is not set.");
+    return;
+  }
+
   try {
-    const existingAdmin = await prisma.user.findFirst({
-      where: { role: "ADMIN" },
+    const adminEmail = "admin@admin.com";
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email: adminEmail },
     });
 
-    // Only bootstrap an admin if explicitly allowed via env, and never use a weak default password
-    if (!existingAdmin) {
-      const adminEmail = "admin@admin.com";
-      const adminPassword = "1234567890";
-      if (!adminEmail || !adminPassword ) {
-        console.warn("Skipping admin bootstrap: missing email/password or too weak.");
-      } else {
-      const hashedPassword = await bcrypt.hash(adminPassword, 12);
-      await prisma.user.create({
-        data: {
-          name: "Admin",
-          email: adminEmail,
-          password: hashedPassword,
-          role: "ADMIN",
-          emailVerified: true,
-        },
-      });
-      console.log("✅ Usuário ADMIN criado com sucesso!");
+    if (existingAdmin) {
+      if (existingAdmin.role !== "ADMIN") {
+        console.error("Development admin email belongs to a non-admin account; bootstrap stopped.");
+        return;
       }
-    } else {
-      console.log("ℹ️ Usuário ADMIN já existe.");
+      console.info("Development admin account already exists; leaving it unchanged.");
+      return;
     }
-  } catch (err) {
-    console.error("❌ Erro ao criar usuário ADMIN:", err);
+
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
+    await prisma.user.create({
+      data: {
+        name: "Admin",
+        email: adminEmail,
+        password: hashedPassword,
+        role: "ADMIN",
+        emailVerified: true,
+      },
+    });
+    console.info("Development admin account created.");
+  } catch {
+    console.error("Failed to bootstrap development admin account. Check database connectivity and configuration.");
   }
 }
 
@@ -78,78 +96,177 @@ app.prepare().then(async () => {
 
   await CreateAdminUser();
 
+  // The NextAuth JWT is carried by the HTTP upgrade request. Anonymous sockets
+  // may receive public event updates, but never acquire a user identity.
+  io.use(async (socket, next) => {
+    try {
+      const token = await getToken({
+        req: new NextRequest("http://localhost", {
+          headers: { cookie: socket.request.headers.cookie ?? "" },
+        }),
+        secret: process.env.NEXTAUTH_SECRET,
+      });
+      if (typeof token?.id !== "string" || !token.id) return next();
+      if (token.provider === "dev-admin" &&
+        (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true")) {
+        return next();
+      }
+      const user = await prisma.user.findUnique({
+        where: { id: token.id },
+        select: { id: true },
+      });
+      if (user) socket.data.userId = user.id;
+      next();
+    } catch {
+      next(new Error("Unable to verify socket session"));
+    }
+  });
+
   io.on("connection", (socket) => {
-    console.log(`🟢 Usuário conectado: ${socket.id}`);
+    const authenticatedSocket = socket as AuthenticatedSocket;
+    const userId = authenticatedSocket.data.userId;
+
+    const broadcastPresence = () => {
+      io!.to("admins").emit("active-users", Array.from(new Set(activeUsers.values())));
+    };
+
+    const registerUser = async () => {
+      if (!userId || !socket.connected) return;
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId }, select: { role: true },
+        });
+        if (!user || !socket.connected) return;
+        socket.join(`user:${userId}`);
+        if (user.role === "ADMIN") socket.join("admins");
+        else socket.leave("admins");
+        activeUsers.set(socket.id, userId);
+        broadcastPresence();
+      } catch {
+        console.error("Unable to register socket user.");
+      }
+    };
+
+    void registerUser();
 
     // Registrar usuário ativo
-    socket.on("register-user", (userId: string) => {
-      socket.data.userId = userId;
-      activeUsers.set(socket.id, userId);
-      console.log(`✔️ Socket ${socket.id} associado ao usuário ${userId}`);
-      io!.emit("active-users", Array.from(activeUsers.values()));
-      // Coloca o socket na sala 'admins' se a role atual for ADMIN
-      prisma.user
-        .findUnique({ where: { id: userId }, select: { role: true } })
-        .then((user) => {
-          if (!user) {
-            console.warn(`⚠️ Usuário ${userId} não encontrado para atribuição de sala`);
-            socket.leave("admins");
-            return;
-          }
-          console.log(`🔎 Role atual do usuário ${userId}: ${user.role}`);
-          if (user.role === "ADMIN") {
-            socket.join("admins");
-            console.log(`🔐 Socket ${socket.id} entrou na sala 'admins'`);
-          } else {
-            socket.leave("admins");
-            console.log(`ℹ️ Socket ${socket.id} não é admin; removido da sala 'admins' se estava`);
-          }
-        })
-        .catch((err) => console.error("Erro ao verificar role do usuário:", err));
+    socket.on("register-user", () => {
+      void registerUser();
     });
 
 
-    socket.on("request-update-users", async () => {
-      try {
-        const allUsers = await prisma.user.findMany({
-          select: { id: true, name: true, email: true, role: true, image: true },
-        });
-        // Só envia para admins
-        io!.to("admins").emit("update-users", allUsers);
-        const recipients = io!.sockets.adapter.rooms.get("admins")?.size || 0;
-        console.log(`Atualização de usuários emitida para sala 'admins' (${recipients} destinatário[s])`);
-      } catch (err) {
-        console.error("Erro ao buscar usuários para update:", err);
-      }
+    let lastUserUpdateNotification = 0;
+    socket.on("request-update-users", () => {
+      const now = Date.now();
+      if (now - lastUserUpdateNotification < 2000) return;
+      lastUserUpdateNotification = now;
+      // This is an invalidation signal only. The admin page fetches data through
+      // its own HTTP endpoint, so a guest signup can safely trigger a refresh.
+      io!.to("admins").emit("update-users");
     });
 
     // Solicitar lista de usuários ativos
-    socket.on("request-active-users", () => {
-      socket.emit("active-users", Array.from(activeUsers.values()));
+    socket.on("request-active-users", async () => {
+      if (!userId) return;
+      try {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+        if (user?.role !== "ADMIN") {
+          socket.leave("admins");
+          return;
+        }
+        socket.join("admins");
+        socket.emit("active-users", Array.from(new Set(activeUsers.values())));
+      } catch {
+        console.error("Unable to verify access to active users.");
+      }
     });
 
     // Atualizar role do usuário
-    socket.on("role-updated", ({ userId, newRole }) => {
-      const targetSocket = Array.from(io!.sockets.sockets.values()).find(
-        (s) => s.data.userId === userId
-      );
-      if (targetSocket) {
-        targetSocket.emit("role-mudar", { newRole });
-        if (newRole === "ADMIN") {
-          targetSocket.join("admins");
-        } else {
-          targetSocket.leave("admins");
+    socket.on("role-updated", async (payload: { userId?: unknown; newRole?: unknown }) => {
+      if (!userId || typeof payload?.userId !== "string") return;
+      try {
+        const [sender, target] = await Promise.all([
+          prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+          prisma.user.findUnique({ where: { id: payload.userId }, select: { role: true } }),
+        ]);
+        if (sender?.role !== "ADMIN" || !target || payload.newRole !== target.role) return;
+        for (const targetSocket of Array.from(io!.sockets.sockets.values())) {
+          if (targetSocket.data.userId !== payload.userId) continue;
+          if (target.role === "ADMIN") targetSocket.join("admins");
+          else targetSocket.leave("admins");
+          targetSocket.emit("role-mudar", { newRole: target.role });
         }
+        io!.to("admins").emit("update-users");
+      } catch {
+        console.error("Unable to notify sockets of role change.");
+      }
+    });
+
+    socket.on("create-event", async () => {
+      if (!userId) return;
+      try {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+        if (user?.role === "ADMIN" || user?.role === "PROMOTER") io!.emit("update-events");
+      } catch {
+        console.error("Unable to notify sockets of event change.");
+      }
+    });
+
+    socket.on("events-changed", async (payload?: { validatedEventIds?: unknown }) => {
+      if (!userId) return;
+      try {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+        if (user?.role !== "ADMIN") return;
+
+        const submittedIds = payload?.validatedEventIds;
+        if (Array.isArray(submittedIds) && submittedIds.length > 0 && submittedIds.length <= 100 &&
+          submittedIds.every((id): id is string => typeof id === "string" && id.length > 0)) {
+          const events = await prisma.events.findMany({
+            where: {
+              id: { in: submittedIds },
+              validate: true,
+              validatedBy: userId,
+              validatedAt: { gte: new Date(Date.now() - 30_000), lte: new Date() },
+              userId: { not: null },
+            },
+            select: { id: true, nome: true, userId: true, validatedAt: true },
+          });
+          const now = Date.now();
+          for (const [key, expiresAt] of Array.from(recentlyNotifiedValidations.entries())) {
+            if (expiresAt <= now) recentlyNotifiedValidations.delete(key);
+          }
+          const notifiedOwners = new Set<string>();
+          for (const event of events) {
+            if (!event.userId || !event.validatedAt) continue;
+            const notificationKey = `${event.id}:${event.validatedAt.toISOString()}`;
+            if (recentlyNotifiedValidations.has(notificationKey)) continue;
+            recentlyNotifiedValidations.set(notificationKey, now + 30_000);
+            notifiedOwners.add(event.userId);
+            io!.to(`user:${event.userId}`).emit("event-validated", {
+              eventId: event.id,
+              eventName: event.nome,
+              validatedAt: event.validatedAt.toISOString(),
+            });
+          }
+          for (const ownerId of Array.from(notifiedOwners)) {
+            io!.to(`user:${ownerId}`).emit("event-history-updated");
+          }
+        }
+        io!.emit("update-events");
+      } catch {
+        console.error("Unable to notify sockets of event change.");
       }
     });
 
     // Desconexão do usuário
-    socket.on("user-disconnected", (userId: string) => {
-      console.log(`🔴 Usuário desconectou: ${userId}`);
-      Array.from(activeUsers.entries()).forEach(([socketId, id]) => {
-        if (id === userId) activeUsers.delete(socketId);
-      });
-      io!.emit("active-users", Array.from(activeUsers.values()));
+    socket.on("user-disconnected", () => {
+      activeUsers.delete(socket.id);
+      broadcastPresence();
+      socket.disconnect(true);
+    });
+    socket.on("disconnect", () => {
+      activeUsers.delete(socket.id);
+      broadcastPresence();
     });
   });
 

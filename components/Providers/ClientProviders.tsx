@@ -7,16 +7,20 @@ import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
 import { HeroUIProvider } from "@heroui/react";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
+import DevAdminAutoLogin from "@/components/Providers/DevAdminAutoLogin";
 
 export default function ClientProviders({
   children,
   defaultOpen,
+  devAutoLoginAdmin,
+  devAdminRunId,
 }: {
   children: React.ReactNode;
   defaultOpen: boolean;
+  devAutoLoginAdmin: boolean;
+  devAdminRunId: string;
 }) {
-  return (
-    <SessionProvider>
+  const content = (
       <SocketProvider>
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
@@ -34,6 +38,11 @@ export default function ClientProviders({
           </NextThemesProvider>
         </HeroUIProvider>
       </SocketProvider>
+  );
+
+  return (
+    <SessionProvider>
+      {devAutoLoginAdmin ? <DevAdminAutoLogin runId={devAdminRunId}>{content}</DevAdminAutoLogin> : content}
     </SessionProvider>
   );
 }

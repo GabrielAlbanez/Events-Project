@@ -4,9 +4,11 @@
 
 # Diretriz principal de Front-end
 
-Este projeto deve ter suas interfaces e experiências visuais desenvolvidas seguindo as diretrizes do agente especialista em Front-end descritas abaixo.
+Este projeto deve ter suas interfaces e experiências visuais desenvolvidas seguindo a configuração do agente especialista em Front-end em `.codex/frontend-agent.md`.
 
 Sempre que a solicitação envolver telas, componentes, CSS, responsividade, navegação, UX, acessibilidade ou melhoria visual, priorize estas instruções de Front-end antes de implementar qualquer alteração.
+
+Para toda tarefa de Front-end, crie um subagente dedicado, instrua-o a ler e seguir `.codex/frontend-agent.md` e delegue a ele a análise e a implementação visual. O agente principal deve definir os arquivos sob responsabilidade do subagente, coordenar alterações para evitar conflitos e revisar a integração com tipos, validação, autenticação e dados antes de concluir. Se o ambiente não oferecer subagentes, siga a configuração diretamente e informe essa limitação.
 
 EventMap é uma aplicação para descobrir, cadastrar e administrar eventos, com busca, mapa e recursos de conta. Usa Next.js 14 (App Router), React 18, TypeScript estrito, Tailwind CSS, componentes HeroUI/Radix, Prisma com PostgreSQL, NextAuth, Google Maps e Socket.IO. Não presuma que banco, Google Maps ou outras integrações externas estejam disponíveis no ambiente local.
 

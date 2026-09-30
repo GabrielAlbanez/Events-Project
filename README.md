@@ -18,6 +18,27 @@ o servidor usa a DLL do Prisma pode causar `EPERM`.
 loader experimental do ts-node e sem substituir a DLL do Prisma. Configure `DATABASE_URL` no `.env` para os recursos
 que usam banco de dados. A URL aparece no terminal (`PORT` no `.env`, ou 8081 por padrão).
 Use essa mesma URL em `NEXTAUTH_URL` e `NEXT_PUBLIC_BASE_URL`.
+O tempo real usa a mesma origem do Next.js. Configure `SOCKET_IO_ALLOWED_ORIGINS`
+com a origem pública da aplicação (ou várias origens separadas por vírgula).
+Para autenticar conexões Socket.IO, configure também `NEXTAUTH_SECRET` e inicie
+pelo servidor conjunto com `npm run dev:socket`. `npm run dev` inicia apenas o Next.js.
+
+Para testar o login inicial de administrador e o WebSocket na mesma origem, defina
+`DEV_ADMIN_PASSWORD` somente no `.env` local e execute `npm run dev:socket-admin`.
+Abra `http://localhost:3000`. O login automático ocorre uma vez por perfil de
+navegador em cada execução do servidor. Depois de sair, é possível entrar com
+outra conta e atualizar a página sem voltar ao administrador. Reiniciar o comando
+habilita uma nova tentativa inicial. Para manter administrador e usuário comum
+conectados ao mesmo tempo, use uma janela anônima ou outro perfil do navegador:
+guias do mesmo perfil compartilham os cookies de autenticação. Abra a aplicação
+em ambos os perfis, saia da conta admin em um deles e entre com a conta comum.
+O servidor conjunto mantém o Socket.IO em `http://localhost:3000/socket.io/`.
+
+O tempo real avisa o promotor quando um administrador valida seu evento e atualiza
+a contagem de eventos pendentes na administração. A seção **Atividade recente** em
+`/myEvents` guarda as últimas 30 mudanças de criação, validação e exclusão, mesmo
+após fechar a página ou excluir o evento. Em cada ambiente com banco, aplique as
+migrações com `npx prisma migrate deploy` antes de iniciar esta versão.
 
 `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` é opcional e pode ficar vazia. Sem a chave,
 as páginas continuam disponíveis, a tela inicial oferece acesso à lista de eventos

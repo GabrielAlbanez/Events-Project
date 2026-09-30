@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { loginFormSchema } from "@/schemas/LoiginSchema";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { validateUser } from "@/app/(actions)/Login/action";
 import { GoogleButton } from "./MyComponents/GoogleButton";
 import { useEffect, useTransition } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useSocket } from "@/context/SocketContext";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
@@ -31,6 +32,8 @@ export function LoginForm({
   });
 
   const router = useRouter();
+  const socket = useSocket();
+  const { update } = useSession();
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams()
 
@@ -61,6 +64,8 @@ export function LoginForm({
         });
 
         if (signInResponse?.ok) {
+          socket.disconnect();
+          await update();
           toast.success("Login realizado com sucesso!");
 
 

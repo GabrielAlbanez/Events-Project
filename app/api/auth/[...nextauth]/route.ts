@@ -15,6 +15,7 @@ declare module "next-auth" {
       emailVerified : boolean | null;
       provider: string | null;
       role : string | null;
+      devAutoLoginAdmin: boolean;
   };
 }
 
@@ -32,6 +33,29 @@ const authOptions: NextAuthOptions = {
   // Ensure a strong secret is provided via env; this is required for JWT/session integrity
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
+    CredentialsProvider({
+      id: "dev-admin",
+      name: "Development administrator",
+      credentials: {},
+      async authorize() {
+        if (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true") {
+          return null;
+        }
+
+        const email = "admin@admin.com";
+        const password = process.env.DEV_ADMIN_PASSWORD;
+        if (!password) return null;
+
+        try {
+          const user = await prisma.user.findUnique({ where: { email } });
+          if (!user || user.role !== "ADMIN" || !user.password) return null;
+
+          return await bcrypt.compare(password, user.password) ? user : null;
+        } catch {
+          return null;
+        }
+      },
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -78,6 +102,9 @@ const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
 
+      if (account?.provider === "dev-admin") {
+        return process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true";
+      }
       if(account?.provider === "credentials") return true
 
       if (!user?.email || !account) {
@@ -135,7 +162,7 @@ const authOptions: NextAuthOptions = {
           token.role = user.role;
         }
       }
-    
+
       // Se o trigger for "update", busca os dados do banco de dados
       if (trigger === "update") {
         try {
@@ -155,6 +182,13 @@ const authOptions: NextAuthOptions = {
           console.error("Erro ao atualizar dados do usuário no token:", error);
         }
       }
+
+      // Invalidate development identity after any token refresh, including update.
+      if (token.provider === "dev-admin" &&
+        (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true")) {
+        token.id = "";
+        token.role = null;
+      }
     
       // console.log("JWT Token Atualizado:", token);
       return token;
@@ -168,7 +202,8 @@ const authOptions: NextAuthOptions = {
         provider : typeof token.provider === 'string' ? token.provider : null,
         image: typeof token.image === "string" ? token.image : null,
         emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
-        role : typeof token.role === 'string' ? token.role : null
+        role : typeof token.role === 'string' ? token.role : null,
+        devAutoLoginAdmin: process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true" && token.provider === "dev-admin" && token.role === "ADMIN"
       };
       return session;
     },

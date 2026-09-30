@@ -1,28 +1,22 @@
-"use client";
-
 import { EventoForm } from "@/components/MyComponents/EventoForm";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function CriarEvento() {
-
-  // Define classes dinâmicas baseadas no tema
- 
   return (
-    <div className={`flex-1  flex flex-col gap-6 items-center justify-center p-6 `}>
-      {/* Conteúdo principal */}
-      <div className={`w-full max-w-3xl  p-4 rounded-lg shadow-lg`}>
-        <div className="flex items-start p-6">
-          <SidebarTrigger>
-            <button className="text-default hover:text-gray-400 mr-3">
-              ☰
-            </button>
-          </SidebarTrigger>
+    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 flex items-start gap-4">
+          <SidebarTrigger className="mt-1 shrink-0" />
+          <div>
+            <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Painel de eventos</p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Criar evento</h1>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Conte o essencial, escolha o local e adicione imagens. As dicas em cada etapa ajudam você a preparar um evento fácil de encontrar.
+            </p>
+          </div>
         </div>
-        <h1 className={`text-3xl font-bold text-center mb-6 `}>
-          Criar Eventos
-        </h1>
         <EventoForm />
       </div>
-    </div>
+    </main>
   );
 }

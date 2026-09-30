@@ -18,6 +18,7 @@ import { toast } from "react-toastify";
 import { Evento } from "@/types";
 import { validateEvents } from "@/app/(actions)/validateEvents/action";
 import { deleteEvents } from "@/app/(actions)/deleteEvents/action";
+import { useSocket } from "@/context/SocketContext";
 
 interface TableEventsProps {
   events: Evento[];
@@ -34,8 +35,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const socket = useSocket();
 
-  console.log("Eventos recebidos no CardEvents:", events);
 
   // Atualizar estado quando eventos forem alterados
   useEffect(() => {
@@ -84,7 +85,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
 
     toast.promise(
       validateEvents(unvalidatedEventIds, adminId)
-        .then(() => {
+        .then((result) => {
+          if (result.status !== "success") throw new Error(result.message);
           // Atualiza localmente o estado dos eventos sem precisar refetch
           setEventList((prev) =>
             prev.map((event) =>
@@ -95,7 +97,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
           );
 
           setSelectedEvents(new Set()); // Limpar seleção após validação
-          toast.success("🎉 Eventos validados com sucesso!");
+          socket.emit("events-changed", { validatedEventIds: result.validatedEventIds });
         })
         .catch((error) => {
           console.error("Erro ao validar eventos:", error);
@@ -120,13 +122,15 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
 
     toast.promise(
       deleteEvents(selectedEventIds, adminId)
-        .then(() => {
+        .then((result) => {
+          if (result.status !== "success") throw new Error(result.message);
           // Remove eventos deletados da lista local
           setEventList((prev) =>
             prev.filter((event) => !selectedEventIds.includes(event.id))
           );
 
           setSelectedEvents(new Set()); // Limpar seleção após deletar
+          socket.emit("events-changed");
         })
         .catch((error) => {
           console.error("Erro ao excluir eventos:", error);

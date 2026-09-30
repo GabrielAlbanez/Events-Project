@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development next dev",
     "dev:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development node dist/server.mjs",
+    "dev:socket-admin": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development DEV_AUTO_LOGIN_ADMIN=true HOSTNAME=localhost PORT=3000 NEXTAUTH_URL=http://localhost:3000 NEXT_PUBLIC_BASE_URL=http://localhost:3000 SOCKET_IO_ALLOWED_ORIGINS=http://localhost:3000 node dist/server.mjs",
     "prisma:generate": "prisma generate",
     "build": "next build",
     "start": "next start",

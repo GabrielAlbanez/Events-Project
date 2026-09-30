@@ -1,365 +1,195 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { FaEdit } from "react-icons/fa";
-import ModalUniversal from "@/components/MyComponents/ModalUniversal";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
-import { determineDefaultAvatar } from "@/utils/avatarUtils";
-import { useTheme } from "next-themes";
-import { Button } from "@heroui/button";
-import { useSocket } from "@/context/SocketContext";
 
-// Schema de validação com Zod
-const ProfileSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().email("Insira um email válido").optional(),
-  password: z.string().optional(),
-  newPassword: z.string().optional(),
-  emailVerified: z.boolean().optional(),
+import React, { useEffect, useRef, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Camera, CheckCircle2, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "react-toastify";
+import * as z from "zod";
+import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
+import ModalUniversal from "@/components/MyComponents/ModalUniversal";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSocket } from "@/context/SocketContext";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { determineDefaultAvatar } from "@/utils/avatarUtils";
+
+const profileSchema = z.object({
+  name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
+  password: z.string(),
+  newPassword: z.string(),
+}).refine((values) => !values.password && !values.newPassword || Boolean(values.password && values.newPassword), {
+  message: "Preencha a senha atual e a nova senha.",
+  path: ["newPassword"],
 });
 
-const Profile: React.FC = () => {
-  const [isPending, setIsPending] = useState(false);
-  const [profileImage, setProfileImage] = useState<string>(
-    "https://i.pinimg.com/736x/cb/5e/c0/cb5ec089e95555d7c5792b76a1779fc4.jpg"
-  );
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tempImage, setTempImage] = useState<string>("");
+type ProfileValues = z.infer<typeof profileSchema>;
 
+const roleLabels: Record<string, string> = {
+  ADMIN: "Administrador",
+  PROMOTER: "Promotor",
+  BASIC: "Usuário",
+};
+
+export default function Profile() {
   const user = useCurrentUser();
-
-  const tema = useTheme();
   const socket = useSocket();
-  const form = useForm<z.infer<typeof ProfileSchema>>({
-    resolver: zodResolver(ProfileSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      password: "",
-      newPassword: "",
-      emailVerified: false,
-    },
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isPending, setIsPending] = useState(false);
+  const [isImagePending, setIsImagePending] = useState(false);
+  const [profileImage, setProfileImage] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [previewImage, setPreviewImage] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const form = useForm<ProfileValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { name: "", password: "", newPassword: "" },
   });
 
   useEffect(() => {
-    if (user.data) {
-      form.reset({
-        name: user.data?.name || "",
-        email: user.data?.email || "",
-        password: "",
-        newPassword: "",
-        emailVerified: user.data?.emailVerified || false,
-      });
-      setProfileImage(
-        user.data.image || determineDefaultAvatar(user.data.name || "")
-      );
-    }
+    if (!user.data) return;
+    form.reset({ name: user.data.name || "", password: "", newPassword: "" });
+    setProfileImage(user.data.image || determineDefaultAvatar(user.data.name));
   }, [user.data, form]);
 
-  const onSubmit = async (data: z.infer<typeof ProfileSchema>) => {
+  useEffect(() => () => {
+    if (previewImage) URL.revokeObjectURL(previewImage);
+  }, [previewImage]);
+
+  const account = user.data;
+  const canChangePassword = account?.provider !== "google" && account?.provider !== "dev-admin";
+  const name = form.watch("name");
+  const password = form.watch("password");
+  const newPassword = form.watch("newPassword");
+  const hasChanges = Boolean(account && (name.trim() !== (account.name || "") || password || newPassword));
+
+  const onSubmit = async (values: ProfileValues) => {
+    if (!account?.email || !hasChanges) return;
     setIsPending(true);
-    console.log("Dados do formulário:", data);
-    const response = await resetDataProfile({
-      ...data,
-      email: data.email || "",
-    });
-    if (response.status === "success") {
+    try {
+      const response = await resetDataProfile({
+        email: account.email,
+        name: values.name.trim() === (account.name || "") ? undefined : values.name.trim(),
+        password: canChangePassword ? values.password : undefined,
+        newPassword: canChangePassword ? values.newPassword : undefined,
+      });
+      if (response.status !== "success") {
+        toast.error(response.message);
+        return;
+      }
       toast.success(response.message);
       await user.update();
-      if (socket) {
-        socket.emit("request-update-users"); // novo evento
-      }
-    } else {
-      toast.error(response.message);
+      socket?.emit("request-update-users");
+      form.reset({ name: values.name.trim(), password: "", newPassword: "" });
+    } catch {
+      toast.error("Não foi possível atualizar o perfil. Tente novamente.");
+    } finally {
+      setIsPending(false);
     }
-    setTimeout(() => setIsPending(false), 2000); // Simula uma requisição
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTempImage(reader.result as string);
-        setIsModalOpen(true);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      toast.error("Escolha uma imagem de até 5 MB.");
+      event.target.value = "";
+      return;
     }
+    setSelectedImage(file);
+    setPreviewImage(URL.createObjectURL(file));
+    setIsModalOpen(true);
+    event.target.value = "";
+  };
+
+  const closeImageModal = () => {
+    if (isImagePending) return;
+    setIsModalOpen(false);
+    setSelectedImage(null);
+    setPreviewImage("");
   };
 
   const handleConfirmImage = async () => {
-    setIsPending(true);
-
-    // Converter Base64 em Blob
-    const base64Data = tempImage.replace(/^data:image\/\w+;base64,/, ""); // Remove o cabeçalho do Base64
-    const byteCharacters = atob(base64Data); // Decodifica Base64
-    const byteNumbers = new Array(byteCharacters.length)
-      .fill(0)
-      .map((_, i) => byteCharacters.charCodeAt(i));
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: "image/jpeg" }); // Alterar o tipo MIME conforme necessário
-
-    // Criar o FormData
-    const formData = new FormData();
-    formData.append("file", blob, "uploaded_image.jpg"); // Nome do arquivo como "uploaded_image.jpg"
-
-    if (user.data) {
-      formData.append("userId", user.data.id);
-    }
-
-    console.log("Dados enviados ao servidor", user.data?.id, blob);
-
+    if (isImagePending || !selectedImage || !account?.id) return;
+    setIsImagePending(true);
     try {
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Erro ao fazer upload da imagem");
-      }
-
-      const result = await response.json();
-      console.log("Resposta do servidor:", result);
+      const payload = new FormData();
+      payload.append("file", selectedImage);
+      payload.append("userId", account.id);
+      const response = await fetch("/api/upload", { method: "POST", body: payload });
+      if (!response.ok) throw new Error("Upload failed");
+      const result: { filePath?: string } = await response.json();
+      if (!result.filePath) throw new Error("Missing image path");
       setProfileImage(result.filePath);
-      toast.success("Imagem carregada com sucesso!");
-      await user.update({
-        user: { ...user, image: result.filePath },
-      }); // Atualiza os dados do usuário
-      if (socket) {
-        socket.emit("request-update-users"); // novo evento
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao carregar a imagem.");
-    } finally {
-      setIsPending(false);
+      await user.update();
+      socket?.emit("request-update-users");
+      toast.success("Foto atualizada com sucesso!");
       setIsModalOpen(false);
+      setSelectedImage(null);
+      setPreviewImage("");
+    } catch {
+      toast.error("Não foi possível atualizar a foto. Tente novamente.");
+    } finally {
+      setIsImagePending(false);
     }
   };
 
-  if (!user?.data) {
-    return <div>Você não está logado</div>;
+  if (user.status === "loading") {
+    return <main className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></main>;
+  }
+  if (!account) {
+    return <main className="flex flex-1 items-center justify-center p-6"><p className="text-muted-foreground">Entre na sua conta para ver o perfil.</p></main>;
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen  p-4">
-      <Card
-        className={`w-full max-w-2xl p-6 ${
-          tema.theme === "dark" ? "bg-zinc-900" : ""
-        }`}
-      >
-        <CardHeader>
-          <SidebarTrigger>
-            <button className="text-gray-600 hover:text-gray-800 mr-3">
-              ☰
-            </button>
-          </SidebarTrigger>
-          <h1 className="text-2xl font-bold text-center">Perfil do Usuário</h1>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center gap-4 overflow-auto">
-            <div className="relative">
-              <img
-                src={profileImage}
-                alt="User Avatar"
-                className="w-32 h-32 rounded-full object-cover transition-transform duration-300 ease-in-out transform hover:scale-105"
-              />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="absolute bottom-0 right-0 opacity-0 w-full h-full cursor-pointer"
-              />
-              <Button
-                className="absolute inset-0 w-full h-full flex items-center justify-center 
-              bg-black bg-opacity-0 group-hover:bg-opacity-40 
-              text-white rounded-full transition-all duration-300"
-                onClick={() =>
-                  (
-                    document.querySelector(
-                      'input[type="file"]'
-                    ) as HTMLInputElement
-                  )?.click()
-                }
-                disabled={isPending}
-              >
-                {/* Ícone aparece apenas no hover */}
-                <FaEdit className=" text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </Button>
-            </div>
+    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-8 flex items-start gap-4">
+          <SidebarTrigger className="mt-1 shrink-0" />
+          <div><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Minha conta</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-2 text-muted-foreground">Mantenha suas informações e sua foto atualizadas.</p></div>
+        </header>
+
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
+          <Card className="overflow-hidden rounded-2xl shadow-sm">
+            <div className="h-24 bg-gradient-to-r from-primary/20 via-primary/10 to-accent/70" />
+            <CardContent className="relative px-6 pb-6 pt-0">
+              <img src={profileImage || determineDefaultAvatar(account.name)} alt={`Foto de perfil de ${account.name || "usuário"}`} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-sm" />
+              <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
+              <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
+              <div className="mt-5">
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" aria-label="Selecionar foto do perfil" onChange={handleImageUpload} />
+                <Button type="button" variant="outline" className="w-full" disabled={isImagePending} onClick={() => fileInputRef.current?.click()}><Camera className="h-4 w-4" /> Alterar foto</Button>
+                <p className="mt-2 text-xs text-muted-foreground">JPG, PNG, WebP ou AVIF de até 5 MB.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="min-w-0 space-y-6">
+            <Card className="rounded-2xl shadow-sm">
+              <CardContent className="p-5 sm:p-7">
+                <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>
+                <Form {...form}>
+                  <form id="profile-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                    <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Nome de exibição</FormLabel><FormControl><Input autoComplete="name" placeholder="Como você quer ser chamado" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
+                    <div><label htmlFor="profile-email" className="mb-2 block text-sm font-medium">Email</label><div className="relative"><Mail aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input id="profile-email" type="email" value={account.email || ""} readOnly aria-describedby="profile-email-help" className="pl-10 text-muted-foreground" /></div><p id="profile-email-help" className="mt-2 text-xs text-muted-foreground">O email não pode ser alterado nesta página.</p></div>
+                    {canChangePassword && <div className="border-t border-border pt-6"><div className="mb-5 flex items-start gap-3"><LockKeyhole className="mt-0.5 h-5 w-5 text-primary" /><div><h3 className="font-semibold">Alterar senha</h3><p className="mt-1 text-sm text-muted-foreground">Preencha os dois campos apenas se quiser trocar a senha.</p></div></div><div className="grid gap-5 sm:grid-cols-2">
+                      <FormField control={form.control} name="password" render={({ field }) => <FormItem><FormLabel>Senha atual</FormLabel><FormControl><Input type="password" autoComplete="current-password" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="newPassword" render={({ field }) => <FormItem><FormLabel>Nova senha</FormLabel><FormControl><Input type="password" autoComplete="new-password" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
+                    </div></div>}
+                    <Button type="submit" disabled={isPending || !hasChanges} className="w-full sm:w-auto">{isPending ? "Salvando..." : "Salvar alterações"}</Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : account.provider === "dev-admin" ? "Conta de desenvolvimento" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
           </div>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4 mt-6"
-            >
-              {/* Nome */}
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Digite seu nome"
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {/* Email */}
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Digite seu email"
-                        disabled={true}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {/* Senha */}
-              {user.data?.provider !== "google" && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Senha Atual</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="password"
-                            placeholder="Senha atual"
-                            disabled={isPending}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="newPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nova Senha</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="password"
-                            placeholder="Digite sua nova senha"
-                            disabled={isPending}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-              {/* Verificação de Email */}
-
-              <FormItem>
-                <FormLabel>Tipo de Provedor</FormLabel>
-                <FormControl>
-                  <Input
-                    value={user.data?.provider || "Não especificado"}
-                    disabled={true}
-                  />
-                </FormControl>
-              </FormItem>
-
-              <FormItem>
-                <FormLabel>Role</FormLabel>
-                <FormControl>
-                  <Input value={user.data?.role ?? ""} disabled={true} />
-                </FormControl>
-              </FormItem>
-
-              <FormField
-                control={form.control}
-                name="emailVerified"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between">
-                    <div>
-                      <FormLabel>Email Verificado</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={
-                          user.data?.provider === "google"
-                            ? true
-                            : user.data?.emailVerified ?? false
-                        }
-                        onCheckedChange={field.onChange}
-                        disabled={true}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {/* Botão de envio */}
-              <Button type="submit" className="w-full " disabled={isPending}>
-                {isPending ? "Atualizando..." : "Atualizar Perfil"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-      <ModalUniversal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Preview da Imagem"
-        imageSrc={tempImage}
-        onConfirm={handleConfirmImage}
-      />
-      <ToastContainer
-        position="bottom-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
-    </div>
+        </div>
+      </div>
+      <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} />
+    </main>
   );
-};
-
-export default Profile;
+}

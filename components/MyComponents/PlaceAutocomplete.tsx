@@ -6,6 +6,7 @@ export type SelectedPlace = { address: string; lat: number; lng: number };
 
 type Props = {
   placeholder?: string;
+  ariaLabel?: string;
   className?: string;
   onPlaceSelect: (place: SelectedPlace) => void;
 };
@@ -25,7 +26,7 @@ type PlaceSelectEvent = Event & {
 };
 
 /** Adaptador React para o widget Place Autocomplete (New) do Google. */
-export function PlaceAutocomplete({ placeholder = "Buscar endereço", className, onPlaceSelect }: Props) {
+export function PlaceAutocomplete({ placeholder = "Buscar endereço", ariaLabel = "Buscar endereço", className, onPlaceSelect }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onPlaceSelect);
 
@@ -46,6 +47,7 @@ export function PlaceAutocomplete({ placeholder = "Buscar endereço", className,
 
       const autocomplete = new places.PlaceAutocompleteElement({ includedRegionCodes: ["br"] });
       autocomplete.placeholder = placeholder;
+      autocomplete.setAttribute("aria-label", ariaLabel);
       autocomplete.style.width = "100%";
       autocomplete.style.colorScheme = "light dark";
 
@@ -71,7 +73,7 @@ export function PlaceAutocomplete({ placeholder = "Buscar endereço", className,
       disposed = true;
       element?.remove();
     };
-  }, [placeholder]);
+  }, [placeholder, ariaLabel]);
 
   return <div ref={hostRef} className={className} />;
 }

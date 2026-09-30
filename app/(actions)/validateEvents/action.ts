@@ -1,34 +1,63 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 
 export async function validateEvents(eventIds: string[], adminId: string) {
   // Verifique se o usuário é um ADMIN
-  const admin = await prisma.user.findUnique({
-    where: { id: adminId },
-  });
-
-  if (!admin || admin.role !== "ADMIN") {
+  const authenticatedAdminId = await getAuthenticatedAdminId();
+  if (!authenticatedAdminId || authenticatedAdminId !== adminId) {
     return {
       status: "error",
       message: "Você não tem permissão para validar eventos.",
     };
   }
 
-  // Valide todos os eventos
-  const validatedEvents = await prisma.events.updateMany({
-    where: {
-      id: { in: eventIds },
-    },
-    data: {
-      validate: true, // Marca como validado
-      validatedBy: adminId, // Associa o admin que validou
-      validatedAt: new Date(), // Define a data de validação
-    },
+  const validatedEventIds = await prisma.$transaction(async (transaction) => {
+    const admin = await transaction.user.findUnique({
+      where: { id: adminId },
+      select: { name: true },
+    });
+    const events = await transaction.events.findMany({
+      where: { id: { in: Array.from(new Set(eventIds)) } },
+      select: { id: true, nome: true, userId: true },
+    });
+    const changedIds: string[] = [];
+    const validatedAt = new Date();
+
+    for (const event of events) {
+      const changed = await transaction.events.updateMany({
+        where: {
+          id: event.id,
+          OR: [{ validate: false }, { validate: null }],
+        },
+        data: {
+          validate: true,
+          validatedBy: adminId,
+          validatedAt,
+        },
+      });
+      if (changed.count === 0) continue;
+
+      await transaction.eventHistory.create({
+        data: {
+          eventId: event.id,
+          eventName: event.nome,
+          promoterId: event.userId,
+          actorId: adminId,
+          actorName: admin?.name,
+          action: "VALIDATED",
+          createdAt: validatedAt,
+        },
+      });
+      changedIds.push(event.id);
+    }
+    return changedIds;
   });
 
   return {
     status: "success",
-    message: `${validatedEvents.count} evento(s) validado(s) com sucesso.`,
+    message: `${validatedEventIds.length} evento(s) validado(s) com sucesso.`,
+    validatedEventIds,
   };
 }

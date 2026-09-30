@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Table,
   TableHeader,
@@ -10,7 +10,7 @@ import {
   User,
   Tooltip,
   Button,
-  Chip, // 🔹 Componente para status ativo/inativo
+  Chip,
   Modal,
   ModalContent,
   ModalHeader,
@@ -30,43 +30,28 @@ import deleteUser from "@/app/(actions)/deleteUser/action";
 import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
 import { useSocket } from "@/context/SocketContext";
 
+interface UserWithStatus extends UserType { online?: boolean }
+
 interface UserTableProps {
-  users: UserType[];
-  setUsers: React.Dispatch<React.SetStateAction<UserType[]>>;
+  users: UserWithStatus[];
+  setUsers: React.Dispatch<React.SetStateAction<UserWithStatus[]>>;
 }
 
 const columns = [
-  { name: "ID", uid: "id" },
-  { name: "Name", uid: "name" },
-  { name: "Role", uid: "role" },
-  { name: "Status", uid: "status" }, // 🔹 Nova coluna de status ativo/inativo
-  { name: "Actions", uid: "actions" },
+  { name: "Usuário", uid: "name" },
+  { name: "Permissão", uid: "role" },
+  { name: "Conexão", uid: "status" },
+  { name: "Ações", uid: "actions" },
 ];
+
+const roleLabels: Record<string, string> = { ADMIN: "Administrador", PROMOTER: "Promotor", BASIC: "Usuário" };
 
 export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isPending, setIsPending] = useState(false);
-  const [activeUsers, setActiveUsers] = useState<string[]>([]); // 🔹 Estado para armazenar usuários ativos
-
   const socket = useSocket();
-
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.emit("request-active-users"); // 🔹 Solicita a lista de usuários ativos
-
-    socket.on("active-users", (users: string[]) => {
-      setActiveUsers(users);
-    });
-
-    return () => {
-      socket.off("active-users");
-    };
-  }, [socket]);
-
-  const isUserActive = (userId: string) => activeUsers.includes(userId);
 
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
@@ -100,16 +85,18 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     setIsPending(true);
 
     try {
-      await toast.promise(deleteUser(selectedUser), {
-        pending: "Excluindo usuário...",
-        success: "Usuário deletado com sucesso!",
-        error: "Erro ao deletar usuário.",
-      });
+      const result = await deleteUser(selectedUser);
+      if (result?.status !== "success") {
+        toast.error(result?.message || "Não foi possível excluir o usuário.");
+        return;
+      }
 
       setUsers((prev) => prev.filter((user) => user.id !== selectedUser.id));
       handleCloseModalDelete();
-    } catch (error) {
-      console.error("Erro ao excluir usuário:", error);
+      socket.emit("request-update-users");
+      toast.success("Usuário excluído com sucesso.");
+    } catch {
+      toast.error("Não foi possível excluir o usuário.");
     } finally {
       setIsPending(false);
     }
@@ -123,26 +110,28 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       return;
     }
 
+    setIsPending(true);
     try {
-      await toast.promise(alterRoleUser(user, roleSelect), {
-        pending: "Alterando papel do usuário...",
-        success: "Papel do usuário alterado com sucesso!",
-        error: "Erro ao alterar papel do usuário.",
-      });
-
-      if (socket?.connected) {
-        socket.emit("role-updated", { userId: user.id, newRole: roleSelect });
+      const result = await alterRoleUser(user, roleSelect);
+      if (result?.status !== "success") {
+        toast.error(result?.message || "Não foi possível alterar a permissão.");
+        return;
       }
+
+      socket.emit("role-updated", { userId: user.id, newRole: roleSelect });
 
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, role: roleSelect } : u))
       );
-    } catch (error) {
-      console.error("Erro ao alterar papel do usuário:", error);
+      toast.success("Permissão atualizada com sucesso.");
+    } catch {
+      toast.error("Não foi possível alterar a permissão.");
+    } finally {
+      setIsPending(false);
     }
   };
 
-  const renderCell = (user: UserType, columnKey: string): React.ReactNode => {
+  const renderCell = (user: UserWithStatus, columnKey: string): React.ReactNode => {
     switch (columnKey) {
       case "name":
         return (
@@ -158,24 +147,22 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
 
       case "role":
         return (
-          <Dropdown className="flex flex-col items-center justify-center">
+          <Dropdown>
             <DropdownTrigger>
-              <Button endContent={<ChevronDownIcon />}>
-                <p className="text-sm">{user.role}</p>
+              <Button size="sm" variant="flat" isDisabled={user.role === "ADMIN" || isPending} aria-label={`Alterar permissão de ${user.name || user.email}`} endContent={user.role === "ADMIN" ? undefined : <ChevronDownIcon />}>
+                {roleLabels[user.role] || user.role}
               </Button>
             </DropdownTrigger>
-            <DropdownMenu>
+            <DropdownMenu aria-label={`Permissões para ${user.name || user.email}`}>
               {["ADMIN", "BASIC", "PROMOTER"].map((valor) => (
                 <DropdownItem
                   key={valor}
-                  className={
-                    user.role === valor ? "text-green-400 opacity-45" : ""
-                  }
+                  isDisabled={user.role === valor}
                   onPress={() =>
                     user.role !== valor && alterRoleUserHandler(user, valor)
                   }
                 >
-                  {valor}
+                  {roleLabels[valor]}
                 </DropdownItem>
               ))}
             </DropdownMenu>
@@ -185,31 +172,34 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       case "status":
         return (
           <Chip
-            color={isUserActive(user.id) ? "success" : "danger"} // 🔹 Verde se ativo, vermelho se inativo
+            color={user.online ? "success" : "default"}
             variant="flat"
           >
-            {isUserActive(user.id) ? "Active" : "Inactive"}
+            {user.online ? "Online" : "Offline"}
           </Chip>
         );
 
       case "actions":
         return (
-          <div className="flex gap-2 items-center justify-center">
-            <Tooltip content="Eventos">
+          <div className="flex items-center gap-1">
+            <Tooltip content="Ver eventos">
               <Button
                 isIconOnly
-                size="sm"
+                size="md"
                 variant="light"
+                aria-label={`Ver eventos de ${user.name || user.email}`}
                 onPress={() => handleOpenModal(user)}
               >
                 <CalendarSearch className="w-[1em]" />
               </Button>
             </Tooltip>
-            <Tooltip content="Excluir">
+            <Tooltip content={user.role === "ADMIN" ? "Administradores não podem ser excluídos" : "Excluir usuário"}>
               <Button
                 isIconOnly
-                size="sm"
+                size="md"
                 variant="light"
+                aria-label={`Excluir ${user.name || user.email}`}
+                isDisabled={user.role === "ADMIN"}
                 onPress={() => handleOpenDeleteModal(user)}
                 color="danger"
               >
@@ -226,7 +216,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
 
   return (
     <>
-      <Table aria-label="Tabela de usuários">
+      <Table aria-label="Tabela de usuários" classNames={{ wrapper: "border border-border bg-card shadow-none overflow-x-auto", table: "min-w-[620px]" }}>
         <TableHeader columns={columns}>
           {(column) => (
             <TableColumn key={column.uid} align="start">
@@ -234,7 +224,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             </TableColumn>
           )}
         </TableHeader>
-        <TableBody items={users}>
+        <TableBody items={users} emptyContent="Nenhum usuário corresponde aos filtros.">
           {(item) => (
             <TableRow key={item.id}>
               {(columnKey) => (
@@ -250,7 +240,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         <Modal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          className="max-h-screen overflow-y-auto"
+          className="max-h-[90vh] overflow-y-auto"
         >
           <ModalContent>
             <ModalHeader>
@@ -272,33 +262,33 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 <div className=" w-full grid grid-cols-1 gap-4">
                   {selectedUser.Events.map((event: Evento, index: number) => (
                     <div
-                      key={index}
-                      className="border rounded-lg p-4 shadow-md"
+                      key={event.id || index}
+                      className="overflow-hidden rounded-xl border border-border bg-card"
                     >
                       <img
                         src={event.banner}
                         alt={event.nome}
-                        className="w-full h-32 object-cover rounded-t-md mb-2"
+                        className="h-36 w-full object-cover"
                       />
-                      <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                      <h3 className="flex items-center gap-2 p-4 text-base font-semibold">
                         {event.nome}
                         {event.validate ? (
-                          <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                          <CheckCircleIcon aria-label="Validado" className="h-5 w-5 shrink-0 text-primary" />
                         ) : (
-                          <XCircleIcon className="w-5 h-5 text-red-500" />
+                          <XCircleIcon aria-label="Pendente de validação" className="h-5 w-5 shrink-0 text-muted-foreground" />
                         )}
                       </h3>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-gray-500">
+                <p className="py-8 text-center text-muted-foreground">
                   Nenhum evento registrado para este usuário.
                 </p>
               )}
             </ModalBody>
             <ModalFooter>
-              <Button onPress={handleCloseModal} color="danger">
+              <Button onPress={handleCloseModal} variant="flat">
                 Fechar
               </Button>
             </ModalFooter>
@@ -309,12 +299,12 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       {/* Modal de Confirmação de Exclusão */}
       <Modal isOpen={isOpenModalDelete} onClose={handleCloseModalDelete}>
         <ModalContent>
-          <ModalHeader className="flex justify-center items-center">
-            Confirmação de Exclusão
+          <ModalHeader>
+            Excluir usuário
           </ModalHeader>
           <ModalBody>
             {selectedUser && (
-              <div className="flex flex-col items-center justify-center gap-4 ">
+              <div className="flex flex-col items-center justify-center gap-4 text-center">
                 <img
                   src={
                     selectedUser.image
@@ -322,15 +312,15 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       : determineDefaultAvatar(selectedUser.name)
                   }
                   alt={selectedUser.name}
-                  className="rounded-full w-32 h-32 object-cover"
+                  className="h-20 w-20 rounded-full object-cover"
                 />
-                <p className="text-lg">
-                  Deseja excluir o usuário {selectedUser.name}?
+                <p className="text-sm text-foreground">
+                  Deseja excluir <strong>{selectedUser.name || selectedUser.email}</strong>? Esta ação não pode ser desfeita.
                 </p>
               </div>
             )}
           </ModalBody>
-          <ModalFooter className="flex items-center justify-center">
+          <ModalFooter>
             <Button
               onPress={handleCloseModalDelete}
               color="primary"

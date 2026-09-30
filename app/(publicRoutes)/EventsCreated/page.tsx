@@ -1,141 +1,80 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import io from "socket.io-client"; // Importa o socket
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Evento } from "@/types";
 import { FilterBarEvents } from "@/components/MyComponents/FilterBarEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useSocket, useSocketStatus } from "@/context/SocketContext";
 import TableEventsClient from "@/components/MyComponents/TableEventsClient";
 import TableEventsAdmin from "@/components/MyComponents/TableEventsAdmin";
+import { Clock3, CheckCircle2 } from "lucide-react";
 
-const socket = io(); // Conecta ao servidor Socket.io
+type StatusFilter = "all" | "verified" | "unverified";
 
-const EventsCreated = () => {
-  const { data: User } = useCurrentUser();
+export default function EventsCreated() {
+  const { data: user } = useCurrentUser();
+  const socket = useSocket();
+  const socketConnected = useSocketStatus();
+  const [events, setEvents] = useState<Evento[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  console.log("role", User?.role);
+  const fetchEvents = useCallback(async () => {
+    try {
+      const response = await fetch("/api/AllEvents");
+      if (!response.ok) throw new Error("Request failed");
+      const result: Evento[] = await response.json();
+      if (!Array.isArray(result)) throw new Error("Invalid response");
+      setEvents(result);
+      setError("");
+    } catch {
+      setError("Não foi possível carregar os eventos. Tente novamente.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const [events, setEvents] = useState<Evento[]>([]); // Todos os eventos
-  const [filteredEvents, setFilteredEvents] = useState<Evento[]>([]); // Eventos filtrados
-  const [searchTerm, setSearchTerm] = useState(""); // Termo de busca
-  const [filterStatus, setFilterStatus] = useState<
-    "all" | "verified" | "unverified"
-  >("all"); // Filtro por status
-  const [isLoading, setIsLoading] = useState(true); // Controle de carregamento
-
-  // Buscar eventos da API inicialmente
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-        console.log("Buscando eventos da URL:", `${baseUrl}/api/AllEvents`);
-
-        const response = await fetch(`${baseUrl}/api/AllEvents`);
-
-        if (!response.ok) {
-          throw new Error("Falha ao buscar eventos");
-        }
-
-        const data = await response.json();
-        console.log("Eventos recebidos da API:", data);
-
-        setEvents(data); // Atualiza os eventos
-        setFilteredEvents(data); // Inicializa os eventos filtrados
-        setIsLoading(false); // Finaliza o carregamento
-      } catch (error) {
-        console.error("Erro ao buscar eventos:", error);
-        setIsLoading(false);
-      }
-    };
-
-    fetchEvents();
-
-    // Configuração do socket para receber eventos em tempo real
-    socket.on("update-events", (updatedEvents: Evento[]) => {
-      console.log(
-        "📢 Atualização de eventos recebida via Socket.io",
-        updatedEvents
-      );
-      setEvents(updatedEvents);
-      setFilteredEvents(updatedEvents);
-    });
-
+    void fetchEvents();
+    const handleUpdate = () => void fetchEvents();
+    socket.on("update-events", handleUpdate);
+    socket.on("connect", handleUpdate);
     return () => {
-      socket.off("update-events"); // Limpar evento ao desmontar o componente
+      socket.off("update-events", handleUpdate);
+      socket.off("connect", handleUpdate);
     };
-  }, []); // Executa apenas uma vez ao montar o componente
+  }, [fetchEvents, socket]);
 
-  // Função para filtrar eventos (status e termo de busca)
-  useEffect(() => {
-    console.log("Filtrando eventos com:");
-    console.log("searchTerm:", searchTerm);
-    console.log("filterStatus:", filterStatus);
-    console.log("Eventos disponíveis para filtrar:", events);
-
-    const filtered = events.filter((event) => {
-      const matchesSearch =
-        event.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.dataInicio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.dataFim.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus =
-        filterStatus === "all" ||
-        (filterStatus === "verified" && event.validate) ||
-        (filterStatus === "unverified" && !event.validate);
-
-      return matchesSearch && matchesStatus;
-    });
-
-    setFilteredEvents(filtered);
-  }, [searchTerm, filterStatus, events]);
-
-  // Função para atualizar o termo de busca
-  const handleFilterChange = (value: string) => {
-    setSearchTerm(value);
-  };
-
-  // Função para atualizar o filtro de validação
-  const handleStatusChange = (status: "all" | "verified" | "unverified") => {
-    setFilterStatus(status);
-  };
-
-  const isAdmin = User?.role === "ADMIN";
+  const filteredEvents = useMemo(() => events.filter((event) => {
+    const query = searchTerm.trim().toLocaleLowerCase("pt-BR");
+    const matchesSearch = !query || [event.nome, event.descricao, event.dataInicio, event.dataFim]
+      .some((value) => value?.toLocaleLowerCase("pt-BR").includes(query));
+    const matchesStatus = filterStatus === "all" || (filterStatus === "verified" ? event.validate : !event.validate);
+    return matchesSearch && matchesStatus;
+  }), [events, searchTerm, filterStatus]);
+  const pendingCount = events.filter((event) => !event.validate).length;
 
   return (
-    <div className="flex flex-col w-full h-full items-center p-6">
+    <div className="flex h-full w-full flex-col items-center p-6">
+      {!socketConnected && <p role="status" className="mb-4 w-full rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">Atualizações em tempo real indisponíveis. Você ainda pode consultar os eventos.</p>}
       {isLoading ? (
-        <div className="flex h-full w-full items-center justify-center">
-          <p className="text-gray-600">Carregando eventos...</p>
-        </div>
+        <div role="status" className="flex min-h-64 w-full items-center justify-center text-muted-foreground">Carregando eventos...</div>
+      ) : error ? (
+        <div role="alert" className="flex min-h-64 w-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card p-6 text-center"><p>{error}</p><button type="button" className="font-semibold text-primary underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" onClick={() => { setIsLoading(true); void fetchEvents(); }}>Tentar novamente</button></div>
       ) : (
         <>
-          {/* Barra de Filtro */}
-          <FilterBarEvents
-            filterValue={searchTerm}
-            onFilterChange={handleFilterChange}
-            onStatusChange={handleStatusChange}
-          />
-
+          {user?.role === "ADMIN" && <div role="status" className="mb-5 flex w-full flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${pendingCount ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-primary/10 text-primary"}`}>{pendingCount ? <Clock3 className="h-5 w-5" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}</span>
+            <div><p className="font-semibold">{pendingCount ? `${pendingCount} ${pendingCount === 1 ? "evento aguardando" : "eventos aguardando"} validação` : "Nenhum evento aguardando validação"}</p><p className="text-sm text-muted-foreground">{pendingCount ? "Revise os eventos pendentes na lista abaixo." : "Todos os eventos recebidos já foram analisados."}</p></div>
+          </div>}
+          <FilterBarEvents filterValue={searchTerm} onFilterChange={setSearchTerm} onStatusChange={setFilterStatus} />
           <div className="w-full">
-            {isAdmin ? (
-              <TableEventsAdmin
-                events={filteredEvents}
-                adminId={User?.id ?? ""}
-              />
-            ) : (
-              <TableEventsClient
-                role={User?.role ?? ""}
-                events={filteredEvents}
-                adminId={User?.id ?? ""}
-              />
-            )}
+            {user?.role === "ADMIN" ? <TableEventsAdmin events={filteredEvents} adminId={user.id} /> : <TableEventsClient role={user?.role ?? ""} events={filteredEvents} adminId={user?.id ?? ""} />}
           </div>
         </>
       )}
     </div>
   );
-};
-
-export default EventsCreated;
+}

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 import fs from "fs";
 import path from "path";
 
@@ -9,53 +10,57 @@ const uploadDir = path.join(process.cwd(), "public/uploads");
 
 export async function deleteEvents(eventIds: string[], adminId: string) {
   // Verifique se o usuário é um ADMIN
-  const admin = await prisma.user.findUnique({
-    where: { id: adminId },
-  });
-
-  if (!admin || admin.role !== "ADMIN") {
+  const authenticatedAdminId = await getAuthenticatedAdminId();
+  if (!authenticatedAdminId || authenticatedAdminId !== adminId) {
     return {
       status: "error",
       message: "Você não tem permissão para excluir eventos.",
     };
   }
 
-  // Buscar os eventos antes da exclusão para obter as imagens associadas
-  const eventsToDelete = await prisma.events.findMany({
-    where: { id: { in: eventIds } },
-    select: { banner: true, carrossel: true }, // Pegamos os banners e imagens do carrossel
+  const { deletedCount, eventsToDelete } = await prisma.$transaction(async (transaction) => {
+    const events = await transaction.events.findMany({
+      where: { id: { in: Array.from(new Set(eventIds)) } },
+      select: { id: true, nome: true, userId: true, banner: true, carrossel: true },
+    });
+    const admin = await transaction.user.findUnique({
+      where: { id: adminId },
+      select: { name: true },
+    });
+    const deletedAt = new Date();
+
+    // No Events foreign key: the audit records remain after deletion.
+    await transaction.eventHistory.createMany({
+      data: events.map((event) => ({
+        eventId: event.id,
+        eventName: event.nome,
+        promoterId: event.userId,
+        actorId: adminId,
+        actorName: admin?.name,
+        action: "DELETED" as const,
+        createdAt: deletedAt,
+      })),
+    });
+    const deleted = await transaction.events.deleteMany({
+      where: { id: { in: events.map((event) => event.id) } },
+    });
+    return { deletedCount: deleted.count, eventsToDelete: events };
   });
 
-  // Excluir arquivos do servidor (banner + imagens do carrossel)
-  eventsToDelete.forEach((event) => {
-    // Remover o banner
-    if (event.banner) {
-      const bannerPath = path.join(uploadDir, path.basename(event.banner));
-      if (fs.existsSync(bannerPath)) {
-        fs.unlinkSync(bannerPath);
+  // Clean files only after the database transaction commits.
+  for (const event of eventsToDelete) {
+    for (const file of [event.banner, ...event.carrossel]) {
+      const filePath = path.join(uploadDir, path.basename(file));
+      try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch {
+        console.error("Failed to remove an event image after deletion.");
       }
     }
-
-    // Remover imagens do carrossel
-    if (event.carrossel) {
-      event.carrossel.forEach((carouselImg) => {
-        const imagePath = path.join(uploadDir, path.basename(carouselImg));
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
-        }
-      });
-    }
-  });
-
-  // Excluir os eventos do banco de dados
-  const deletedEvents = await prisma.events.deleteMany({
-    where: {
-      id: { in: eventIds },
-    },
-  });
+  }
 
   return {
     status: "success",
-    message: `${deletedEvents.count} evento(s) excluído(s) com sucesso.`,
+    message: `${deletedCount} evento(s) excluído(s) com sucesso.`,
   };
 }

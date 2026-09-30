@@ -1,10 +1,14 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getAuthenticatedUser } from "@/lib/adminAuth";
 
 export async function getForEventsForUserById(idUser: string) {
   try {
-    console.log("Verificando usuário com ID:", idUser);
+    const authenticatedUser = await getAuthenticatedUser();
+    if (!authenticatedUser || (authenticatedUser.id !== idUser && authenticatedUser.role !== "ADMIN")) {
+      return { status: "error", message: "Acesso negado." };
+    }
 
     // Verifica se o usuário existe no banco de dados
     const userExisting = await prisma.user.findUnique({
@@ -13,7 +17,6 @@ export async function getForEventsForUserById(idUser: string) {
     });
 
     if (!userExisting) {
-      console.error("Usuário não encontrado:", idUser);
       return { status: "error", message: "Usuário não encontrado." };
     }
 
@@ -55,18 +58,15 @@ export async function getForEventsForUserById(idUser: string) {
     });
 
     if (userEvents.length === 0) {
-      console.log("Nenhum evento encontrado para o usuário:", idUser);
       return { status: "error", message: "Nenhum evento encontrado." };
     }
 
-    console.log("Eventos encontrados:", userEvents);
     return {
       status: "success",
       message: "Eventos encontrados com sucesso.",
       events: userEvents,
     };
-  } catch (error) {
-    console.error("Erro ao buscar eventos:", error);
+  } catch {
     return { status: "error", message: "Erro interno ao buscar eventos." };
   }
 }

@@ -65,6 +65,27 @@ model Events {
   @@map("events") 
 }
 
+enum EventHistoryAction {
+  CREATED
+  VALIDATED
+  DELETED
+}
+
+model EventHistory {
+  id         String             @id @default(uuid())
+  eventId    String
+  eventName  String
+  promoterId String?
+  actorId    String
+  actorName  String?
+  action     EventHistoryAction
+  createdAt  DateTime           @default(now())
+
+  // Snapshot IDs keep the audit trail after an event or user is deleted.
+  @@index([eventId, createdAt])
+  @@index([promoterId, createdAt])
+}
+
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
