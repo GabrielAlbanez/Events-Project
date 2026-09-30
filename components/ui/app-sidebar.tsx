@@ -47,10 +47,10 @@ export function AppSidebar() {
   const avatar = session?.user?.image || determineDefaultAvatar(session?.user?.name || "EventMap");
 
   return (
-    <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-white/70 bg-white/90 shadow-[18px_0_50px_-32px_rgba(46,16,101,.4)] backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/90">
+    <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-white/70 bg-white/90 shadow-[18px_0_50px_-32px_rgba(46,16,101,.4)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#111018]/90">
       <div className="px-5 pb-4 pt-6">
         <Link href="/" className="group flex items-center gap-3 rounded-2xl p-1 transition hover:opacity-80">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg shadow-violet-600/25 transition group-hover:rotate-3 group-hover:scale-105">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-700 to-indigo-700 text-white shadow-lg shadow-violet-700/25 transition group-hover:rotate-3 group-hover:scale-105">
             <MapPinned className="h-5 w-5" />
           </span>
           <div>
@@ -64,7 +64,7 @@ export function AppSidebar() {
 
       <div className="mx-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-violet-400/10 dark:from-violet-500/10 dark:to-indigo-500/5">
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" />
+          <span className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,.12)]" />
           Eventos acontecendo agora
         </div>
         <Button asChild className="h-10 w-full rounded-xl bg-zinc-950 text-white shadow-lg hover:bg-violet-700 dark:bg-white dark:text-zinc-950">
@@ -79,7 +79,7 @@ export function AppSidebar() {
             const active = href === "/" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
-                <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-zinc-600 transition-all duration-200 hover:translate-x-0.5 hover:bg-violet-50 hover:text-violet-700 data-[active=true]:bg-gradient-to-r data-[active=true]:from-violet-600 data-[active=true]:to-indigo-600 data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-violet-600/20 dark:text-zinc-300 dark:hover:bg-violet-400/10">
+                <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-zinc-600 transition-all duration-200 hover:translate-x-0.5 hover:bg-violet-50 hover:text-violet-700 data-[active=true]:bg-gradient-to-r data-[active=true]:from-violet-700 data-[active=true]:to-indigo-700 data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-violet-700/20 dark:text-zinc-300 dark:hover:bg-violet-400/10">
                   <Link href={href}>
                     <Icon className="h-5 w-5" />
                     <span>{label}</span>
@@ -115,7 +115,7 @@ export function AppSidebar() {
         ) : (
           <div className="space-y-3">
             <p className="text-sm leading-6 text-zinc-500">Entre para publicar eventos e salvar suas descobertas.</p>
-            <Button asChild className="w-full rounded-xl bg-violet-600 hover:bg-violet-700">
+            <Button asChild className="w-full rounded-xl bg-violet-700 hover:bg-violet-800">
               <Link href="/login">Entrar na plataforma</Link>
             </Button>
           </div>

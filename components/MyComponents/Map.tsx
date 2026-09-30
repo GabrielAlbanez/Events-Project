@@ -26,22 +26,22 @@ import { PlaceAutocomplete } from "./PlaceAutocomplete";
 const CustomLoading = () => (
   <div className="flex h-full min-h-[420px] items-center justify-center bg-zinc-100 dark:bg-zinc-900">
     <div className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/90 px-5 py-3 shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-200 border-t-violet-700" />
       <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Preparando o mapa…</span>
     </div>
   </div>
 );
 
 const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#19191b" }] },
+  { elementType: "geometry", stylers: [{ color: "#1c1a25" }] },
   { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#a1a1aa" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#19191b" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1c1a25" }] },
   { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#3f3f46" }] },
-  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#202023" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#18181b" }] },
-  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2a2a2e" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#111113" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#24212e" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#191722" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2a2734" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#111018" }] },
 ];
 
 const USER_MARKER_ICON = { url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png" };
@@ -270,7 +270,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
                 <div className="space-y-3">
                   <PlaceAutocomplete className="w-full rounded-xl border border-zinc-200 dark:border-white/10" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => setUserLocation({ lat, lng })} />
                   <PlaceAutocomplete className="w-full rounded-xl border border-zinc-200 dark:border-white/10" placeholder="Destino" onPlaceSelect={({ lat, lng }) => setDestination({ lat, lng })} />
-                  <button type="button" className="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700" onClick={() => destination ? calculateRoute(destination) : toast.error("Selecione um destino.")}>Traçar rota</button>
+                  <button type="button" className="w-full rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800" onClick={() => destination ? calculateRoute(destination) : toast.error("Selecione um destino.")}>Traçar rota</button>
                   {directions && <button type="button" className="w-full text-xs text-zinc-500 hover:text-violet-600" onClick={clearRoute}>Limpar rota</button>}
                 </div>
               </div>
@@ -278,7 +278,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
 
             {selectedEvent && !showDirections && (
               <div className="absolute left-3 right-3 top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-white/70 bg-white/95 p-3 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5">
-                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-violet-600">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-violet-700">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-zinc-500">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-violet-600" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
                 <button type="button" aria-label="Fechar evento" className="self-start text-zinc-400" onClick={() => onSelectEvent(null)}>×</button>
               </div>
