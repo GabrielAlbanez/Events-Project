@@ -12,8 +12,6 @@ type Data = {
 const resetDataProfile = async (data: Data) => {
     const { name, password, newPassword, email } = data;
 
-    console.log("dados pego", name, password, newPassword);
-
     const user = await prisma.user.findUnique({
         where: { email }
     });

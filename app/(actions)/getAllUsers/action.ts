@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma";
+import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 
 export async function getAllUsers() {
   try {
+    if (!await getAuthenticatedAdminId()) {
+      return { status: "error", message: "Acesso negado." };
+    }
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -15,8 +19,7 @@ export async function getAllUsers() {
       },
     });
     return { status: "success", data: users };
-  } catch (error) {
-    console.error("Error fetching users:", error);
+  } catch {
     return { status: "error", message: "Error fetching users" };
   }
 }

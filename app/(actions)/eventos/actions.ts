@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getAuthenticatedUser } from "@/lib/adminAuth";
 import fs from "fs";
 import path from "path";
 
@@ -33,6 +34,11 @@ async function cleanOrphanedFiles(usedPaths: Set<string>, directory: string) {
 // Função para salvar um evento com data de início e fim
 export async function salvarEvento(formData: FormData, userId: string) {
   try {
+    const authenticatedUser = await getAuthenticatedUser();
+    if (!authenticatedUser || authenticatedUser.id !== userId ||
+      (authenticatedUser.role !== "ADMIN" && authenticatedUser.role !== "PROMOTER")) {
+      return { success: false, message: "Permissão negada. Apenas administradores ou promotores podem criar eventos." };
+    }
     // Extraindo campos do FormData
     const nome = formData.get("nome")?.toString() || "";
     const descricao = formData.get("descricao")?.toString() || "";
@@ -79,21 +85,32 @@ export async function salvarEvento(formData: FormData, userId: string) {
     }
 
     // 🔹 Salvamento do evento no banco com dataInicio e dataFim
-    const novoEvento = await prisma.events.create({
-      data: {
-        nome,
-        descricao,
-        dataInicio,
-        dataFim,
-        linkParaCompra,
-        banner: bannerPath,
-        carrossel: carouselPaths,
-        endereco,
-        userId,
-      },
+    const novoEvento = await prisma.$transaction(async (transaction) => {
+      const evento = await transaction.events.create({
+        data: {
+          nome,
+          descricao,
+          dataInicio,
+          dataFim,
+          linkParaCompra,
+          banner: bannerPath,
+          carrossel: carouselPaths,
+          endereco,
+          userId,
+        },
+      });
+      await transaction.eventHistory.create({
+        data: {
+          eventId: evento.id,
+          eventName: evento.nome,
+          promoterId: userId,
+          actorId: userId,
+          actorName: user.name,
+          action: "CREATED",
+        },
+      });
+      return evento;
     });
-
-    console.log("Evento criado:", novoEvento);
 
     // Limpeza de arquivos órfãos
     try {

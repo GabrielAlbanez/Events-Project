@@ -1,65 +1,20 @@
-import React from "react";
-import {
-  Input,
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
-  Button,
-} from "@heroui/react";
-import { SearchIcon, ChevronDownIcon } from "@/components/icons";
-import { SidebarTrigger } from "../ui/sidebar";
+"use client";
+
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface FilterBarProps {
   filterValue: string;
   onFilterChange: (value: string) => void;
+  statusValue: string;
   onStatusChange: (status: string) => void;
 }
 
-export const FilterBar: React.FC<FilterBarProps> = ({
-  filterValue,
-  onFilterChange,
-  onStatusChange,
-}) => {
+export function FilterBar({ filterValue, onFilterChange, statusValue, onStatusChange }: FilterBarProps) {
   return (
-    <div className="flex rounded-xl flex-wrap justify-between items-center gap-4 px-4 py-4 border-default-200 border-[1px] mb-4">
-      <SidebarTrigger>
-        <button className="text-foreground hover:text-foreground mr-3">
-          ☰
-        </button>
-      </SidebarTrigger>
-      <Input
-        placeholder="Search by name.."
-        startContent={<SearchIcon />}
-        value={filterValue}
-        onChange={(e) => onFilterChange(e.target.value)}
-        className="w-full md:w-1/2"
-      />
-      <Dropdown>
-        <DropdownTrigger>
-          <Button endContent={<ChevronDownIcon />}>Filter by Roles</Button>
-        </DropdownTrigger>
-        <DropdownMenu>
-          <DropdownItem onClick={() => onStatusChange("all")} key="All">
-            All
-          </DropdownItem>
-          <DropdownItem onClick={() => onStatusChange("ADMIN")} key="Admin">
-            Admin
-          </DropdownItem>
-          <DropdownItem
-            onClick={() => onStatusChange("PROMOTER")}
-            key="Promoter"
-          >
-            PROMOTER
-          </DropdownItem>
-          <DropdownItem onClick={() => onStatusChange("BASIC")} key="Basic">
-            BASIC
-          </DropdownItem>
-          <DropdownItem onClick={() => onStatusChange("GUEST")} key="Guest">
-            GUEST
-          </DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
+    <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
+      <div><label htmlFor="user-search" className="mb-2 block text-sm font-medium">Buscar usuários</label><div className="relative"><Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input id="user-search" type="search" value={filterValue} onChange={(event) => onFilterChange(event.target.value)} placeholder="Nome ou email" className="pl-10" /></div></div>
+      <div><label htmlFor="user-role-filter" className="mb-2 block text-sm font-medium">Permissão</label><select id="user-role-filter" value={statusValue} onChange={(event) => onStatusChange(event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Todas as permissões</option><option value="ADMIN">Administradores</option><option value="PROMOTER">Promotores</option><option value="BASIC">Usuários</option></select></div>
     </div>
   );
-};
+}

@@ -12,7 +12,9 @@ export async function middleware(req: NextRequest) {
   console.log("Request Pathname:", pathname);
 
   // Define role como GUEST se não houver token
-  const userRole: Role = (token?.role as Role) || roles.GUEST;
+  const devSessionDisabled = token?.provider === "dev-admin" &&
+    (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true");
+  const userRole: Role = devSessionDisabled ? "GUEST" : (token?.role as Role) || roles.GUEST;
   console.log("User Role:", userRole);
 
   // Verifica se a rota é pública
@@ -35,7 +37,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Se o token estiver ausente, redireciona para /login
-  if (!token) {
+  if (!token || devSessionDisabled) {
     console.log("No token found, redirecting to login");
     return NextResponse.redirect(new URL("/login", req.url));
   }

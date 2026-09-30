@@ -37,6 +37,7 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
 
   const [showFullDescription, setShowFullDescription] = useState(false);
   const { data : User } = useCurrentUser();
+  const router = useRouter();
 
 
   if (!event) return null;
@@ -48,8 +49,6 @@ const ModalEventsValidate: React.FC<ModalEventsValidateProps> = ({
     );
 
   const toggleDescription = () => setShowFullDescription(!showFullDescription);
-  const router = useRouter();
-
   // Definir o tamanho limite da descrição antes de encurtá-la
   const maxDescriptionLength = 100;
 

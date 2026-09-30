@@ -7,25 +7,29 @@ import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
 import { HeroUIProvider } from "@heroui/react";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
+import DevAdminAutoLogin from "@/components/Providers/DevAdminAutoLogin";
 
 export default function ClientProviders({
   children,
   defaultOpen,
+  devAutoLoginAdmin,
+  devAdminRunId,
 }: {
   children: React.ReactNode;
   defaultOpen: boolean;
+  devAutoLoginAdmin: boolean;
+  devAdminRunId: string;
 }) {
-  return (
-    <SessionProvider>
+  const content = (
       <SocketProvider>
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
             <SidebarProvider defaultOpen={defaultOpen}>
-              <div className="flex z-50 w-full h-screen">
+              <div className="flex min-h-screen w-full">
                 {/* Sidebar */}
                 <AppSidebar />
                 {/* Conteúdo Principal */}
-                <main className="flex-1 z-10 overflow-auto text-foreground bg-background ">
+                <main className="relative z-10 min-w-0 flex-1 overflow-auto bg-background/70 text-foreground backdrop-blur-[2px]">
                   {/* Carregamento global do Google Maps */}
                   <GoogleMapsLoader>{children}</GoogleMapsLoader>
                 </main>
@@ -34,6 +38,11 @@ export default function ClientProviders({
           </NextThemesProvider>
         </HeroUIProvider>
       </SocketProvider>
+  );
+
+  return (
+    <SessionProvider>
+      {devAutoLoginAdmin ? <DevAdminAutoLogin runId={devAdminRunId}>{content}</DevAdminAutoLogin> : content}
     </SessionProvider>
   );
 }

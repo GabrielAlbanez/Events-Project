@@ -15,7 +15,9 @@ export async function POST(request: Request) {
   try {
     // Require authenticated user
     const token = await getToken({ req: request as any });
-    if (!token?.id) {
+    const disabledDevSession = token?.provider === "dev-admin" &&
+      (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true");
+    if (!token?.id || disabledDevSession) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     // Verificar headers de multipart/form-data
@@ -39,6 +41,9 @@ export async function POST(request: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: "O ID do usuário é obrigatório." }, { status: 400 });
+    }
+    if (userId !== token.id) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
     // Validate file size (e.g., max 5MB) and type

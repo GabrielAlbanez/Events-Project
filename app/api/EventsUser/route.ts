@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getForEventsForUserById } from '@/app/(actions)/getForEventsByUserId/action';
+import { getAuthenticatedUser } from '@/lib/adminAuth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,11 @@ export async function POST(req: NextRequest) {
         { status: "error", message: "ID do usuário não fornecido." },
         { status: 400 }
       );
+    }
+
+    const authenticatedUser = await getAuthenticatedUser(req);
+    if (!authenticatedUser || (authenticatedUser.id !== idUser && authenticatedUser.role !== "ADMIN")) {
+      return NextResponse.json({ status: "error", message: "Acesso negado." }, { status: 403 });
     }
 
     const result = await getForEventsForUserById(idUser);

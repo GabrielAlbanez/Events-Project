@@ -1,16 +1,25 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 import { User } from "@/types";
 
 const deleteUser = async (user: User) => {
-  const { id } = user;
+  const adminId = await getAuthenticatedAdminId();
+  if (!adminId) {
+    return { status: "error", message: "Você não tem permissão para excluir usuários." };
+  }
+  const id = user?.id;
 
   if (!id) {
     return {
       status: "error",
       message: "Aconteceu um erro ao logar",
     };
+  }
+
+  if (id === adminId) {
+    return { status: "error", message: "Você não pode excluir sua própria conta." };
   }
 
   const exisgingUser = await prisma.user.findUnique({
@@ -24,16 +33,21 @@ const deleteUser = async (user: User) => {
     };
   }
 
-  const deletedUser = await prisma.user.delete({
-    where: { id },
+  if (exisgingUser.role === "ADMIN") {
+    return { status: "error", message: "Este usuário não pode ser excluído." };
+  }
+
+  const deletedUser = await prisma.user.deleteMany({
+    where: { id, role: { not: "ADMIN" } },
   });
 
-  if (deletedUser) {
+  if (deletedUser.count > 0) {
     return {
-      status: "error",
+      status: "success",
       message: "Usuário deletado com sucesso",
     };
   }
+  return { status: "error", message: "Este usuário não pode ser excluído." };
 };
 
 export default deleteUser;

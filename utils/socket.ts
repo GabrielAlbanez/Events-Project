@@ -1,35 +1,14 @@
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
+import { socket } from "@/lib/socketClient";
 
-interface RoleUpdatedPayload {
-  userId: string;
-  newRole: string;
-}
+type RoleUpdatedPayload = { newRole: string };
 
-let socket: Socket;
-
-export const initSocket = (): Socket => {
-  if (!socket) {
-    socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8081", {
-      transports: ["websocket"],
-    });
-
-    socket.on("connect", () => {
-      console.log("Connected to WebSocket server");
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Disconnected from WebSocket server");
-    });
-  }
-  return socket;
-};
+/** Compatibilidade com consumidores antigos; a conexão é compartilhada. */
+export const initSocket = (): Socket => socket;
 
 export const listenToRoleUpdates = (
   callback: (payload: RoleUpdatedPayload) => void
-): void => {
-  if (!socket) {
-    throw new Error("Socket not initialized. Call initSocket first.");
-  }
-
-  socket.on("roleUpdated", callback);
+): (() => void) => {
+  socket.on("role-mudar", callback);
+  return () => { socket.off("role-mudar", callback); };
 };
