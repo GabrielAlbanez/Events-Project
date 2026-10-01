@@ -7,19 +7,14 @@ import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
 import { HeroUIProvider } from "@heroui/react";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
-import DevAdminAutoLogin from "@/components/Providers/DevAdminAutoLogin";
 import NotificationBell from "@/components/MyComponents/NotificationBell";
 
 export default function ClientProviders({
   children,
   defaultOpen,
-  devAutoLoginAdmin,
-  devAdminRunId,
 }: {
   children: React.ReactNode;
   defaultOpen: boolean;
-  devAutoLoginAdmin: boolean;
-  devAdminRunId: string;
 }) {
   const content = (
       <SocketProvider>
@@ -44,7 +39,7 @@ export default function ClientProviders({
 
   return (
     <SessionProvider>
-      {devAutoLoginAdmin ? <DevAdminAutoLogin runId={devAdminRunId}>{content}</DevAdminAutoLogin> : content}
+      {content}
     </SessionProvider>
   );
 }

@@ -246,7 +246,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   }, []);
 
   return (
-    <div className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-zinc-100 md:flex-row dark:bg-zinc-900">
+    <div className="absolute inset-0 z-10 flex flex-col overflow-hidden bg-zinc-100 md:flex-row dark:bg-zinc-900">
           <div className="relative min-h-0 flex-1 isolate">
 
             <GoogleMap
@@ -265,7 +265,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             </GoogleMap>
 
             {showDirections && (
-              <div className="absolute left-3 right-3 top-3 z-10 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5 md:w-80">
+              <div className="absolute left-3 right-[72px] top-3 z-10 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5 md:w-80">
                 <button type="button" onClick={() => setShowDirections(false)} className="mb-3 flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" /> Planejar rota</button>
                 <div className="space-y-3">
                   <PlaceAutocomplete className="w-full rounded-xl border border-zinc-200 dark:border-white/10" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => setUserLocation({ lat, lng })} />
@@ -277,30 +277,32 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             )}
 
             {selectedEvent && !showDirections && (
-              <div className="absolute left-3 right-3 top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-white/70 bg-white/95 p-3 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5">
+              <div className="absolute left-3 right-[72px] top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-white/70 bg-white/95 p-3 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 md:left-5 md:right-auto md:top-5">
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-violet-700">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-zinc-500">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-violet-600" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
                 <button type="button" aria-label="Fechar evento" className="self-start text-zinc-400" onClick={() => onSelectEvent(null)}>×</button>
               </div>
             )}
 
-            {!showDirections && !selectedEvent && <div className="absolute right-4 top-4 z-10 flex flex-col gap-2 md:right-5 md:top-5">
+            {!showDirections && !selectedEvent && <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-2 md:bottom-auto md:right-5 md:top-5">
               <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-white/70 bg-white/90 text-violet-600 shadow-lg backdrop-blur hover:bg-violet-50 dark:border-white/10 dark:bg-zinc-950/90" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota"><Route className="h-4 w-4" /></button>
             </div>}
-            <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 md:bottom-5 md:right-5">
-              <div className="overflow-hidden rounded-2xl border border-white/70 bg-white/90 shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
-                <button className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(1)} title="Aumentar zoom">
+            <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 md:bottom-20 md:right-5">
+              <div className="hidden overflow-hidden rounded-2xl border border-white/70 bg-white/90 shadow-xl backdrop-blur dark:border-white/10 dark:bg-zinc-950/90 md:block">
+                <button type="button" className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(1)} title="Aumentar zoom" aria-label="Aumentar zoom">
                   <ZoomIn className="h-4 w-4" />
                 </button>
                 <div className="mx-2 h-px bg-zinc-200 dark:bg-white/10" />
-                <button className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(-1)} title="Diminuir zoom">
+                <button type="button" className="grid h-10 w-10 place-items-center text-zinc-600 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-violet-500/10" onClick={() => changeZoom(-1)} title="Diminuir zoom" aria-label="Diminuir zoom">
                   <ZoomOut className="h-4 w-4" />
                 </button>
               </div>
               <button
+                type="button"
                 className="grid h-11 w-11 place-items-center rounded-2xl border border-white/70 bg-white/90 shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:bg-violet-50 dark:border-white/10 dark:bg-zinc-950/90"
                 onClick={getCurrentLocation}
                 title="Minha localização"
+                aria-label="Recentralizar na minha localização"
               >
                 <Crosshair className="h-5 w-5 text-violet-600" />
               </button>

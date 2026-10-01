@@ -36,19 +36,8 @@ async function run(){
  assert.equal(canAccessPath("PROMOTER","/eventos/test/editar"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
  assert.equal(isPublicPath("/eventos/test/editar"),false);
- const previousMode=process.env.NODE_ENV,previousFlag=process.env.DEV_AUTO_LOGIN_ADMIN;
- try {
-  process.env.NODE_ENV="production";process.env.DEV_AUTO_LOGIN_ADMIN="true";
-  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");
-  process.env.NODE_ENV="development";
-  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"ADMIN");
-  process.env.DEV_AUTO_LOGIN_ADMIN="false";
-  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");
- } finally {
-  if(previousMode===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=previousMode;
-  if(previousFlag===undefined)delete process.env.DEV_AUTO_LOGIN_ADMIN;else process.env.DEV_AUTO_LOGIN_ADMIN=previousFlag;
- }
- console.log("PASS: route access policy and production identity isolation");
+ assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");
+ console.log("PASS: route access policy and retired development identity isolation");
  const userAdministration=load("lib/services/userAdministration.ts");
  assert.equal((await userAdministration.getAllUsers(async()=>null)).status,"error");
  assert.equal((await userAdministration.deleteUser({id:"test"},async()=>null)).status,"error");

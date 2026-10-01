@@ -5,8 +5,11 @@ import { eventInstant } from "../lib/eventTime.js";
 export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string,event:string)=>void, eventsChanged:()=>void) {
  let stopped=false, polling=false, running=false, lastCheck=new Date(), lastError=false;
  const publicKey=process.env.WEB_PUSH_PUBLIC_KEY, privateKey=process.env.WEB_PUSH_PRIVATE_KEY, subject=process.env.WEB_PUSH_SUBJECT;
- const pushEnabled=Boolean(publicKey&&privateKey&&subject);
- if(pushEnabled)webpush.setVapidDetails(subject!,publicKey!,privateKey!);
+ let pushEnabled=false;
+ if(publicKey&&privateKey&&subject){
+  try{webpush.setVapidDetails(subject,publicKey,privateKey);pushEnabled=true;}
+  catch{console.error("External push disabled: invalid configuration.");}
+ }
  async function poll(){
   if(stopped||polling)return;polling=true;
   try{
@@ -22,7 +25,10 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
   if(stopped||running)return;running=true;
   try{
    const now=new Date();
-   const favorites=await prisma.favorite.findMany({where:{reminderMinutes:{not:null},reminderSentAt:null,event:{status:"PUBLISHED",dataInicio:{gte:new Date(now.getTime()-86400000).toISOString().slice(0,10)}}},include:{event:{select:{id:true,nome:true,dataInicio:true,startTime:true,timezone:true}}},orderBy:{event:{dataInicio:"asc"}},take:500});
+   let favoriteCursor:{userId:string;eventId:string}|undefined;
+   while(!stopped){
+   const favorites=await prisma.favorite.findMany({where:{reminderMinutes:{not:null},reminderSentAt:null,event:{status:"PUBLISHED",dataInicio:{gte:new Date(now.getTime()-86400000).toISOString().slice(0,10),lte:new Date(now.getTime()+2*86400000).toISOString().slice(0,10)}},...(favoriteCursor?{OR:[{userId:{gt:favoriteCursor.userId}},{userId:favoriteCursor.userId,eventId:{gt:favoriteCursor.eventId}}]}:{})},include:{event:{select:{id:true,nome:true,dataInicio:true,startTime:true,timezone:true}}},orderBy:[{userId:"asc"},{eventId:"asc"}],take:500});
+   if(!favorites.length)break;
    for(const favorite of favorites){
     const start=eventInstant(favorite.event.dataInicio,favorite.event.startTime,favorite.event.timezone);
     if(!start||start<=now||start.getTime()-(favorite.reminderMinutes??0)*60000>now.getTime())continue;
@@ -31,15 +37,24 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
      if(claimed.count)await tx.notification.create({data:{userId:favorite.userId,title:"Seu evento está chegando",message:favorite.event.nome+" começa em breve. Confira data e local.",href:"/eventos/"+favorite.eventId}});
     });
    }
-   const published=await prisma.events.findMany({where:{status:"PUBLISHED",dataFim:{lte:new Date(now.getTime()+86400000).toISOString().slice(0,10)}},select:{id:true,nome:true,userId:true,dataFim:true,endTime:true,timezone:true},take:500});
-   let changed=false;
+   const lastFavorite=favorites[favorites.length-1];
+   favoriteCursor={userId:lastFavorite.userId,eventId:lastFavorite.eventId};
+   if(favorites.length<500)break;
+   }
+   let changed=false,eventCursor:string|undefined;
+   while(!stopped){
+   const published=await prisma.events.findMany({where:{status:"PUBLISHED",dataFim:{lte:new Date(now.getTime()+86400000).toISOString().slice(0,10)},...(eventCursor?{id:{gt:eventCursor}}:{})},select:{id:true,nome:true,userId:true,dataFim:true,endTime:true,timezone:true},orderBy:{id:"asc"},take:500});
+   if(!published.length)break;
    for(const event of published){
     const end=eventInstant(event.dataFim,event.endTime,event.timezone,"23:59");
     if(!end||end>now)continue;
     await prisma.$transaction(async tx=>{
-     const result=await tx.events.updateMany({where:{id:event.id,status:"PUBLISHED"},data:{status:"ENDED"}});
+     const result=await tx.events.updateMany({where:{id:event.id,status:"PUBLISHED",dataFim:event.dataFim,endTime:event.endTime,timezone:event.timezone},data:{status:"ENDED"}});
      if(result.count){await tx.eventHistory.create({data:{eventId:event.id,eventName:event.nome,promoterId:event.userId,actorId:"system",actorName:"EventMap",action:"UPDATED",note:"Evento encerrado automaticamente após a data final."}});changed=true;}
     });
+   }
+   eventCursor=published[published.length-1].id;
+   if(published.length<500)break;
    }
    if(changed)eventsChanged();
    if(pushEnabled){

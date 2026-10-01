@@ -7,8 +7,7 @@
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development next dev",
-    "dev:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development node dist/server.mjs",
-    "dev:socket-admin": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development DEV_AUTO_LOGIN_ADMIN=true HOSTNAME=localhost PORT=3000 NEXTAUTH_URL=http://localhost:3000 NEXT_PUBLIC_BASE_URL=http://localhost:3000 SOCKET_IO_ALLOWED_ORIGINS=http://localhost:3000 node dist/server.mjs",
+    "dev:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development HOSTNAME=localhost PORT=3000 NEXTAUTH_URL=http://localhost:3000 NEXT_PUBLIC_BASE_URL=http://localhost:3000 SOCKET_IO_ALLOWED_ORIGINS=http://localhost:3000 node dist/server.mjs",
     "prisma:generate": "prisma generate",
     "build": "next build",
     "start": "next start",
@@ -17,7 +16,8 @@
     "start:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=production node dist/server.mjs",
     "test:features": "node scripts/verify-event-platform.cjs",
     "test:features:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-event-platform.cjs",
-    "test:features:http": "node scripts/smoke-event-platform.cjs"
+    "test:features:http": "node scripts/smoke-event-platform.cjs",
+    "test:security": "node scripts/verify-profile-security.cjs && node scripts/verify-account-security.cjs && node scripts/verify-notification-worker.cjs && node scripts/verify-registration-security.cjs"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.5.3",

@@ -1,20 +1,15 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
 import next from "next";
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
 import nextEnv from "@next/env";
 import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server.js";
 import type { Socket } from "socket.io";
+import { enforceSocketExpiration } from "./server/socketSession.mjs";
 import { startNotificationWorker } from "./server/notificationWorker.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
-
-if (process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true") {
-  process.env.DEV_ADMIN_RUN_ID = randomUUID();
-}
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -24,7 +19,7 @@ const prisma = new PrismaClient();
 const activeUsers = new Map<string, string>();
 const recentlyNotifiedValidations = new Map<string, number>();
 
-type AuthenticatedSocket = Socket & { data: { userId?: string } };
+type AuthenticatedSocket = Socket & { data: { userId?: string; expiresAt?: number } };
 
 let io: Server | null = null;
 
@@ -33,47 +28,6 @@ export const getIoServer = () => {
   if (!io) throw new Error("Socket.IO não inicializado");
   return io;
 };
-
-// Criação do usuário admin, caso não exista
-export async function CreateAdminUser() {
-  if (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true") return;
-
-  const adminPassword = process.env.DEV_ADMIN_PASSWORD;
-  if (!adminPassword) {
-    console.info("Skipping development admin bootstrap: DEV_ADMIN_PASSWORD is not set.");
-    return;
-  }
-
-  try {
-    const adminEmail = "admin@admin.com";
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: adminEmail },
-    });
-
-    if (existingAdmin) {
-      if (existingAdmin.role !== "ADMIN") {
-        console.error("Development admin email belongs to a non-admin account; bootstrap stopped.");
-        return;
-      }
-      console.info("Development admin account already exists; leaving it unchanged.");
-      return;
-    }
-
-    const hashedPassword = await bcrypt.hash(adminPassword, 12);
-    await prisma.user.create({
-      data: {
-        name: "Admin",
-        email: adminEmail,
-        password: hashedPassword,
-        role: "ADMIN",
-        emailVerified: true,
-      },
-    });
-    console.info("Development admin account created.");
-  } catch {
-    console.error("Failed to bootstrap development admin account. Check database connectivity and configuration.");
-  }
-}
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -95,7 +49,6 @@ app.prepare().then(async () => {
     },
   });
 
-  await CreateAdminUser();
   const stopNotifications = startNotificationWorker(prisma, (userId, event) => io!.to("user:" + userId).emit(event), () => io!.emit("update-events"));
   httpServer.on("close", stopNotifications);
 
@@ -110,15 +63,16 @@ app.prepare().then(async () => {
         secret: process.env.NEXTAUTH_SECRET,
       });
       if (typeof token?.id !== "string" || !token.id) return next();
-      if (token.provider === "dev-admin" &&
-        (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true")) {
-        return next();
-      }
+      if (typeof token.exp !== "number" || token.exp * 1000 <= Date.now()) return next();
+      if (token.provider === "dev-admin") return next();
       const user = await prisma.user.findUnique({
         where: { id: token.id },
         select: { id: true },
       });
-      if (user) socket.data.userId = user.id;
+      if (user) {
+        socket.data.userId = user.id;
+        socket.data.expiresAt = token.exp * 1000;
+      }
       next();
     } catch {
       next(new Error("Unable to verify socket session"));
@@ -128,6 +82,9 @@ app.prepare().then(async () => {
   io.on("connection", (socket) => {
     const authenticatedSocket = socket as AuthenticatedSocket;
     const userId = authenticatedSocket.data.userId;
+    if (userId && authenticatedSocket.data.expiresAt) {
+      enforceSocketExpiration(socket, authenticatedSocket.data.expiresAt);
+    }
 
     const broadcastPresence = () => {
       io!.to("admins").emit("active-users", Array.from(new Set(activeUsers.values())));

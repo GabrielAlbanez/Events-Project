@@ -7,7 +7,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Evento } from "@/types";
 import { CalendarDays, Compass, MapPin, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import styles from "./discovery.module.css";
 
 type Period = "todos" | "hoje" | "fim-de-semana" | "mes";
 
@@ -43,6 +45,9 @@ const filters: { label: string; value: Period }[] = [
 
 export default function Home() {
   const socket = useSocket();
+  const { data: session, status } = useSession();
+  const canManageEvents = status === "authenticated" && Boolean(session?.user?.id) &&
+    (session?.user?.role === "ADMIN" || session?.user?.role === "PROMOTER");
   const [discovery, setDiscovery] = useState<DiscoveryFilter>(emptyDiscoveryFilter);
   const [events, setEvents] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,13 +94,13 @@ export default function Home() {
         <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 text-sm md:flex dark:border-white/10 dark:bg-white/5">
           <Link href="/" aria-current="page" className="rounded-full bg-white px-4 py-2 font-semibold text-violet-700 shadow-sm dark:bg-zinc-800 dark:text-violet-300">Descobrir</Link>
           <Link href="/EventsCreated" className="rounded-full px-4 py-2 text-zinc-600 transition hover:text-violet-700 dark:text-zinc-300">Agenda</Link>
-          <Link href="/myEvents" className="rounded-full px-4 py-2 text-zinc-600 transition hover:text-violet-700 dark:text-zinc-300">Meus eventos</Link>
+          {canManageEvents && <Link href="/myEvents" className="rounded-full px-4 py-2 text-zinc-600 transition hover:text-violet-700 dark:text-zinc-300">Meus eventos</Link>}
         </nav>
         <Link href="/EventsCreated" className="flex items-center gap-2 rounded-full bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
-      <main className="relative h-[calc(100vh-72px)] min-h-[520px] flex-1 md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]">
-        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-[1.75rem] border-t border-zinc-200 bg-white shadow-[0_-12px_36px_-24px_rgba(0,0,0,.35)] transition-[height] duration-300 dark:border-white/10 dark:bg-zinc-950 md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
+      <main className={`${styles.main} relative min-h-[520px] flex-1 md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
+        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-zinc-200 bg-white shadow-[0_-12px_36px_-24px_rgba(0,0,0,.35)] transition-[height] duration-300 dark:border-white/10 dark:bg-zinc-950 md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
           <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-700" /></button>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-orange-600 md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
@@ -110,10 +115,10 @@ export default function Home() {
               {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-violet-700 text-white shadow-md shadow-violet-700/20" : "border border-zinc-200 bg-white text-zinc-600 hover:border-violet-300 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300"}`}>{filter.label}</button>)}
             </div>
           </div>
-          <div className="px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} /></div>
+          <div className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
           <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-white/10">
             <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-zinc-400">{filteredEvents.length} encontrados</span></div>
-            <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-6 md:px-5">
+            <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
               {loading && <p className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5">Carregando eventos…</p>}
               {loadError && <p className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5">Não foi possível carregar os eventos. Tente atualizar a página.</p>}
               {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-zinc-200 p-6 text-center dark:border-white/10"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-violet-500" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-zinc-500">Experimente outra busca ou período.</p></div>}
@@ -124,7 +129,7 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <section className={`relative overflow-hidden bg-zinc-100 transition-[height] duration-300 dark:bg-zinc-900 md:h-full md:min-h-[520px] ${sheetExpanded ? "h-[28%]" : "h-[calc(100%-320px)]"}`} aria-label="Mapa dos eventos">
+        <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-zinc-100 transition-[height] duration-300 dark:bg-zinc-900`} aria-label="Mapa dos eventos">
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
         </section>
       </main>

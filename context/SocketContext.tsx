@@ -16,8 +16,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const userId = session?.user?.id;
   const provider = session?.user?.provider;
   const role = session?.user?.role;
+  const expires = session?.expires;
   const [isConnected, setIsConnected] = useState(socket.connected);
   const shownValidations = useRef(new Set<string>());
+  const lastSessionRecovery = useRef(0);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -36,14 +38,34 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setIsConnected(false);
       return;
     }
+    let active = true;
+    let recovering = false;
+    const handleSessionExpired = () => {
+      socket.disconnect();
+      setIsConnected(false);
+      // A failed refresh must not create a reconnect loop with the expired cookie.
+      if (recovering || Date.now() - lastSessionRecovery.current < 30000) return;
+      recovering = true;
+      lastSessionRecovery.current = Date.now();
+      void update().then(() => {
+        if (active) socket.connect();
+      }).catch(() => {
+        // Remain disconnected until a later authentication change or page reload.
+      }).finally(() => {
+        recovering = false;
+      });
+    };
+    socket.on("session-expired", handleSessionExpired);
     socket.connect();
     setIsConnected(socket.connected);
     return () => {
+      active = false;
+      socket.off("session-expired", handleSessionExpired);
       if (userId && socket.connected) socket.emit("user-disconnected");
       socket.disconnect();
       setIsConnected(false);
     };
-  }, [status, userId, provider, role]);
+  }, [status, userId, provider, role, expires, update]);
 
   useEffect(() => {
     shownValidations.current.clear();

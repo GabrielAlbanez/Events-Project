@@ -15,8 +15,7 @@ export async function POST(request: Request) {
   try {
     // Require authenticated user
     const token = await getToken({ req: request as any });
-    const disabledDevSession = token?.provider === "dev-admin" &&
-      (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true");
+    const disabledDevSession = token?.provider === "dev-admin";
     if (!token?.id || disabledDevSession) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }

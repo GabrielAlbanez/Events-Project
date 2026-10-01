@@ -45,9 +45,10 @@ const navigation: NavItem[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  const role = session?.user?.role ?? "BASIC";
-  const visibleItems = navigation.filter((item) => !item.roles || item.roles.includes(role));
-  const avatar = session?.user?.image || determineDefaultAvatar(session?.user?.name || "EventMap");
+  const authenticatedUser = status === "authenticated" && session?.user?.id ? session.user : null;
+  const role = authenticatedUser?.role;
+  const visibleItems = navigation.filter((item) => !item.roles || (role !== null && role !== undefined && item.roles.includes(role)));
+  const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
 
   return (
     <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-white/70 bg-white/90 shadow-[18px_0_50px_-32px_rgba(46,16,101,.4)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#111018]/90">
@@ -103,18 +104,20 @@ export function AppSidebar() {
       )}
 
       <div className="border-t border-zinc-100 bg-zinc-50/60 p-4 dark:border-white/10 dark:bg-white/[.02]">
-        {status === "authenticated" ? (
+        {authenticatedUser ? (
           <>
             <div className="flex items-center gap-3 rounded-2xl border border-zinc-200/70 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
               <Image width={40} height={40} src={avatar} alt="Foto do perfil" className="h-10 w-10 rounded-xl object-cover ring-2 ring-violet-100 dark:ring-violet-400/20" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{session.user.name || "Usuário"}</p>
-                <p className="truncate text-xs text-zinc-500">{session.user.email}</p>
+                <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
+                <p className="truncate text-xs text-zinc-500">{authenticatedUser.email}</p>
               </div>
               <ThemeSwitcher />
             </div>
             <LogoutButton />
           </>
+        ) : status === "loading" ? (
+          <p role="status" className="text-sm text-zinc-500">Carregando conta...</p>
         ) : (
           <div className="space-y-3">
             <p className="text-sm leading-6 text-zinc-500">Entre para publicar eventos e salvar suas descobertas.</p>

@@ -7,8 +7,7 @@ interface SessionIdentity {
 }
 
 export function isDevelopmentIdentityDisabled(provider: unknown): boolean {
-  return provider === "dev-admin" &&
-    (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true");
+  return provider === "dev-admin";
 }
 
 export function getSessionRole(identity: SessionIdentity | null): string {

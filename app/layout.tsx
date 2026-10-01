@@ -34,13 +34,11 @@ export default function RootLayout({
 }) {
   const cookieStore = cookies();
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
-  const devAutoLoginAdmin = process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true";
-  const devAdminRunId = devAutoLoginAdmin ? process.env.DEV_ADMIN_RUN_ID ?? "" : "";
 
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body>
-        <ClientProviders defaultOpen={defaultOpen} devAutoLoginAdmin={devAutoLoginAdmin} devAdminRunId={devAdminRunId}>
+        <ClientProviders defaultOpen={defaultOpen}>
           <ToastContainer  position="top-right" autoClose={3000} />
           {children}
         </ClientProviders>

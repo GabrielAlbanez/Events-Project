@@ -28,12 +28,13 @@ function signal(socket,event){return new Promise((resolve,reject)=>{const timer=
  const published=await db.events.create({data:{...common,status:"PUBLISHED",validate:true,validatedBy:admin.id,validatedAt:new Date()}});eventIds.push(published.id);
  for(const status of ["DRAFT","PENDING"])eventIds.push((await db.events.create({data:{...common,status,validate:false}})).id);
  phase="sessions and permissions";
+ assert.ok(!(await(await fetch(base+"/api/auth/session")).json())?.user);
+ assert.equal(await signIn("dev-admin"),undefined);
  const adminCookie=await signIn("credentials",{email:admin.email,password}),basicCookie=await signIn("credentials",{email:basic.email,password});
  assert.ok(adminCookie&&basicCookie);
  assert.equal((await fetch(base+"/api/admin/events",{headers:{Cookie:basicCookie}})).status,403);
  const adminEvents=await(await fetch(base+"/api/admin/events",{headers:{Cookie:adminCookie}})).json();
  assert.ok(adminEvents.some(item=>item.id===eventIds[2]));assert.ok(!adminEvents.some(item=>item.id===eventIds[1]));
- if(process.env.FEATURE_EXPECT_PRODUCTION==="true")assert.equal(await signIn("dev-admin"),undefined);
  phase="public projection and pages";
  const publicEvents=await(await fetch(base+"/api/AllEvents")).json();
  assert.ok(publicEvents.some(item=>item.id===published.id));assert.ok(!publicEvents.some(item=>item.id===eventIds[1]||item.id===eventIds[2]));
@@ -41,8 +42,8 @@ function signal(socket,event){return new Promise((resolve,reject)=>{const timer=
  for(const person of [publicEvent.user,publicEvent.validator])for(const key of ["password","email","role","accounts","sessions"])assert.equal(Object.hasOwn(person,key),false);
  const html=await(await fetch(base+"/eventos/"+published.id)).text();
  const jsonld=html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
- if(jsonld){assert.equal(JSON.parse(jsonld[1]).name,published.nome);assert.ok(!jsonld[1].includes("<script>"));assert.equal(JSON.parse(jsonld[1]).offers,undefined);}else{assert.notEqual(process.env.FEATURE_EXPECT_PRODUCTION,"true");assert.ok(html.includes("Iniciando sessão de desenvolvimento"));}
- phase="private page isolation";const privatePage=await fetch(base+"/eventos/"+eventIds[1]);if(privatePage.status!==404){assert.notEqual(process.env.FEATURE_EXPECT_PRODUCTION,"true");assert.equal(privatePage.status,200);assert.ok((await privatePage.text()).includes("Iniciando sessão de desenvolvimento"));}
+ assert.ok(jsonld);assert.equal(JSON.parse(jsonld[1]).name,published.nome);assert.ok(!jsonld[1].includes("<script>"));assert.equal(JSON.parse(jsonld[1]).offers,undefined);
+ phase="private page isolation";const privatePage=await fetch(base+"/eventos/"+eventIds[1]);assert.equal(privatePage.status,404);
  phase="promoter page";assert.equal((await fetch(base+"/promotores/"+promoter.id)).status,200);
  phase="authenticated pages";for(const route of ["/salvos","/notificacoes"])assert.equal((await fetch(base+route,{headers:{Cookie:basicCookie}})).status,200);
  assert.equal((await fetch(base+"/resultados",{headers:{Cookie:adminCookie}})).status,200);
@@ -58,12 +59,22 @@ function signal(socket,event){return new Promise((resolve,reject)=>{const timer=
  phase="sockets and targeted notices";
  const adminSocket=await connect(adminCookie),basicSocket=await connect(basicCookie),promoterSocket=await connect(await signIn("credentials",{email:promoter.email,password}));
  const update=signal(basicSocket,"update-events");adminSocket.emit("events-changed");await update;
+ let wronglyValidated=0,wronglyNotified=0;
+ adminSocket.on("event-validated",()=>wronglyValidated++);basicSocket.on("event-validated",()=>wronglyValidated++);
+ adminSocket.on("notification-updated",()=>wronglyNotified++);promoterSocket.on("notification-updated",()=>wronglyNotified++);
  const targeted=signal(promoterSocket,"event-validated");adminSocket.emit("events-changed",{validatedEventIds:[published.id]});assert.equal((await targeted).eventId,published.id);
  const notice=signal(basicSocket,"notification-updated");await db.notification.create({data:{userId:basic.id,title:"Aviso de teste",message:"Teste de entrega direcionada",href:"/eventos/"+published.id}});await notice;
+ assert.equal(wronglyValidated,0);assert.equal(wronglyNotified,0);
+ phase="socket identity expiration";
+ const {encode}=require("next-auth/jwt");
+ const shortToken=await encode({secret:process.env.NEXTAUTH_SECRET,token:{id:basic.id,role:"BASIC",provider:"credentials"},maxAge:3});
+ const expiringSocket=await connect("next-auth.session-token="+shortToken);
+ const expired=signal(expiringSocket,"session-expired"),disconnected=signal(expiringSocket,"disconnect");
+ await expired;await disconnected;assert.equal(expiringSocket.connected,false);
  assert.equal((await fetch(base+"/api/push/subscriptions")).status,401);
- console.log("PASS: HTTP routes, public privacy, draft isolation, public page rendering, ICS, deduplicated metrics, access control and targeted Socket.IO");
- if(process.env.FEATURE_EXPECT_PRODUCTION==="true")console.log("PASS: automatic development login blocked in production");
- }catch(error){console.error("FAIL HTTP integration at "+phase+": "+(error.code||error.name||"error"));throw error;}
+ console.log("PASS: HTTP routes, public privacy, draft isolation, public page rendering, ICS, deduplicated metrics, access control, isolated Socket.IO delivery and JWT expiration");
+ console.log("PASS: new session is anonymous and retired development login is unavailable");
+ }catch(error){console.error("FAIL HTTP integration at "+phase+": "+(error.message||error.code||error.name||"error"));throw error;}
  finally{
  for(const socket of sockets)socket.disconnect();
  await db.eventHistory.deleteMany({where:{eventId:{in:eventIds}}});await db.events.deleteMany({where:{id:{in:eventIds}}});await db.user.deleteMany({where:{id:{in:users.map(user=>user.id)}}});await db.$disconnect();

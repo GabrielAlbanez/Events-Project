@@ -96,7 +96,7 @@ export default function Profile() {
   };
 
   const account = user.data;
-  const canChangePassword = account?.provider !== "google" && account?.provider !== "dev-admin";
+  const canChangePassword = account?.provider !== "google";
   const name = form.watch("name");
   const password = form.watch("password");
   const newPassword = form.watch("newPassword");
@@ -222,7 +222,7 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : account.provider === "dev-admin" ? "Conta de desenvolvimento" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
+            <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
           </div>
         </div>
       </div>

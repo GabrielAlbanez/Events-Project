@@ -1,8 +1,8 @@
-
 import prisma from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import { sendVerificationEmail } from "@/lib/mail/verification";
+import { registerAccountInputSchema } from "@/schemas/accountInput";
 
 export interface RegisterUserInput {
   name: string;
@@ -11,46 +11,36 @@ export interface RegisterUserInput {
 }
 
 export async function registerUser(data: RegisterUserInput) {
-  // Verifica se o email já está registrado
-  const existingUser = await prisma.user.findUnique({
-    where: { email: data.email },
-  });
-
-  if (existingUser) {
-    return {
-      status: "error",
-      error: "O email já está registrado",
-    };
+  const parsed = registerAccountInputSchema.safeParse(data);
+  if (!parsed.success) {
+    return { status: "error", error: parsed.error.issues[0]?.message ?? "Dados de cadastro inválidos." };
   }
 
-  // Generate verification token
-  const token = uuidv4();
-  const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/verifyEmail?token=${token}`;
+  try {
+    const { name, email, password } = parsed.data;
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingUser) {
+      return { status: "error", error: "O email já está registrado" };
+    }
 
-  // Save the user data and token temporarily
-  await prisma.verificationTokenEmail.create({
-    data: {
-      email: data.email,
-      token,
-      name: data.name,
-      password: bcrypt.hashSync(data.password, 10), // Hash the password
-    },
-  });
-
-  await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      password: bcrypt.hashSync(data.password, 10),
-    },
-  });
-
-
-
-  await sendVerificationEmail(data.email, verificationLink);
-
-  return {
-    status: "success",
-    message: "Verificação de email enviada. Verifique seu email.",
-  };
+    const token = uuidv4();
+    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/verifyEmail?token=${token}`;
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.$transaction(async (transaction) => {
+      await transaction.user.create({ data: { name, email, password: passwordHash } });
+      await transaction.verificationTokenEmail.create({
+        data: { name, email, token, password: passwordHash },
+      });
+    });
+    await sendVerificationEmail(email, verificationLink);
+    return {
+      status: "success",
+      message: "Verificação de email enviada. Verifique seu email.",
+    };
+  } catch {
+    return { status: "error", error: "Não foi possível concluir o cadastro. Tente novamente." };
+  }
 }

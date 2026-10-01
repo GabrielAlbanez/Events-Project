@@ -15,7 +15,6 @@ declare module "next-auth" {
       emailVerified : boolean | null;
       provider: string | null;
       role : string | null;
-      devAutoLoginAdmin: boolean;
   };
 }
 
@@ -34,29 +33,6 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
-      id: "dev-admin",
-      name: "Development administrator",
-      credentials: {},
-      async authorize() {
-        if (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true") {
-          return null;
-        }
-
-        const email = "admin@admin.com";
-        const password = process.env.DEV_ADMIN_PASSWORD;
-        if (!password) return null;
-
-        try {
-          const user = await prisma.user.findUnique({ where: { email } });
-          if (!user || user.role !== "ADMIN" || !user.password) return null;
-
-          return await bcrypt.compare(password, user.password) ? user : null;
-        } catch {
-          return null;
-        }
-      },
-    }),
-    CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text", placeholder: "email@example.com" },
@@ -71,18 +47,14 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        if (!user) {
-          throw new Error("Usuário não encontrado");
-        }
+        if (!user || !user.password || !user.emailVerified) return null;
 
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password || ""
         );
 
-        if (!isPasswordValid) {
-          throw new Error("Senha incorreta");
-        }
+        if (!isPasswordValid) return null;
 
         return user
       },
@@ -102,9 +74,6 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
 
-      if (account?.provider === "dev-admin") {
-        return process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true";
-      }
       if(account?.provider === "credentials") return true
 
       if (!user?.email || !account) {
@@ -183,9 +152,8 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Invalidate development identity after any token refresh, including update.
-      if (token.provider === "dev-admin" &&
-        (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true")) {
+      // Retire tokens created by the removed development provider.
+      if (token.provider === "dev-admin") {
         token.id = "";
         token.role = null;
       }
@@ -202,8 +170,7 @@ export const authOptions: NextAuthOptions = {
         provider : typeof token.provider === 'string' ? token.provider : null,
         image: typeof token.image === "string" ? token.image : null,
         emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
-        role : typeof token.role === 'string' ? token.role : null,
-        devAutoLoginAdmin: process.env.NODE_ENV === "development" && process.env.DEV_AUTO_LOGIN_ADMIN === "true" && token.provider === "dev-admin" && token.role === "ADMIN"
+        role : typeof token.role === 'string' ? token.role : null
       };
       return session;
     },

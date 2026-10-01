@@ -16,23 +16,17 @@ o servidor usa a DLL do Prisma pode causar `EPERM`.
 
 `npm run dev:socket` compila `server.mts` e inicia o servidor sem o
 loader experimental do ts-node e sem substituir a DLL do Prisma. Configure `DATABASE_URL` no `.env` para os recursos
-que usam banco de dados. A URL aparece no terminal (`PORT` no `.env`, ou 8081 por padrão).
-Use essa mesma URL em `NEXTAUTH_URL` e `NEXT_PUBLIC_BASE_URL`.
+que usam banco de dados. `npm run dev:socket` abre `http://localhost:3000`.
 O tempo real usa a mesma origem do Next.js. Configure `SOCKET_IO_ALLOWED_ORIGINS`
 com a origem pública da aplicação (ou várias origens separadas por vírgula).
 Para autenticar conexões Socket.IO, configure também `NEXTAUTH_SECRET` e inicie
 pelo servidor conjunto com `npm run dev:socket`. `npm run dev` inicia apenas o Next.js.
 
-Para testar o login inicial de administrador e o WebSocket na mesma origem, defina
-`DEV_ADMIN_PASSWORD` somente no `.env` local e execute `npm run dev:socket-admin`.
-Abra `http://localhost:3000`. O login automático ocorre uma vez por perfil de
-navegador em cada execução do servidor. Depois de sair, é possível entrar com
-outra conta e atualizar a página sem voltar ao administrador. Reiniciar o comando
-habilita uma nova tentativa inicial. Para manter administrador e usuário comum
-conectados ao mesmo tempo, use uma janela anônima ou outro perfil do navegador:
-guias do mesmo perfil compartilham os cookies de autenticação. Abra a aplicação
-em ambos os perfis, saia da conta admin em um deles e entre com a conta comum.
-O servidor conjunto mantém o Socket.IO em `http://localhost:3000/socket.io/`.
+Entre como administrador manualmente pela tela de login. Uma janela anônima nova
+abre deslogada. Para manter administrador e usuário comum conectados ao mesmo
+tempo, use uma janela anônima ou outro perfil do navegador: guias do mesmo perfil
+compartilham os cookies de autenticação. O servidor conjunto mantém o Socket.IO
+em `http://localhost:3000/socket.io/`.
 
 O tempo real avisa o promotor quando um administrador valida seu evento e atualiza
 a contagem de eventos pendentes na administração. A seção **Atividade recente** em
@@ -100,12 +94,12 @@ Pare os servidores antes de gerar o cliente Prisma no Windows:
 npx prisma migrate deploy
 npm run prisma:generate
 npm run test:features
-npm run dev:socket-admin
+npm run dev:socket
 ```
 
 Abra http://localhost:3000. Crie um rascunho, continue pela edição, envie para análise,
 peça uma correção na agenda administrativa e publique após o reenvio. Em outro perfil
-do navegador, saia do admin, entre como usuário comum e salve/siga eventos ou promotores.
+do navegador, entre como usuário comum e salve/siga eventos ou promotores.
 Confira os avisos na central e o histórico do organizador. Consulte Resultados após abrir
 a página pública ou clicar no link externo de ingressos.
 
@@ -147,3 +141,9 @@ ao organizador autenticado.
 ## Organização do código
 
 Consulte [a arquitetura](docs/architecture.md) para responsabilidades, dependências e orientação para novas funcionalidades.
+
+### Verificações de segurança e notificações
+
+`npm run test:security` executa testes isolados de perfil, cadastro, verificação de e-mail, login direto e filas de lembretes, sem usar banco ou SMTP.
+
+Os links de confirmação de e-mail expiram após 24 horas e são consumidos uma única vez. Contas sem confirmação não entram pelo login de senha. Uma configuração inválida de Web Push desativa somente esse envio; a central interna continua disponível. Conexões autenticadas de Socket.IO são encerradas ao expirar o JWT e o cliente tenta atualizar a sessão antes de reconectar.
