@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { notifyEventAudience } from "@/lib/eventNotifications";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
+import { reconcileEventWaitlist } from "@/lib/services/attendance";
 
 export async function validateEvents(eventIds: string[], adminId: string) {
   // Verifique se o usuário é um ADMIN
@@ -59,9 +60,12 @@ export async function validateEvents(eventIds: string[], adminId: string) {
     return changedIds;
   });
 
+  const reconciled = await Promise.allSettled(validatedEventIds.map(id => reconcileEventWaitlist(id)));
+  const failedReconciliations = reconciled.filter(result => result.status === "rejected").length;
+
   return {
     status: "success",
-    message: `${validatedEventIds.length} evento(s) validado(s) com sucesso.`,
+    message: `${validatedEventIds.length} evento(s) validado(s) com sucesso.${failedReconciliations ? " Algumas listas de espera não foram atualizadas; tente novamente ao gerenciar as inscrições." : ""}`,
     validatedEventIds,
   };
 }

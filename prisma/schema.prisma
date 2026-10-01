@@ -26,6 +26,10 @@ model User {
   subscriptions PushSubscription[]
   following     Follow[] @relation("Follower")
   followers     Follow[] @relation("Promoter")
+  registrations EventRegistration[]
+  eventSeries    EventSeries[]
+  eventReports   EventReport[] @relation("ReportAuthor")
+  reviewedReports EventReport[] @relation("ReportReviewer")
 }
 
 enum Role {
@@ -83,6 +87,14 @@ model Events {
   updatedAt      DateTime @default(now()) @updatedAt
   favorites      Favorite[]
   metrics        EventMetric[]
+  capacity       Int?
+  registrations  EventRegistration[]
+  recurrenceSeriesId String?
+  recurrenceSeries EventSeries? @relation(fields: [recurrenceSeriesId], references: [id], onDelete: SetNull)
+  recurrenceIndex Int?
+  reports         EventReport[]
+
+  @@unique([recurrenceSeriesId, recurrenceIndex])
 
   @@map("events") 
 }
@@ -105,6 +117,76 @@ enum EventStatus {
   PUBLISHED
   CANCELLED
   ENDED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+  CHECKED_IN
+}
+
+model EventRegistration {
+  id          String @id @default(uuid())
+  eventId     String
+  userId      String
+  status      RegistrationStatus @default(CONFIRMED)
+  qrVersion   Int @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  checkedInAt DateTime?
+  event       Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId, status, createdAt])
+  @@index([userId, status])
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+model EventSeries {
+  id        String @id @default(uuid())
+  ownerId   String
+  frequency RecurrenceFrequency
+  interval  Int @default(1)
+  count     Int
+  timezone  String
+  createdAt DateTime @default(now())
+  owner     User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  events    Events[]
+
+  @@index([ownerId, createdAt])
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+model EventReport {
+  id             String @id @default(uuid())
+  eventId        String
+  reporterId     String
+  reason         String
+  details        String
+  status         ReportStatus @default(PENDING)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  reviewedById   String?
+  reviewedAt     DateTime?
+  resolutionNote String?
+  event          Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporter       User @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer       User? @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, reporterId])
+  @@index([status, createdAt])
+  @@index([eventId, status])
 }
 
 model EventHistory {

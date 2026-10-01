@@ -97,6 +97,7 @@ export async function duplicarEvento(eventId: string, resolveCurrentUser: Resolv
                     banner: source.banner, carrossel: source.carrossel, linkParaCompra: source.linkParaCompra,
                     dataInicio: "", dataFim: "", category: source.category, priceCents: source.priceCents,
                     isFree: source.isFree, lat: source.lat, lng: source.lng, startTime: source.startTime,
+                    capacity: source.capacity,
                     endTime: source.endTime, userId: user.id, status: "DRAFT", validate: false,
                 } });
             await record(transaction, event, user, "DUPLICATED");

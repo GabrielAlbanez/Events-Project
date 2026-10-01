@@ -86,6 +86,34 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - Resultados (/resultados): visualizações, cliques em ingressos e favoritos. Cliques não são vendas.
 - A API pública seleciona somente dados públicos e eventos publicados. A administração usa uma consulta autenticada.
 
+### Inscrições, check-in, recorrência e denúncias
+
+No cadastro, o organizador pode definir uma capacidade por edição (campo vazio significa
+sem limite) e criar uma série semanal ou mensal. Cada data é um evento próprio, com
+revisão administrativa separada. A série pode ter de 2 a 52 datas e terminar em até
+um ano. O organizador pode gerenciar inscrições em **Meus eventos → Check-in**.
+
+Na página pública, a pessoa autenticada confirma presença. Quando as vagas acabam,
+entra na lista de espera; um cancelamento promove a primeira pessoa da fila. O QR
+Code da inscrição confirmada expira em cinco minutos e é validado pelo organizador
+ou administrador na página de check-in. A leitura por câmera depende do suporte do
+navegador a BarcodeDetector; também é possível colar o código manualmente. A
+confirmação de presença não substitui a compra de ingressos externos.
+
+Usuários autenticados podem denunciar um evento publicado. A administração recebe
+as denúncias em **Usuários → Analisar denúncias** e registra uma resolução ou descarte.
+As rotas de moderação e check-in conferem a sessão e as permissões no servidor.
+
+O filtro **Tempo de carro a partir de mim** calcula trajetos apenas ao clicar em
+**Aplicar tempo de viagem** e considera até 25 eventos com localização por cálculo.
+Para usá-lo, a chave `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` precisa permitir Maps JavaScript
+API e Routes API, com faturamento do Google Maps configurado. O navegador pedirá
+permissão de localização. Se o serviço de rotas estiver indisponível, o filtro
+mostra o erro e mantém a busca anterior.
+
+Depois de atualizar o código, pare o servidor antes de executar `npm run prisma:generate`
+no Windows, aplique `npx prisma migrate deploy` e reinicie com `npm run dev:socket`.
+
 ### Configuração e testes
 
 Pare os servidores antes de gerar o cliente Prisma no Windows:
@@ -110,6 +138,10 @@ Use um banco de desenvolvimento. Os testes isolados não alteram o banco.
 Com o servidor em execução, `npm run test:features:http` verifica páginas, APIs,
 permissões e entrega dirigida pelo Socket.IO, usando registros temporários que são
 removidos ao terminar.
+
+`npm run test:event-extras:http` verifica inscrições, lista de espera, QR/check-in,
+denúncias, moderação e recorrência com contas e eventos temporários. Execute-o
+apenas em um banco de desenvolvimento; o script remove seus registros ao terminar.
 
 ### Lembretes e avisos externos
 

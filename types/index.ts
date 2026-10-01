@@ -37,6 +37,7 @@ export type Evento = {
   category?: string;
   isFree?: boolean;
   priceCents?: number;
+  capacity?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;

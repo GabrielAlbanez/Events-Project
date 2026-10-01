@@ -8,6 +8,7 @@ import { DateRangePicker } from "@heroui/react";
 import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
 import { Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
 import { atualizarEvento, salvarEvento, salvarRascunho } from "@/app/(actions)/eventos/actions";
+import { criarSerieRecorrente } from "@/app/(actions)/eventos/recurrence";
 import type { Evento } from "@/types";
 import { eventCategories } from "@/types/features";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ type EventoFormData = {
   endereco: string;
   category: string;
   price: string;
+  capacity: string;
   isFree: boolean;
   startTime: string;
   endTime: string;
@@ -46,7 +48,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
   });
   const { data } = useCurrentUser();
   const router = useRouter();
@@ -65,6 +67,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     } catch { return null; }
   });
   const [dateError, setDateError] = useState("");
+  const [recurrence, setRecurrence] = useState<"none" | "WEEKLY" | "MONTHLY">("none");
+  const [repeatEvery, setRepeatEvery] = useState(1);
+  const [occurrences, setOccurrences] = useState(4);
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
   const saveMode = useRef<"draft" | "submit">("submit");
@@ -110,6 +115,22 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       setDateError("Escolha uma data de início e uma data de fim válidas.");
       return;
     }
+    if (!initialEvent && recurrence !== "none") {
+      if (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0) {
+        setDateError("Escolha as datas do primeiro evento para criar a série.");
+        return;
+      }
+      if (!Number.isInteger(repeatEvery) || repeatEvery < 1 || repeatEvery > 4 || !Number.isInteger(occurrences) || occurrences < 2 || occurrences > 52) {
+        toast.error("Escolha entre 2 e 52 edições e um intervalo de 1 a 4.");
+        return;
+      }
+      const totalMonths = recurrence === "MONTHLY" ? repeatEvery * (occurrences - 1) : 0;
+      const totalDays = recurrence === "WEEKLY" ? repeatEvery * 7 * (occurrences - 1) : 0;
+      if (totalMonths > 12 || totalDays > 365) {
+        toast.error("A série deve terminar dentro de um ano. Reduza o intervalo ou o número de edições.");
+        return;
+      }
+    }
     if (!draft && !banner && !initialEvent?.banner) {
       toast.error("Adicione o banner principal antes de enviar.");
       bannerInputRef.current?.focus();
@@ -132,6 +153,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         payload.append("category", values.category);
         payload.append("isFree", String(values.isFree));
         payload.append("priceCents", values.isFree ? "0" : String(Math.round(Number(values.price.replace(",", ".")) * 100)));
+        payload.append("capacity", values.capacity.trim());
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
         if (coordinates) {
@@ -148,7 +170,26 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           toast.error(result.message || "Não foi possível salvar o evento. Tente novamente.");
           return;
         }
-        toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
+        if (!initialEvent && recurrence !== "none") {
+          if (!result.evento?.id) {
+            toast.error("O evento foi salvo, mas não foi possível criar a série. Consulte Meus eventos.");
+            router.push("/myEvents");
+            return;
+          }
+          const series = await criarSerieRecorrente(result.evento.id, {
+            frequency: recurrence,
+            interval: repeatEvery,
+            count: occurrences,
+          });
+          if (!series.success) {
+            toast.error(`O primeiro evento foi salvo, mas as repetições não foram criadas: ${series.message}`);
+            router.push("/myEvents");
+            return;
+          }
+          toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados para análise"}.`);
+        } else {
+          toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
+        }
         socket.emit("create-event");
         router.push("/myEvents");
       } catch {
@@ -216,6 +257,27 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <FormField name="startTime" render={({ field }) => <FormItem><FormLabel>Horário de início</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
                 <FormField name="endTime" render={({ field }) => <FormItem><FormLabel>Horário de término</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
               </div>
+              {!initialEvent && <fieldset className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+                <legend className="px-1 text-sm font-semibold">Repetir este evento</legend>
+                <p className="text-sm text-muted-foreground">Crie outras datas com o mesmo local, horário e informações. Cada edição poderá ser revisada separadamente.</p>
+                <label htmlFor="event-recurrence" className="block text-sm font-medium">Frequência</label>
+                <select id="event-recurrence" value={recurrence} onChange={(event) => setRecurrence(event.target.value as typeof recurrence)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <option value="none">Não repetir</option>
+                  <option value="WEEKLY">Toda semana</option>
+                  <option value="MONTHLY">Todo mês</option>
+                </select>
+                {recurrence !== "none" && <div className="grid gap-4 sm:grid-cols-2">
+                  <label htmlFor="event-repeat-every" className="grid gap-2 text-sm font-medium">Repetir a cada
+                    <select id="event-repeat-every" value={repeatEvery} onChange={(event) => setRepeatEvery(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {[1, 2, 3, 4].map((interval) => <option key={interval} value={interval}>{interval} {recurrence === "WEEKLY" ? interval === 1 ? "semana" : "semanas" : interval === 1 ? "mês" : "meses"}</option>)}
+                    </select>
+                  </label>
+                  <label htmlFor="event-occurrences" className="grid gap-2 text-sm font-medium">Número de edições
+                    <input id="event-occurrences" type="number" min={2} max={52} step={1} value={occurrences} onChange={(event) => setOccurrences(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                  </label>
+                  <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
+                </div>}
+              </fieldset>}
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
                   <span className="block text-sm font-medium">Endereço <Required /></span>
@@ -247,6 +309,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           <section className={sectionClass} aria-labelledby="event-tickets-title">
             <SectionHeading number="03" title="Ingresso e imagens" description="Indique para onde o visitante deve ir e escolha uma imagem que represente o evento." id="event-tickets-title" />
             <div className="space-y-6">
+              <FormField name="capacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma capacidade inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Vagas para confirmação <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Ao preencher todas as vagas, novas pessoas entram na lista de espera. Deixe vazio para aceitar confirmações sem limite.</FormDescription><FormMessage /></FormItem>} />
               <FormField name="isFree" render={({ field }) => <FormItem><div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-4"><input id="event-free" type="checkbox" checked={field.value} onChange={(event) => field.onChange(event.target.checked)} className="h-5 w-5 accent-primary" /><label htmlFor="event-free" className="cursor-pointer text-sm font-medium">Evento gratuito</label></div><FormDescription>Desmarque para informar o preço inicial do ingresso.</FormDescription></FormItem>} />
               {!isFree && <FormField name="price" rules={{ required: "Informe o preço do ingresso.", validate: (value) => Number.isFinite(Number(value.replace(",", "."))) && Number(value.replace(",", ".")) >= 0 || "Informe um preço válido." }} render={({ field }) => <FormItem><FormLabel>Preço inicial (R$) <Required /></FormLabel><FormControl><Input inputMode="decimal" placeholder="Ex.: 25,00" {...field} /></FormControl><FormMessage /></FormItem>} />}
               <FormField name="LinkParaCompraIngresso" rules={{ required: "Informe o link de ingressos.", pattern: { value: /^https?:\/\/[^\s]+\.[^\s]+$/i, message: "Use um link completo e válido começando com https://." } }} render={({ field }) => (

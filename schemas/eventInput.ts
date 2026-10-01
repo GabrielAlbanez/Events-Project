@@ -9,6 +9,7 @@ export const eventInputSchema = z.object({
   endereco: z.string().trim().max(500), linkParaCompra: optionalUrl,
   dataInicio: date, dataFim: date, category: z.string().trim().min(1).max(80),
   priceCents: z.number().int().min(0).max(100000000), isFree: z.boolean(),
+  capacity: z.number().int().min(1).max(1000000).nullable(),
   lat: z.number().min(-90).max(90).nullable(), lng: z.number().min(-180).max(180).nullable(),
   startTime: z.string().regex(/^$|^([01]\d|2[0-3]):[0-5]\d$/),
   endTime: z.string().regex(/^$|^([01]\d|2[0-3]):[0-5]\d$/),
@@ -28,6 +29,7 @@ export function parseEventInput(form: FormData, submit: boolean) {
     linkParaCompra: text("LinkParaCompraIngresso") || text("linkParaCompra"),
     dataInicio: text("dataInicio"), dataFim: text("dataFim"), category: text("category") || "Outros",
     priceCents: Number(text("priceCents") || 0), isFree: text("isFree") !== "false",
+    capacity: text("capacity") === "" ? null : Number(text("capacity")),
     lat: coordinate("lat"), lng: coordinate("lng"), startTime: text("startTime"), endTime: text("endTime"),
   });
   if (!result.success) return { success: false as const, message: result.error.issues[0].message };

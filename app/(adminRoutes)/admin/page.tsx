@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { UsersRound } from "lucide-react";
@@ -91,7 +92,7 @@ export default function AdminPage() {
   return (
     <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex items-start gap-4"><SidebarTrigger className="mt-1 shrink-0" /><div><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Administração</p><h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl"><UsersRound className="h-8 w-8 text-primary" aria-hidden="true" /> Usuários</h1><p className="mt-2 text-muted-foreground">Encontre contas, consulte eventos e gerencie permissões.</p></div></header>
+        <header className="mb-8 flex flex-wrap items-start gap-4"><SidebarTrigger className="mt-1 shrink-0" /><div className="min-w-0 flex-1"><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Administração</p><h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl"><UsersRound className="h-8 w-8 text-primary" aria-hidden="true" /> Usuários</h1><p className="mt-2 text-muted-foreground">Encontre contas, consulte eventos e gerencie permissões.</p></div><Link href="/admin/reports" className="inline-flex min-h-11 items-center rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-primary hover:bg-primary/10">Analisar denúncias →</Link></header>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3" aria-label="Resumo de usuários">
           <SummaryCard label="Usuários cadastrados" value={users.length} />
