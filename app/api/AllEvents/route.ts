@@ -1,24 +1,7 @@
-import getAllEvents from '@/app/(actions)/getAlllEvents/action';
-import { NextRequest, NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
-
-
-type ResponseData = {
-  status: string;
-  data?: any;
-  message?: string;
-  error?: string;
-}
-
-export async function GET(
-  req: NextRequest,
-  res: NextResponse<ResponseData>
-) {
-  if (req.method === 'GET') {
-    const result = await getAllEvents();
-    return NextResponse.json(result, { status: 200 });
-  } else {
-    return NextResponse.json({ status: 'error', message: 'Method not allowed' }, { status: 405 });
-  }
+import getAllEvents from "@/app/(actions)/getAlllEvents/action";
+import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
+export async function GET() {
+  try { return NextResponse.json(await getAllEvents()); }
+  catch { return NextResponse.json({ message: "Não foi possível carregar eventos." }, { status: 503 }); }
 }

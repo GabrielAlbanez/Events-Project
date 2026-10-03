@@ -8,17 +8,48 @@ generator client {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  name          String?
-  email         String?   @unique
-  password      String?
-  emailVerified Boolean?
-  role          Role      @default(BASIC)
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  Events        Events[]
-  validatedEvents Events[] @relation("EventValidator") // Relação com eventos validados pelo admin
+  id                String                 @id @default(uuid())
+  name              String?
+  email             String?                @unique
+  password          String?
+  emailVerified     Boolean?
+  role              Role                   @default(BASIC)
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  Events            Events[]
+  validatedEvents   Events[]               @relation("EventValidator") // Relação com eventos validados pelo admin
+  bio               String                 @default("")
+  contactUrl        String                 @default("")
+  favorites         Favorite[]
+  notifications     Notification[]
+  subscriptions     PushSubscription[]
+  following         Follow[]               @relation("Follower")
+  followers         Follow[]               @relation("Promoter")
+  registrations     EventRegistration[]
+  eventSeries       EventSeries[]
+  eventReports      EventReport[]          @relation("ReportAuthor")
+  reviewedReports   EventReport[]          @relation("ReportReviewer")
+  communityTeam     CommunityTeamMember[]
+  communityVotes    CommunityVote[]
+  communityTickets  CommunityQueueTicket[]
+  communityClaims   CommunityClaim[]
+  communityFeedback CommunityFeedback[]
+  friendsMembership FriendsRoomMember[]
+  friendsVotes      FriendsVote[]
+  friendsOwned FriendsRoom[]
+  friendsSuggested FriendsSuggestion[]
+  eventChatMessages EventChatMessage[]
+  partyProfiles     PartyProfile[]
+  partyLikesFrom PartyLike[] @relation("PartyLikeFrom")
+  partyLikesTo PartyLike[] @relation("PartyLikeTo")
+  partyBlocksFrom PartyBlock[] @relation("PartyBlockFrom")
+  partyBlocksTo PartyBlock[] @relation("PartyBlockTo")
+  partyMatchesA PartyMatch[] @relation("PartyMatchA")
+  partyMatchesB PartyMatch[] @relation("PartyMatchB")
+  partyMessages PartyMessage[]
+  partyReportsFrom PartyReport[] @relation("PartyReportFrom")
+  partyReportsTo PartyReport[] @relation("PartyReportTo")
 }
 
 enum Role {
@@ -46,29 +77,144 @@ model Account {
 }
 
 model Events {
-  id             String   @id @default(uuid()) 
-  nome           String 
-  banner         String 
-  carrossel      String[] 
-  descricao      String 
-  dataInicio     String  // 🔹 Alterado para data de início
-  dataFim        String  // 🔹 Nova data de término
-  linkParaCompra String 
-  endereco       String 
-  userId         String? 
-  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  validate       Boolean?  @default(false) 
-  validatedBy    String? 
-  validator      User?    @relation("EventValidator", fields: [validatedBy], references: [id], onDelete: SetNull)
-  validatedAt    DateTime? 
+  id                 String                @id @default(uuid())
+  nome               String
+  banner             String
+  carrossel          String[]
+  descricao          String
+  dataInicio         String // 🔹 Alterado para data de início
+  dataFim            String // 🔹 Nova data de término
+  linkParaCompra     String
+  endereco           String
+  userId             String?
+  user               User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  validate           Boolean?              @default(false)
+  validatedBy        String?
+  validator          User?                 @relation("EventValidator", fields: [validatedBy], references: [id], onDelete: SetNull)
+  validatedAt        DateTime?
+  status             EventStatus           @default(PENDING)
+  category           String                @default("Outros")
+  isFree             Boolean               @default(false)
+  priceCents         Int                   @default(0)
+  lat                Float?
+  lng                Float?
+  startTime          String?
+  endTime            String?
+  timezone           String                @default("America/Sao_Paulo")
+  reviewNote         String?
+  views              Int                   @default(0)
+  ticketClicks       Int                   @default(0)
+  updatedAt          DateTime              @default(now()) @updatedAt
+  favorites          Favorite[]
+  metrics            EventMetric[]
+  capacity           Int?
+  registrations      EventRegistration[]
+  recurrenceSeriesId String?
+  recurrenceSeries   EventSeries?          @relation(fields: [recurrenceSeriesId], references: [id], onDelete: SetNull)
+  recurrenceIndex    Int?
+  reports            EventReport[]
+  communityEntries   CommunityEntry[]
+  communityTeam      CommunityTeamMember[]
+  communityFeedback  CommunityFeedback[]
+  friendsSuggestions FriendsSuggestion[]
+  chatMessages       EventChatMessage[]
+  partyProfiles      PartyProfile[]
+  partyMatches       PartyMatch[]
+  partyLikes PartyLike[]
+  partyReports PartyReport[]
 
-  @@map("events") 
+  @@unique([recurrenceSeriesId, recurrenceIndex])
+  @@map("events")
 }
 
 enum EventHistoryAction {
   CREATED
   VALIDATED
   DELETED
+  UPDATED
+  CHANGES_REQUESTED
+  CANCELLED
+  SUBMITTED
+  DUPLICATED
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING
+  CHANGES_REQUESTED
+  PUBLISHED
+  CANCELLED
+  ENDED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+  CHECKED_IN
+}
+
+model EventRegistration {
+  id          String             @id @default(uuid())
+  eventId     String
+  userId      String
+  status      RegistrationStatus @default(CONFIRMED)
+  qrVersion   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  checkedInAt DateTime?
+  event       Events             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId, status, createdAt])
+  @@index([userId, status])
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+model EventSeries {
+  id        String              @id @default(uuid())
+  ownerId   String
+  frequency RecurrenceFrequency
+  interval  Int                 @default(1)
+  count     Int
+  timezone  String
+  createdAt DateTime            @default(now())
+  owner     User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  events    Events[]
+
+  @@index([ownerId, createdAt])
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+model EventReport {
+  id             String       @id @default(uuid())
+  eventId        String
+  reporterId     String
+  reason         String
+  details        String
+  status         ReportStatus @default(PENDING)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  reviewedById   String?
+  reviewedAt     DateTime?
+  resolutionNote String?
+  event          Events       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporter       User         @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer       User?        @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, reporterId])
+  @@index([status, createdAt])
+  @@index([eventId, status])
 }
 
 model EventHistory {
@@ -80,10 +226,72 @@ model EventHistory {
   actorName  String?
   action     EventHistoryAction
   createdAt  DateTime           @default(now())
+  note       String?
 
   // Snapshot IDs keep the audit trail after an event or user is deleted.
   @@index([eventId, createdAt])
   @@index([promoterId, createdAt])
+}
+
+model Favorite {
+  userId          String
+  eventId         String
+  createdAt       DateTime  @default(now())
+  reminderMinutes Int?
+  reminderSentAt  DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event           Events    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([userId, eventId])
+  @@index([eventId])
+}
+
+model Follow {
+  userId     String
+  promoterId String
+  createdAt  DateTime @default(now())
+  user       User     @relation("Follower", fields: [userId], references: [id], onDelete: Cascade)
+  promoter   User     @relation("Promoter", fields: [promoterId], references: [id], onDelete: Cascade)
+
+  @@id([userId, promoterId])
+  @@index([promoterId])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  href      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  pushedAt  DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([pushedAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EventMetric {
+  eventId      String
+  day          String
+  views        Int    @default(0)
+  ticketClicks Int    @default(0)
+  event        Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, day])
 }
 
 model Session {
@@ -109,4 +317,217 @@ model VerificationTokenEmail {
   name      String
   password  String
   createdAt DateTime @default(now())
+}
+
+model CommunityEntry {
+  id        String                 @id @default(uuid())
+  eventId   String
+  kind      String
+  authorId  String
+  data      Json
+  createdAt DateTime               @default(now())
+  event     Events                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  votes     CommunityVote[]
+  tickets   CommunityQueueTicket[]
+  claims    CommunityClaim[]
+
+  @@index([eventId, kind, createdAt])
+}
+
+model CommunityVote {
+  entryId String
+  userId  String
+  option  Int
+  entry   CommunityEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, userId])
+}
+
+model CommunityQueueTicket {
+  id        String         @id @default(uuid())
+  entryId   String
+  userId    String
+  status    String         @default("WAITING")
+  createdAt DateTime       @default(now())
+  entry     CommunityEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, userId])
+  @@index([entryId, status, createdAt])
+}
+
+model CommunityTeamMember {
+  eventId String
+  userId  String
+  event   Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+}
+
+model CommunityClaim {
+  id       String         @id @default(uuid())
+  entryId  String
+  userId   String
+  message  String
+  resolved Boolean        @default(false)
+  entry    CommunityEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, userId])
+}
+
+model CommunityFeedback {
+  eventId String
+  userId  String
+  rating  Int
+  comment String
+  event   Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+}
+
+model FriendsRoom {
+  id          String              @id @default(uuid())
+  name        String
+  ownerId     String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+  members     FriendsRoomMember[]
+  suggestions FriendsSuggestion[]
+}
+
+model FriendsRoomMember {
+  roomId String
+  userId String
+  room   FriendsRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+}
+
+model FriendsSuggestion {
+  id       String        @id @default(uuid())
+  roomId   String
+  eventId  String
+  authorId String
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  room     FriendsRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  event    Events        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  votes    FriendsVote[]
+
+  @@unique([roomId, eventId])
+}
+
+model FriendsVote {
+  suggestionId String
+  userId       String
+  suggestion   FriendsSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([suggestionId, userId])
+}
+
+model CommunitySignal {
+  id        Int      @id @default(autoincrement())
+  room      String
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+
+  @@index([createdAt])
+  @@index([deliveredAt, id])
+}
+
+model EventChatMessage {
+  id        Int      @id @default(autoincrement())
+  eventId   String
+  authorId  String
+  clientId  String
+  text      String
+  createdAt DateTime @default(now())
+  event     Events   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, authorId, clientId])
+  @@index([eventId, id])
+  @@index([authorId, createdAt])
+}
+
+model PartyProfile {
+  eventId String
+  userId String
+  active Boolean @default(true)
+  displayName String
+  photoUrl String @default("")
+  bio String @default("")
+  interests String[]
+  intent String
+  adultDeclared Boolean @default(false)
+  updatedAt DateTime @default(now()) @updatedAt
+  event Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([eventId, userId])
+}
+model PartyLike {
+  eventId String
+  fromId String
+  toId String
+  createdAt DateTime @default(now())
+  event Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  from User @relation("PartyLikeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to User @relation("PartyLikeTo", fields: [toId], references: [id], onDelete: Cascade)
+  @@id([eventId, fromId, toId])
+  @@index([fromId, createdAt])
+}
+model PartyMatch {
+  id String @id @default(uuid())
+  eventId String
+  userAId String
+  userBId String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  event Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userA User @relation("PartyMatchA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("PartyMatchB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages PartyMessage[]
+  @@unique([eventId, userAId, userBId])
+}
+model PartyBlock {
+  fromId String
+  toId String
+  from User @relation("PartyBlockFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to User @relation("PartyBlockTo", fields: [toId], references: [id], onDelete: Cascade)
+  @@id([fromId, toId])
+}
+model PartyMessage {
+  id Int @id @default(autoincrement())
+  matchId String
+  authorId String
+  clientId String
+  text String
+  createdAt DateTime @default(now())
+  match PartyMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  @@unique([matchId, authorId, clientId])
+  @@index([matchId, id])
+  @@index([authorId, createdAt])
+}
+model PartyReport {
+  id String @id @default(uuid())
+  eventId String
+  reporterId String
+  targetId String
+  reason String
+  evidence String?
+  status String @default("PENDING")
+  reviewerId String?
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  event Events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporter User @relation("PartyReportFrom", fields: [reporterId], references: [id], onDelete: Cascade)
+  target User @relation("PartyReportTo", fields: [targetId], references: [id], onDelete: Cascade)
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
 }

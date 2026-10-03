@@ -1,62 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { roles, roleRoutes, publicRoutes } from "./roles";
+import { canAccessPath, getSessionRole, isPublicPath } from "@/lib/authPolicy";
 
-type Role = keyof typeof roles;
+export async function middleware(request: NextRequest) {
+  const token = await getToken({ req: request });
+  const pathname = request.nextUrl.pathname;
+  const role = getSessionRole(token ? { id: token.id, role: token.role, provider: token.provider } : null);
 
-export async function middleware(req: NextRequest) {
-  const token = await getToken({ req });
-  const { pathname } = req.nextUrl;
+  if (isPublicPath(pathname)) return NextResponse.next();
 
-  // Avoid logging token or sensitive auth artifacts
-  console.log("Request Pathname:", pathname);
-
-  // Define role como GUEST se não houver token
-  const devSessionDisabled = token?.provider === "dev-admin" &&
-    (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true");
-  const userRole: Role = devSessionDisabled ? "GUEST" : (token?.role as Role) || roles.GUEST;
-  console.log("User Role:", userRole);
-
-  // Verifica se a rota é pública
-  const isPublicRoute = publicRoutes.includes(pathname);
-
-  // Se for uma rota pública, permite o acesso
-  if (isPublicRoute) {
-    console.log("Public route accessed:", pathname);
-    return NextResponse.next();
-  }
-
-  // Verifica se é uma rota restrita a GUEST
   if (pathname === "/login" || pathname === "/register") {
-    if (userRole !== roles.GUEST) {
-      console.log("Authenticated user trying to access GUEST-only route:", pathname);
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-    console.log("GUEST accessing allowed route:", pathname);
-    return NextResponse.next();
+    return role === "GUEST"
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Se o token estiver ausente, redireciona para /login
-  if (!token || devSessionDisabled) {
-    console.log("No token found, redirecting to login");
-    return NextResponse.redirect(new URL("/login", req.url));
+  if (role === "GUEST") {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Busca as rotas permitidas com base na role
-  const allowedRoutes = roleRoutes[userRole] || [];
-  console.log("Allowed Routes for Role:", allowedRoutes);
-
-  // Redireciona para a página inicial se a rota não for permitida
-  if (!allowedRoutes.includes(pathname)) {
-    console.log("Access denied to route:", pathname);
-    return NextResponse.redirect(new URL("/", req.url));
-  }
-
-  console.log("Access granted to route:", pathname);
-  return NextResponse.next();
+  return canAccessPath(role, pathname)
+    ? NextResponse.next()
+    : NextResponse.redirect(new URL("/", request.url));
 }
 
 export const config = {
-  // Limit middleware to protected application routes only; avoid applying on static/assets
-  matcher: ["/admin", "/Profile", "/CriarEvento", "/myEvents", "/login", "/register"],
+  matcher: ["/admin", "/admin/conexoes-denuncias", "/Profile", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes", "/atividade", "/salas/:path*", "/eventos/:path*", "/login", "/register"],
 };

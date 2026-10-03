@@ -5,14 +5,18 @@ import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { DateRangePicker } from "@heroui/react";
-import { getLocalTimeZone, today } from "@internationalized/date";
+import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
 import { Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
-import { salvarEvento } from "@/app/(actions)/eventos/actions";
+import { atualizarEvento, salvarEvento, salvarRascunho } from "@/app/(actions)/eventos/actions";
+import { criarSerieRecorrente } from "@/app/(actions)/eventos/recurrence";
+import type { Evento } from "@/types";
+import { eventCategories } from "@/types/features";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
@@ -22,9 +26,15 @@ type EventoFormData = {
   descricao: string;
   LinkParaCompraIngresso: string;
   endereco: string;
+  category: string;
+  price: string;
+  capacity: string;
+  isFree: boolean;
+  startTime: string;
+  endTime: string;
 };
 
-type EventDate = { toString: () => string; compare: (other: EventDate) => number };
+type EventDate = ReturnType<typeof parseDate>;
 type EventDateRange = { start: EventDate; end: EventDate };
 
 const sectionClass = "rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7";
@@ -32,12 +42,14 @@ const descriptionOutline = "O que vai acontecer:\n\nPara quem é o evento:\n\nPr
 const hasUsefulDescription = (value: string) =>
   value.replace(/O que vai acontecer:|Para quem é o evento:|Programação e atrações:|Informações de entrada:/gi, "").trim().length >= 10;
 
-export function EventoForm({ className, ...props }: React.ComponentPropsWithoutRef<"form">) {
+type EventoFormProps = React.ComponentPropsWithoutRef<"form"> & { initialEvent?: Evento };
+
+export function EventoForm({ className, initialEvent, ...props }: EventoFormProps) {
   const socket = useSocket();
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: "", descricao: "", LinkParaCompraIngresso: "", endereco: "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
   });
   const { data } = useCurrentUser();
   const router = useRouter();
@@ -50,18 +62,33 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
   const [banner, setBanner] = useState<File | null>(null);
   const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  const [dateRange, setDateRange] = useState<EventDateRange | null>(null);
+  const [dateRange, setDateRange] = useState<EventDateRange | null>(() => {
+    try {
+      return initialEvent?.dataInicio && initialEvent?.dataFim ? { start: parseDate(initialEvent.dataInicio.slice(0, 10)), end: parseDate(initialEvent.dataFim.slice(0, 10)) } : null;
+    } catch { return null; }
+  });
   const [dateError, setDateError] = useState("");
+  const [recurrence, setRecurrence] = useState<"none" | "WEEKLY" | "MONTHLY">("none");
+  const [repeatEvery, setRepeatEvery] = useState(1);
+  const [occurrences, setOccurrences] = useState(4);
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
+  const saveMode = useRef<"draft" | "submit">("submit");
+  const allValues = form.watch();
+  const fingerprint = JSON.stringify({ values: allValues, dates: dateRange && [dateRange.start.toString(), dateRange.end.toString()], coordinates, recurrence, repeatEvery, occurrences });
+  const initialFingerprint = useRef(fingerprint);
+  const unsaved = useUnsavedChanges(fingerprint !== initialFingerprint.current || !!banner || galleryFiles.length > 0);
 
   const nome = form.watch("nome");
   const descricao = form.watch("descricao");
   const endereco = form.watch("endereco");
   const link = form.watch("LinkParaCompraIngresso");
+  const isFree = form.watch("isFree");
+  const category = form.watch("category");
   const checklist = [
     { label: "Nome e descrição", ready: nome.trim().length >= 3 && hasUsefulDescription(descricao) },
     { label: "Data e local", ready: Boolean(dateRange?.start && dateRange?.end && endereco.trim().length >= 3) },
-    { label: "Ingresso e banner", ready: /^https?:\/\/[^\s]+\.[^\s]+$/i.test(link.trim()) && Boolean(banner) },
+    { label: "Ingresso e banner", ready: /^https?:\/\/[^\s]+\.[^\s]+$/i.test(link.trim()) && Boolean(banner || initialEvent?.banner) && Boolean(category) },
   ];
   const completeCount = checklist.filter((item) => item.ready).length;
 
@@ -88,11 +115,28 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
   };
 
   const onSubmit = (values: EventoFormData) => {
-    if (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0) {
+    const draft = saveMode.current === "draft";
+    if (!draft && (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0)) {
       setDateError("Escolha uma data de início e uma data de fim válidas.");
       return;
     }
-    if (!banner) {
+    if (!initialEvent && recurrence !== "none") {
+      if (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0) {
+        setDateError("Escolha as datas do primeiro evento para criar a série.");
+        return;
+      }
+      if (!Number.isInteger(repeatEvery) || repeatEvery < 1 || repeatEvery > 4 || !Number.isInteger(occurrences) || occurrences < 2 || occurrences > 52) {
+        toast.error("Escolha entre 2 e 52 edições e um intervalo de 1 a 4.");
+        return;
+      }
+      const totalMonths = recurrence === "MONTHLY" ? repeatEvery * (occurrences - 1) : 0;
+      const totalDays = recurrence === "WEEKLY" ? repeatEvery * 7 * (occurrences - 1) : 0;
+      if (totalMonths > 12 || totalDays > 365) {
+        toast.error("A série deve terminar dentro de um ano. Reduza o intervalo ou o número de edições.");
+        return;
+      }
+    }
+    if (!draft && !banner && !initialEvent?.banner) {
       toast.error("Adicione o banner principal antes de enviar.");
       bannerInputRef.current?.focus();
       return;
@@ -107,36 +151,68 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
         const payload = new FormData();
         payload.append("nome", values.nome.trim());
         payload.append("descricao", values.descricao.trim());
-        payload.append("dataInicio", dateRange.start.toString());
-        payload.append("dataFim", dateRange.end.toString());
+        payload.append("dataInicio", dateRange?.start.toString() ?? "");
+        payload.append("dataFim", dateRange?.end.toString() ?? "");
         payload.append("LinkParaCompraIngresso", values.LinkParaCompraIngresso.trim());
         payload.append("endereco", values.endereco.trim());
-        payload.append("banner", banner);
+        payload.append("category", values.category);
+        payload.append("isFree", String(values.isFree));
+        payload.append("priceCents", values.isFree ? "0" : String(Math.round(Number(values.price.replace(",", ".")) * 100)));
+        payload.append("capacity", values.capacity.trim());
+        payload.append("startTime", values.startTime);
+        payload.append("endTime", values.endTime);
+        if (coordinates) {
+          payload.append("lat", String(coordinates.lat));
+          payload.append("lng", String(coordinates.lng));
+        }
+        if (banner) payload.append("banner", banner);
         galleryFiles.forEach((file) => payload.append("carrossel", file));
 
-        const result = await salvarEvento(payload, data.id);
+        const result = initialEvent
+          ? await atualizarEvento(initialEvent.id, payload, !draft)
+          : draft ? await salvarRascunho(payload, data.id) : await salvarEvento(payload, data.id);
         if (!result.success) {
-          toast.error(result.message || "Não foi possível enviar o evento. Tente novamente.");
+          toast.error(result.message || "Não foi possível salvar o evento. Tente novamente.");
           return;
         }
-        toast.success("Evento enviado para validação com sucesso!");
+        unsaved.markSaved();
+        if (!initialEvent && recurrence !== "none") {
+          if (!result.evento?.id) {
+            toast.error("O evento foi salvo, mas não foi possível criar a série. Consulte Meus eventos.");
+            router.push("/myEvents");
+            return;
+          }
+          const series = await criarSerieRecorrente(result.evento.id, {
+            frequency: recurrence,
+            interval: repeatEvery,
+            count: occurrences,
+          });
+          if (!series.success) {
+            toast.error(`O primeiro evento foi salvo, mas as repetições não foram criadas: ${series.message}`);
+            router.push("/myEvents");
+            return;
+          }
+          toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados para análise"}.`);
+        } else {
+          toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
+        }
         socket.emit("create-event");
-        form.reset();
-        removeBanner();
-        galleryUrlsRef.current.forEach(URL.revokeObjectURL);
-        galleryUrlsRef.current = [];
-        setGalleryUrls([]);
-        setGalleryFiles([]);
         router.push("/myEvents");
       } catch {
-        toast.error("Não foi possível enviar o evento. Tente novamente.");
+        toast.error("Não foi possível salvar o evento. Tente novamente.");
       }
     });
   };
 
+  const handleDraft = () => {
+    saveMode.current = "draft";
+    onSubmit(form.getValues());
+  };
+
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
+      {unsaved.dialog}
+      <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           <section className={sectionClass} aria-labelledby="event-details-title">
             <SectionHeading number="01" title="Apresente o evento" description="Ajude as pessoas a entender o que vai acontecer e por que participar." id="event-details-title" />
@@ -160,6 +236,9 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
                   <FormMessage />
                 </FormItem>
               )} />
+              <FormField name="category" rules={{ required: "Escolha uma categoria." }} render={({ field }) => (
+                <FormItem><FormLabel>Categoria <Required /></FormLabel><FormControl><select {...field} className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Selecione uma categoria</option>{eventCategories.map((option) => <option key={option} value={option}>{option}</option>)}</select></FormControl><FormMessage /></FormItem>
+              )} />
             </div>
           </section>
 
@@ -181,6 +260,31 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
                 <p className="mt-2 text-sm text-muted-foreground">Para um evento de um dia, selecione a mesma data no início e no fim.</p>
                 {dateError && <p role="alert" className="mt-2 text-sm text-destructive">{dateError}</p>}
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField name="startTime" render={({ field }) => <FormItem><FormLabel>Horário de início</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField name="endTime" render={({ field }) => <FormItem><FormLabel>Horário de término</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
+              </div>
+              {!initialEvent && <fieldset className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+                <legend className="px-1 text-sm font-semibold">Repetir este evento</legend>
+                <p className="text-sm text-muted-foreground">Crie outras datas com o mesmo local, horário e informações. Cada edição poderá ser revisada separadamente.</p>
+                <label htmlFor="event-recurrence" className="block text-sm font-medium">Frequência</label>
+                <select id="event-recurrence" value={recurrence} onChange={(event) => setRecurrence(event.target.value as typeof recurrence)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <option value="none">Não repetir</option>
+                  <option value="WEEKLY">Toda semana</option>
+                  <option value="MONTHLY">Todo mês</option>
+                </select>
+                {recurrence !== "none" && <div className="grid gap-4 sm:grid-cols-2">
+                  <label htmlFor="event-repeat-every" className="grid gap-2 text-sm font-medium">Repetir a cada
+                    <select id="event-repeat-every" value={repeatEvery} onChange={(event) => setRepeatEvery(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {[1, 2, 3, 4].map((interval) => <option key={interval} value={interval}>{interval} {recurrence === "WEEKLY" ? interval === 1 ? "semana" : "semanas" : interval === 1 ? "mês" : "meses"}</option>)}
+                    </select>
+                  </label>
+                  <label htmlFor="event-occurrences" className="grid gap-2 text-sm font-medium">Número de edições
+                    <input id="event-occurrences" type="number" min={2} max={52} step={1} value={occurrences} onChange={(event) => setOccurrences(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                  </label>
+                  <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
+                </div>}
+              </fieldset>}
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
                   <span className="block text-sm font-medium">Endereço <Required /></span>
@@ -190,10 +294,10 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
                           className="w-full overflow-visible rounded-xl border border-input bg-background"
                           placeholder="Busque o endereço ou nome do local"
                           ariaLabel="Buscar endereço do evento"
-                          onPlaceSelect={({ address }) => field.onChange(address)}
+                          onPlaceSelect={({ address, lat, lng }) => { field.onChange(address); setCoordinates({ lat, lng }); }}
                         />
                       ) : (
-                        <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} />
+                        <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} onChange={(event) => { field.onChange(event); setCoordinates(null); }} />
                       )}
                       {mapsLoaded && (
                         <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
@@ -212,6 +316,9 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
           <section className={sectionClass} aria-labelledby="event-tickets-title">
             <SectionHeading number="03" title="Ingresso e imagens" description="Indique para onde o visitante deve ir e escolha uma imagem que represente o evento." id="event-tickets-title" />
             <div className="space-y-6">
+              <FormField name="capacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma capacidade inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Vagas para confirmação <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Ao preencher todas as vagas, novas pessoas entram na lista de espera. Deixe vazio para aceitar confirmações sem limite.</FormDescription><FormMessage /></FormItem>} />
+              <FormField name="isFree" render={({ field }) => <FormItem><div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-4"><input id="event-free" type="checkbox" checked={field.value} onChange={(event) => field.onChange(event.target.checked)} className="h-5 w-5 accent-primary" /><label htmlFor="event-free" className="cursor-pointer text-sm font-medium">Evento gratuito</label></div><FormDescription>Desmarque para informar o preço inicial do ingresso.</FormDescription></FormItem>} />
+              {!isFree && <FormField name="price" rules={{ required: "Informe o preço do ingresso.", validate: (value) => Number.isFinite(Number(value.replace(",", "."))) && Number(value.replace(",", ".")) >= 0 || "Informe um preço válido." }} render={({ field }) => <FormItem><FormLabel>Preço inicial (R$) <Required /></FormLabel><FormControl><Input inputMode="decimal" placeholder="Ex.: 25,00" {...field} /></FormControl><FormMessage /></FormItem>} />}
               <FormField name="LinkParaCompraIngresso" rules={{ required: "Informe o link de ingressos.", pattern: { value: /^https?:\/\/[^\s]+\.[^\s]+$/i, message: "Use um link completo e válido começando com https://." } }} render={({ field }) => (
                 <FormItem>
                   <FormLabel>Link de ingressos <Required /></FormLabel>
@@ -232,7 +339,7 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
                   setBanner(file);
                 }} />
                 <p id="event-banner-help" className="mt-2 text-sm text-muted-foreground">Escolha uma imagem horizontal, nítida e com o assunto principal visível.</p>
-                {bannerUrl && <div className="relative mt-3 overflow-hidden rounded-xl border border-border"><img src={bannerUrl} alt="Prévia do banner selecionado" className="aspect-[16/9] w-full object-cover" /><button type="button" onClick={removeBanner} aria-label="Remover banner" className="absolute right-3 top-3 rounded-full bg-background p-2 text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>}
+                {(bannerUrl || initialEvent?.banner) && <div className="relative mt-3 overflow-hidden rounded-xl border border-border"><img src={bannerUrl || initialEvent?.banner} alt="Prévia do banner selecionado" className="aspect-[16/9] w-full object-cover" />{bannerUrl && <button type="button" onClick={removeBanner} aria-label="Remover banner" className="absolute right-3 top-3 rounded-full bg-background p-2 text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button>}</div>}
               </div>
               <div>
                 <label htmlFor="event-gallery" className="mb-2 block text-sm font-medium">Mais fotos <span className="font-normal text-muted-foreground">(opcional)</span></label>
@@ -252,7 +359,7 @@ export function EventoForm({ className, ...props }: React.ComponentPropsWithoutR
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
             <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>
-            <Button type="submit" disabled={isPending} className="mt-5 w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para validação"}</Button>
+            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para análise"}</Button></div>
           </div>
         </div>
 

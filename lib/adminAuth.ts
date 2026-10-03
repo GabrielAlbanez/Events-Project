@@ -2,21 +2,24 @@ import { headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
+import { isDevelopmentIdentityDisabled } from "@/lib/authPolicy";
+import { credentialSessionValid } from "@/lib/auth/sessionCredential";
 
 export async function getAuthenticatedUser(request?: NextRequest) {
   const authRequest = request ?? new NextRequest("http://localhost", { headers: headers() });
   const token = await getToken({ req: authRequest, secret: process.env.NEXTAUTH_SECRET });
 
   if (typeof token?.id !== "string" || !token.id) return null;
-  if (token.provider === "dev-admin" &&
-    (process.env.NODE_ENV !== "development" || process.env.DEV_AUTO_LOGIN_ADMIN !== "true")) {
+  if (isDevelopmentIdentityDisabled(token.provider)) {
     return null;
   }
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: token.id },
-    select: { id: true, role: true },
+    select: { id: true, role: true, password: true },
   });
+  if (!user || !credentialSessionValid(token.provider, token.credentialStamp, user.password)) return null;
+  return { id: user.id, role: user.role };
 }
 
 export async function getAuthenticatedAdminId(request?: NextRequest): Promise<string | null> {

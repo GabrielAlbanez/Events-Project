@@ -1,120 +1,15 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
-import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Checkbox,
-  Button,
-  Chip,
-  Tooltip,
-} from "@heroui/react";
-import ModalEventsValidate from "@/components/MyComponents/ModalEventsValidate";
-import { toast } from "react-toastify";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { CalendarDays, MapPin } from "lucide-react";
 import { Evento } from "@/types";
-
-interface TableEventsProps {
-  events: Evento[];
-  adminId: string;
-  role?: string | null;
+export function EventCards({ events }: { events: Evento[] }) {
+  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{events.map(event => <article key={event.id} className="overflow-hidden rounded-2xl border bg-card shadow-sm"><Link href={'/eventos/' + event.id} className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><div className="aspect-video bg-primary/10">{event.banner && <img src={event.banner} alt="" loading="lazy" className="h-full w-full object-cover" />}</div><div className="space-y-3 p-5"><p className="flex items-center gap-2 text-xs font-semibold text-primary"><CalendarDays className="h-4 w-4" />{event.dataInicio}{event.startTime ? ' · ' + event.startTime : ''}</p>{event.status === "CANCELLED" && <p className="text-sm font-semibold text-destructive">Evento cancelado</p>}{event.status === "ENDED" && <p className="text-sm text-muted-foreground">Evento encerrado</p>}<h2 className="line-clamp-2 text-xl font-semibold">{event.nome}</h2><p className="line-clamp-2 text-sm text-muted-foreground">{event.descricao}</p><p className="flex items-start gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4 shrink-0" />{event.endereco}</p><p className="text-sm font-medium">{event.isFree ? "Gratuito" : event.priceCents != null && event.priceCents > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(event.priceCents / 100) : "Consulte os ingressos"}</p><span className="inline-block text-sm font-semibold text-primary">Ver detalhes →</span></div></Link></article>)}</div>;
 }
-
-const TableEventsClient: React.FC<TableEventsProps> = ({
-  events,
-  adminId,
-  role,
-}) => {
-  const [eventList, setEventList] = useState<Evento[]>(events); // Estado local dos eventos
-  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
-  const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  console.log("Eventos recebidos no CardEvents:", events);
-
-  // Atualizar estado quando eventos forem alterados
-  useEffect(() => {
-    setEventList(events);
-  }, [events]);
-
-  // Gerenciar seleção de eventos
-
-  // Abrir modal para ver detalhes
-  const handleSeeMore = (event: Evento) => {
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
-
-  // Fechar modal
-  const handleCloseModal = () => {
-    setSelectedEvent(null);
-    setIsModalOpen(false);
-  };
-
-  // Caso não haja eventos para exibir
-  if (eventList.length === 0) {
-    return (
-      <div className="flex h-[90vh] w-full items-center justify-center">
-        <h1 className="text-gray-600">Nenhum evento foi criado ainda...</h1>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6">
-      {eventList.some((event) => event.validate) ? (
-        <Table aria-label="Event management table">
-          <TableHeader>
-            <TableColumn align="start">Nome do Evento</TableColumn>
-            <TableColumn align="start">Endereço</TableColumn>
-            <TableColumn align="center">Ações</TableColumn>
-          </TableHeader>
-          <TableBody>
-            {eventList
-              .filter((event) => event.validate) // Filtra apenas eventos validados
-              .map((event) => (
-                <TableRow key={event.id}>
-                  {/* Nome do evento */}
-                  <TableCell>{event.nome}</TableCell>
-                  {/* Endereço do evento */}
-                  <TableCell>{event.endereco}</TableCell>
-                  {/* Ações individuais */}
-                  <TableCell align="center">
-                    <div className="flex gap-2 justify-center">
-                      <Tooltip content="Ver Detalhes">
-                        <Button
-                          color="primary"
-                          size="sm"
-                          onPress={() => handleSeeMore(event)}
-                        >
-                          Detalhes
-                        </Button>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className="text-center text-gray-500 text-lg">
-          Nenhum evento validado disponível.
-        </div>
-      )}
-
-      {selectedEvent && (
-        <ModalEventsValidate
-          event={selectedEvent}
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          role={role}
-        />
-      )}
-    </div>
-  );
-};
-
-export default TableEventsClient;
+export default function TableEventsClient({ events }: { events: Evento[]; adminId?: string; role?: string | null }) {
+  const [mode, setMode] = useState<'cards' | 'calendar'>('cards');
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const published = events.filter(event => event.validate && event.status !== 'CANCELLED');
+  const grouped = useMemo(() => { const groups = new Map<string, Evento[]>(); published.filter(event => event.dataInicio.slice(0,7) === month).sort((a,b) => a.dataInicio.localeCompare(b.dataInicio)).forEach(event => groups.set(event.dataInicio, [...(groups.get(event.dataInicio) ?? []), event])); return Array.from(groups.entries()); }, [published, month]);
+  return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><div role="group" aria-label="Visualização de eventos" className="flex gap-2">{(['cards','calendar'] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={"min-h-11 rounded-xl border px-4 text-sm font-semibold " + (mode === value ? "bg-primary text-primary-foreground" : "bg-card")}>{value === 'cards' ? 'Eventos' : 'Calendário'}</button>)}</div>{mode === 'calendar' && <label className="flex items-center gap-2 text-sm">Mês<input type="month" value={month} onChange={e => setMonth(e.target.value)} className="min-h-11 rounded-xl border bg-background px-3" /></label>}</div>{published.length === 0 ? <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Nenhum evento encontrado. Experimente outros filtros.</p> : mode === 'cards' ? <EventCards events={published} /> : grouped.length === 0 ? <p className="p-8 text-center text-muted-foreground">Nenhum evento neste mês.</p> : <ol className="space-y-5">{grouped.map(([day,items]) => <li key={day} className="rounded-2xl border bg-card p-5"><h2 className="mb-3 font-semibold text-primary">{new Intl.DateTimeFormat('pt-BR',{dateStyle:'full'}).format(new Date(day+'T12:00:00'))}</h2><ul className="divide-y">{items.map(event => <li key={event.id}><Link href={'/eventos/'+event.id} className="flex min-h-14 flex-wrap items-center justify-between gap-2 py-3 hover:text-primary"><span className="font-medium">{event.nome}</span><span className="text-sm text-muted-foreground">{event.startTime || 'Horário a confirmar'} · Ver evento →</span></Link></li>)}</ul></li>)}</ol>}</section>;
+}

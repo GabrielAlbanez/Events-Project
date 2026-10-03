@@ -1,7 +1,9 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { notifyEventAudience } from "@/lib/eventNotifications";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
+import { reconcileEventWaitlist } from "@/lib/services/attendance";
 
 export async function validateEvents(eventIds: string[], adminId: string) {
   // Verifique se o usuário é um ADMIN
@@ -29,10 +31,12 @@ export async function validateEvents(eventIds: string[], adminId: string) {
       const changed = await transaction.events.updateMany({
         where: {
           id: event.id,
-          OR: [{ validate: false }, { validate: null }],
+          status: "PENDING",
         },
         data: {
           validate: true,
+          status: "PUBLISHED",
+          reviewNote: null,
           validatedBy: adminId,
           validatedAt,
         },
@@ -50,14 +54,18 @@ export async function validateEvents(eventIds: string[], adminId: string) {
           createdAt: validatedAt,
         },
       });
+      await notifyEventAudience(transaction, { ...event, status: "PUBLISHED" }, { title: "Evento publicado", message: event.nome + " foi aprovado e está disponível no EventMap.", includeFollowers: true });
       changedIds.push(event.id);
     }
     return changedIds;
   });
 
+  const reconciled = await Promise.allSettled(validatedEventIds.map(id => reconcileEventWaitlist(id)));
+  const failedReconciliations = reconciled.filter(result => result.status === "rejected").length;
+
   return {
     status: "success",
-    message: `${validatedEventIds.length} evento(s) validado(s) com sucesso.`,
+    message: `${validatedEventIds.length} evento(s) validado(s) com sucesso.${failedReconciliations ? " Algumas listas de espera não foram atualizadas; tente novamente ao gerenciar as inscrições." : ""}`,
     validatedEventIds,
   };
 }

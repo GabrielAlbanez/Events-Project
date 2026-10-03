@@ -1,28 +1,14 @@
-import { getAllUsers } from '@/app/(actions)/getAllUsers/action';
-import { getAuthenticatedAdminId } from '@/lib/adminAuth';
-import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedAdminId } from "@/lib/adminAuth";
+import { getAdminUsersPage } from "@/lib/services/adminPagination";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
-
-
-type ResponseData = {
-  status: string;
-  data?: any;
-  message?: string;
-  error?: string;
-}
-
-export async function GET(
-  req: NextRequest,
-  res: NextResponse<ResponseData>
-) {
-  if (req.method === 'GET') {
-    if (!await getAuthenticatedAdminId(req)) {
-      return NextResponse.json({ status: 'error', message: 'Acesso negado.' }, { status: 403 });
-    }
-    const result = await getAllUsers();
-    return NextResponse.json(result, { status: 200 });
-  } else {
-    return NextResponse.json({ status: 'error', message: 'Method not allowed' }, { status: 405 });
-  }
+export const dynamic = "force-dynamic";
+export async function GET(request: NextRequest) {
+  try {
+    const result = await getAdminUsersPage(() => getAuthenticatedAdminId(request), {
+      page: Number(request.nextUrl.searchParams.get("page") || 1),
+      q: request.nextUrl.searchParams.get("q") || "", role: request.nextUrl.searchParams.get("role") || "all",
+    });
+    return NextResponse.json(result, { status: result.status === "success" ? 200 : 403, headers: { "Cache-Control": "no-store" } });
+  } catch { return NextResponse.json({ status: "error", message: "Não foi possível carregar os usuários." }, { status: 503 }); }
 }
