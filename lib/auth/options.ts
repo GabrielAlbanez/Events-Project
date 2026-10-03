@@ -7,6 +7,7 @@ import GoogleProvider from "next-auth/providers/google";
 
 declare module "next-auth" {
   interface Session {
+    error?: "AccountRemoved" | "SessionUnavailable";
     user: {
       id: string;
       name: string | null;
@@ -116,7 +117,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account }) {
       // Se for um novo login ou atualização de credenciais, adiciona os dados do usuário
       if (user) {
         token.id = user.id;
@@ -132,11 +133,12 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Se o trigger for "update", busca os dados do banco de dados
-      if (trigger === "update") {
+      // Every session read must verify that the JWT still belongs to a live account.
+      if (typeof token.id === "string" && token.id && token.provider !== "dev-admin") {
         try {
           const updatedUser = await prisma.user.findUnique({
-            where: { id: token.id as string }, // Usa o ID do token para buscar os dados atualizados
+            where: { id: token.id },
+            select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true },
           });
 
           if (updatedUser) {
@@ -145,10 +147,13 @@ export const authOptions: NextAuthOptions = {
             token.image = updatedUser.image;
             token.emailVerified = updatedUser.emailVerified;
             token.role = updatedUser.role;
-
+            delete token.error;
+          } else {
+            token = { error: "AccountRemoved" };
           }
-        } catch (error) {
-          console.error("Erro ao atualizar dados do usuário no token:", error);
+        } catch {
+          // Fail closed without exposing database details or treating an outage as a ban.
+          token = { error: "SessionUnavailable" };
         }
       }
 
@@ -163,8 +168,9 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      session.error = token.error === "AccountRemoved" || token.error === "SessionUnavailable" ? token.error : undefined;
       session.user = {
-        id: token.id as string,
+        id: typeof token.id === "string" ? token.id : "",
         name: token.name || null,
         email: token.email || null,
         provider : typeof token.provider === 'string' ? token.provider : null,

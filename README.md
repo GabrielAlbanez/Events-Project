@@ -4,9 +4,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 Para iniciar o Next.js e o Socket.IO juntos:
 
+A **Central de atividades** em `/atividade` reúne filas, tarefas, inscrições e salas da conta, com atualizações em tempo real. Consulte [o guia de uso e testes](docs/activity.md).
+
 ```bash
 npm install
 npm run prisma:generate
+npx prisma migrate deploy
 npm run dev:socket
 ```
 
@@ -172,7 +175,16 @@ ao organizador autenticado.
 
 ## Organização do código
 
+Consulte [o diagnóstico de performance](docs/performance.md) para medições,
+otimizações aplicadas, reversão e uso de `npm run analyze`.
+
 Consulte [a arquitetura](docs/architecture.md) para responsabilidades, dependências e orientação para novas funcionalidades.
+
+Consulte [comunidade e colaboração em tempo real](docs/community.md) para perguntas,
+enquetes, programação, filas, equipe, achados e perdidos, avaliações e salas de amigos.
+
+Consulte [chat e Conexões da festa](docs/event-chat.md) para conversas por evento,
+descoberta opcional, matches privados, moderação e configuração do banco.
 
 ### Verificações de segurança e notificações
 

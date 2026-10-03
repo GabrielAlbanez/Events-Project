@@ -34,9 +34,12 @@ const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarCheck },
   { label: "Minha agenda", href: "/salvos", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
+  { label: "Central de atividades", href: "/atividade", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER", "BASIC"] },
+  { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Criar evento", href: "/CriarEvento", icon: CalendarPlus, roles: ["ADMIN", "PROMOTER"] },
   { label: "Meus eventos", href: "/myEvents", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
   { label: "Usuários", href: "/admin", icon: UsersRound, roles: ["ADMIN"] },
+  { label: "Revisar denúncias", href: "/admin/conexoes-denuncias", icon: UsersRound, roles: ["ADMIN"] },
   { label: "Resultados", href: "/resultados", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
   { label: "Notificações", href: "/notificacoes", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Meu perfil", href: "/Profile", icon: UserRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
@@ -80,7 +83,7 @@ export function AppSidebar() {
         <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Navegação</p>
         <SidebarMenu className="gap-1.5">
           {visibleItems.map(({ label, href, icon: Icon }) => {
-            const active = href === "/" ? pathname === href : pathname.startsWith(href);
+            const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-zinc-600 transition-all duration-200 hover:translate-x-0.5 hover:bg-violet-50 hover:text-violet-700 data-[active=true]:bg-gradient-to-r data-[active=true]:from-violet-700 data-[active=true]:to-indigo-700 data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-violet-700/20 dark:text-zinc-300 dark:hover:bg-violet-400/10">
@@ -104,6 +107,10 @@ export function AppSidebar() {
       )}
 
       <div className="border-t border-zinc-100 bg-zinc-50/60 p-4 dark:border-white/10 dark:bg-white/[.02]">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Aparência</span>
+          <ThemeSwitcher />
+        </div>
         {authenticatedUser ? (
           <>
             <div className="flex items-center gap-3 rounded-2xl border border-zinc-200/70 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
@@ -112,7 +119,6 @@ export function AppSidebar() {
                 <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
                 <p className="truncate text-xs text-zinc-500">{authenticatedUser.email}</p>
               </div>
-              <ThemeSwitcher />
             </div>
             <LogoutButton />
           </>

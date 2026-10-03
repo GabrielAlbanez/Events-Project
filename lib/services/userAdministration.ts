@@ -59,8 +59,16 @@ export async function deleteUser(user: User, resolveAdminId: ResolveAdminId) {
     return { status: "error", message: "Este usuário não pode ser excluído." };
   }
 
-  const deletedUser = await prisma.user.deleteMany({
-    where: { id, role: { not: "ADMIN" } },
+  const deletedUser = await prisma.$transaction(async tx => {
+    const deleted = await tx.user.deleteMany({
+      where: { id, role: { not: "ADMIN" } },
+    });
+    if (deleted.count > 0) {
+      // The signal has no user foreign key, so it survives the account deletion.
+      // Commit both operations together so every successful deletion revokes sockets.
+      await tx.communitySignal.create({ data: { room: `user:${id}` } });
+    }
+    return deleted;
   });
 
   if (deletedUser.count > 0) {

@@ -10,6 +10,7 @@
     "dev:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development HOSTNAME=localhost PORT=3000 NEXTAUTH_URL=http://localhost:3000 NEXT_PUBLIC_BASE_URL=http://localhost:3000 SOCKET_IO_ALLOWED_ORIGINS=http://localhost:3000 node dist/server.mjs",
     "prisma:generate": "prisma generate",
     "build": "next build",
+    "analyze": "cross-env ANALYZE=true next build",
     "start": "next start",
     "lint": "next lint",
     "push:configure": "node scripts/configure-web-push.cjs",
@@ -18,6 +19,13 @@
     "test:features:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-event-platform.cjs",
     "test:features:http": "node scripts/smoke-event-platform.cjs",
     "test:event-extras:http": "node scripts/smoke-event-extras.cjs",
+    "test:community": "node scripts/verify-community-socket.cjs && node scripts/verify-friends-rooms.cjs && node scripts/verify-community.cjs && node scripts/verify-community-usability.cjs && node scripts/verify-community-resource.cjs",
+    "test:community:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-friends-rooms.cjs && cross-env FEATURE_TEST_DATABASE=true node scripts/verify-community.cjs",
+    "test:activity": "node scripts/verify-community-activity.cjs && node scripts/verify-activity-realtime.cjs && node scripts/verify-activity-actions.cjs",
+    "test:activity:db": "node scripts/verify-community-activity.cjs --database",
+    "test:event-chat": "node scripts/verify-event-chat.cjs && node scripts/verify-event-chat-socket.cjs && node scripts/verify-event-chat-client.cjs",
+    "test:party-connections": "node scripts/verify-party-connections.cjs && node scripts/verify-party-socket.cjs && node scripts/verify-party-realtime.cjs",
+    "test:account-removal": "node scripts/verify-account-removal.cjs && node scripts/verify-account-revocation-socket.cjs && node scripts/verify-account-removal-client.cjs",
     "test:security": "node scripts/verify-profile-security.cjs && node scripts/verify-account-security.cjs && node scripts/verify-notification-worker.cjs && node scripts/verify-registration-security.cjs"
   },
   "dependencies": {
@@ -82,6 +90,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "14.2.35",
     "@types/bcrypt": "^5.0.2",
     "@types/formidable": "^3.4.5",
     "@types/multer": "^1.4.12",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 
 type TokenResponse = { token?: string; expiresAt?: number; message?: string };
 
@@ -28,6 +27,7 @@ export default function CheckInPass({ eventId }: { eventId: string }) {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/check-in-token`, { cache: "no-store" });
       const data = await response.json() as TokenResponse;
       if (!response.ok || !data.token || !data.expiresAt) throw new Error(data.message || "Não foi possível gerar seu QR Code.");
+      const QRCode = (await import("qrcode")).default;
       const qr = await QRCode.toDataURL(data.token, { width: 256, margin: 2, errorCorrectionLevel: "M" });
       setToken(data.token);
       setImage(qr);

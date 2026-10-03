@@ -34,6 +34,18 @@ async function run(){
  assert.equal(getSessionRole({id:"test",role:"ADMIN"}),"ADMIN");
  assert.equal(canAccessPath("BASIC","/eventos/test/editar"),false);
  assert.equal(canAccessPath("PROMOTER","/eventos/test/editar"),true);
+ for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/atividade"),true);
+ assert.equal(canAccessPath("GUEST","/atividade"),false);
+ assert.equal(canAccessPath("BASIC","/atividade/private"),false);
+ assert.equal(isPublicPath("/atividade"),false);
+ for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/eventos/test/chat"),true);
+ assert.equal(canAccessPath("GUEST","/eventos/test/chat"),false);
+ assert.equal(isPublicPath("/eventos/test/chat"),false);
+ assert.equal(canAccessPath("BASIC","/eventos/test/conexoes"),true);
+ assert.equal(canAccessPath("BASIC","/eventos/test/conexoes/match"),true);
+ assert.equal(canAccessPath("GUEST","/eventos/test/conexoes"),false);
+ assert.equal(canAccessPath("BASIC","/admin/conexoes-denuncias"),false);
+ assert.equal(canAccessPath("ADMIN","/admin/conexoes-denuncias"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
  assert.equal(isPublicPath("/eventos/test/editar"),false);
  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");

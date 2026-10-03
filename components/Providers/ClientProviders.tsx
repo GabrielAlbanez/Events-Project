@@ -4,7 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import GoogleMapsLoader from "@/components/MyComponents/GoogleMapsLoader";
-import { HeroUIProvider } from "@heroui/react";
+import { HeroUIProvider } from "@heroui/system";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import NotificationBell from "@/components/MyComponents/NotificationBell";

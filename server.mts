@@ -8,6 +8,9 @@ import { NextRequest } from "next/server.js";
 import type { Socket } from "socket.io";
 import { enforceSocketExpiration } from "./server/socketSession.mjs";
 import { startNotificationWorker } from "./server/notificationWorker.mjs";
+import { dispatchCommunitySignal, registerCommunitySubscriptions } from "./server/communityGateway.mjs";
+import { startCommunityWorker } from "./server/communityWorker.mjs";
+import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -51,6 +54,10 @@ app.prepare().then(async () => {
 
   const stopNotifications = startNotificationWorker(prisma, (userId, event) => io!.to("user:" + userId).emit(event), () => io!.emit("update-events"));
   httpServer.on("close", stopNotifications);
+  const stopCommunity = startCommunityWorker(prisma, (room) => dispatchCommunitySignal(prisma, io!, room));
+  httpServer.on("close", stopCommunity);
+  const stopAccountRevocation = startAccountRevocationWorker(prisma, io);
+  httpServer.on("close", stopAccountRevocation);
 
   // The NextAuth JWT is carried by the HTTP upgrade request. Anonymous sockets
   // may receive public event updates, but never acquire a user identity.
@@ -72,6 +79,10 @@ app.prepare().then(async () => {
       if (user) {
         socket.data.userId = user.id;
         socket.data.expiresAt = token.exp * 1000;
+      } else {
+        const error = new Error("Account removed") as Error & { data: { code: string } };
+        error.data = { code: "ACCOUNT_REMOVED" };
+        return next(error);
       }
       next();
     } catch {
@@ -82,6 +93,7 @@ app.prepare().then(async () => {
   io.on("connection", (socket) => {
     const authenticatedSocket = socket as AuthenticatedSocket;
     const userId = authenticatedSocket.data.userId;
+    registerCommunitySubscriptions(prisma, socket);
     if (userId && authenticatedSocket.data.expiresAt) {
       enforceSocketExpiration(socket, authenticatedSocket.data.expiresAt);
     }
@@ -96,7 +108,8 @@ app.prepare().then(async () => {
         const user = await prisma.user.findUnique({
           where: { id: userId }, select: { role: true },
         });
-        if (!user || !socket.connected) return;
+        if (!socket.connected) return;
+        if (!user) { disconnectRemovedAccount(socket); return; }
         socket.join(`user:${userId}`);
         if (user.role === "ADMIN") socket.join("admins");
         else socket.leave("admins");
