@@ -7,7 +7,7 @@ function load(file, dependencies) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   const module = { exports: {} };
-  new Function("require", "module", "exports", source)(name => Object.hasOwn(dependencies, name) ? dependencies[name] : require(name), module, module.exports);
+  new Function("require", "module", "exports", source)(name => Object.hasOwn(dependencies, name) ? dependencies[name] : name.startsWith("@/") ? load(`${name.slice(2)}.ts`, dependencies) : require(name), module, module.exports);
   return module.exports;
 }
 
@@ -43,16 +43,20 @@ function load(file, dependencies) {
   assert.deepEqual(committed, []);
 
   let unavailable = false;
+  process.env.NEXTAUTH_SECRET = "test-only-session-signing-key";
+  current.password = "password-hash";
+  const credentials = require("./load-session-credential.cjs");
   const { authOptions } = load("lib/auth/options.ts", {
+    "@/lib/auth/sessionCredential": credentials,
     "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async args => {
-      assert.equal(args.select.password, undefined);
+      assert.equal(args.select.password, true);
       if (unavailable) throw Error("database unavailable");
       return current;
     } } } },
     "@next-auth/prisma-adapter": { PrismaAdapter: () => ({}) },
   });
   const jwt = authOptions.callbacks.jwt, session = authOptions.callbacks.session;
-  const claims = { id: "member", email: "private@example.invalid", role: "ADMIN", provider: "credentials" };
+  const claims = { id: "member", email: "private@example.invalid", role: "ADMIN", provider: "credentials", credentialStamp: credentials.credentialStamp(current.password) };
   let token = await jwt({ token: { ...claims } });
   assert.equal(token.role, "BASIC");
   current = null;

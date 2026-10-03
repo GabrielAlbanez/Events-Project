@@ -5,7 +5,7 @@ const ts = require("typescript");
 function load(name) {
   const output = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../server/", name + ".mts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function("require", "module", "exports", output)(id => id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
+  new Function("require", "module", "exports", output)(id => id === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
   return mod.exports;
 }
 function socket(userId, expiresAt) {

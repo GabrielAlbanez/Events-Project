@@ -41,6 +41,7 @@ function load(file, dependencies) {
 
   let user = { id: "test", emailVerified: false, password: "placeholder" }, comparisons = 0;
   const { authOptions } = load("lib/auth/options.ts", {
+    "@/lib/auth/sessionCredential": require("./load-session-credential.cjs"),
     "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async () => user } } },
     "@next-auth/prisma-adapter": { PrismaAdapter: () => ({}) },
     bcrypt: { __esModule: true, default: { compare: async () => { comparisons++; return true; } } },

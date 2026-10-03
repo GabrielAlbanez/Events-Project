@@ -7,7 +7,7 @@ function load(name) {
   const file = path.join(__dirname, "../server/", name + ".mts");
   const output = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  const localRequire = name => name.startsWith("./") ? load(name.slice(2).replace(/\.mjs$/, "")) : require(name);
+  const localRequire = name => name === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : name.startsWith("./") ? load(name.slice(2).replace(/\.mjs$/, "")) : require(name);
   new Function("require", "module", "exports", output)(localRequire, mod, mod.exports);
   return mod.exports;
 }

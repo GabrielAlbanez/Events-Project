@@ -9,32 +9,8 @@ import { CalendarDays, Compass, MapPin, Search, Sparkles, X } from "lucide-react
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "./discovery.module.css";
-
-type Period = "todos" | "hoje" | "fim-de-semana" | "mes";
-
-function parseEventDate(value: string) {
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const date = day
-    ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]))
-    : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function matchesPeriod(event: Evento, period: Period) {
-  if (period === "todos") return true;
-  const date = parseEventDate(event.dataInicio);
-  if (!date) return false;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === "hoje") return date >= today && date < new Date(today.getTime() + 86400000);
-  if (period === "mes") return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-  const saturday = new Date(today);
-  saturday.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7));
-  const monday = new Date(saturday);
-  monday.setDate(saturday.getDate() + 2);
-  return date >= saturday && date < monday;
-}
 
 const filters: { label: string; value: Period }[] = [
   { label: "Todos", value: "todos" },
@@ -58,22 +34,50 @@ export default function Home() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const touchStart = useRef<number | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [urlReady, setUrlReady] = useState(false);
+
+  useEffect(() => {
+    const restore = () => {
+      const query = new URLSearchParams(window.location.search);
+      setSearch((query.get("q") || "").slice(0, 100));
+      const requested = query.get("periodo");
+      setPeriod(requested === "hoje" || requested === "fim-de-semana" || requested === "mes" ? requested : "todos");
+      const price = query.get("preco") || "";
+      setDiscovery({ ...emptyDiscoveryFilter, category: (query.get("categoria") || "").slice(0, 50), free: query.get("gratis") === "1",
+        maxPrice: /^\d{1,6}(?:\.\d{1,2})?$/.test(price) ? price : "" });
+      setUrlReady(true);
+    };
+    restore(); window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
+  useEffect(() => {
+    if (!urlReady) return;
+    const timer = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      const entries = { q: search, periodo: period === "todos" ? "" : period, categoria: discovery.category, gratis: discovery.free ? "1" : "", preco: discovery.maxPrice };
+      Object.entries(entries).forEach(([key, value]) => { if (value) url.searchParams.set(key, value); else url.searchParams.delete(key); });
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [urlReady, search, period, discovery.category, discovery.free, discovery.maxPrice]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const refresh = () => { void fetch("/api/AllEvents", { signal: controller.signal })
+    let generation = 0;
+    const refresh = () => { const request = ++generation; void fetch("/api/AllEvents", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Falha ao carregar eventos");
         return response.json();
       })
-      .then((data: Evento[]) => { setLoadError(false); setEvents(Array.isArray(data) ? data.filter((event) => event.validate && event.status !== "CANCELLED") : []); })
-      .catch(() => { if (!controller.signal.aborted) setLoadError(true); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); }); };
+      .then((data: Evento[]) => { if (request !== generation || controller.signal.aborted) return; if (!Array.isArray(data)) throw new Error("Resposta inválida"); setLoadError(false); setEvents(data.filter((event) => event.validate && event.status !== "CANCELLED")); })
+      .catch(() => { if (!controller.signal.aborted && request === generation) setLoadError(true); })
+      .finally(() => { if (!controller.signal.aborted && request === generation) setLoading(false); }); };
     refresh();
     socket.on("update-events", refresh);
     socket.on("connect", refresh);
     return () => { controller.abort(); socket.off("update-events", refresh); socket.off("connect", refresh); };
-  }, [socket]);
+  }, [socket, retry]);
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
@@ -120,7 +124,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-zinc-400">{filteredEvents.length} encontrados</span></div>
             <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
               {loading && <p className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5">Carregando eventos…</p>}
-              {loadError && <p className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5">Não foi possível carregar os eventos. Tente atualizar a página.</p>}
+              {loadError && <div role="alert" className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
               {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-zinc-200 p-6 text-center dark:border-white/10"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-violet-500" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-zinc-500">Experimente outra busca ou período.</p></div>}
               {filteredEvents.map((event) => <button key={event.id} type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedId === event.id ? "border-violet-400 bg-violet-50/70 dark:bg-violet-400/10" : "border-zinc-200 bg-white hover:border-violet-200 dark:border-white/10 dark:bg-white/5"}`}>
                 <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-violet-700 to-indigo-700">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>

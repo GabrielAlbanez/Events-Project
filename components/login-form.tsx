@@ -101,6 +101,7 @@ export function LoginForm({
           <div className="space-y-1"><p className="text-sm font-semibold">Sua conta foi banida do site</p><p className="text-sm leading-relaxed text-muted-foreground">O administrador removeu sua conta e sua sessão foi encerrada. Se acredita que houve um engano, entre em contato com a administração.</p></div>
         </div>
       )}
+      {searchParams.get("notice") === "credentials-changed" && <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm font-semibold">Sua senha foi alterada</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Sua sessão anterior foi encerrada por segurança. Entre usando a nova senha.</p></div>}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Bom ter você de volta</h1>
         <p className="text-sm text-muted-foreground">
@@ -129,7 +130,7 @@ export function LoginForm({
           <div className="flex items-center">
             <Label htmlFor="password">Senha</Label>
             <a
-              href="#"
+              href="/recuperar-senha"
               className="ml-auto rounded-sm text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Esqueceu sua senha?
@@ -150,6 +151,7 @@ export function LoginForm({
         <div className="[&_button]:h-12 [&_button]:rounded-xl"><GoogleButton textBody="Continuar com Google" /></div>
       </div>
       <div className="text-center text-sm">
+        <Link href="/confirmar-email" className="mb-3 block text-sm font-medium text-primary hover:underline">Reenviar confirmação de e-mail</Link>
         Ainda não tem uma conta?{" "}
         <Link href="/register" className="rounded-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Criar uma conta

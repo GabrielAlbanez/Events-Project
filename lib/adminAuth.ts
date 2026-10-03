@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { isDevelopmentIdentityDisabled } from "@/lib/authPolicy";
+import { credentialSessionValid } from "@/lib/auth/sessionCredential";
 
 export async function getAuthenticatedUser(request?: NextRequest) {
   const authRequest = request ?? new NextRequest("http://localhost", { headers: headers() });
@@ -13,10 +14,12 @@ export async function getAuthenticatedUser(request?: NextRequest) {
     return null;
   }
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: token.id },
-    select: { id: true, role: true },
+    select: { id: true, role: true, password: true },
   });
+  if (!user || !credentialSessionValid(token.provider, token.credentialStamp, user.password)) return null;
+  return { id: user.id, role: user.role };
 }
 
 export async function getAuthenticatedAdminId(request?: NextRequest): Promise<string | null> {

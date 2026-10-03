@@ -67,7 +67,8 @@ function signal(socket,event){return new Promise((resolve,reject)=>{const timer=
  assert.equal(wronglyValidated,0);assert.equal(wronglyNotified,0);
  phase="socket identity expiration";
  const {encode}=require("next-auth/jwt");
- const shortToken=await encode({secret:process.env.NEXTAUTH_SECRET,token:{id:basic.id,role:"BASIC",provider:"credentials"},maxAge:3});
+ const {credentialStamp}=require("./load-session-credential.cjs");
+ const shortToken=await encode({secret:process.env.NEXTAUTH_SECRET,token:{id:basic.id,role:"BASIC",provider:"credentials",credentialStamp:credentialStamp(basic.password)},maxAge:3});
  const expiringSocket=await connect("next-auth.session-token="+shortToken);
  const expired=signal(expiringSocket,"session-expired"),disconnected=signal(expiringSocket,"disconnect");
  await expired;await disconnected;assert.equal(expiringSocket.connected,false);

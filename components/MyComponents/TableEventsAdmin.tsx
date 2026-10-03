@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Table,
   TableHeader,
@@ -14,6 +14,8 @@ import {
   Tooltip,
 } from "@heroui/react";
 import ModalEventsValidate from "@/components/MyComponents/ModalEventsValidate";
+import { ConfirmAction } from "./ConfirmAction";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
 import { Evento } from "@/types";
 import { validateEvents } from "@/app/(actions)/validateEvents/action";
@@ -40,6 +42,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   const [correctionEvent, setCorrectionEvent] = useState<Evento | null>(null);
   const [correctionReason, setCorrectionReason] = useState("");
   const [isCorrecting, setIsCorrecting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const correctionLock = useRef(false);
   const socket = useSocket();
 
 
@@ -117,7 +121,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   };
 
   const handleRequestCorrection = async () => {
-    if (!correctionEvent || !correctionReason.trim()) return;
+    if (!correctionEvent || !correctionReason.trim() || correctionLock.current) return;
+    correctionLock.current = true;
     setIsCorrecting(true);
     try {
       const result = await solicitarCorrecao(correctionEvent.id, correctionReason.trim());
@@ -129,7 +134,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
       setCorrectionEvent(null);
       setCorrectionReason("");
     } catch { toast.error("Não foi possível solicitar a correção."); }
-    finally { setIsCorrecting(false); }
+    finally { correctionLock.current = false; setIsCorrecting(false); }
   };
 
   // Deletar eventos selecionados e remover da lista
@@ -141,28 +146,18 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
       return;
     }
 
-    toast.promise(
-      deleteEvents(selectedEventIds, adminId)
-        .then((result) => {
-          if (result.status !== "success") throw new Error(result.message);
-          // Remove eventos deletados da lista local
-          setEventList((prev) =>
-            prev.filter((event) => !selectedEventIds.includes(event.id))
-          );
-
-          setSelectedEvents(new Set()); // Limpar seleção após deletar
-          socket.emit("events-changed");
-        })
-        .catch((error) => {
-          console.error("Erro ao excluir eventos:", error);
-          throw new Error("Erro ao excluir eventos.");
-        }),
-      {
-        pending: "Excluindo eventos...",
-        success: "🎉 Evento excluído com sucesso",
-        error: "❌ Erro ao excluir evento",
-      }
-    );
+    if (isDeleting) return false;
+    setIsDeleting(true);
+    try {
+      const result = await deleteEvents(selectedEventIds, adminId);
+      if (result.status !== "success") { toast.error(result.message); return false; }
+      setEventList(list => list.filter(event => !selectedEventIds.includes(event.id)));
+      setSelectedEvents(new Set());
+      socket.emit("events-changed");
+      toast.success("Eventos excluídos com sucesso.");
+      return true;
+    } catch { toast.error("Não foi possível excluir os eventos."); return false; }
+    finally { setIsDeleting(false); }
   };
 
   // Caso não haja eventos para exibir
@@ -181,14 +176,13 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
         <div className="flex items-center mb-6">
           <Button
             color="success"
+            isDisabled={isDeleting}
             onClick={handleValidateSelected}
             className="mr-4"
           >
             Publicar selecionados ({selectedEvents.size})
           </Button>
-          <Button color="danger" onClick={handleDeleteSelected}>
-            Excluir Selecionados ({selectedEvents.size})
-          </Button>
+          <ConfirmAction busy={isDeleting} title={`Excluir ${selectedEvents.size} evento(s)?`} description="Os eventos selecionados e seus dados associados serão removidos. Esta ação não pode ser desfeita." label={`Excluir selecionados (${selectedEvents.size})`} onConfirm={handleDeleteSelected} />
         </div>
       )}
 
@@ -207,7 +201,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
               <TableCell>
                 <Checkbox
                   isSelected={selectedEvents.has(event.id)}
-                  isDisabled={event.status !== "PENDING"}
+                  isDisabled={isDeleting || event.status !== "PENDING"}
                   onValueChange={() => handleSelectEvent(event.id)}
                   aria-label={`Selecionar ${event.nome}`}
                 />
@@ -255,7 +249,15 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
           role={role}
         />
       )}
-      {correctionEvent && <div role="dialog" aria-modal="true" aria-labelledby="correction-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl"><h2 id="correction-title" className="text-xl font-semibold">Solicitar correção</h2><p className="mt-2 text-sm text-muted-foreground">Explique ao promotor o que precisa mudar em “{correctionEvent.nome}”.</p><label htmlFor="correction-reason" className="mt-5 block text-sm font-medium">Motivo</label><textarea id="correction-reason" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} rows={5} maxLength={1000} className="mt-2 w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" placeholder="Ex.: Atualize o endereço e inclua o horário de início." /><div className="mt-5 flex justify-end gap-2"><Button variant="flat" onClick={() => setCorrectionEvent(null)} disabled={isCorrecting}>Voltar</Button><Button color="primary" onClick={() => void handleRequestCorrection()} disabled={isCorrecting || correctionReason.trim().length < 5}>{isCorrecting ? "Enviando..." : "Enviar pedido"}</Button></div></div></div>}
+      <Dialog open={!!correctionEvent} onOpenChange={open => { if (!open && !isCorrecting) setCorrectionEvent(null); }}>
+        <DialogContent className="z-[120] max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-lg" onEscapeKeyDown={event => { if (isCorrecting) event.preventDefault(); }} onPointerDownOutside={event => { if (isCorrecting) event.preventDefault(); }}>
+          <DialogTitle>Solicitar correção</DialogTitle>
+          <DialogDescription>Explique ao promotor o que precisa mudar em “{correctionEvent?.nome}”.</DialogDescription>
+          <label htmlFor="correction-reason" className="text-sm font-medium">Motivo</label>
+          <textarea id="correction-reason" value={correctionReason} onChange={event => setCorrectionReason(event.target.value)} rows={5} maxLength={1000} className="w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" placeholder="Ex.: Atualize o endereço e inclua o horário de início." />
+          <div className="flex justify-end gap-2"><Button variant="flat" onClick={() => setCorrectionEvent(null)} disabled={isCorrecting}>Voltar</Button><Button color="primary" onClick={() => void handleRequestCorrection()} disabled={isCorrecting || correctionReason.trim().length < 5}>{isCorrecting ? "Enviando..." : "Enviar pedido"}</Button></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

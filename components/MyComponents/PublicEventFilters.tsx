@@ -33,10 +33,16 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  const [travelLoading, setTravelLoading] = useState(false);
  const [travelMessage, setTravelMessage] = useState("");
  const { isLoaded: mapsLoaded } = useGoogleMaps();
+ const generation = useRef(0);
+ const currentValue = useRef(value);
+ if (currentValue.current !== value) { currentValue.current = value; generation.current++; }
+ useEffect(() => () => { generation.current++; }, []);
  const eventSignature = events.map((event) => `${event.id}:${event.lat ?? ""}:${event.lng ?? ""}`).join("|");
  const previousEventSignature = useRef(eventSignature);
  useEffect(() => {
   if (previousEventSignature.current !== eventSignature) {
+   generation.current++;
+   setTravelLoading(false);
    previousEventSignature.current = eventSignature;
    if (value.travelMinutes !== null) {
     onChange({ ...value, travelMinutes: null, travelDurations: {} });
@@ -47,12 +53,15 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  const categories = Array.from(new Set(events.map(event => event.category).filter((category): category is NonNullable<Evento["category"]> => Boolean(category))));
  const input = "min-h-11 w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none transition focus-visible:border-violet-500 focus-visible:ring-2 focus-visible:ring-violet-500/20 dark:border-white/10 dark:bg-zinc-900 dark:text-white";
  function changeOtherFilter(next: DiscoveryFilter) {
+  generation.current++;
+  setTravelLoading(false);
   onChange({ ...next, travelMinutes: null, travelDurations: {} });
   if (value.travelMinutes !== null) setTravelMessage("Os filtros mudaram. Calcule novamente o tempo de viagem.");
  }
 
  async function calculateTravel() {
   if (!travelChoice) { onChange({ ...value, travelMinutes: null, travelDurations: {} }); setTravelMessage(""); return; }
+  const request = ++generation.current;
   setTravelLoading(true);
   setTravelMessage("");
   try {
@@ -64,29 +73,35 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     { timeout: 10000, maximumAge: 60000 }
    ));
    const candidates = filterDiscovery(events, { ...value, travelMinutes: null, travelDurations: {} }).filter((event) => event.lat != null && event.lng != null).sort((a,b) => directDistance(location,a)-directDistance(location,b)).slice(0,25);
+   if (request !== generation.current) return;
    if (candidates.length === 0) throw new TravelFilterError("Nenhum evento com localização está disponível para o cálculo.");
    let matrix: Awaited<ReturnType<RouteMatrixLibrary["RouteMatrix"]["computeRouteMatrix"]>>["matrix"];
    try {
     const { RouteMatrix } = await google.maps.importLibrary("routes") as unknown as RouteMatrixLibrary;
-    ({ matrix } = await RouteMatrix.computeRouteMatrix({
+    const matrixRequest = RouteMatrix.computeRouteMatrix({
      origins: [location],
      destinations: candidates.map((event) => ({ lat: event.lat!, lng: event.lng! })),
      travelMode: "DRIVING",
      fields: ["condition", "durationMillis"],
-    }));
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { ({ matrix } = await Promise.race([matrixRequest, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TravelFilterError("O cálculo demorou demais. Tente novamente.")), 15000); })])); }
+    finally { if (timer) clearTimeout(timer); }
    } catch {
     throw new TravelFilterError(routesUnavailableMessage);
    }
    const durations: Record<string,number> = {};
+   if (request !== generation.current) return;
    matrix.rows[0]?.items.forEach((item,index) => {
     if (item.condition === "ROUTE_EXISTS" && item.durationMillis != null) durations[candidates[index].id] = Math.ceil(item.durationMillis/60000);
    });
-   onChange({ ...value, origin: location, travelMinutes: Number(travelChoice), travelDurations: durations });
+   onChange({ ...currentValue.current, origin: location, travelMinutes: Number(travelChoice), travelDurations: durations });
    setTravelMessage(`Tempo de carro calculado para ${candidates.length} evento${candidates.length === 1 ? "" : "s"} mais próximo${candidates.length === 1 ? "" : "s"}.${events.length > candidates.length ? " Os demais não entram neste filtro." : ""}`);
   } catch (error) {
+   if (request !== generation.current) return;
    setTravelMessage(error instanceof TravelFilterError ? error.message : routesUnavailableMessage);
   } finally {
-   setTravelLoading(false);
+   if (request === generation.current) setTravelLoading(false);
   }
  }
 
@@ -126,11 +141,14 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
        if (value.origin) { changeOtherFilter({ ...value, radius }); return; }
        if (!navigator.geolocation) { setLocationMessage("Este navegador não oferece localização. Use os outros filtros."); changeOtherFilter({ ...value, radius: "" }); return; }
        setLocationMessage("Obtendo localização...");
+       const request = ++generation.current;
        navigator.geolocation.getCurrentPosition(position => {
+        if (request !== generation.current) return;
         setLocationMessage("Localização aplicada ao filtro.");
-        changeOtherFilter({ ...value, radius, origin: { lat: position.coords.latitude, lng: position.coords.longitude } });
+        changeOtherFilter({ ...currentValue.current, radius, origin: { lat: position.coords.latitude, lng: position.coords.longitude } });
        }, () => {
-        changeOtherFilter({ ...value, radius: "" });
+        if (request !== generation.current) return;
+        changeOtherFilter({ ...currentValue.current, radius: "" });
         setLocationMessage("Não foi possível obter a localização. Permita o acesso no navegador ou use os outros filtros.");
        }, { timeout: 10000, maximumAge: 60000 });
       }}>
@@ -145,7 +163,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     </div>
     <div className="space-y-3 border-t border-zinc-200 pt-4 dark:border-white/10 sm:col-span-2">
       <label htmlFor="travel-time-filter" className="grid gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">Tempo de carro a partir de mim
-        <select id="travel-time-filter" className={input} value={travelChoice} onChange={(event) => setTravelChoice(event.target.value)}>
+        <select id="travel-time-filter" className={input} value={travelChoice} onChange={(event) => { generation.current++; setTravelLoading(false); setTravelChoice(event.target.value); }}>
           <option value="">Sem filtro de tempo</option><option value="15">Até 15 minutos</option><option value="30">Até 30 minutos</option><option value="60">Até 1 hora</option>
         </select>
       </label>
@@ -155,7 +173,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     </div>
    </div>
    {locationMessage && <p role="status" className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">{locationMessage}</p>}
-   <button className="mt-4 rounded-md text-sm font-semibold text-violet-700 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 dark:text-violet-300" type="button" onClick={() => { onChange(emptyDiscoveryFilter); setLocationMessage(""); setTravelChoice(""); setTravelMessage(""); }}>Limpar filtros</button>
+   <button className="mt-4 rounded-md text-sm font-semibold text-violet-700 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 dark:text-violet-300" type="button" onClick={() => { generation.current++; setTravelLoading(false); onChange(emptyDiscoveryFilter); setLocationMessage(""); setTravelChoice(""); setTravelMessage(""); }}>Limpar filtros</button>
   </details>
  );
 }

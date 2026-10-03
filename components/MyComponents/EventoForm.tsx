@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
@@ -73,6 +74,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
   const saveMode = useRef<"draft" | "submit">("submit");
+  const allValues = form.watch();
+  const fingerprint = JSON.stringify({ values: allValues, dates: dateRange && [dateRange.start.toString(), dateRange.end.toString()], coordinates, recurrence, repeatEvery, occurrences });
+  const initialFingerprint = useRef(fingerprint);
+  const unsaved = useUnsavedChanges(fingerprint !== initialFingerprint.current || !!banner || galleryFiles.length > 0);
 
   const nome = form.watch("nome");
   const descricao = form.watch("descricao");
@@ -170,6 +175,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           toast.error(result.message || "Não foi possível salvar o evento. Tente novamente.");
           return;
         }
+        unsaved.markSaved();
         if (!initialEvent && recurrence !== "none") {
           if (!result.evento?.id) {
             toast.error("O evento foi salvo, mas não foi possível criar a série. Consulte Meus eventos.");
@@ -205,6 +211,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
 
   return (
     <FormProvider {...form}>
+      {unsaved.dialog}
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           <section className={sectionClass} aria-labelledby="event-details-title">

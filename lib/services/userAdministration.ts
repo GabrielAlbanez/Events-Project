@@ -2,25 +2,14 @@ import prisma from "@/lib/prisma";
 import type { User } from "@/types";
 import { Role } from "@prisma/client";
 import type { ResolveAdminId } from "@/lib/services/authContext";
+import { getAdminUsersPage } from "@/lib/services/adminPagination";
 
 export async function getAllUsers(resolveAdminId: ResolveAdminId) {
   try {
     if (!await resolveAdminId()) {
       return { status: "error", message: "Acesso negado." };
     }
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image : true,
-        Events : true,
-        emailVerified : true,
-
-      },
-    });
-    return { status: "success", data: users };
+    return await getAdminUsersPage(resolveAdminId);
   } catch {
     return { status: "error", message: "Error fetching users" };
   }

@@ -81,6 +81,7 @@ export default function VerifyEmailPage() {
         {!loading && <div className="mt-7 flex flex-col gap-3">
           {state === "unavailable" && <Button size="lg" className="min-h-11 rounded-xl" onClick={() => setAttempt((value) => value + 1)}>Tentar novamente</Button>}
           <Button asChild size="lg" variant={state === "unavailable" ? "outline" : "default"} className="min-h-11 rounded-xl"><Link href="/login">Ir para o login</Link></Button>
+          {!success && <Link href="/confirmar-email" className="rounded-lg py-2 text-sm font-semibold text-primary underline underline-offset-4">Reenviar confirmação de e-mail</Link>}
           {!success && <Link href="/" className="rounded-lg py-2 text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Voltar ao início</Link>}
         </div>}
       </section>

@@ -60,6 +60,37 @@ async function run() {
   assert.equal(outs.length, 3); outs[2].reject(new Error("network")); await flush();
   assert.equal(redirects.length, 2, "failed sign out still navigates to server-revalidated login");
   assert.ok(disconnects > 0);
+  session = { ...session, data: { user: { id: "five", role: "BASIC" } } }; render();
+  emit("session-expired");
+  // The earlier recovery throttling can defer this refresh; a JWT signal must still revoke immediately.
+  session = { ...session, data: { error: "SessionRevoked", user: { id: "", role: null } } }; render();
+  assert.equal(outs.length, 4);
+  assert.equal(socket.connected, false);
+  assert.equal(outs[3].options.callbackUrl, "/login?notice=credentials-changed");
+  assert.match(notices.at(-1), /senha foi alterada/);
+  assert.doesNotMatch(notices.at(-1), /banida/);
+  emit("connect_error", { data: { code: "SESSION_REVOKED" } });
+  assert.equal(outs.length, 4, "JWT and socket revocation deduplicate logout");
+  outs[3].resolve(); await flush(); assert.equal(redirects.at(-1), "/login?notice=credentials-changed");
+  session = { ...session, data: { user: { id: "six", role: "BASIC" } } }; render();
+  emit("connect_error", { data: { code: "SESSION_REVOKED" } });
+  assert.equal(outs.length, 5, "revoked handshake also closes session");
+  const connectedBeforeRevocation = connects;
+  emit("session-expired");
+  assert.equal(connects, connectedBeforeRevocation);
+  outs[4].resolve(); await flush();
+  session = { ...session, data: { user: { id: "seven", role: "BASIC" } } }; render();
+  const originalNow = Date.now;
+  Date.now = () => originalNow() + 60000;
+  try {
+    emit("session-expired");
+    const beforeRefresh = connects;
+    recover({ error: "SessionRevoked", user: { id: "" } }); await flush();
+    assert.equal(outs.length, 6, "expired socket refresh consumes password revocation");
+    assert.equal(connects, beforeRefresh, "revoked refresh must never reconnect even before React rerenders");
+    assert.equal(socket.connected, false);
+    outs[5].resolve(); await flush();
+  } finally { Date.now = originalNow; }
   console.log("PASS account removal frontend: current identity, duplicate guard, session signals, failed logout, recovery and stale responses.");
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

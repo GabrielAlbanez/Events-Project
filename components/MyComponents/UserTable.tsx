@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -28,6 +28,7 @@ import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
 import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
+import { useSession } from "next-auth/react";
 import { useSocket } from "@/context/SocketContext";
 
 interface UserWithStatus extends UserType { online?: boolean }
@@ -53,6 +54,37 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [isPending, setIsPending] = useState(false);
   const socket = useSocket();
 
+  const { data: session } = useSession();
+  const [userEvents, setUserEvents] = useState<Evento[]>([]);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState("");
+  const [eventsMore, setEventsMore] = useState(false);
+  const eventsRequest = useRef<AbortController | null>(null);
+  const identity = useRef(session?.user?.id);
+  identity.current = session?.user?.id;
+  const loadEvents = useCallback(async (page: number) => {
+    if (!selectedUser || !isModalOpen) return;
+    eventsRequest.current?.abort();
+    const controller = new AbortController(); eventsRequest.current = controller;
+    const account = identity.current;
+    setEventsLoading(true); setEventsError("");
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}/events?page=${page}`, { signal: controller.signal, cache: "no-store" });
+      if (!response.ok) throw new Error();
+      const result: { events: Evento[]; hasMore: boolean } = await response.json();
+      if (controller.signal.aborted || account !== identity.current) return;
+      setUserEvents(previous => page === 1 ? result.events : [...previous, ...result.events.filter(event => !previous.some(item => item.id === event.id))]);
+      setEventsMore(result.hasMore); setEventsPage(page);
+    } catch { if (!controller.signal.aborted && account === identity.current) setEventsError("Não foi possível carregar os eventos desta conta."); }
+    finally { if (!controller.signal.aborted && account === identity.current) setEventsLoading(false); }
+  }, [selectedUser, isModalOpen]);
+  useEffect(() => {
+    setUserEvents([]); setEventsPage(1); setEventsMore(false); setEventsError("");
+    if (isModalOpen) void loadEvents(1);
+    return () => eventsRequest.current?.abort();
+  }, [isModalOpen, loadEvents, session?.user?.id]);
+
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
     setIsModalOpen(true);
@@ -69,6 +101,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   };
 
   const handleCloseModalDelete = () => {
+    if (isPending) return;
     setIsOpenModalDelete(false);
     setSelectedUser(null);
   };
@@ -199,7 +232,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 size="md"
                 variant="light"
                 aria-label={`Excluir ${user.name || user.email}`}
-                isDisabled={user.role === "ADMIN"}
+                isDisabled={isPending || user.role === "ADMIN"}
                 onPress={() => handleOpenDeleteModal(user)}
                 color="danger"
               >
@@ -238,6 +271,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       {/* Modal de Eventos */}
       {selectedUser && (
         <Modal
+          classNames={{ backdrop: "z-[100]", wrapper: "z-[110]" }}
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           className="max-h-[90vh] overflow-y-auto"
@@ -258,9 +292,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               </div>
             </ModalHeader>
             <ModalBody>
-              {selectedUser.Events && selectedUser.Events.length > 0 ? (
+              {userEvents.length > 0 ? (
                 <div className=" w-full grid grid-cols-1 gap-4">
-                  {selectedUser.Events.map((event: Evento, index: number) => (
+                  {userEvents.map((event: Evento, index: number) => (
                     <div
                       key={event.id || index}
                       className="overflow-hidden rounded-xl border border-border bg-card"
@@ -283,9 +317,11 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 </div>
               ) : (
                 <p className="py-8 text-center text-muted-foreground">
-                  Nenhum evento registrado para este usuário.
+                  {eventsLoading ? "Carregando eventos..." : eventsError ? "" : "Nenhum evento registrado para este usuário."}
                 </p>
               )}
+              {eventsError && <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>{eventsError}</p><Button variant="flat" className="mt-2" onPress={() => void loadEvents(userEvents.length ? eventsPage + 1 : 1)}>Tentar novamente</Button></div>}
+              {eventsMore && <Button variant="flat" isDisabled={eventsLoading} onPress={() => void loadEvents(eventsPage + 1)}>{eventsLoading ? "Carregando..." : "Carregar mais eventos"}</Button>}
             </ModalBody>
             <ModalFooter>
               <Button onPress={handleCloseModal} variant="flat">
@@ -297,7 +333,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       )}
 
       {/* Modal de Confirmação de Exclusão */}
-      <Modal isOpen={isOpenModalDelete} onClose={handleCloseModalDelete}>
+      <Modal classNames={{ backdrop: "z-[100]", wrapper: "z-[110]" }} isOpen={isOpenModalDelete} onClose={handleCloseModalDelete}>
         <ModalContent>
           <ModalHeader>
             Excluir usuário

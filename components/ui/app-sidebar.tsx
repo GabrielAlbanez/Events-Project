@@ -51,6 +51,12 @@ export function AppSidebar() {
   const authenticatedUser = status === "authenticated" && session?.user?.id ? session.user : null;
   const role = authenticatedUser?.role;
   const visibleItems = navigation.filter((item) => !item.roles || (role !== null && role !== undefined && item.roles.includes(role)));
+  const groups = [
+    { label: "Descobrir", paths: ["/", "/EventsCreated"] },
+    { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/Profile"] },
+    { label: "Organizar", paths: ["/CriarEvento", "/myEvents", "/resultados"] },
+    { label: "Administrar", paths: ["/admin", "/admin/conexoes-denuncias"] },
+  ];
   const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
 
   return (
@@ -72,7 +78,7 @@ export function AppSidebar() {
       <div className="mx-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-violet-400/10 dark:from-violet-500/10 dark:to-indigo-500/5">
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
           <span className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,.12)]" />
-          Eventos acontecendo agora
+          Encontre sua próxima experiência
         </div>
         <Button asChild className="h-10 w-full rounded-xl bg-zinc-950 text-white shadow-lg hover:bg-violet-700 dark:bg-white dark:text-zinc-950">
           <Link href="/EventsCreated">Explorar agenda</Link>
@@ -80,9 +86,12 @@ export function AppSidebar() {
       </div>
 
       <SidebarContent className="px-3 py-5">
-        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Navegação</p>
+        {groups.map(group => {
+          const items = visibleItems.filter(item => group.paths.includes(item.href));
+          if (!items.length) return null;
+          return <section key={group.label} className="mb-5" aria-label={group.label}><p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{group.label}</p>
         <SidebarMenu className="gap-1.5">
-          {visibleItems.map(({ label, href, icon: Icon }) => {
+          {items.map(({ label, href, icon: Icon }) => {
             const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
@@ -95,7 +104,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
             );
           })}
-        </SidebarMenu>
+        </SidebarMenu></section>; })}
       </SidebarContent>
 
       {(role === "ADMIN" || role === "PROMOTER") && (

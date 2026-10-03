@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Sparkles, Users } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-export function AuthPageShell({ children, mode }: { children: ReactNode; mode: "login" | "register" }) {
+export function AuthPageShell({ children, mode, formLabel }: { children: ReactNode; mode: "login" | "register"; formLabel?: string }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between gap-4 border-b border-border/60 px-5 py-5 sm:px-8">
@@ -29,7 +29,7 @@ export function AuthPageShell({ children, mode }: { children: ReactNode; mode: "
             </div>
           </div>
         </section>
-        <section className="mx-auto w-full min-w-0 max-w-md" aria-label={mode === "login" ? "Entrar na conta" : "Criar uma conta"}>
+        <section className="mx-auto w-full min-w-0 max-w-md" aria-label={formLabel ?? (mode === "login" ? "Entrar na conta" : "Criar uma conta")}>
           <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">{children}</div>
           <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{mode === "login" ? "Seus eventos, suas conexões e sua agenda em um só lugar." : "Crie sua conta e encontre novas experiências para viver."}</p>
         </section>

@@ -2,6 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Consulte [melhorias de usabilidade, recuperação e validação](docs/site-improvements.md) para configurar os novos fluxos e executar os testes.
+
 Para iniciar o Next.js e o Socket.IO juntos:
 
 A **Central de atividades** em `/atividade` reúne filas, tarefas, inscrições e salas da conta, com atualizações em tempo real. Consulte [o guia de uso e testes](docs/activity.md).

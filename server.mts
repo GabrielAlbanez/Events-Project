@@ -6,11 +6,12 @@ import nextEnv from "@next/env";
 import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server.js";
 import type { Socket } from "socket.io";
-import { enforceSocketExpiration } from "./server/socketSession.mjs";
+import { enforceSocketExpiration, enforceSocketCredentials } from "./server/socketSession.mjs";
 import { startNotificationWorker } from "./server/notificationWorker.mjs";
 import { dispatchCommunitySignal, registerCommunitySubscriptions } from "./server/communityGateway.mjs";
 import { startCommunityWorker } from "./server/communityWorker.mjs";
 import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
+import { credentialSessionValid } from "./lib/auth/sessionCredential.js";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -74,11 +75,18 @@ app.prepare().then(async () => {
       if (token.provider === "dev-admin") return next();
       const user = await prisma.user.findUnique({
         where: { id: token.id },
-        select: { id: true },
+        select: { id: true, password: true },
       });
       if (user) {
+        if (!credentialSessionValid(token.provider, token.credentialStamp, user.password)) {
+          const error = new Error("Session revoked") as Error & { data: { code: string } };
+          error.data = { code: "SESSION_REVOKED" };
+          return next(error);
+        }
         socket.data.userId = user.id;
         socket.data.expiresAt = token.exp * 1000;
+        socket.data.provider = token.provider;
+        socket.data.credentialStamp = token.credentialStamp;
       } else {
         const error = new Error("Account removed") as Error & { data: { code: string } };
         error.data = { code: "ACCOUNT_REMOVED" };
@@ -93,6 +101,7 @@ app.prepare().then(async () => {
   io.on("connection", (socket) => {
     const authenticatedSocket = socket as AuthenticatedSocket;
     const userId = authenticatedSocket.data.userId;
+    enforceSocketCredentials(prisma, socket);
     registerCommunitySubscriptions(prisma, socket);
     if (userId && authenticatedSocket.data.expiresAt) {
       enforceSocketExpiration(socket, authenticatedSocket.data.expiresAt);

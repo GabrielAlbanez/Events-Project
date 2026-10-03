@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Server, Socket } from "socket.io";
+import { credentialSessionValid } from "../lib/auth/sessionCredential.js";
 
 /** Identity is assigned from the verified session, never from client payloads. */
 export function disconnectRemovedAccount(socket: Socket): void {
@@ -9,8 +10,15 @@ export function disconnectRemovedAccount(socket: Socket): void {
 }
 
 export async function revokeRemovedAccount(prisma: PrismaClient, io: Server, userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-  if (user) return false;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, password: true } });
+  if (user) {
+    for (const socket of Array.from(io.sockets.sockets.values())) {
+      if (socket.connected && socket.data.userId === userId && !credentialSessionValid(socket.data.provider, socket.data.credentialStamp, user.password)) {
+        socket.emit("session-expired"); socket.disconnect(true);
+      }
+    }
+    return false;
+  }
   for (const socket of Array.from(io.sockets.sockets.values())) {
     if (socket.data.userId === userId) disconnectRemovedAccount(socket);
   }
@@ -30,12 +38,16 @@ export function createAccountRevocationPoller(prisma: PrismaClient, io: Server) 
         .map(socket => socket.data.userId as string)));
       for (let offset = 0; offset < ids.length && !stopped; offset += 200) {
         const batch = ids.slice(offset, offset + 200);
-        const users = await prisma.user.findMany({ where: { id: { in: batch } }, select: { id: true } });
+        const users = await prisma.user.findMany({ where: { id: { in: batch } }, select: { id: true, password: true } });
         if (stopped) return;
         const existing = new Set(users.map(user => user.id));
         const absent = new Set(batch.filter(id => !existing.has(id)));
+        const passwords = new Map(users.map(user => [user.id, user.password]));
         for (const socket of Array.from(io.sockets.sockets.values())) {
           if (absent.has(socket.data.userId)) disconnectRemovedAccount(socket);
+          else if (socket.connected && passwords.has(socket.data.userId) && !credentialSessionValid(socket.data.provider, socket.data.credentialStamp, passwords.get(socket.data.userId))) {
+            socket.emit("session-expired"); socket.disconnect(true);
+          }
         }
       }
     } catch {

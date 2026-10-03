@@ -27,6 +27,10 @@ export async function getNotifications(): Promise<NotificationDTO[]> {
   return notifications.getNotifications(getAuthenticatedUser);
 }
 
+export async function getNotificationPage(input: { before?: string; unread?: boolean } = {}) {
+  return notifications.getNotificationPage(getAuthenticatedUser, input);
+}
+
 export async function markNotificationRead(id:string|null) {
   return notifications.markNotificationRead(id, getAuthenticatedUser);
 }

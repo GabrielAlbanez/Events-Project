@@ -4,10 +4,11 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import { credentialSessionValid, credentialStamp } from "@/lib/auth/sessionCredential";
 
 declare module "next-auth" {
   interface Session {
-    error?: "AccountRemoved" | "SessionUnavailable";
+    error?: "AccountRemoved" | "SessionUnavailable" | "SessionRevoked";
     user: {
       id: string;
       name: string | null;
@@ -125,6 +126,9 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.image = user.image;
         token.provider = account?.provider;
+        if (account?.provider === "credentials") {
+          token.credentialStamp = credentialStamp("password" in user && typeof user.password === "string" ? user.password : null);
+        }
         if ("emailVerified" in user) {
           token.emailVerified = user.emailVerified;
         }
@@ -138,10 +142,12 @@ export const authOptions: NextAuthOptions = {
         try {
           const updatedUser = await prisma.user.findUnique({
             where: { id: token.id },
-            select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true },
+            select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true, password: true },
           });
 
-          if (updatedUser) {
+          if (updatedUser && !credentialSessionValid(token.provider, token.credentialStamp, updatedUser.password)) {
+            token = { error: "SessionRevoked" };
+          } else if (updatedUser) {
             token.name = updatedUser.name;
             token.email = updatedUser.email;
             token.image = updatedUser.image;
@@ -168,7 +174,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      session.error = token.error === "AccountRemoved" || token.error === "SessionUnavailable" ? token.error : undefined;
+      session.error = token.error === "AccountRemoved" || token.error === "SessionUnavailable" || token.error === "SessionRevoked" ? token.error : undefined;
       session.user = {
         id: typeof token.id === "string" ? token.id : "",
         name: token.name || null,

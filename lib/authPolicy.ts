@@ -17,7 +17,7 @@ export function getSessionRole(identity: SessionIdentity | null): string {
 }
 
 export function isPublicPath(pathname: string): boolean {
-  return publicRoutes.includes(pathname) || /^\/eventos\/[^/]+(?:\/comunidade)?$/.test(pathname);
+  return publicRoutes.includes(pathname) || ["/recuperar-senha", "/redefinir-senha", "/confirmar-email"].includes(pathname) || /^\/eventos\/[^/]+(?:\/comunidade)?$/.test(pathname);
 }
 
 export function canAccessPath(role: string, pathname: string): boolean {
