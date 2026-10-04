@@ -1,8 +1,8 @@
 export const animationConfig = {
-  duration: 0.24,
+  duration: 0.35,
   ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-  entranceDistance: 8,
-  stationaryOpacity: 0.92,
+  entranceDistance: 14,
+  stationaryOpacity: 0.85,
   staggerStep: 0.035,
   staggerLimit: 0.12,
   hoverLift: 2,
