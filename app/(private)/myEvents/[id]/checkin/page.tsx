@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Camera, CheckCircle2, RefreshCcw, Users, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { FadeInView } from "@/components/animations/FadeInView";
+import { StaggerList } from "@/components/animations/StaggerList";
 
 type Attendee = {
   id: string;
@@ -131,8 +133,8 @@ export default function CheckInPage() {
   const waiting = attendees.filter((entry) => entry.status === "WAITLISTED").length;
 
   return <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"><div className="mx-auto max-w-5xl space-y-6">
-    <header className="flex items-start gap-4"><SidebarTrigger className="mt-1" /><div><Link href="/myEvents" className="text-sm font-semibold text-primary hover:underline">← Meus eventos</Link><h1 className="mt-2 text-3xl font-bold tracking-tight">Check-in do evento</h1><p className="mt-2 text-muted-foreground">Leia o QR Code apresentado pelo participante ou insira o código manualmente.</p></div></header>
-    <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Confirmados</p><p className="mt-1 text-2xl font-bold">{confirmed}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Entraram</p><p className="mt-1 text-2xl font-bold text-primary">{checkedIn}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Lista de espera</p><p className="mt-1 text-2xl font-bold">{waiting}</p></div></div>
+    <header className="flex items-start gap-4"><SidebarTrigger className="mt-1" /><div><Link href="/myEvents" className="text-sm font-semibold text-primary hover:underline">← Meus eventos</Link><FadeInView><h1 className="mt-2 text-3xl font-bold tracking-tight">Check-in do evento</h1><p className="mt-2 text-muted-foreground">Leia o QR Code apresentado pelo participante ou insira o código manualmente.</p></FadeInView></div></header>
+    <StaggerList className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Confirmados</p><p className="mt-1 text-2xl font-bold">{confirmed}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Entraram</p><p className="mt-1 text-2xl font-bold text-primary">{checkedIn}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Lista de espera</p><p className="mt-1 text-2xl font-bold">{waiting}</p></div></StaggerList>
     <section aria-labelledby="scanner-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><h2 id="scanner-title" className="text-xl font-semibold">Registrar entrada</h2><p className="mt-1 text-sm text-muted-foreground">O código expira em cinco minutos. Peça ao participante para abrir um novo se necessário.</p>
       {scanning ? <div className="mt-4 max-w-lg overflow-hidden rounded-xl border bg-black"><video ref={videoRef} playsInline muted className="aspect-video w-full object-cover" /><button type="button" onClick={stopCamera} className="flex min-h-11 w-full items-center justify-center gap-2 bg-card text-sm font-semibold"><X className="h-4 w-4" />Fechar câmera</button></div> : <button type="button" onClick={() => void startCamera()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Camera className="h-4 w-4" />Ler QR Code</button>}
       {cameraError && <p role="alert" className="mt-3 text-sm text-destructive">{cameraError}</p>}
