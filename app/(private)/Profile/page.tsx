@@ -18,6 +18,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { getMyPublicProfile, updatePromoterProfile } from "@/app/(actions)/engagement/action";
 import { Textarea } from "@/components/ui/textarea";
+import { FadeInView } from "@/components/animations/FadeInView";
+import { ParallaxCard } from "@/components/animations/ParallaxCard";
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
@@ -185,12 +187,23 @@ export default function Profile() {
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-start gap-4">
           <SidebarTrigger className="mt-1 shrink-0" />
-          <div><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Minha conta</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-2 text-muted-foreground">Mantenha suas informações e sua foto atualizadas.</p></div>
+          <FadeInView><div><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Minha conta</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-2 text-muted-foreground">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
           <Card className="overflow-hidden rounded-2xl shadow-sm">
-            <div className="h-24 bg-gradient-to-r from-primary/20 via-primary/10 to-accent/70" />
+            <div className="relative h-24 overflow-hidden bg-gradient-to-r from-primary/20 via-primary/10 to-accent/70">
+              <ParallaxCard
+                className="absolute inset-0"
+                decorationClassName="absolute inset-0"
+                secondaryClassName="absolute inset-0"
+                pointerHost="parent"
+                mobileScroll
+                secondaryDecoration={<span className="absolute -top-14 right-10 h-32 w-32 rounded-full bg-accent/45 blur-2xl" />}
+              >
+                <span className="absolute -left-8 -top-12 h-36 w-36 rounded-full bg-primary/35 blur-2xl" />
+              </ParallaxCard>
+            </div>
             <CardContent className="relative px-6 pb-6 pt-0">
               <img src={profileImage || determineDefaultAvatar(account.name)} alt={`Foto de perfil de ${account.name || "usuário"}`} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-sm" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
