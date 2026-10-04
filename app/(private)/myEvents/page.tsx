@@ -10,6 +10,9 @@ import { useSocket } from "@/context/SocketContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getRecentEventHistory } from "@/app/(actions)/eventHistory/action";
 import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/types/features";
+import { FadeInView } from "@/components/animations/FadeInView";
+import { ParallaxCard } from "@/components/animations/ParallaxCard";
+import { StaggerList } from "@/components/animations/StaggerList";
 
 type StatusFilter = "all" | EventStatus;
 type HistoryEntry = {
@@ -129,26 +132,36 @@ export default function MyEvents() {
   return (
     <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl space-y-7">
-        <header className="flex flex-wrap items-start justify-between gap-5">
-          <div className="flex min-w-0 items-start gap-4">
+        <header className="relative isolate flex flex-wrap items-start justify-between gap-5 overflow-hidden rounded-3xl border bg-card/80 p-5 shadow-sm sm:p-6">
+          <ParallaxCard
+            className="pointer-events-none absolute inset-0"
+            decorationClassName="absolute inset-0"
+            secondaryClassName="absolute inset-0"
+            pointerHost="parent"
+            mobileScroll
+            secondaryDecoration={<span className="absolute -right-8 -top-20 h-56 w-56 rounded-full bg-accent/30 blur-3xl" />}
+          >
+            <span className="absolute -right-24 top-2 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
+          </ParallaxCard>
+          <div className="relative z-10 flex min-w-0 items-start gap-4">
             <SidebarTrigger className="mt-1 shrink-0" />
-            <div>
+            <FadeInView>
               <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Painel de eventos</p>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meus eventos</h1>
               <p className="mt-2 max-w-2xl text-muted-foreground">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
-            </div>
+            </FadeInView>
           </div>
-          <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <Link href="/CriarEvento" className="relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             <Plus className="size-4" aria-hidden="true" /> Criar evento
           </Link>
         </header>
 
         {!isLoading && !error && events.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Total de eventos</p><p className="mt-1 text-2xl font-bold">{events.length}</p></div>
-            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Publicados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{publishedCount}</p></div>
-            <div className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Em análise</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p></div>
-          </div>
+          <StaggerList className="grid gap-3 sm:grid-cols-3" itemClassName="h-full">
+            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Total de eventos</p><p className="mt-1 text-2xl font-bold">{events.length}</p></div>
+            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Publicados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{publishedCount}</p></div>
+            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Em análise</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p></div>
+          </StaggerList>
         )}
 
         <section aria-labelledby="event-history-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
