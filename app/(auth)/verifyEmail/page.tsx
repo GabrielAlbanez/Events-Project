@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, LoaderCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FadeInView } from "@/components/animations/FadeInView";
 
 type VerificationState = "loading" | "verified" | "invalid" | "unavailable";
 
@@ -72,9 +73,9 @@ export default function VerifyEmailPage() {
     <main className="flex min-h-[80vh] w-full items-center justify-center px-4 py-10 sm:px-6">
       <section className="w-full max-w-lg rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-10" aria-busy={loading}>
         <div role={loading || success ? "status" : "alert"} aria-live="polite">
-          <span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <FadeInView stationary><span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             {loading ? <LoaderCircle className="h-7 w-7 motion-safe:animate-spin" aria-hidden="true" /> : success ? <CheckCircle className="h-7 w-7" aria-hidden="true" /> : <XCircle className="h-7 w-7" aria-hidden="true" />}
-          </span>
+          </span></FadeInView>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
           <p className="mt-3 leading-7 text-muted-foreground">{description}</p>
         </div>
