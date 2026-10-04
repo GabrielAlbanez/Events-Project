@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import ClientProviders from "@/components/Providers/ClientProviders";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { RouteTransition } from "@/components/animations/RouteTransition";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -40,7 +41,7 @@ export default function RootLayout({
       <body>
         <ClientProviders defaultOpen={defaultOpen}>
           <ToastContainer  position="top-right" autoClose={3000} />
-          {children}
+          <RouteTransition>{children}</RouteTransition>
         </ClientProviders>
       </body>
     </html>

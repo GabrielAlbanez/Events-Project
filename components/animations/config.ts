@@ -11,6 +11,7 @@ export const animationConfig = {
   parallaxDistance: 12,
   parallaxPerspective: 800,
   parallaxSecondaryDepth: 0.5,
+  route: { duration: 0.35, peakOpacity: 0.7, initialScale: 0.94 },
   shimmer: { duration: 1.6, repeatDelay: 0.5, opacity: 0.5, staticOpacity: 0.12 },
   spring: { stiffness: 180, damping: 28, mass: 0.5 },
 };
