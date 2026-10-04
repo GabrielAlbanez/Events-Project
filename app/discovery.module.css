@@ -10,12 +10,6 @@
   height: calc(28dvh - 20px);
 }
 
-@media (hover: none), (prefers-reduced-motion: reduce) {
-  .eventCard:hover {
-    transform: none;
-  }
-}
-
 @media (min-width: 768px) {
   .map,
   .mapExpanded {
