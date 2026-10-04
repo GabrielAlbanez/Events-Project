@@ -1,20 +1,48 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { animationConfig } from "./config";
 
-/** Queries start disabled during SSR; listeners are removed when the surface unmounts. */
+type MotionMedia = { fineHover: boolean; coarse: boolean };
+const serverMedia: MotionMedia = { fineHover: false, coarse: false };
+let mediaSnapshot = serverMedia;
+let hoverQuery: MediaQueryList | null = null;
+let coarseQuery: MediaQueryList | null = null;
+const mediaSubscribers = new Set<() => void>();
+
+function syncMotionMedia() {
+  if (!hoverQuery || !coarseQuery) return;
+  const fineHover = hoverQuery.matches;
+  const coarse = coarseQuery.matches;
+  if (mediaSnapshot.fineHover === fineHover && mediaSnapshot.coarse === coarse) return;
+  mediaSnapshot = { fineHover, coarse };
+  mediaSubscribers.forEach(notify => notify());
+}
+
+function subscribeMotionMedia(notify: () => void) {
+  mediaSubscribers.add(notify);
+  if (mediaSubscribers.size === 1) {
+    hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    coarseQuery = window.matchMedia("(pointer: coarse)");
+    hoverQuery.addEventListener("change", syncMotionMedia);
+    coarseQuery.addEventListener("change", syncMotionMedia);
+    syncMotionMedia();
+  }
+  return () => {
+    mediaSubscribers.delete(notify);
+    if (mediaSubscribers.size === 0) {
+      hoverQuery?.removeEventListener("change", syncMotionMedia);
+      coarseQuery?.removeEventListener("change", syncMotionMedia);
+      hoverQuery = null;
+      coarseQuery = null;
+    }
+  };
+}
+
+/** One pair of media-query listeners is shared by all animated surfaces. */
 export function useMotionMedia() {
-  const [media, setMedia] = useState({ fineHover: false, coarse: false });
-  useEffect(() => {
-    const hover = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const coarse = window.matchMedia("(pointer: coarse)");
-    const sync = () => setMedia({ fineHover: hover.matches, coarse: coarse.matches });
-    sync(); hover.addEventListener("change", sync); coarse.addEventListener("change", sync);
-    return () => { hover.removeEventListener("change", sync); coarse.removeEventListener("change", sync); };
-  }, []);
-  return media;
+  return useSyncExternalStore(subscribeMotionMedia, () => mediaSnapshot, () => serverMedia);
 }
 
 function scrollParent(element: HTMLElement): HTMLElement | Window {
@@ -42,33 +70,49 @@ export function useParallax({ disabled = false, mobileScroll = false, pointerHos
     const element = ref.current;
     const reset = () => { x.set(0); y.set(0); rx.set(0); ry.set(0); };
     if (!element || !enabled) { reset(); return; }
+    let frame: number | null = null;
+    const cancelFrame = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+    };
     if (fineHover) {
       // Decorative overlays can be pointer-transparent while their stable parent supplies the hit area.
       const target = pointerHost === "parent" ? element.parentElement ?? element : element;
-      const move = (event: PointerEvent) => {
-        if (event.pointerType !== "mouse") return;
+      let pointerX = 0;
+      let pointerY = 0;
+      const update = () => {
+        frame = null;
         const bounds = target.getBoundingClientRect();
-        const horizontal = Math.max(-1, Math.min(1, ((event.clientX - bounds.left) / Math.max(bounds.width, 1) - 0.5) * 2));
-        const vertical = Math.max(-1, Math.min(1, ((event.clientY - bounds.top) / Math.max(bounds.height, 1) - 0.5) * 2));
+        const horizontal = Math.max(-1, Math.min(1, ((pointerX - bounds.left) / Math.max(bounds.width, 1) - 0.5) * 2));
+        const vertical = Math.max(-1, Math.min(1, ((pointerY - bounds.top) / Math.max(bounds.height, 1) - 0.5) * 2));
         x.set(horizontal * animationConfig.parallaxDistance); y.set(vertical * animationConfig.parallaxDistance);
         rx.set(-vertical * animationConfig.parallaxDegrees); ry.set(horizontal * animationConfig.parallaxDegrees);
       };
+      const move = (event: PointerEvent) => {
+        if (event.pointerType !== "mouse") return;
+        pointerX = event.clientX;
+        pointerY = event.clientY;
+        if (frame === null) frame = window.requestAnimationFrame(update);
+      };
+      const leave = () => { cancelFrame(); reset(); };
       target.addEventListener("pointermove", move, { passive: true });
-      target.addEventListener("pointerleave", reset);
-      return () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerleave", reset); reset(); };
+      target.addEventListener("pointerleave", leave);
+      return () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerleave", leave); leave(); };
     }
     if (coarse && mobileScroll) {
       const container = scrollParent(element);
-      const scroll = () => {
+      const update = () => {
+        frame = null;
         const bounds = element.getBoundingClientRect();
         const viewport = container instanceof HTMLElement ? container.getBoundingClientRect() : { top: 0, height: window.innerHeight };
         const progress = Math.max(-1, Math.min(1, (bounds.top + bounds.height / 2 - viewport.top - viewport.height / 2) / Math.max(viewport.height, 1)));
         y.set(progress * animationConfig.parallaxDistance);
       };
+      const scroll = () => { if (frame === null) frame = window.requestAnimationFrame(update); };
       container.addEventListener("scroll", scroll, { passive: true });
       window.addEventListener("resize", scroll, { passive: true });
       scroll();
-      return () => { container.removeEventListener("scroll", scroll); window.removeEventListener("resize", scroll); reset(); };
+      return () => { container.removeEventListener("scroll", scroll); window.removeEventListener("resize", scroll); cancelFrame(); reset(); };
     }
     reset();
   }, [enabled, fineHover, coarse, mobileScroll, pointerHost, x, y, rx, ry]);
