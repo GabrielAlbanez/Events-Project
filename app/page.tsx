@@ -11,6 +11,11 @@ import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "./discovery.module.css";
+import { FadeInView } from "@/components/animations/FadeInView";
+import { StaggerList } from "@/components/animations/StaggerList";
+import { InteractiveSurface } from "@/components/animations/InteractiveSurface";
+import { ParallaxCard } from "@/components/animations/ParallaxCard";
+import { LoadingShimmer } from "@/components/animations/LoadingShimmer";
 
 const filters: { label: string; value: Period }[] = [
   { label: "Todos", value: "todos" },
@@ -107,9 +112,15 @@ export default function Home() {
         <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-zinc-200 bg-white shadow-[0_-12px_36px_-24px_rgba(0,0,0,.35)] transition-[height] duration-300 dark:border-white/10 dark:bg-zinc-950 md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
           <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-700" /></button>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
+            <div className="relative isolate">
+              <ParallaxCard pointerHost="parent" mobileScroll className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 overflow-hidden rounded-3xl" decorationClassName="absolute inset-0" secondaryClassName="absolute inset-0" secondaryDecoration={<span className="absolute bottom-0 right-2 h-20 w-20 rounded-full bg-indigo-400/5 dark:bg-indigo-400/10" />}><span className="absolute left-0 top-0 h-24 w-32 rounded-full bg-violet-400/10 dark:bg-violet-400/10" /></ParallaxCard>
+            <FadeInView>
             <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-orange-600 md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
             <h1 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h1>
             <p className="mt-1 hidden text-sm leading-6 text-zinc-500 md:block">Explore a agenda e escolha o que combina com você.</p>
+            </FadeInView>
+            </div>
+            <FadeInView stationary>
             <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-500/10 dark:border-white/10 dark:bg-white/5">
               <Search className="h-4 w-4 shrink-0 text-zinc-400" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400" />
@@ -118,18 +129,19 @@ export default function Home() {
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
               {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-violet-700 text-white shadow-md shadow-violet-700/20" : "border border-zinc-200 bg-white text-zinc-600 hover:border-violet-300 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300"}`}>{filter.label}</button>)}
             </div>
+            </FadeInView>
           </div>
-          <div className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
+          <FadeInView stationary className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></FadeInView>
           <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-white/10">
             <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-zinc-400">{filteredEvents.length} encontrados</span></div>
             <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
-              {loading && <p className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5">Carregando eventos…</p>}
+              {loading && <p className="relative overflow-hidden rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5"><span aria-hidden="true" className="pointer-events-none absolute inset-0 text-violet-300 dark:text-violet-500"><LoadingShimmer className="h-full w-full" /></span><span className="relative">Carregando eventos…</span></p>}
               {loadError && <div role="alert" className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
               {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-zinc-200 p-6 text-center dark:border-white/10"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-violet-500" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-zinc-500">Experimente outra busca ou período.</p></div>}
-              {filteredEvents.map((event) => <button key={event.id} type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedId === event.id ? "border-violet-400 bg-violet-50/70 dark:bg-violet-400/10" : "border-zinc-200 bg-white hover:border-violet-200 dark:border-white/10 dark:bg-white/5"}`}>
+              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedId === event.id ? "border-violet-400 bg-violet-50/70 dark:bg-violet-400/10" : "border-zinc-200 bg-white hover:border-violet-200 dark:border-white/10 dark:bg-white/5"}`}>
                 <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-violet-700 to-indigo-700">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>
                 <div className="min-w-0 flex-1 py-1"><span className="text-[11px] font-bold uppercase tracking-wide text-orange-700 dark:text-orange-400">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{event.nome}</h3><p className="mt-1 flex items-center gap-1 truncate text-xs text-zinc-500"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
-              </button>)}
+              </button></InteractiveSurface>)}</StaggerList>
             </div>
           </div>
         </section>
