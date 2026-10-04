@@ -9,9 +9,10 @@ import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import type { CommunityRoomSnapshot, CommunityRoomSummary } from "@/types/community";
 import { useCommunityResource } from "./CommunityResource";
 import { CommunityAction, CommunityBadge, CommunityCard, CommunityEmpty, CommunityField, CommunityForm, CommunitySelect, CommunitySyncStatus, CommunityInteractionBoundary, CommunityStaleBanner } from "./CommunityUI";
+import { FadeInView } from "@/components/animations/FadeInView";
 
 function CommunityRoomsHeader({ title, description }: { title: string; description: string }) {
-  return <header className="flex items-start gap-3"><SidebarTrigger /><div className="min-w-0"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><UsersRound className="size-4" aria-hidden="true" />Combine seu próximo evento</p><h1 className="mt-2 break-words text-3xl font-bold tracking-tight">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div></header>;
+  return <header className="flex items-start gap-3"><SidebarTrigger /><FadeInView className="min-w-0"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><UsersRound className="size-4" aria-hidden="true" />Combine seu próximo evento</p><h1 className="mt-2 break-words text-3xl font-bold tracking-tight">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></FadeInView></header>;
 }
 
 export function CommunityRooms() {
