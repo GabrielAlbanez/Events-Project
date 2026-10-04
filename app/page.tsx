@@ -113,7 +113,21 @@ export default function Home() {
           <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-700" /></button>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="relative isolate">
-              <ParallaxCard pointerHost="parent" mobileScroll className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 overflow-hidden rounded-3xl" decorationClassName="absolute inset-0" secondaryClassName="absolute inset-0" secondaryDecoration={<span className="absolute bottom-0 right-2 h-20 w-20 rounded-full bg-indigo-400/5 dark:bg-indigo-400/10" />}><span className="absolute left-0 top-0 h-24 w-32 rounded-full bg-violet-400/10 dark:bg-violet-400/10" /></ParallaxCard>
+              <ParallaxCard
+                pointerHost="parent"
+                mobileScroll
+                className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 overflow-hidden rounded-3xl"
+                decorationClassName="absolute inset-0"
+                secondaryClassName="absolute inset-0"
+                secondaryDecoration={<>
+                  <span className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-violet-300/30 dark:border-violet-400/15" />
+                  <span className="absolute -right-2 -top-6 h-28 w-28 rounded-full border border-indigo-300/20 bg-gradient-to-br from-indigo-200/10 to-transparent dark:border-indigo-400/15 dark:from-indigo-400/10" />
+                  <span className="absolute -bottom-12 right-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(129,140,248,0.12),transparent_70%)] dark:bg-[radial-gradient(circle,rgba(129,140,248,0.16),transparent_70%)]" />
+                </>}
+              >
+                <span className="absolute -left-10 -top-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.22),transparent_70%)] dark:bg-[radial-gradient(circle,rgba(139,92,246,0.20),transparent_70%)]" />
+                <span className="absolute -left-8 -top-10 h-36 w-36 rounded-full border border-violet-300/20 dark:border-violet-400/10" />
+              </ParallaxCard>
             <FadeInView>
             <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-orange-600 md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
             <h1 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h1>
