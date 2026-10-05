@@ -16,12 +16,12 @@ export function AuthPageShell({ children, mode, formLabel }: { children: ReactNo
         <Link href="/" className="flex items-center gap-2 rounded-lg text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Voltar para explorar</span><span className="sm:hidden">Explorar</span></Link>
       </header>
       <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 sm:py-14 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] xl:gap-16">
-        <section className="relative hidden min-w-0 overflow-hidden rounded-[2rem] border border-primary/15 bg-primary/5 p-10 xl:block" aria-labelledby="auth-introduction">
-          <ParallaxCard className="pointer-events-none absolute inset-0" pointerHost="parent" decorationClassName="absolute inset-0" secondaryDecoration={<span />} secondaryClassName="absolute right-8 top-8 h-28 w-28 rounded-full border border-primary/20 bg-primary/5">
-            <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+        <section className="relative hidden min-w-0 overflow-hidden rounded-[2rem] border border-border bg-card shadow-surface p-10 xl:block" aria-labelledby="auth-introduction">
+          <ParallaxCard className="pointer-events-none absolute inset-0" pointerHost="parent" decorationClassName="absolute inset-0" secondaryDecoration={<span />} secondaryClassName="absolute right-8 top-8 h-28 w-28 rounded-full border border-border bg-muted/20">
+            <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-decoration-brand" />
           </ParallaxCard>
           <FadeInView className="relative">
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/70 px-3 py-1.5 text-xs font-semibold text-primary"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" />Descubra. Encontre. Viva.</span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-semibold text-primary"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" />Descubra. Encontre. Viva.</span>
             <h2 id="auth-introduction" className="mt-7 text-4xl font-semibold leading-tight tracking-tight">Seu próximo momento<br /><span className="text-primary">começa por aqui.</span></h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground">Encontre eventos que combinam com você e pessoas para compartilhar a experiência.</p>
             <div className="mt-10 space-y-3">
@@ -34,7 +34,7 @@ export function AuthPageShell({ children, mode, formLabel }: { children: ReactNo
           </FadeInView>
         </section>
         <section className="mx-auto w-full min-w-0 max-w-md" aria-label={formLabel ?? (mode === "login" ? "Entrar na conta" : "Criar uma conta")}>
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">{children}</div>
+          <div className="rounded-3xl border border-border bg-card p-6 shadow-surface sm:p-8">{children}</div>
           <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{mode === "login" ? "Seus eventos, suas conexões e sua agenda em um só lugar." : "Crie sua conta e encontre novas experiências para viver."}</p>
         </section>
       </div>
