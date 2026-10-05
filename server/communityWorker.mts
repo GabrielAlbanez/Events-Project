@@ -56,8 +56,42 @@ export function createCommunityPoller(prisma: PrismaClient, emit: (room: string)
 
 export function startCommunityWorker(prisma: PrismaClient, emit: (room: string) => Promise<void>): () => void {
   const poller = createCommunityPoller(prisma, emit);
-  const timer = setInterval(() => { void poller.poll(); }, 2000);
+  const replay = createCommunityReplay(prisma, emit);
+  const timer = setInterval(() => { void poller.poll(); void replay.poll(); }, 1000);
   timer.unref();
   void poller.poll();
-  return () => { clearInterval(timer); poller.stop(); };
+  return () => { clearInterval(timer); poller.stop(); replay.stop(); };
+}
+
+/** Every server must observe signals acknowledged by another server. Payloads
+ * contain room names only; dispatch reauthorizes each recipient independently. */
+export function createCommunityReplay(prisma: PrismaClient, emit: (room: string) => Promise<void>, now = Date.now) {
+  const seen = new Map<number, number>();
+  let running = false, stopped = false;
+  let failed = false;
+  async function poll() {
+    if (running || stopped) return;
+    running = true;
+    try {
+      const cutoff = now() - 30_000;
+      for (const [id, timestamp] of Array.from(seen)) if (timestamp < cutoff) seen.delete(id);
+      const entries = await prisma.communitySignal.findMany({ where: { deliveredAt: { gte: new Date(cutoff) } }, orderBy: { deliveredAt: "desc" }, take: 2000, select: { id: true, room: true, deliveredAt: true } });
+      const fresh = entries.filter(entry => !seen.has(entry.id));
+      let roomFailed = false;
+      for (const room of Array.from(new Set(fresh.map(entry => entry.room)))) {
+        if (stopped) break;
+        try {
+          await emit(room);
+          for (const entry of fresh) if (entry.room === room) seen.set(entry.id, entry.deliveredAt!.getTime());
+        } catch { roomFailed = true; }
+      }
+      if (roomFailed && !failed) console.error("Community synchronization temporarily unavailable.");
+      failed = roomFailed;
+    } catch {
+      if (!failed) console.error("Community synchronization temporarily unavailable.");
+      failed = true;
+    }
+    finally { running = false; }
+  }
+  return { poll, stop: () => { stopped = true; seen.clear(); } };
 }

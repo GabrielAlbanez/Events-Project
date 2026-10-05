@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { EventChatMessage, EventChatHistory } from "@/types/eventChat";
 
-type ChatState = { identity: string; event: EventChatHistory["event"] | null; messages: EventChatMessage[]; nextBefore: number | null; loading: boolean; loadingOlder: boolean; error: string; denied: boolean; sending: boolean; pending: { clientId: string; text: string } | null };
+type ChatState = { partnerReceipt?: EventChatHistory["partnerReceipt"]; identity: string; event: EventChatHistory["event"] | null; messages: EventChatMessage[]; nextBefore: number | null; loading: boolean; loadingOlder: boolean; error: string; denied: boolean; sending: boolean; pending: { clientId: string; text: string } | null };
 const empty = (identity: string): ChatState => ({ identity, event: null, messages: [], nextBefore: null, loading: true, loadingOlder: false, error: "", denied: false, sending: false, pending: null });
 function mergeMessages(first: EventChatMessage[], second: EventChatMessage[]): EventChatMessage[] {
   const merged = new Map(first.map(message => [message.id, message]));
@@ -57,7 +57,7 @@ export function useEventChat(eventId: string, customEndpoint?: string) {
         if (current.current !== identity) return;
         const next = page.messages.at(-1)?.id;
         if (next) synced.current.cursor = next;
-        update(previous => previous.denied ? previous : ({ ...previous, event: page.event, messages: mergeMessages(previous.messages, page.messages), nextBefore: cursor ? previous.nextBefore : page.nextBefore, loading: false, error: "", pending: page.messages.some(message => message.own && message.clientId === previous.pending?.clientId) ? null : previous.pending }));
+        update(previous => previous.denied ? previous : ({ ...previous, event: page.event, partnerReceipt: page.partnerReceipt, messages: mergeMessages(previous.messages, page.messages), nextBefore: cursor ? previous.nextBefore : page.nextBefore, loading: false, error: "", pending: page.messages.some(message => message.own && message.clientId === previous.pending?.clientId) ? null : previous.pending }));
         more = !!cursor && page.hasMore && !!next && next > cursor;
         cursor = next ?? cursor;
       }
@@ -100,5 +100,23 @@ export function useEventChat(eventId: string, customEndpoint?: string) {
     window.addEventListener("online", change); window.addEventListener("offline", change);
     return () => { window.removeEventListener("online", change); window.removeEventListener("offline", change); };
   }, []);
-  return { ...state, online, refresh, loadOlder, send, revoke, userId: session?.user?.id };
+  const controls = useRef({ identity, lastTyping: 0, delivered: 0, read: 0 });
+  if (controls.current.identity !== identity) controls.current = { identity, lastTyping: 0, delivered: 0, read: 0 };
+  const typing = useCallback((active: boolean) => {
+    if (!customEndpoint || latest.current.denied || status !== "authenticated" || !navigator.onLine) return;
+    if (active && Date.now() - controls.current.lastTyping < 2000) return;
+    controls.current.lastTyping = Date.now();
+    void request(endpoint, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "typing", active }) }).catch(() => undefined);
+  }, [customEndpoint, endpoint, request, status]);
+  const acknowledge = useCallback((messageId: number, read: boolean) => {
+    if (!customEndpoint || latest.current.denied || status !== "authenticated" || !navigator.onLine) return;
+    if (document.visibilityState !== "visible") return;
+    if (messageId <= (read ? controls.current.read : controls.current.delivered)) return;
+    void request(endpoint, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "receipt", messageId, read }) }).then(() => {
+      if (current.current !== identity) return;
+      controls.current.delivered = Math.max(controls.current.delivered, messageId);
+      if (read) controls.current.read = Math.max(controls.current.read, messageId);
+    }).catch(() => undefined);
+  }, [customEndpoint, endpoint, identity, request, status]);
+  return { ...state, online, refresh, loadOlder, send, revoke, typing, acknowledge, userId: session?.user?.id };
 }

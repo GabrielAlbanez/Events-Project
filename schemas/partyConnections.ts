@@ -3,6 +3,7 @@ const id = z.string().uuid();
 const reason = z.enum(["HARASSMENT", "SPAM", "SAFETY", "OTHER"]);
 function safePhoto(value: string): boolean {
   if (!value) return true;
+  if (/^\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|avif)$/.test(value)) return true;
   try {
     const url = new URL(value), host = url.hostname.toLowerCase();
     return url.protocol === "https:" && !url.username && !url.password && !url.port && host.includes(".") && !host.endsWith(".local") && !host.endsWith(".localhost") && host !== "localhost" && !/^[\d.]+$/.test(host) && !host.includes(":");

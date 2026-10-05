@@ -42,7 +42,7 @@ async function main() {
   assert.equal(await canReadCommunityRoom(prisma, "user:owner", "owner"), true);
   assert.equal(await canReadCommunityRoom(prisma, "event:missing", "admin"), false);
 
-  const { createCommunityPoller } = load("communityWorker");
+  const { createCommunityPoller, createCommunityReplay } = load("communityWorker");
   const now = 1900000000000;
   const entries = Array.from({ length: 205 }, (_, index) => ({ id: index + 2, room: "event:" + index, createdAt: new Date(now), deliveredAt: null }));
   const sent = [];
@@ -105,6 +105,36 @@ async function main() {
   assert.equal(entries.find(entry => entry.id === 4001).deliveredAt, null, "budget yields between room deliveries");
   await budget.poll();
   assert.notEqual(entries.find(entry => entry.id === 4001).deliveredAt, null);
+
+  // Each process observes acknowledgments independently: a localhost consumer
+  // must not steal invalidations from the public tunnel consumer.
+  const delivered = [{ id: 1, room: "match:one", deliveredAt: new Date(now) }];
+  const replayDb = { communitySignal: { findMany: async ({ where }) => delivered.filter(row => row.deliveredAt >= where.deliveredAt.gte) } };
+  const localSignals = [], publicSignals = [];
+  const localReplay = createCommunityReplay(replayDb, async room => localSignals.push(room), () => now);
+  const publicReplay = createCommunityReplay(replayDb, async room => publicSignals.push(room), () => now);
+  await Promise.all([localReplay.poll(), publicReplay.poll()]);
+  assert.deepEqual(localSignals, ["match:one"]);
+  assert.deepEqual(publicSignals, ["match:one"]);
+  await Promise.all([localReplay.poll(), publicReplay.poll()]);
+  assert.equal(localSignals.length, 1, "acknowledgments are deduplicated within a process");
+  let rejectReplay = true;
+  const retried = [];
+  const retryReplay = createCommunityReplay(replayDb, async room => { if (rejectReplay) throw new Error("network"); retried.push(room); }, () => now);
+  console.error = () => {};
+  try { await retryReplay.poll(); } finally { console.error = log; }
+  rejectReplay = false;
+  await retryReplay.poll();
+  assert.deepEqual(retried, ["match:one"], "failed deliveries remain retryable");
+  localReplay.stop();
+  delivered.push({ id: 2, room: "match:two", deliveredAt: new Date(now) });
+  const healthyReplay = [];
+  const isolatedReplay = createCommunityReplay(replayDb, async room => { if (room === "match:one") throw new Error("unavailable"); healthyReplay.push(room); }, () => now);
+  console.error = () => {};
+  try { await isolatedReplay.poll(); } finally { console.error = log; }
+  assert.deepEqual(healthyReplay, ["match:two"], "one failed room does not block other server recipients");
+  await localReplay.poll();
+  assert.equal(localSignals.length, 1, "stopped workers emit nothing");
 
   const { registerCommunitySubscriptions, dispatchCommunitySignal } = load("communityGateway");
   function fakeSocket(userId, expiresAt) {

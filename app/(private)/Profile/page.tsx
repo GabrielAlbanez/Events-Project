@@ -45,6 +45,10 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, setIsPending] = useState(false);
   const [isImagePending, setIsImagePending] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const imageLock = useRef(false);
+  const imageController = useRef<AbortController | null>(null);
+  useEffect(() => () => imageController.current?.abort(), []);
   const [profileImage, setProfileImage] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState("");
@@ -133,11 +137,12 @@ export default function Profile() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+    if (!["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
       toast.error("Escolha uma imagem de até 5 MB.");
       event.target.value = "";
       return;
     }
+    setImageError("");
     setSelectedImage(file);
     setPreviewImage(URL.createObjectURL(file));
     setIsModalOpen(true);
@@ -152,13 +157,18 @@ export default function Profile() {
   };
 
   const handleConfirmImage = async () => {
-    if (isImagePending || !selectedImage || !account?.id) return;
+    if (imageLock.current || !selectedImage || !account?.id) return;
+    imageLock.current = true;
+    setImageError("");
     setIsImagePending(true);
+    const controller = new AbortController();
+    imageController.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 30000);
     try {
       const payload = new FormData();
       payload.append("file", selectedImage);
       payload.append("userId", account.id);
-      const response = await fetch("/api/upload", { method: "POST", body: payload });
+      const response = await fetch("/api/upload", { method: "POST", body: payload, signal: controller.signal });
       if (!response.ok) throw new Error("Upload failed");
       const result: { filePath?: string } = await response.json();
       if (!result.filePath) throw new Error("Missing image path");
@@ -170,8 +180,11 @@ export default function Profile() {
       setSelectedImage(null);
       setPreviewImage("");
     } catch {
-      toast.error("Não foi possível atualizar a foto. Tente novamente.");
+      setImageError("Não foi possível atualizar a foto. Confira sua conexão e tente novamente.");
     } finally {
+      clearTimeout(timeout);
+      imageController.current = null;
+      imageLock.current = false;
       setIsImagePending(false);
     }
   };
@@ -240,7 +253,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
-      <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} />
+      <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} pending={isImagePending} error={imageError} />
     </main>
   );
 }

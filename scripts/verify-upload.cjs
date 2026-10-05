@@ -27,12 +27,16 @@ function load(file, dependencies) {
     "@/lib/adminAuth": { getAuthenticatedUser: async () => actor },
     "@/lib/storage/profileImages": { ...storage, boundedMultipart: async () => ({ get: key => key === "userId" ? "u1" : file }), saveProfileImage: async () => { savedCount++; return { url: "/uploads/safe.jpg", remove: async () => { rollback++; } }; } },
   });
-  const request = { headers: new Headers(), nextUrl: { origin: "http://localhost" } };
+  const request = { headers: new Headers(), nextUrl: { origin: "http://localhost", searchParams: new URLSearchParams() } };
   assert.equal((await route.POST(request)).status, 401); assert.equal(savedCount, 0);
   actor = { id: "u1" }; count = 0;
   assert.equal((await route.POST(request)).status, 401); assert.equal(rollback, 1);
   count = 1; assert.equal((await route.POST(request)).status, 200);
   dbFailure = true; assert.equal((await route.POST(request)).status, 500); assert.equal(rollback, 2);
+  request.nextUrl.searchParams.set("purpose", "party");
+  assert.equal((await route.POST(request)).status, 200); // No profile write even when user update fails.
+  request.nextUrl.searchParams.set("purpose", "other");
+  assert.equal((await route.POST(request)).status, 400);
   request.headers.set("origin", "https://other.invalid"); assert.equal((await route.POST(request)).status, 403);
   console.log("PASS: upload signature validation, streamed size bound, exclusive UUID files, removed-account denial, origin and DB rollback");
 })().catch(error => { console.error(error); process.exitCode = 1; });

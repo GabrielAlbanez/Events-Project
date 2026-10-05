@@ -11,5 +11,6 @@ export interface EventChatHistory {
   messages: EventChatMessage[];
   nextBefore: number | null;
   hasMore: boolean;
+  partnerReceipt?: { deliveredThrough: number; readThrough: number; typingUntil: number };
 }
 export interface EventChatSendResult { message: EventChatMessage; duplicate: boolean }

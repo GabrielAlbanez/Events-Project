@@ -13,7 +13,10 @@ export async function POST(request: NextRequest) {
     const form = await boundedMultipart(request); const file = form.get("file");
     if (!file || typeof file === "string" || typeof file.arrayBuffer !== "function") throw new UploadError(400, "Selecione uma imagem.");
     if (form.get("userId") !== actor.id) throw new UploadError(403, "Não autorizado.");
+    const purpose = request.nextUrl.searchParams.get("purpose");
+    if (purpose && purpose !== "party") throw new UploadError(400, "Destino de imagem inválido.");
     const saved = await saveProfileImage(file);
+    if (purpose === "party") return NextResponse.json({ filePath: saved.url }, { headers });
     try {
       const updated = await prisma.user.updateMany({ where: { id: actor.id }, data: { image: saved.url } });
       if (!updated.count) throw new UploadError(401, "Esta conta não está mais disponível.");

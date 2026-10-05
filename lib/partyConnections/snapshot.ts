@@ -3,6 +3,7 @@ import { Prisma, PartyProfile } from "@prisma/client";
 import { Actor, CommunityError } from "@/lib/community/common";
 import { PartyConnectionsSnapshot, PartyIntent, PartyPublicProfile } from "@/types/partyConnections";
 import { compatible, partyParticipant } from "./access";
+import { receiptData, receiptKey } from "./receipts";
 
 export function publicProfile(profile: PartyProfile, liked = false): PartyPublicProfile {
   return { userId: profile.userId, displayName: profile.displayName, photoUrl: profile.photoUrl, bio: profile.bio, interests: profile.interests, intent: profile.intent as PartyIntent, liked };
@@ -41,6 +42,13 @@ export async function connectionsSnapshot(eventId: string, actor: Actor, after?:
     for (const match of matches) {
       const partner = available.get(match.userAId === actor.id ? match.userBId : match.userAId);
       if (partner) result.matches.push({ id: match.id, profile: publicProfile(partner, true) });
+    }
+    if (result.matches.length) {
+      const receipts = await tx.communityEntry.findMany({ where: { id: { in: result.matches.map(match => receiptKey(match.id, actor.id)) }, authorId: actor.id, kind: "party.receipt" } });
+      const read = new Map(receipts.map(row => [row.id, receiptData(row).readThrough]));
+      const counts = await tx.partyMessage.groupBy({ by: ["matchId"], where: { OR: result.matches.map(match => ({ matchId: match.id, authorId: { not: actor.id }, id: { gt: read.get(receiptKey(match.id, actor.id)) ?? 0 } })) }, _count: { _all: true } });
+      const unread = new Map(counts.map(row => [row.matchId, row._count._all]));
+      result.matches = result.matches.map(match => ({ ...match, unreadCount: unread.get(match.id) ?? 0 }));
     }
     return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });

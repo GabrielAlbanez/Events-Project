@@ -12,6 +12,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["@heroui/react"],
   },
+  async rewrites() {
+    return { beforeFiles: [{ source: "/uploads/:filename", destination: "/api/media/:filename" }] };
+  },
   images: {
     domains: [
       "lh3.googleusercontent.com",

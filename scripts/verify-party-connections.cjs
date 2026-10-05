@@ -34,6 +34,7 @@ async function run() {
       findFirst: async args => list(args)[0] || null, findMany: async args => list(args), count: async args => list(args).length,
       create: async args => { const row = { id: name === "partyMessage" ? store[name].length + 1 : randomUUID(), createdAt: new Date(), active: true, ...(name === "partyReport" ? { status: "PENDING" } : {}), ...args.data }; store[name].push(row); return row; },
       upsert: async args => { let row = list({ where: args.where })[0]; if (row) Object.assign(row, args.update); else { row = { id: randomUUID(), createdAt: new Date(), active: true, ...args.create }; store[name].push(row); } return row; },
+      groupBy: async args => { const items = list(args); const counts = new Map(); for (const row of items) counts.set(row.matchId, (counts.get(row.matchId) || 0) + 1); return Array.from(counts, ([matchId, count]) => ({ matchId, _count: { _all: count } })); },
       updateMany: async args => { const rows = list(args); rows.forEach(row => Object.assign(row, args.data)); return { count: rows.length }; },
       deleteMany: async args => { const rows = list(args); store[name] = store[name].filter(row => !rows.includes(row)); return { count: rows.length }; },
     };
@@ -42,10 +43,13 @@ async function run() {
   db.user = table("user", [a, b, outsider].map(id => ({ id, role: id === outsider ? "ADMIN" : "BASIC" })));
   db.events = table("events", [{ id: eventId, nome: "Festa", status: "PUBLISHED" }]);
   db.eventRegistration = table("eventRegistration", [a, b].map(userId => ({ eventId, userId, status: "CONFIRMED" })));
-  for (const name of ["partyProfile", "partyLike", "partyMatch", "partyBlock", "partyMessage", "partyReport", "notification", "communitySignal"]) db[name] = table(name);
+  for (const name of ["partyProfile", "partyLike", "partyMatch", "partyBlock", "partyMessage", "partyReport", "notification", "communitySignal", "communityEntry"]) db[name] = table(name);
+  const { privateControl } = load("lib/partyConnections/receipts.ts");
   const { connectionsAction } = load("lib/partyConnections/actions.ts"), { connectionsSnapshot } = load("lib/partyConnections/snapshot.ts"), { privateHistory, privateSend } = load("lib/partyConnections/messages.ts"), { partyReports, reviewPartyReport } = load("lib/partyConnections/reports.ts"), { compatible } = load("lib/partyConnections/access.ts"), { partyActionSchema } = load("schemas/partyConnections.ts");
   const actorA = { id: a, role: "BASIC" }, actorB = { id: b, role: "BASIC" }, admin = { id: outsider, role: "ADMIN" };
   const profile = { action: "profile.save", displayName: "Pessoa", photoUrl: "", bio: "Oi", interests: ["Música"], intent: "FRIENDSHIP", adultDeclared: false };
+  assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl: `/uploads/${randomUUID()}.webp` }).success, true);
+  for (const photoUrl of ["/uploads/../.env", "/uploads/------------------------------------.jpg", "/uploads/photo.svg"]) assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl }).success, false);
   for (const photoUrl of ["http://example.com/a", "https://user:password@example.com/a", "https://127.0.0.1/a", "https://localhost/a", "https://example.local/a"]) assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl }).success, false);
   assert.equal(compatible({ intent: "UNKNOWN", adultDeclared: true }, profile), false);
   await assert.rejects(connectionsAction(eventId, admin, profile), e => e.status === 403);
@@ -58,6 +62,7 @@ async function run() {
   assert.equal(store.partyMatch.length, 1); assert.equal(store.notification.length, 2);
   const matchId = store.partyMatch[0].id, clientId = randomUUID();
   const sent = await privateSend(eventId, matchId, actorA, { clientId, text: "Olá" }); assert.equal(sent.duplicate, false);
+  assert.ok(store.communitySignal.some(row => row.room === `user:${b}`), "conversation lists receive private message invalidations");
   assert.equal((await privateHistory(eventId, matchId, actorA, {})).event.partnerId, b);
   assert.equal((await privateHistory(eventId, matchId, actorB, {})).event.partnerId, a);
   assert.equal((await privateSend(eventId, matchId, actorA, { clientId, text: "Olá" })).duplicate, true); assert.equal(store.partyMessage.length, 1);
@@ -77,7 +82,24 @@ async function run() {
   assert.equal(store.partyMatch[0].active, false);
   await connectionsAction(eventId, actorA, { action: "like", userId: b }); await connectionsAction(eventId, actorB, { action: "like", userId: a });
   assert.equal(store.partyMatch.length, 1); assert.equal(store.partyMatch[0].active, true);
+  const receiptMessage = await privateSend(eventId, matchId, actorA, { clientId: randomUUID(), text: "Confirmacao privada" });
+  await assert.rejects(privateControl(eventId, matchId, admin, { action: "typing", active: true }), e => e.status === 403);
+  await assert.rejects(privateControl(randomUUID(), matchId, actorB, { action: "typing", active: true }), e => e.status === 403);
+  assert.equal((await connectionsSnapshot(eventId, actorB)).matches[0].unreadCount, 2);
+  await privateControl(eventId, matchId, actorB, { action: "receipt", messageId: receiptMessage.message.id, read: true });
+  assert.equal((await privateHistory(eventId, matchId, actorA, {})).partnerReceipt.readThrough, receiptMessage.message.id);
+  assert.equal((await connectionsSnapshot(eventId, actorB)).matches[0].unreadCount, 0);
+  await privateControl(eventId, matchId, actorB, { action: "receipt", messageId: sent.message.id, read: true });
+  assert.equal((await privateHistory(eventId, matchId, actorA, {})).partnerReceipt.readThrough, receiptMessage.message.id, "late receipts never roll back the read cursor");
+  await assert.rejects(privateControl(eventId, matchId, actorB, { action: "receipt", messageId: 987654, read: true }), e => e.status === 400);
+  await privateControl(eventId, matchId, actorB, { action: "typing", active: true });
+  assert.ok((await privateHistory(eventId, matchId, actorA, {})).partnerReceipt.typingUntil > Date.now());
+  await privateControl(eventId, matchId, actorB, { action: "typing", active: false });
+  assert.equal((await privateHistory(eventId, matchId, actorA, {})).partnerReceipt.typingUntil, 0);
+  await assert.rejects(privateControl(eventId, matchId, actorA, { action: "receipt", messageId: receiptMessage.message.id, read: true }), e => e.status === 400);
   store.eventRegistration.find(row => row.userId === a).status = "CANCELLED";
+  await assert.rejects(privateControl(eventId, matchId, actorB, { action: "typing", active: true }), e => e.status === 403);
+  await assert.rejects(privateControl(eventId, matchId, actorB, { action: "receipt", messageId: receiptMessage.message.id, read: true }), e => e.status === 403);
   await assert.rejects(privateHistory(eventId, matchId, actorB, {}), e => e.status === 403);
   assert.equal((await connectionsSnapshot(eventId, actorB)).profiles.length, 0);
   await connectionsAction(eventId, actorA, { action: "profile.leave" }); assert.equal(store.partyLike.length, 0); assert.equal(store.partyProfile.find(row => row.userId === a).active, false);
