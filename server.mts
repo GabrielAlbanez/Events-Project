@@ -13,6 +13,7 @@ import { startCommunityWorker } from "./server/communityWorker.mjs";
 import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
 import { resolveSocketIdentity, validateSocketIdentity, emitAuthorizedRoom } from "./server/socketIdentity.mjs";
 import { configuredPublicOrigin } from "./lib/publicUrl.js";
+import { createSharedPresence } from "./server/sharedPresence.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -74,6 +75,17 @@ app.prepare().then(async () => {
   const stopAccountRevocation = startAccountRevocationWorker(prisma, io);
   httpServer.on("close", stopAccountRevocation);
 
+  const sharedPresence = createSharedPresence({
+    getLocalUserIds: () => Array.from(new Set(activeUsers.values())),
+    onChange: (userIds) => emitAuthorizedRoom(prisma, io!, "admins", "active-users", userIds),
+  });
+  httpServer.on("close", () => { void sharedPresence.stop(); });
+  const shutdown = () => {
+    void sharedPresence.stop().finally(() => { process.exit(0); });
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+
   // The NextAuth JWT is carried by the HTTP upgrade request. Anonymous sockets
   // may receive public event updates, but never acquire a user identity.
   io.use(async (socket, next) => {
@@ -118,7 +130,7 @@ app.prepare().then(async () => {
     }
 
     const broadcastPresence = () => {
-      void emitAuthorizedRoom(prisma, io!, "admins", "active-users", Array.from(new Set(activeUsers.values()))).catch(() => console.warn("Presence socket delivery unavailable."));
+      void sharedPresence.poll();
     };
 
     const registerUser = async () => {
@@ -162,13 +174,17 @@ app.prepare().then(async () => {
     socket.on("request-active-users", async () => {
       if (!userId) return;
       try {
+        if (!await validateSocketIdentity(prisma, socket)) return;
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
         if (user?.role !== "ADMIN") {
           socket.leave("admins");
           return;
         }
         socket.join("admins");
-        socket.emit("active-users", Array.from(new Set(activeUsers.values())));
+        await sharedPresence.poll();
+        if (socket.connected && await validateSocketIdentity(prisma, socket)) {
+          socket.emit("active-users", sharedPresence.getSnapshot());
+        }
       } catch {
         console.error("Unable to verify access to active users.");
       }

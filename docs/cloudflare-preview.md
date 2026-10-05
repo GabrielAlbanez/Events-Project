@@ -28,3 +28,11 @@ Para voltar ao desenvolvimento local, encerre o servidor público e use `npm run
 ## Conferência
 
 Teste login/logout, upload da foto, confirmação de presença, comunidade/chat, check-in autorizado, denúncias e notificações. No calendário exportado e nos links de e-mail, confirme o domínio público. Requisições de outra origem devem ser recusadas.
+
+## Presença entre localhost e o túnel
+
+O servidor compartilha apenas os IDs das conexões autenticadas entre processos do mesmo computador, checkout e banco. Assim, o painel admin em `localhost:3000` acompanha usuários conectados pelo túnel para outro servidor local. As sessões e os cookies continuam separados por domínio.
+
+A presença é sincronizada em até aproximadamente 2 segundos. Ao parar um processo abruptamente, seu último status expira em aproximadamente 10 segundos. Múltiplas abas mantêm a conta online enquanto existir outra conexão ativa. Somente administradores autorizados recebem a lista.
+
+Essa comunicação local não conecta chats nem sincroniza servidores em computadores diferentes. Para hospedagem distribuída seria necessário um serviço compartilhado de presença e um adapter Socket.IO apropriado.

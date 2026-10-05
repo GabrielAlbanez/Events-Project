@@ -55,13 +55,15 @@ export default function AdminPage() {
         ...user,
         online: previous.find((item) => item.id === user.id)?.online ?? false,
       })));
+      // Presence may have arrived before this page of accounts finished loading.
+      if (socket.connected) socket.emit("request-active-users");
     } catch {
       if (controller.signal.aborted || account !== identity.current) return;
       setError("Não foi possível carregar os usuários. Tente novamente.");
     } finally {
       if (!controller.signal.aborted && account === identity.current) setLoading(false);
     }
-  }, [page, query, roleFilter]);
+  }, [page, query, roleFilter, socket]);
 
   useEffect(() => {
     if (status === "loading") return;
