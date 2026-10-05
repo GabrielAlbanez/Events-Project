@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, MapPin, Sparkles, Users } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
+import { BrandLogo } from "@/components/MyComponents/BrandLogo";
 
 export function AuthPageShell({ children, mode, formLabel }: { children: ReactNode; mode: "login" | "register"; formLabel?: string }) {
   return (
@@ -11,7 +12,7 @@ export function AuthPageShell({ children, mode, formLabel }: { children: ReactNo
       <header className="flex items-center justify-between gap-4 border-b border-border/60 px-5 py-5 sm:px-8">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="h-10 w-10 rounded-xl border border-border" />
-          <Link href="/" className="flex items-center gap-2.5 rounded-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><MapPin className="h-5 w-5" aria-hidden="true" /></span>EventMap</Link>
+          <Link href="/" className="flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><BrandLogo priority /></Link>
         </div>
         <Link href="/" className="flex items-center gap-2 rounded-lg text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Voltar para explorar</span><span className="sm:hidden">Explorar</span></Link>
       </header>
