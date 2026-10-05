@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const mime: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
 export async function GET(_request: Request, { params }: { params: { filename: string } }) {
-  const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp|avif)$/.exec(params.filename);
+  // Keep the exact legacy upload format readable without accepting arbitrary paths.
+  const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{13}-uploaded_image)\.(jpg|png|webp|avif)$/.exec(params.filename);
   if (!match) return new NextResponse(null, { status: 404 });
   const target = path.join(process.cwd(), "public", "uploads", params.filename);
   try {

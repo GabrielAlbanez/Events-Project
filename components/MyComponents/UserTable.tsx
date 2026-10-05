@@ -25,6 +25,7 @@ import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { Evento, User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
+import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
 import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
@@ -225,6 +226,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
             avatarProps={{
               radius: "lg",
               src: user.image || determineDefaultAvatar(user.name),
+              showFallback: true,
+              fallback: <ProfileAvatar name={user.name} size={40} className="h-full w-full rounded-lg" />,
+              imgProps: { referrerPolicy: "no-referrer" },
             }}
             name={user.name}
             description={user.email}
@@ -315,7 +319,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         {users.map(user => (
           <article key={user.id} role="listitem" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none">
             <div className="flex min-w-0 items-start gap-3">
-              <img src={user.image || determineDefaultAvatar(user.name)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              <ProfileAvatar src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
                 <h3 className="break-words text-sm font-semibold text-foreground">{user.name || "Conta sem nome"}</h3>
                 <p className="mt-1 break-all text-xs text-muted-foreground">{user.email}</p>
@@ -379,6 +383,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       selectedUser.image ||
                       determineDefaultAvatar(selectedUser.name),
                     size: "lg",
+                    showFallback: true,
+                    fallback: <ProfileAvatar name={selectedUser.name} size={56} className="h-full w-full rounded-full" />,
+                    imgProps: { referrerPolicy: "no-referrer" },
                   }}
                   name={selectedUser.name}
                   description={selectedUser.email}
@@ -435,13 +442,14 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           <ModalBody>
             {selectedUser && (
               <div className="flex flex-col items-center justify-center gap-4 text-center">
-                <img
+                <ProfileAvatar
                   src={
                     selectedUser.image
                       ? selectedUser.image
                       : determineDefaultAvatar(selectedUser.name)
                   }
-                  alt={selectedUser.name}
+                  name={selectedUser.name}
+                  size={80}
                   className="h-20 w-20 rounded-full object-cover"
                 />
                 <p className="text-sm text-foreground">
