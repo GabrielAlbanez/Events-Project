@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import type { EventChatMessage, EventChatHistory } from "@/types/eventChat";
 import { socket } from "@/lib/socketClient";
 
-type ChatState = { partnerReceipt?: EventChatHistory["partnerReceipt"]; identity: string; event: EventChatHistory["event"] | null; messages: EventChatMessage[]; nextBefore: number | null; loading: boolean; loadingOlder: boolean; error: string; denied: boolean; sending: boolean; retryStopped: boolean; imageUploading: boolean; pending: { clientId: string; text: string; imageId?: string } | null };
+type ChatState = { partnerReceipt?: EventChatHistory["partnerReceipt"]; identity: string; event: EventChatHistory["event"] | null; messages: EventChatMessage[]; nextBefore: number | null; loading: boolean; loadingOlder: boolean; error: string; denied: boolean; sending: boolean; retryStopped: boolean; imageUploading: boolean; pending: { clientId: string; text: string; createdAt: string; imageId?: string } | null };
 const empty = (identity: string): ChatState => ({ identity, event: null, messages: [], nextBefore: null, loading: true, loadingOlder: false, error: "", denied: false, sending: false, retryStopped: false, imageUploading: false, pending: null });
 class ChatRequestError extends Error { constructor(message: string, public status: number) { super(message); } }
 function mergeMessages(first: EventChatMessage[], second: EventChatMessage[]): EventChatMessage[] {
@@ -83,13 +83,13 @@ export function useEventChat(eventId: string, customEndpoint?: string) {
   }, [endpoint, identity, request, update]);
   const send = useCallback(async (text: string, retry = false, imageId?: string, automatic = false): Promise<boolean> => {
     if (current.current !== identity || busy.current.send || status !== "authenticated" || !navigator.onLine || latest.current.denied) return false;
-    const pending = retry ? latest.current.pending : latest.current.pending ? null : { clientId: crypto.randomUUID(), text: text.trim(), ...(imageId ? { imageId } : {}) };
+    const pending = retry ? latest.current.pending : latest.current.pending ? null : { clientId: crypto.randomUUID(), text: text.trim(), createdAt: new Date().toISOString(), ...(imageId ? { imageId } : {}) };
     if (!pending || (!pending.text && !pending.imageId) || pending.text.length > 1000) return false;
     if (!automatic) retryAttempts.current = 0;
     if (confirmed.current.has(pending.clientId)) { update(previous => ({ ...previous, pending: null, retryStopped: false, error: "" })); return true; }
     busy.current.send = true; update(previous => ({ ...previous, sending: true, pending, retryStopped: false, error: "" }));
     try {
-      const result = await request(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending) }) as { message: EventChatMessage };
+      const result = await request(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: pending.clientId, text: pending.text, ...(pending.imageId ? { imageId: pending.imageId } : {}) }) }) as { message: EventChatMessage };
       confirmed.current.add(pending.clientId);
       if (matchId && socket.connected) socket.emit("chat-sync", { matchId });
       update(previous => previous.denied ? previous : ({ ...previous, messages: mergeMessages(previous.messages, [result.message]), pending: null, retryStopped: false, error: "" }));
@@ -157,5 +157,11 @@ export function useEventChat(eventId: string, customEndpoint?: string) {
       if (read) controls.current.read = Math.max(controls.current.read, messageId);
     }).catch(() => undefined);
   }, [customEndpoint, endpoint, identity, request, status]);
-  return { ...state, online, refresh, loadOlder, send, uploadImage, revoke, typing, acknowledge, userId: session?.user?.id };
+  // Local-only bubble: never advance server cursors or claim delivery before persistence.
+  const optimisticMessage: EventChatMessage | null = state.pending && !state.messages.some(message => message.own && message.clientId === state.pending?.clientId) ? {
+    id: -1, clientId: state.pending.clientId, text: state.pending.text, createdAt: state.pending.createdAt,
+    author: { id: session?.user?.id ?? "", name: session?.user?.name ?? "Você", image: session?.user?.image ?? null }, own: true,
+    ...(state.pending.imageId ? { image: { url: `${endpoint}/images/${encodeURIComponent(state.pending.imageId)}` } } : {}),
+  } : null;
+  return { ...state, optimisticMessage, online, refresh, loadOlder, send, uploadImage, revoke, typing, acknowledge, userId: session?.user?.id };
 }

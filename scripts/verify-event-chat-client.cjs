@@ -30,14 +30,19 @@ const page = (messages, hasMore = false) => ({ event: { id: 'event', name: 'Part
   try {
     h.render(); h.calls[0].resolve(200, page([message(1)])); await h.flush();
     const sending = h.current.send('Hello'); const uuid = JSON.parse(h.calls.at(-1).options.body).clientId;
+    h.render(); assert.equal(h.current.optimisticMessage.text, 'Hello', 'bubble appears before the request resolves');
+    assert.equal(h.current.optimisticMessage.id, -1); assert.equal(h.current.messages.length, 1, 'local bubble never advances authoritative history');
     h.calls.at(-1).resolve(200, { message: message(4, true, uuid) }); assert.equal(await sending, true); await h.flush();
+    assert.equal(h.current.optimisticMessage, null, 'confirmed message replaces the local bubble');
     const refresh = h.current.refresh(); assert.match(h.calls.at(-1).url, /after=1$/);
     h.calls.at(-1).resolve(200, page([message(2), message(3), message(4, true, uuid)])); await refresh; await h.flush();
     assert.deepEqual(h.current.messages.map(item => item.id), [1, 2, 3, 4]);
     const failed = h.current.send('Preserved text'); h.calls.at(-1).reject(new TypeError('Offline')); assert.equal(await failed, false); await h.flush();
     const pending = h.current.pending; const retry = h.current.send(pending.text, true); assert.equal(JSON.parse(h.calls.at(-1).options.body).clientId, pending.clientId);
+    h.render(); assert.equal(h.current.optimisticMessage.clientId, pending.clientId, 'retry preserves one local bubble');
     h.calls.at(-1).resolve(200, { message: message(5, true, pending.clientId) }); assert.equal(await retry, true); await h.flush();
     const stale = h.current.refresh(); const old = h.calls.at(-1); h.account('replacement'); assert.equal(h.render().messages.length, 0); assert.equal(old.options.signal.aborted, true); await stale;
+    assert.equal(h.current.optimisticMessage, null);
     h.calls.at(-1).resolve(200, page([message(6)])); await h.flush(); assert.deepEqual(h.current.messages.map(item => item.id), [6]);
     const delayed = h.current.refresh(); let releaseJSON;
     h.calls.at(-1).resolve(200, new Promise(resolve => { releaseJSON = resolve; })); await h.flush();
@@ -79,6 +84,7 @@ const page = (messages, hasMore = false) => ({ event: { id: 'event', name: 'Part
     exhausted.render(); exhausted.calls[0].resolve(200, page([])); await exhausted.flush();
     const first = exhausted.current.send('Photo pending', false, 'image-identifier');
     const original = JSON.parse(exhausted.calls.at(-1).options.body);
+    exhausted.render(); assert.ok(exhausted.current.optimisticMessage.image.url.endsWith('/images/image-identifier'));
     exhausted.calls.at(-1).reject(new TypeError('Offline')); await first; await exhausted.flush();
     for (const delay of [1000, 2500, 5000, 10000]) {
       exhausted.advance(delay); exhausted.calls.at(-1).resolve(200, page([])); await exhausted.flush();

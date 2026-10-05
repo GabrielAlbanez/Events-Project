@@ -1,18 +1,35 @@
 .shell {
+  height: 100vh;
   height: 100dvh;
 }
 
 .main {
-  --discovery-sheet-height: 320px;
-  height: calc(100dvh - 72px);
+  --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
 }
 
 .mainExpanded {
-  --discovery-sheet-height: 72%;
+  --discovery-sheet-height: 78%;
 }
 
 .sheet {
   height: var(--discovery-sheet-height);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.sheetToggle {
+  min-height: 103px;
+  padding-top: 12px;
+  padding-bottom: 16px;
+}
+
+.sheetContent {
+  display: none;
+  overscroll-behavior-y: contain;
+}
+
+.sheetContentExpanded {
+  display: flex;
 }
 
 /* Both regions use the same container, including Safari's dynamic viewport. */
@@ -22,10 +39,27 @@
 }
 
 @media (min-width: 768px) {
+  .sheet {
+    padding-bottom: 0;
+  }
+
+  .sheetContent {
+    display: flex;
+  }
+
   .sheet,
   .map,
   .mapExpanded {
     height: 100%;
     min-height: 520px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheetToggle svg,
+  .map,
+  .mapExpanded {
+    transition: none;
   }
 }

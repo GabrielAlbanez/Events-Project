@@ -5,7 +5,7 @@ import { useSocket } from "@/context/SocketContext";
 import Mapa from "@/components/MyComponents/Map";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Evento } from "@/types";
-import { CalendarDays, Compass, MapPin, Search, Sparkles, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Compass, MapPin, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/MyComponents/BrandLogo";
 import { useSession } from "next-auth/react";
@@ -39,6 +39,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const sheetToggle = useRef<HTMLButtonElement>(null);
   const touchStart = useRef<number | null>(null);
   const [retry, setRetry] = useState(0);
   const [urlReady, setUrlReady] = useState(false);
@@ -91,6 +92,8 @@ export default function Home() {
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
   }, [events, period, search, discovery]);
 
+  const hasActiveFilters = Boolean(search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
+
   return (
     <div className={`${styles.shell} flex min-h-0 flex-col bg-background text-foreground`}>
       <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7">
@@ -109,8 +112,16 @@ export default function Home() {
       </header>
 
       <main className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
-        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300   md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`}>
-          <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-muted-foreground/40" /></button>
+        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
+          <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
+            <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Search className="h-4 w-4" aria-hidden="true" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{sheetExpanded ? "Explorar eventos" : "O que acontece por perto?"}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{loading ? "Carregando eventos…" : loadError ? "Falha ao atualizar · toque para tentar novamente" : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"}${hasActiveFilters ? " · filtros ativos" : " · buscar e filtrar"}`}</span></span>
+              <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${sheetExpanded ? "" : "rotate-180"}`} />
+            </span>
+          </button>
+          <div id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="relative isolate">
               <ParallaxCard
@@ -152,11 +163,12 @@ export default function Home() {
               {loading && <p role="status" className="relative overflow-hidden rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><span aria-hidden="true" className="pointer-events-none absolute inset-0 text-muted-foreground/30"><LoadingShimmer className="h-full w-full" /></span><span className="relative">Carregando eventos…</span></p>}
               {loadError && <div role="alert" className="rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
               {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border p-6 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
-              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30  "}`}>
+              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30  "}`}>
                 <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>
                 <div className="min-w-0 flex-1 py-1"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{event.nome}</h3><p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
               </button></InteractiveSurface>)}</StaggerList>
             </div>
+          </div>
           </div>
         </section>
         <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-muted transition-[height] duration-300 `} aria-label="Mapa dos eventos">
