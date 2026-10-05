@@ -49,6 +49,7 @@ function load(file, dependencies) {
   const { authOptions } = load("lib/auth/options.ts", {
     "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
     "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
+    "@/lib/auth/googleProfileImage": require("./load-google-profile-image.cjs"),
     "@/lib/auth/sessionCredential": credentials,
     "@/lib/prisma": { __esModule: true, default: { impersonationSession: { findFirst: async () => null }, user: { findUnique: async args => {
       assert.equal(args.select.password, true);

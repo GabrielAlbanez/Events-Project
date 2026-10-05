@@ -6,7 +6,7 @@ const socketIdentity = load('server/socketIdentity.mts',{'../lib/auth/accountAcc
 (async () => {
  const user={id:'user',role:'BASIC',name:'Demo',sessionVersion:0,suspendedAt:null,suspendedUntil:null};
  const db={user:{findUnique:async()=>user},impersonationSession:{findFirst:async()=>null,updateMany:async()=>({count:0})}};
- const options=load('lib/auth/options.ts',{'@/lib/prisma':{__esModule:true,default:db},'@next-auth/prisma-adapter':{PrismaAdapter:()=>({})},'@/lib/auth/accountAccess':access,'@/lib/auth/sessionCredential':require('./load-session-credential.cjs'),'@/lib/auth/impersonation':impersonation});
+ const options=load('lib/auth/options.ts',{'@/lib/prisma':{__esModule:true,default:db},'@next-auth/prisma-adapter':{PrismaAdapter:()=>({})},'@/lib/auth/accountAccess':access,'@/lib/auth/googleProfileImage':require('./load-google-profile-image.cjs'),'@/lib/auth/sessionCredential':require('./load-session-credential.cjs'),'@/lib/auth/impersonation':impersonation});
  const old={id:'user',provider:'google',sessionVersion:0};
  assert.equal((await socketIdentity.resolveSocketIdentity(db,old)).id,'user');
  user.suspendedAt=new Date(); user.sessionVersion=1;

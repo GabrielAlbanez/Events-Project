@@ -20,6 +20,7 @@ import { getMyPublicProfile, updatePromoterProfile } from "@/app/(actions)/engag
 import { Textarea } from "@/components/ui/textarea";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
+import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
@@ -205,7 +206,7 @@ export default function Profile() {
               </ParallaxCard>
             </div>
             <CardContent className="relative px-6 pb-6 pt-0">
-              <img src={profileImage || determineDefaultAvatar(account.name)} alt={`Foto de perfil de ${account.name || "usuário"}`} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
+              <ProfileAvatar src={profileImage || determineDefaultAvatar(account.name)} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
               <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
               <div className="mt-5">

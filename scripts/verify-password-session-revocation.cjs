@@ -16,6 +16,7 @@ function load(file, dependencies) {
     "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
     "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
     "@/lib/prisma": { __esModule: true, default: prisma },
+    "@/lib/auth/googleProfileImage": require("./load-google-profile-image.cjs"),
     "@/lib/auth/sessionCredential": credentials,
     "@next-auth/prisma-adapter": { PrismaAdapter: () => ({}) },
   }).authOptions;

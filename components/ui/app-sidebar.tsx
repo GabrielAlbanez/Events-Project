@@ -12,7 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import Image from "next/image";
+import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { BrandLogo } from "@/components/MyComponents/BrandLogo";
 
 import {
@@ -107,7 +107,7 @@ export function AppSidebar() {
         {authenticatedUser ? (
           <>
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-surface md:rounded-2xl md:p-3">
-              <Image width={40} height={40} src={avatar} alt="Foto do perfil" className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
+              <ProfileAvatar size={40} src={avatar} name={authenticatedUser.name} className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
                 <p className="truncate text-xs text-muted-foreground">{authenticatedUser.email}</p>

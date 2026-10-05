@@ -7,6 +7,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { credentialSessionValid, credentialStamp } from "@/lib/auth/sessionCredential";
 import { endImpersonation, resolveImpersonationIdentity } from "@/lib/auth/impersonation";
+import { refreshedGoogleImage } from "@/lib/auth/googleProfileImage";
 
 declare module "next-auth" {
   interface Session {
@@ -102,6 +103,14 @@ export const authOptions: NextAuthOptions = {
             encodeURIComponent( `Esse e-mail ja está vinculado ao um outro proverdor de autenticação.`)
 
           );
+        }
+        if (account.provider === "google") {
+          const picture = profile && "picture" in profile ? profile.picture : user.image;
+          const image = refreshedGoogleImage(existingUser.image, picture);
+          if (image) {
+            // Do not replace a custom upload saved while the OAuth flow was pending.
+            await prisma.user.updateMany({ where: { id: existingUser.id, image: existingUser.image }, data: { image } });
+          }
         }
       } else {
         await prisma.user.create({
