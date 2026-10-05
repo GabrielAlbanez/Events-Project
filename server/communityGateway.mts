@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Server, Socket } from "socket.io";
 import { canReadCommunityRoom, communityRoom } from "./communityAccess.mjs";
 import { revokeRemovedAccount } from "./accountRevocation.mjs";
+import { validateSocketIdentity } from "./socketIdentity.mjs";
 
 type Reply = { ok: boolean; reason?: "denied" | "unavailable" };
 
@@ -69,6 +70,7 @@ export async function dispatchCommunitySignal(prisma: PrismaClient, io: Server, 
     const results = await Promise.allSettled(members.slice(offset, offset + 25).map(async socketId => {
       const client = io.sockets.sockets.get(socketId);
       if (!client?.connected) return;
+      if (!await validateSocketIdentity(prisma, client)) return;
       if (client.data.expiresAt && client.data.expiresAt <= Date.now()) {
         client.emit("session-expired"); client.disconnect(true); return;
       }

@@ -8,6 +8,7 @@ import { HeroUIProvider } from "@heroui/system";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import NotificationBell from "@/components/MyComponents/NotificationBell";
+import ImpersonationGuard from "@/components/MyComponents/ImpersonationGuard";
 
 export default function ClientProviders({
   children,
@@ -20,6 +21,7 @@ export default function ClientProviders({
       <SocketProvider>
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
+            <ImpersonationGuard>
             <SidebarProvider defaultOpen={defaultOpen}>
               <div className="flex min-h-screen w-full">
                 {/* Sidebar */}
@@ -32,6 +34,7 @@ export default function ClientProviders({
                 </main>
               </div>
             </SidebarProvider>
+            </ImpersonationGuard>
           </NextThemesProvider>
         </HeroUIProvider>
       </SocketProvider>

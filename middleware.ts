@@ -5,7 +5,7 @@ import { canAccessPath, getSessionRole, isPublicPath } from "@/lib/authPolicy";
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request });
   const pathname = request.nextUrl.pathname;
-  const role = getSessionRole(token ? { id: token.id, role: token.role, provider: token.provider } : null);
+  const role = getSessionRole(token ? { id: token.impersonationId ? token.effectiveUserId : token.id, role: token.impersonationId ? token.effectiveRole : token.role, provider: token.provider } : null);
 
   if (isPublicPath(pathname)) return NextResponse.next();
 
@@ -25,5 +25,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/conexoes-denuncias", "/Profile", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes", "/atividade", "/salas/:path*", "/eventos/:path*", "/login", "/register"],
+  matcher: ["/admin", "/admin/conexoes-denuncias", "/admin/auditoria", "/Profile", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes", "/atividade", "/salas/:path*", "/eventos/:path*", "/login", "/register"],
 };

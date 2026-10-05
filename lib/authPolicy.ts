@@ -21,7 +21,7 @@ export function isPublicPath(pathname: string): boolean {
 }
 
 export function canAccessPath(role: string, pathname: string): boolean {
-  if (pathname === "/admin/conexoes-denuncias") return role === "ADMIN";
+  if (["/admin/conexoes-denuncias", "/admin/auditoria"].includes(pathname)) return role === "ADMIN";
   if (/^\/eventos\/[^/]+\/conexoes(?:\/[^/]+)?$/.test(pathname)) {
     return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   }

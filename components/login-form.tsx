@@ -78,7 +78,7 @@ export function LoginForm({
         }, 500);
       } else {
         toast.error(
-          signInResponse?.error ||
+          (signInResponse?.error === "AccountSuspended" ? "Sua conta está suspensa. Entre em contato com a administração." : signInResponse?.error) ||
             "Erro ao realizar login. Verifique as credenciais."
         );
       }
@@ -95,13 +95,14 @@ export function LoginForm({
       onSubmit={handleSubmit(onSubmit)}
       {...props}
     >
+      {searchParams.get("notice") === "account-suspended" && <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"><p className="text-sm font-semibold">Sua conta está suspensa</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">A administração suspendeu seu acesso e encerrou suas sessões. Sua conta foi preservada. Entre em contato com a administração para obter orientações.</p></div>}
       {searchParams.get("notice") === "account-removed" && (
         <div role="alert" className="flex gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-foreground">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive"><ShieldAlert className="h-5 w-5" aria-hidden="true" /></span>
           <div className="space-y-1"><p className="text-sm font-semibold">Sua conta foi banida do site</p><p className="text-sm leading-relaxed text-muted-foreground">O administrador removeu sua conta e sua sessão foi encerrada. Se acredita que houve um engano, entre em contato com a administração.</p></div>
         </div>
       )}
-      {searchParams.get("notice") === "credentials-changed" && <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm font-semibold">Sua senha foi alterada</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Sua sessão anterior foi encerrada por segurança. Entre usando a nova senha.</p></div>}
+      {searchParams.get("notice") === "credentials-changed" && <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm font-semibold">Sessão encerrada por segurança</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Sua sessão anterior deixou de ser válida. Entre novamente para continuar.</p></div>}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Bom ter você de volta</h1>
         <p className="text-sm text-muted-foreground">

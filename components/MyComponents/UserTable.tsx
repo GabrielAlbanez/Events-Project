@@ -31,7 +31,8 @@ import alterRoleUser from "@/app/(actions)/alterRoleUser/action";
 import { useSession } from "next-auth/react";
 import { useSocket } from "@/context/SocketContext";
 
-interface UserWithStatus extends UserType { online?: boolean }
+interface UserWithStatus extends UserType { online?: boolean; suspendedAt?: string | null; suspendedUntil?: string | null; suspensionReason?: string | null }
+const isSuspended = (user: UserWithStatus) => Boolean(user.suspendedAt && (!user.suspendedUntil || new Date(user.suspendedUntil).getTime() > Date.now()));
 
 interface UserTableProps {
   users: UserWithStatus[];
@@ -52,6 +53,13 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [enteringUserId, setEnteringUserId] = useState<string | null>(null);
+  const [accessUser, setAccessUser] = useState<UserWithStatus | null>(null);
+  const [accessAction, setAccessAction] = useState<"impersonate" | "suspend" | "resume">("impersonate");
+  const [accessReason, setAccessReason] = useState("");
+  const [accessUntil, setAccessUntil] = useState("");
+  const [accessError, setAccessError] = useState("");
+  const [accessPending, setAccessPending] = useState(false);
   const socket = useSocket();
 
   const { data: session } = useSession();
@@ -88,6 +96,51 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
   const handleOpenModal = (user: UserType) => {
     setSelectedUser(user);
     setIsModalOpen(true);
+  };
+
+  const enterAsUser = async (user: UserType, reason: string) => {
+    if (enteringUserId || session?.user?.role !== "ADMIN" || user.role === "ADMIN" || user.id === session.user.id) return;
+    setEnteringUserId(user.id);
+    setAccessError("");
+    try {
+      const response = await fetch("/api/admin/impersonation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, reason }),
+      });
+      const result: { ok?: boolean; error?: string } = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível entrar nesta conta.");
+      // A full navigation discards cached data and reconnects with the new signed session.
+      window.location.assign("/");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Não foi possível entrar nesta conta.";
+      setAccessError(message);
+      toast.error(message);
+      setEnteringUserId(null);
+    }
+  };
+
+  const openAccess = (user: UserWithStatus, action: typeof accessAction) => {
+    setAccessUser(user); setAccessAction(action); setAccessReason(""); setAccessUntil(""); setAccessError("");
+  };
+  const confirmAccess = async () => {
+    if (!accessUser || accessPending) return;
+    const reason = accessReason.trim();
+    if (reason.length < 5 || reason.length > 500) { setAccessError("Descreva o motivo em 5 a 500 caracteres."); return; }
+    if (accessAction === "impersonate") { await enterAsUser(accessUser, reason); return; }
+    const until = accessUntil ? new Date(accessUntil) : null;
+    if (until && (!Number.isFinite(until.getTime()) || until.getTime() <= Date.now())) { setAccessError("Escolha uma data futura."); return; }
+    setAccessPending(true); setAccessError("");
+    try {
+      const response = await fetch(`/api/admin/users/${accessUser.id}/suspension`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: accessAction, reason, until: accessAction === "suspend" ? until?.toISOString() ?? null : null }) });
+      const result: { error?: string; suspension?: { suspendedAt: string | null; suspendedUntil: string | null; suspensionReason: string | null; active: boolean } } = await response.json();
+      if (!response.ok || !result.suspension) throw new Error(result.error || "Não foi possível atualizar o acesso.");
+      const suspension = result.suspension;
+      setUsers(previous => previous.map(user => user.id === accessUser.id ? { ...user, ...suspension, online: suspension.active ? false : user.online } : user));
+      setAccessUser(null); socket.emit("request-update-users");
+      toast.success(accessAction === "suspend" ? "Conta suspensa. As sessões serão encerradas." : "Acesso restaurado. A pessoa poderá entrar novamente.");
+    } catch (error: unknown) { setAccessError(error instanceof Error ? error.message : "Não foi possível atualizar o acesso."); }
+    finally { setAccessPending(false); }
   };
 
   const handleCloseModal = () => {
@@ -164,7 +217,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
     }
   };
 
-  const renderCell = (user: UserWithStatus, columnKey: string): React.ReactNode => {
+  const renderCell = (user: UserWithStatus, columnKey: string, mobile = false): React.ReactNode => {
     switch (columnKey) {
       case "name":
         return (
@@ -182,7 +235,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button size="sm" variant="flat" isDisabled={user.role === "ADMIN" || isPending} aria-label={`Alterar permissão de ${user.name || user.email}`} endContent={user.role === "ADMIN" ? undefined : <ChevronDownIcon />}>
+              <Button size={mobile ? "md" : "sm"} variant="flat" isDisabled={user.role === "ADMIN" || isPending} aria-label={`Alterar permissão de ${user.name || user.email}`} endContent={user.role === "ADMIN" ? undefined : <ChevronDownIcon />}>
                 {roleLabels[user.role] || user.role}
               </Button>
             </DropdownTrigger>
@@ -205,30 +258,37 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
       case "status":
         return (
           <Chip
-            color={user.online ? "success" : "default"}
+            color={isSuspended(user) ? "warning" : user.online ? "success" : "default"}
             variant="flat"
           >
-            {user.online ? "Online" : "Offline"}
+            {isSuspended(user) ? "Suspenso" : user.online ? "Online" : "Offline"}
           </Chip>
         );
 
       case "actions":
         return (
-          <div className="flex items-center gap-1">
+          <div className={mobile ? "grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2" : "flex flex-wrap items-center gap-1"}>
+            {session?.user?.role === "ADMIN" && user.role !== "ADMIN" && user.id !== session.user.id && (
+              <Button size={mobile ? "md" : "sm"} variant="flat" color="primary" aria-label={`Entrar como ${user.name || user.email}`} isDisabled={isPending || enteringUserId !== null} isLoading={enteringUserId === user.id} onPress={() => openAccess(user, "impersonate")}>
+                Entrar como
+              </Button>
+            )}
+            {session?.user?.role === "ADMIN" && user.role !== "ADMIN" && user.id !== session.user.id && <Button size={mobile ? "md" : "sm"} variant="flat" color={isSuspended(user) ? "success" : "warning"} isDisabled={isPending || accessPending} onPress={() => openAccess(user, isSuspended(user) ? "resume" : "suspend")}>{isSuspended(user) ? "Restaurar acesso" : "Suspender"}</Button>}
             <Tooltip content="Ver eventos">
               <Button
-                isIconOnly
+                isIconOnly={!mobile}
                 size="md"
                 variant="light"
                 aria-label={`Ver eventos de ${user.name || user.email}`}
                 onPress={() => handleOpenModal(user)}
               >
-                <CalendarSearch className="w-[1em]" />
+                <CalendarSearch className="h-4 w-4 shrink-0" />
+                {mobile && "Ver eventos"}
               </Button>
             </Tooltip>
             <Tooltip content={user.role === "ADMIN" ? "Administradores não podem ser excluídos" : "Excluir usuário"}>
               <Button
-                isIconOnly
+                isIconOnly={!mobile}
                 size="md"
                 variant="light"
                 aria-label={`Excluir ${user.name || user.email}`}
@@ -237,6 +297,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 color="danger"
               >
                 <DeleteIcon />
+                {mobile && "Excluir usuário"}
               </Button>
             </Tooltip>
           </div>
@@ -249,6 +310,29 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
 
   return (
     <>
+      <div className="grid min-w-0 gap-4 lg:hidden" role="list" aria-label="Lista de usuários">
+        {users.length === 0 && <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">Nenhum usuário corresponde aos filtros.</p>}
+        {users.map(user => (
+          <article key={user.id} role="listitem" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none">
+            <div className="flex min-w-0 items-start gap-3">
+              <img src={user.image || determineDefaultAvatar(user.name)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              <div className="min-w-0 flex-1">
+                <h3 className="break-words text-sm font-semibold text-foreground">{user.name || "Conta sem nome"}</h3>
+                <p className="mt-1 break-all text-xs text-muted-foreground">{user.email}</p>
+              </div>
+            </div>
+            <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-3 border-t border-border pt-4">
+              <div className="min-w-0"><dt className="mb-2 text-xs font-medium text-muted-foreground">Permissão</dt><dd>{renderCell(user, "role", true)}</dd></div>
+              <div className="min-w-0"><dt className="mb-2 text-xs font-medium text-muted-foreground">Conexão</dt><dd>{renderCell(user, "status", true)}</dd></div>
+            </dl>
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Ações da conta</p>
+              {renderCell(user, "actions", true)}
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="hidden min-w-0 lg:block">
       <Table aria-label="Tabela de usuários" classNames={{ wrapper: "border border-border bg-card shadow-none overflow-x-auto", table: "min-w-[620px]" }}>
         <TableHeader columns={columns}>
           {(column) => (
@@ -267,6 +351,16 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           )}
         </TableBody>
       </Table>
+      </div>
+
+      <Modal classNames={{ backdrop: "z-[100]", wrapper: "z-[110]" }} isOpen={Boolean(accessUser)} isDismissable={!accessPending && !enteringUserId} onClose={() => { if (!accessPending && !enteringUserId) setAccessUser(null); }}>
+        <ModalContent><ModalHeader>{accessAction === "impersonate" ? "Entrar como usuário" : accessAction === "suspend" ? "Suspender acesso" : "Restaurar acesso"}</ModalHeader><ModalBody>
+          <p className="text-sm text-muted-foreground">{accessUser?.name || accessUser?.email}: {accessAction === "impersonate" ? "a conta ficará temporariamente indisponível para seu titular. A justificativa será registrada na auditoria." : accessAction === "suspend" ? "as sessões serão encerradas, preservando a conta e seus eventos." : "a pessoa poderá fazer um novo login. As sessões anteriores continuarão inválidas."}</p>
+          <label className="grid gap-2 text-sm font-medium" htmlFor="admin-access-reason">Justificativa<textarea id="admin-access-reason" aria-describedby="admin-access-reason-hint" autoFocus value={accessReason} onChange={event => setAccessReason(event.target.value)} minLength={5} maxLength={500} rows={3} className="rounded-xl border border-input bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /><span id="admin-access-reason-hint" className="text-xs font-normal text-muted-foreground">Escreva uma justificativa de 5 a 500 caracteres para habilitar a confirmação. {accessReason.trim().length}/500 caracteres.</span></label>
+          {accessAction === "suspend" && <label htmlFor="admin-access-until" className="grid gap-2 text-sm font-medium">Suspender até (opcional)<input id="admin-access-until" type="datetime-local" value={accessUntil} onChange={event => setAccessUntil(event.target.value)} className="rounded-xl border border-input bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /><span className="text-xs font-normal text-muted-foreground">Deixe vazio para suspender até a restauração manual. Máximo de um ano.</span></label>}
+          {accessError && <p role="alert" className="text-sm text-destructive">{accessError}</p>}
+        </ModalBody><ModalFooter><Button variant="flat" isDisabled={accessPending || Boolean(enteringUserId)} onPress={() => setAccessUser(null)}>Cancelar</Button><Button color={accessAction === "suspend" ? "warning" : "primary"} isLoading={accessPending || Boolean(enteringUserId)} isDisabled={accessReason.trim().length < 5 || accessReason.trim().length > 500} onPress={() => void confirmAccess()}>{accessAction === "impersonate" ? "Entrar na visualização" : accessAction === "suspend" ? "Confirmar suspensão" : "Restaurar acesso"}</Button></ModalFooter></ModalContent>
+      </Modal>
 
       {/* Modal de Eventos */}
       {selectedUser && (

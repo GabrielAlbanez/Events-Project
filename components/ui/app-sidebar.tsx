@@ -5,9 +5,7 @@ import {
   CalendarPlus,
   Compass,
   LayoutDashboard,
-  MapPinned,
   Plus,
-  Sparkles,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -15,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
+import { BrandLogo } from "@/components/MyComponents/BrandLogo";
 
 import {
   Sidebar,
@@ -55,47 +54,32 @@ export function AppSidebar() {
     { label: "Descobrir", paths: ["/", "/EventsCreated"] },
     { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/Profile"] },
     { label: "Organizar", paths: ["/CriarEvento", "/myEvents", "/resultados"] },
-    { label: "Administrar", paths: ["/admin", "/admin/conexoes-denuncias"] },
+    { label: "Administrar", paths: ["/admin", "/admin/conexoes-denuncias", "/admin/auditoria"] },
   ];
   const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
 
   return (
     <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-sidebar-border bg-sidebar shadow-surface">
-      <div className="px-5 pb-4 pt-6">
+      <div className="shrink-0 px-4 pb-3 pt-3 md:px-5 md:pb-4 md:pt-6">
         <Link href="/" className="group flex items-center gap-3 rounded-2xl p-1 transition hover:opacity-80">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground shadow-highlight transition group-hover:rotate-3 group-hover:scale-105">
-            <MapPinned className="h-5 w-5" />
-          </span>
-          <div>
-            <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight">
-              EventMap <Sparkles className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">Descubra. Encontre. Viva.</p>
+          <div className="min-w-0">
+            <BrandLogo />
+            <p className="mt-2 text-xs text-muted-foreground">Descubra. Encontre. Viva.</p>
           </div>
         </Link>
       </div>
 
-      <div className="mx-4 rounded-2xl border border-border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-primary">
-          <span className="h-2 w-2 rounded-full bg-primary shadow-highlight" />
-          Encontre sua próxima experiência
-        </div>
-        <Button asChild className="h-10 w-full rounded-xl bg-primary text-primary-foreground shadow-highlight hover:bg-primary/90">
-          <Link href="/EventsCreated">Explorar agenda</Link>
-        </Button>
-      </div>
-
-      <SidebarContent className="px-3 py-5">
+      <SidebarContent className="overscroll-contain px-3 py-3 md:py-5">
         {groups.map(group => {
           const items = visibleItems.filter(item => group.paths.includes(item.href));
           if (!items.length) return null;
-          return <section key={group.label} className="mb-5" aria-label={group.label}><p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
-        <SidebarMenu className="gap-1.5">
+          return <section key={group.label} className="mb-3 shrink-0 md:mb-5" aria-label={group.label}><p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
+        <SidebarMenu className="gap-1 md:gap-1.5">
           {items.map(({ label, href, icon: Icon }) => {
             const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
-                <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:shadow-highlight">
+                <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:shadow-highlight">
                   <Link href={href}>
                     <Icon className="h-5 w-5" />
                     <span>{label}</span>
@@ -108,21 +92,21 @@ export function AppSidebar() {
       </SidebarContent>
 
       {(role === "ADMIN" || role === "PROMOTER") && (
-        <div className="px-4 pb-3">
+        <div className="hidden shrink-0 px-4 pb-3 md:block">
           <Button asChild variant="outline" className="h-11 w-full rounded-xl border-dashed border-primary/30 text-primary hover:border-primary hover:bg-muted">
             <Link href="/CriarEvento"><Plus className="h-4 w-4" /> Novo evento</Link>
           </Button>
         </div>
       )}
 
-      <div className="border-t border-sidebar-border bg-sidebar-accent/40 p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="shrink-0 border-t border-sidebar-border bg-sidebar-accent/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:p-4">
+        <div className="mb-2 flex items-center justify-between gap-2 md:mb-3">
           <span className="text-sm font-medium text-sidebar-foreground">Aparência</span>
           <ThemeSwitcher />
         </div>
         {authenticatedUser ? (
           <>
-            <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-surface">
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-surface md:rounded-2xl md:p-3">
               <Image width={40} height={40} src={avatar} alt="Foto do perfil" className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
@@ -134,8 +118,8 @@ export function AppSidebar() {
         ) : status === "loading" ? (
           <p role="status" className="text-sm text-muted-foreground">Carregando conta...</p>
         ) : (
-          <div className="space-y-3">
-            <p className="text-sm leading-6 text-muted-foreground">Entre para publicar eventos e salvar suas descobertas.</p>
+          <div className="space-y-2 md:space-y-3">
+            <p className="hidden text-sm leading-6 text-muted-foreground md:block">Entre para publicar eventos e salvar suas descobertas.</p>
             <Button asChild className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
               <Link href="/login">Entrar na plataforma</Link>
             </Button>

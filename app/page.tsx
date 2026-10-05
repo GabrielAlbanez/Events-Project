@@ -7,6 +7,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Evento } from "@/types";
 import { CalendarDays, Compass, MapPin, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
+import { BrandLogo } from "@/components/MyComponents/BrandLogo";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
@@ -91,13 +92,12 @@ export default function Home() {
   }, [events, period, search, discovery]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className={`${styles.shell} flex min-h-0 flex-col bg-background text-foreground`}>
       <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="h-10 w-10 rounded-xl border border-border" />
           <Link href="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-highlight"><Sparkles className="h-5 w-5" /></span>
-            EventMap
+            <BrandLogo priority />
           </Link>
         </div>
         <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-border bg-muted p-1 text-sm md:flex">
@@ -108,8 +108,8 @@ export default function Home() {
         <Link href="/EventsCreated" className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
-      <main className={`${styles.main} relative min-h-[520px] flex-1 md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
-        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300   md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
+      <main className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
+        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300   md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`}>
           <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-muted-foreground/40" /></button>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="relative isolate">

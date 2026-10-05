@@ -1,3 +1,4 @@
+import { isAccountSuspended, accountSessionValid } from "@/lib/auth/accountAccess";
 import type { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
@@ -5,10 +6,12 @@ import bcrypt from "bcrypt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { credentialSessionValid, credentialStamp } from "@/lib/auth/sessionCredential";
+import { endImpersonation, resolveImpersonationIdentity } from "@/lib/auth/impersonation";
 
 declare module "next-auth" {
   interface Session {
-    error?: "AccountRemoved" | "SessionUnavailable" | "SessionRevoked";
+    error?: "AccountRemoved" | "SessionUnavailable" | "SessionRevoked" | "AccountImpersonated" | "AccountSuspended";
+    impersonation?: { userName: string; expiresAt: string };
     user: {
       id: string;
       name: string | null;
@@ -57,6 +60,7 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isPasswordValid) return null;
+        if (isAccountSuspended(user)) throw new Error("AccountSuspended");
 
         return user
       },
@@ -88,6 +92,7 @@ export const authOptions: NextAuthOptions = {
       });
 
       if (existingUser) {
+        if (isAccountSuspended(existingUser)) return false;
         const isSameProvider = existingUser.accounts.some(
           (acc) => acc.provider === account.provider
         );
@@ -142,10 +147,18 @@ export const authOptions: NextAuthOptions = {
         try {
           const updatedUser = await prisma.user.findUnique({
             where: { id: token.id },
-            select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true, password: true },
+            select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true, password: true, suspendedAt: true, suspendedUntil: true, sessionVersion: true },
           });
 
-          if (updatedUser && !credentialSessionValid(token.provider, token.credentialStamp, updatedUser.password)) {
+          if (user && updatedUser) token.sessionVersion = updatedUser.sessionVersion;
+          if (updatedUser && isAccountSuspended(updatedUser)) {
+            await endImpersonation(prisma, token);
+            token = { error: "AccountSuspended" };
+          } else if (updatedUser && !accountSessionValid(token.sessionVersion, updatedUser.sessionVersion)) {
+            await endImpersonation(prisma, token);
+            token = { error: "SessionRevoked" };
+          } else if (updatedUser && !credentialSessionValid(token.provider, token.credentialStamp, updatedUser.password)) {
+            await endImpersonation(prisma, token);
             token = { error: "SessionRevoked" };
           } else if (updatedUser) {
             token.name = updatedUser.name;
@@ -155,6 +168,7 @@ export const authOptions: NextAuthOptions = {
             token.role = updatedUser.role;
             delete token.error;
           } else {
+            await endImpersonation(prisma, token);
             token = { error: "AccountRemoved" };
           }
         } catch {
@@ -169,12 +183,31 @@ export const authOptions: NextAuthOptions = {
         token.role = null;
       }
 
+      if (typeof token.id === "string" && token.id && !token.error) {
+        try {
+          const identity = await resolveImpersonationIdentity(prisma, token);
+          token.effectiveUserId = identity.user?.id ?? "";
+          token.effectiveRole = identity.user?.role ?? null;
+          token.accountBlocked = identity.blocked;
+          if (identity.impersonation) {
+            token.impersonationView = identity.impersonation;
+            token.effectiveName = identity.user?.name;
+            token.effectiveEmail = identity.user?.email;
+            token.effectiveImage = identity.user?.image;
+            token.effectiveEmailVerified = identity.user?.emailVerified;
+          } else {
+            delete token.impersonationId;
+            delete token.impersonationView;
+          }
+        } catch { token.effectiveUserId = ""; token.accountBlocked = true; token.error = "SessionUnavailable"; }
+      }
+
       // console.log("JWT Token Atualizado:", token);
       return token;
     },
 
     async session({ session, token }) {
-      session.error = token.error === "AccountRemoved" || token.error === "SessionUnavailable" || token.error === "SessionRevoked" ? token.error : undefined;
+      session.error = token.error === "AccountRemoved" || token.error === "SessionUnavailable" || token.error === "SessionRevoked" || token.error === "AccountSuspended" ? token.error : undefined;
       session.user = {
         id: typeof token.id === "string" ? token.id : "",
         name: token.name || null,
@@ -184,9 +217,21 @@ export const authOptions: NextAuthOptions = {
         emailVerified: typeof token.emailVerified === 'boolean' ? token.emailVerified : null,
         role : typeof token.role === 'string' ? token.role : null
       };
+      if (token.accountBlocked === true) { session.user.id = ""; session.user.role = null; if (!session.error) session.error = "AccountImpersonated"; }
+      if (typeof token.effectiveUserId === "string" && token.effectiveUserId && token.impersonationId) {
+        session.user.id = token.effectiveUserId;
+        session.user.role = typeof token.effectiveRole === "string" ? token.effectiveRole : null;
+        session.user.name = typeof token.effectiveName === "string" ? token.effectiveName : null;
+        session.user.email = typeof token.effectiveEmail === "string" ? token.effectiveEmail : null;
+        session.user.image = typeof token.effectiveImage === "string" ? token.effectiveImage : null;
+        session.user.emailVerified = typeof token.effectiveEmailVerified === "boolean" ? token.effectiveEmailVerified : null;
+        const view = token.impersonationView as { userName: string; expiresAt: string } | undefined;
+        if (view) session.impersonation = { userName: view.userName, expiresAt: view.expiresAt };
+      }
       return session;
     },
   },
+  events: { async signOut({ token }) { if (token) await endImpersonation(prisma, token); } },
   jwt : {
     // Use the correct env var and avoid typos that break signing
     secret: process.env.NEXTAUTH_SECRET,

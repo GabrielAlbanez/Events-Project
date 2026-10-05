@@ -1,15 +1,13 @@
 import type { Socket } from "socket.io";
 import type { PrismaClient } from "@prisma/client";
-import { credentialSessionValid } from "../lib/auth/sessionCredential.js";
+import { validateSocketIdentity } from "./socketIdentity.mjs";
 
 /** Check private operations against the current credential before dispatching them. */
 export function enforceSocketCredentials(prisma: PrismaClient, socket: Socket): void {
   socket.use(async (_packet, next) => {
-    if (socket.data.provider !== "credentials") { next(); return; }
+    if (typeof socket.data.userId !== "string") { next(); return; }
     try {
-      const user = await prisma.user.findUnique({ where: { id: socket.data.userId }, select: { password: true } });
-      if (!socket.connected || !user || !credentialSessionValid(socket.data.provider, socket.data.credentialStamp, user.password)) {
-        if (socket.connected) { socket.emit("session-expired"); socket.disconnect(true); }
+      if (!await validateSocketIdentity(prisma, socket)) {
         next(new Error("Socket session revoked")); return;
       }
       next();

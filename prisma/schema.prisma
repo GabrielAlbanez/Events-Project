@@ -14,6 +14,11 @@ model User {
   password          String?
   emailVerified     Boolean?
   role              Role                   @default(BASIC)
+  suspendedAt       DateTime?
+  suspendedUntil    DateTime?
+  suspensionReason  String?
+  suspendedById     String?
+  sessionVersion    Int @default(0)
   image             String?
   accounts          Account[]
   sessions          Session[]
@@ -50,6 +55,25 @@ model User {
   partyMessages PartyMessage[]
   partyReportsFrom PartyReport[] @relation("PartyReportFrom")
   partyReportsTo PartyReport[] @relation("PartyReportTo")
+  impersonationsStarted ImpersonationSession[] @relation("ImpersonationAdmin")
+  impersonationsReceived ImpersonationSession[] @relation("ImpersonationTarget")
+}
+
+model ImpersonationSession {
+  id String @id @default(uuid())
+  adminId String
+  userId String
+  startedAt DateTime @default(now())
+  expiresAt DateTime
+  endedAt DateTime?
+  reason String @default("")
+  ip String?
+  adminAccountId String?
+  userAccountId String?
+  admin User? @relation("ImpersonationAdmin", fields: [adminAccountId], references: [id], onDelete: SetNull)
+  user User? @relation("ImpersonationTarget", fields: [userAccountId], references: [id], onDelete: SetNull)
+  @@index([userId, endedAt, expiresAt])
+  @@index([adminId, startedAt])
 }
 
 enum Role {
@@ -530,4 +554,16 @@ model PartyReport {
   target User @relation("PartyReportTo", fields: [targetId], references: [id], onDelete: Cascade)
   @@index([status, createdAt])
   @@index([reporterId, createdAt])
+}
+
+model UserSuspensionAudit {
+  id String @id @default(uuid())
+  actorId String
+  userId String
+  action String
+  reason String
+  until DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+  @@index([actorId, createdAt])
 }

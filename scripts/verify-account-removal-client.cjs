@@ -67,7 +67,7 @@ async function run() {
   assert.equal(outs.length, 4);
   assert.equal(socket.connected, false);
   assert.equal(outs[3].options.callbackUrl, "/login?notice=credentials-changed");
-  assert.match(notices.at(-1), /senha foi alterada/);
+  assert.match(notices.at(-1), /sessão foi encerrada por segurança/);
   assert.doesNotMatch(notices.at(-1), /banida/);
   emit("connect_error", { data: { code: "SESSION_REVOKED" } });
   assert.equal(outs.length, 4, "JWT and socket revocation deduplicate logout");

@@ -11,8 +11,10 @@ function load(file, dependencies) {
   process.env.NEXTAUTH_SECRET = "test-only-session-key";
   const credentials = require("./load-session-credential.cjs");
   let user = { id: "u1", role: "BASIC", password: "old-bcrypt-hash", emailVerified: true };
-  const prisma = { user: { findUnique: async () => user } };
+  const prisma = { impersonationSession: { findFirst: async () => null }, user: { findUnique: async () => user } };
   const options = load("lib/auth/options.ts", {
+    "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
+    "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
     "@/lib/prisma": { __esModule: true, default: prisma },
     "@/lib/auth/sessionCredential": credentials,
     "@next-auth/prisma-adapter": { PrismaAdapter: () => ({}) },
@@ -25,6 +27,8 @@ function load(file, dependencies) {
   assert.deepEqual(await options.callbacks.jwt({ token: { id: "u1", provider: "credentials" } }), { error: "SessionRevoked" });
   let cookieToken = { ...first };
   const admin = load("lib/adminAuth.ts", {
+    "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
+    "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
     "next/headers": { headers: () => new Headers() }, "next/server": { NextRequest: class {} },
     "next-auth/jwt": { getToken: async () => cookieToken },
     "@/lib/prisma": { __esModule: true, default: prisma },
@@ -43,7 +47,10 @@ function load(file, dependencies) {
   const fresh = await options.callbacks.jwt({ token: {}, user, account: { provider: "credentials" } });
   assert.notEqual(fresh.credentialStamp, first.credentialStamp);
 
-  const server = load("server/accountRevocation.mts", { "../lib/auth/sessionCredential.js": credentials });
+  const socketIdentity = load("server/socketIdentity.mts", { "../lib/auth/accountAccess.js": require("./load-account-access.cjs"),
+    "../lib/auth/sessionCredential.js": credentials, "../lib/auth/impersonation.js": require("./load-session-impersonation.cjs") });
+  const server = load("server/accountRevocation.mts", { "../lib/auth/accountAccess.js": require("./load-account-access.cjs"),
+    "../lib/auth/sessionCredential.js": credentials, "../lib/auth/impersonation.js": require("./load-session-impersonation.cjs"), "./socketIdentity.mjs": socketIdentity });
   const io = { sockets: { sockets: new Map() } };
   const makeSocket = (id, provider, stamp) => {
     const socket = { connected: true, data: { userId: "u1", provider, credentialStamp: stamp }, events: [], emit(event) { this.events.push(event); }, disconnect(force) { assert.equal(force, true); this.connected = false; } };
@@ -58,8 +65,8 @@ function load(file, dependencies) {
   await server.createAccountRevocationPoller(prisma, io).poll();
   assert.equal(current.connected, false); assert.equal(oauth.connected, true);
   assert.deepEqual(current.events, ["session-expired"]);
-  assert.match(fs.readFileSync("server.mts", "utf8"), /code: "SESSION_REVOKED"/);
-  const packetGuard = load("server/socketSession.mts", { "../lib/auth/sessionCredential.js": credentials });
+  assert.match(fs.readFileSync("server.mts", "utf8"), /resolveSocketIdentity\(prisma, token\)/);
+  const packetGuard = load("server/socketSession.mts", { "./socketIdentity.mjs": socketIdentity });
   let middleware;
   const blocked = makeSocket("packet", "credentials", first.credentialStamp);
   blocked.use = handler => { middleware = handler; };

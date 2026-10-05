@@ -8,6 +8,9 @@ export type IconSvgProps = SVGProps<SVGSVGElement> & {
 };
 
 export type User = {
+  suspendedAt?: string | null;
+  suspendedUntil?: string | null;
+  suspensionReason?: string | null;
   id: string;
   name: string;
   email: string;

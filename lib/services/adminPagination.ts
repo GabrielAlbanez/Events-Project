@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { publicEventSelect } from "@/lib/eventQueries";
+import { suspensionActive } from "./userSuspension";
 import type { ResolveAdminId } from "./authContext";
 
 export async function getAdminUsersPage(resolveAdmin: ResolveAdminId, input: { page?: number; q?: string; role?: string } = {}) {
@@ -15,10 +16,10 @@ export async function getAdminUsersPage(resolveAdmin: ResolveAdminId, input: { p
   };
   const [users, total, all, admins, promoters] = await Promise.all([
     prisma.user.findMany({ where, orderBy: { id: "asc" }, skip: (page - 1) * pageSize, take: pageSize,
-      select: { id: true, name: true, email: true, role: true, image: true, emailVerified: true } }),
+      select: { id: true, name: true, email: true, role: true, image: true, emailVerified: true, suspendedAt: true, suspendedUntil: true, suspensionReason: true } }),
     prisma.user.count({ where }), prisma.user.count(), prisma.user.count({ where: { role: "ADMIN" } }), prisma.user.count({ where: { role: "PROMOTER" } }),
   ]);
-  return { status: "success", data: users.map(user => ({ ...user, Events: [] })),
+  return { status: "success", data: users.map(user => ({ ...user, isSuspended: suspensionActive(user), Events: [] })),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) }, counts: { total: all, admins, promoters } };
 }
 

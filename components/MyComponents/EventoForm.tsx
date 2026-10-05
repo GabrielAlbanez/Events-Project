@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useEventDraftRecovery } from "@/hooks/useEventDraftRecovery";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
@@ -78,6 +79,16 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const fingerprint = JSON.stringify({ values: allValues, dates: dateRange && [dateRange.start.toString(), dateRange.end.toString()], coordinates, recurrence, repeatEvery, occurrences });
   const initialFingerprint = useRef(fingerprint);
   const unsaved = useUnsavedChanges(fingerprint !== initialFingerprint.current || !!banner || galleryFiles.length > 0);
+
+  const draftRecovery = useEventDraftRecovery(data?.id, initialEvent?.id, fingerprint, initialFingerprint.current, fingerprint !== initialFingerprint.current);
+  const restoreDraft = () => {
+    const draft = draftRecovery.recover();
+    if (!draft) return;
+    form.reset(draft.values);
+    try { setDateRange(draft.dates ? { start: parseDate(draft.dates[0]), end: parseDate(draft.dates[1]) } : null); } catch { setDateRange(null); }
+    setCoordinates(draft.coordinates); setRecurrence(draft.recurrence); setRepeatEvery(draft.repeatEvery); setOccurrences(draft.occurrences); setAddressMode("manual");
+    toast.info("Rascunho recuperado. Se necessário, selecione novamente as imagens.");
+  };
 
   const nome = form.watch("nome");
   const descricao = form.watch("descricao");
@@ -176,6 +187,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           return;
         }
         unsaved.markSaved();
+        draftRecovery.clearSaved();
         if (!initialEvent && recurrence !== "none") {
           if (!result.evento?.id) {
             toast.error("O evento foi salvo, mas não foi possível criar a série. Consulte Meus eventos.");
@@ -214,6 +226,8 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       {unsaved.dialog}
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
+          {draftRecovery.recovery && <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="Recuperar rascunho local"><h2 className="font-semibold">Você tem um rascunho neste navegador</h2><p className="mt-2 text-sm text-muted-foreground">Salvo em {new Date(draftRecovery.recovery.savedAt).toLocaleString("pt-BR")}. As imagens precisam ser selecionadas novamente. {draftRecovery.conflict ? "O evento foi atualizado desde este rascunho: recuperar substituirá os campos atuais. Confira antes de salvar." : "Recupere suas alterações ou descarte para continuar."}</p><div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={restoreDraft} disabled={fingerprint !== initialFingerprint.current || isPending}>Recuperar rascunho</Button><Button type="button" variant="ghost" onClick={draftRecovery.discard}>Descartar rascunho</Button></div>{fingerprint !== initialFingerprint.current && <p className="mt-2 text-xs text-muted-foreground">Você já editou o formulário. O rascunho anterior não substituirá essas alterações.</p>}</section>}
+          {draftRecovery.message && <p role="status" className="text-xs text-muted-foreground">{draftRecovery.message} · Alterações ainda não enviadas. Expira após 7 dias.</p>}
           <section className={sectionClass} aria-labelledby="event-details-title">
             <SectionHeading number="01" title="Apresente o evento" description="Ajude as pessoas a entender o que vai acontecer e por que participar." id="event-details-title" />
             <div className="space-y-5">

@@ -5,7 +5,7 @@ const ts = require("typescript");
 function load(name) {
   const output = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../server/", name + ".mts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function("require", "module", "exports", output)(id => id === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
+  new Function("require", "module", "exports", output)(id => id === "../lib/auth/accountAccess.js" ? require("./load-account-access.cjs") : id === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : id === "../lib/auth/impersonation.js" ? require("./load-session-impersonation.cjs") : id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
   return mod.exports;
 }
 function socket(userId, expiresAt) {
@@ -21,6 +21,7 @@ async function main() {
   const profiles = { a: { active: true, intent: "FRIENDSHIP", adultDeclared: false }, b: { active: true, intent: "COMPANY", adultDeclared: false } };
   const registrations = { a: "CONFIRMED", b: "CHECKED_IN", admin: "CONFIRMED" };
   const db = {
+    user: { findUnique: async ({ where }) => ["a", "b", "admin"].includes(where.id) ? { id: where.id, role: where.id === "admin" ? "ADMIN" : "BASIC" } : null },
     events: { findUnique: async ({ where }) => where.id === "party" ? { status: eventStatus } : null },
     partyProfile: { findUnique: async ({ where }) => where.eventId_userId.eventId === "party" ? profiles[where.eventId_userId.userId] ?? null : null },
     eventRegistration: { findUnique: async ({ where }) => where.eventId_userId.eventId === "party" && registrations[where.eventId_userId.userId] ? { status: registrations[where.eventId_userId.userId] } : null },

@@ -1,16 +1,28 @@
+.shell {
+  height: 100dvh;
+}
+
 .main {
+  --discovery-sheet-height: 320px;
   height: calc(100dvh - 72px);
 }
 
-.map {
-  height: calc(100dvh - 392px);
+.mainExpanded {
+  --discovery-sheet-height: 72%;
 }
 
+.sheet {
+  height: var(--discovery-sheet-height);
+}
+
+/* Both regions use the same container, including Safari's dynamic viewport. */
+.map,
 .mapExpanded {
-  height: calc(28dvh - 20px);
+  height: calc(100% - var(--discovery-sheet-height));
 }
 
 @media (min-width: 768px) {
+  .sheet,
   .map,
   .mapExpanded {
     height: 100%;

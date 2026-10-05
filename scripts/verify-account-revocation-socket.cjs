@@ -5,7 +5,7 @@ const ts = require("typescript");
 function load(name) {
   const output = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../server", name + ".mts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function("require", "module", "exports", output)(id => id === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
+  new Function("require", "module", "exports", output)(id => id === "../lib/auth/accountAccess.js" ? require("./load-account-access.cjs") : id === "../lib/auth/sessionCredential.js" ? require("./load-session-credential.cjs") : id === "../lib/auth/impersonation.js" ? require("./load-session-impersonation.cjs") : id.startsWith("./") ? load(id.slice(2).replace(/\.mjs$/, "")) : require(id), mod, mod.exports);
   return mod.exports;
 }
 function socket(id, userId, io) {
@@ -42,7 +42,7 @@ async function main() {
   existing.clear(); await poller.poll(); assert.equal(other.connected, false);
   const stopped = socket("stopped", "missing", io); poller.stop(); await poller.poll(); assert.equal(stopped.connected, true);
   const source = fs.readFileSync(path.join(__dirname, "../server.mts"), "utf8");
-  assert.match(source, /error\.data = \{ code: "ACCOUNT_REMOVED" \}/, "valid JWT with missing DB account rejects handshake explicitly");
+  assert.match(source, /resolveSocketIdentity\(prisma, token\)/, "handshake resolves current account and impersonation");
   console.log("Account revocation socket checks passed: all sessions, private identity targeting, absent room, outage, cleanup and stopped worker.");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

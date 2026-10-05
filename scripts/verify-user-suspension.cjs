@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict');
+const service = require('./load-moderation-service.cjs')('lib/services/userSuspension.ts');
+(async () => {
+  const users = new Map([['admin',{id:'admin',role:'ADMIN'}],['user',{id:'user',role:'BASIC',sessionVersion:0}],['other-admin',{id:'other-admin',role:'ADMIN'}]]);
+  const audits = [], signals = [], impersonations = [{userId:'user',endedAt:null}];
+  const db = {user:{findUnique:async ({where})=>users.get(where.id),updateMany:async ({where,data})=>{const u=users.get(where.id); if(!u || u.role==='ADMIN')return{count:0}; Object.assign(u,{...data,sessionVersion:u.sessionVersion+1});return{count:1}}},$queryRaw:async()=>[],userSuspensionAudit:{create:async({data})=>audits.push(data)},communitySignal:{createMany:async({data})=>signals.push(...data)},impersonationSession:{updateMany:async({where,data})=>{impersonations.filter(i=>i.userId===where.userId).forEach(i=>Object.assign(i,data))}}};
+  db.$transaction=async callback=>callback(db);
+  const suspend={action:'suspend',reason:'Abuso documentado',until:null};
+  await assert.rejects(service.changeUserSuspension(db,'user','user',suspend));
+  await assert.rejects(service.changeUserSuspension(db,'user','other-admin',suspend),/negado/);
+  await assert.rejects(service.changeUserSuspension(db,'admin','other-admin',suspend),/Administradores/);
+  await assert.rejects(service.changeUserSuspension(db,'admin','user',{...suspend,reason:'a'}),/motivo/);
+  await assert.rejects(service.changeUserSuspension(db,'admin','user',{...suspend,until:new Date(0).toISOString()}),/prazo/);
+  await assert.rejects(service.changeUserSuspension(db,'admin','user',{...suspend,until:new Date(Date.now()+366*86400000).toISOString()}),/prazo/);
+  assert.equal((await service.changeUserSuspension(db,'admin','user',suspend)).active,true);
+  assert.equal(users.get('user').sessionVersion,1); assert.ok(impersonations[0].endedAt);
+  assert.equal(audits[0].action,'SUSPEND'); assert.equal(signals.length,2);
+  await assert.rejects(service.changeUserSuspension(db,'admin','user',suspend),/já está/);
+  assert.equal((await service.changeUserSuspension(db,'admin','user',{action:'resume',reason:'Revisão concluída'})).active,false);
+  assert.equal(users.get('user').sessionVersion,2);assert.equal(audits[1].action,'RESUME');
+  assert.equal(service.suspensionActive({suspendedAt:new Date(),suspendedUntil:new Date(0)}),false);
+  assert.equal(service.suspensionActive({suspendedAt:new Date(),suspendedUntil:null}),true);
+  console.log('PASS: suspension authorization, input bounds, atomic revocation signals, preserved account, audit, resume and expiration.');
+})().catch(e=>{console.error(e);process.exitCode=1});

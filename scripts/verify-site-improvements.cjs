@@ -12,7 +12,7 @@ function load(file, dependencies) {
     findMany: async args => { calls.push(args); return [{ id: "u1", name: "Name" }]; },
     count: async args => { calls.push({ count: args }); return 56; },
   }, events: { findMany: async args => { calls.push(args); return Array.from({ length: 11 }, (_, id) => ({ id })); } } };
-  const admin = load("lib/services/adminPagination.ts", { "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/eventQueries": { publicEventSelect: { id: true } } });
+  const admin = load("lib/services/adminPagination.ts", { "./userSuspension": require("./load-moderation-service.cjs")("lib/services/userSuspension.ts"), "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/eventQueries": { publicEventSelect: { id: true } } });
   assert.equal((await admin.getAdminUsersPage(async () => null)).status, "error"); assert.equal(calls.length, 0);
   const result = await admin.getAdminUsersPage(async () => "admin", { page: 2, q: " Name ", role: "BASIC" });
   assert.equal(calls[0].take, 25); assert.equal(calls[0].skip, 25); assert.equal(calls[0].where.role, "BASIC");

@@ -50,6 +50,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   // Atualizar estado quando eventos forem alterados
   useEffect(() => {
     setEventList(events);
+    setSelectedEvents((selected) => new Set(events.filter((event) => selected.has(event.id)).map((event) => event.id)));
   }, [events]);
 
   // Gerenciar seleção de eventos
@@ -76,6 +77,8 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
     setSelectedEvent(null);
     setIsModalOpen(false);
   };
+
+  const selectedPendingCount = eventList.filter((event) => selectedEvents.has(event.id) && event.status === "PENDING").length;
 
   // Validar eventos selecionados e atualizar a lista
   const handleValidateSelected = async () => {
@@ -170,22 +173,57 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
   }
 
   return (
-    <div className="p-6">
+    <div className="min-w-0 p-3 sm:p-6">
       {/* Botões para ações em massa */}
       {selectedEvents.size > 0 && (
-        <div className="flex items-center mb-6">
-          <Button
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          {selectedPendingCount > 0 && <Button
             color="success"
             isDisabled={isDeleting}
             onClick={handleValidateSelected}
-            className="mr-4"
+            className="min-h-11 w-full sm:w-auto"
           >
-            Publicar selecionados ({selectedEvents.size})
-          </Button>
+            Publicar em análise ({selectedPendingCount})
+          </Button>}
           <ConfirmAction busy={isDeleting} title={`Excluir ${selectedEvents.size} evento(s)?`} description="Os eventos selecionados e seus dados associados serão removidos. Esta ação não pode ser desfeita." label={`Excluir selecionados (${selectedEvents.size})`} onConfirm={handleDeleteSelected} />
         </div>
       )}
 
+      <div className="space-y-3 lg:hidden" aria-label="Eventos para revisão">
+        {eventList.map((event) => (
+          <article key={event.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-surface">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                className="shrink-0 py-2"
+                isSelected={selectedEvents.has(event.id)}
+                isDisabled={isDeleting}
+                onValueChange={() => handleSelectEvent(event.id)}
+                aria-label={`Selecionar ${event.nome}`}
+              />
+              <div className="min-w-0 flex-1 space-y-2">
+                <h3 className="break-words text-base font-semibold leading-snug text-foreground">{event.nome}</h3>
+                <Chip
+                  color={event.status === "PUBLISHED" ? "success" : event.status === "CHANGES_REQUESTED" ? "danger" : "warning"}
+                  size="sm"
+                  variant="flat"
+                >
+                  {eventStatusLabels[(event.status ?? "PENDING") as EventStatus] ?? "Em análise"}
+                </Chip>
+              </div>
+            </div>
+            <div className="mt-4 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Endereço</p>
+              <p className="break-words text-sm leading-relaxed text-foreground">{event.endereco}</p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <Button color="primary" className="min-h-11 w-full" onClick={() => handleSeeMore(event)}>Ver detalhes</Button>
+              {event.status === "PENDING" && <Button variant="flat" color="warning" className="min-h-11 w-full" onClick={() => { setCorrectionEvent(event); setCorrectionReason(""); }}>Pedir correção</Button>}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden lg:block">
       <Table aria-label="Event management table">
         <TableHeader>
           <TableColumn align="start">Selecionar</TableColumn>
@@ -201,7 +239,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
               <TableCell>
                 <Checkbox
                   isSelected={selectedEvents.has(event.id)}
-                  isDisabled={isDeleting || event.status !== "PENDING"}
+                  isDisabled={isDeleting}
                   onValueChange={() => handleSelectEvent(event.id)}
                   aria-label={`Selecionar ${event.nome}`}
                 />
@@ -239,6 +277,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
           ))}
         </TableBody>
       </Table>
+      </div>
 
       {/* Modal para detalhes do evento */}
       {selectedEvent && (

@@ -10,7 +10,15 @@ function errorResponse(error: unknown) {
 
 function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  if (!origin || origin === request.nextUrl.origin) return true;
+  // The public origin is explicitly configured when running behind a tunnel.
+  const publicUrl = process.env.NEXTAUTH_URL;
+  if (!publicUrl) return false;
+  try {
+    return origin === new URL(publicUrl).origin;
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {

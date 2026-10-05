@@ -215,6 +215,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
 
   const mapOptions = useMemo<google.maps.MapOptions>(() => ({
     fullscreenControl: false,
+    cameraControl: false,
     mapTypeControl: false,
     streetViewControl: false,
     rotateControl: false,

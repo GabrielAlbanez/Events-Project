@@ -11,7 +11,7 @@ import { startNotificationWorker } from "./server/notificationWorker.mjs";
 import { dispatchCommunitySignal, registerCommunitySubscriptions } from "./server/communityGateway.mjs";
 import { startCommunityWorker } from "./server/communityWorker.mjs";
 import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
-import { credentialSessionValid } from "./lib/auth/sessionCredential.js";
+import { resolveSocketIdentity, validateSocketIdentity, emitAuthorizedRoom } from "./server/socketIdentity.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -37,7 +37,10 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 app.prepare().then(async () => {
-  const httpServer = createServer(handle);
+  const httpServer = createServer((request, response) => {
+    request.headers["x-eventmap-client-ip"] = request.socket.remoteAddress ?? "";
+    return handle(request, response);
+  });
   io = new Server(httpServer, {
     cors: {
       origin: (process.env.SOCKET_IO_ALLOWED_ORIGINS || "").split(",").filter(Boolean),
@@ -53,7 +56,9 @@ app.prepare().then(async () => {
     },
   });
 
-  const stopNotifications = startNotificationWorker(prisma, (userId, event) => io!.to("user:" + userId).emit(event), () => io!.emit("update-events"));
+  const stopNotifications = startNotificationWorker(prisma, (userId, event) => {
+    void emitAuthorizedRoom(prisma, io!, "user:" + userId, event).catch(() => console.warn("Notification socket delivery unavailable."));
+  }, () => io!.emit("update-events"));
   httpServer.on("close", stopNotifications);
   const stopCommunity = startCommunityWorker(prisma, (room) => dispatchCommunitySignal(prisma, io!, room));
   httpServer.on("close", stopCommunity);
@@ -73,23 +78,19 @@ app.prepare().then(async () => {
       if (typeof token?.id !== "string" || !token.id) return next();
       if (typeof token.exp !== "number" || token.exp * 1000 <= Date.now()) return next();
       if (token.provider === "dev-admin") return next();
-      const user = await prisma.user.findUnique({
-        where: { id: token.id },
-        select: { id: true, password: true },
-      });
-      if (user) {
-        if (!credentialSessionValid(token.provider, token.credentialStamp, user.password)) {
-          const error = new Error("Session revoked") as Error & { data: { code: string } };
-          error.data = { code: "SESSION_REVOKED" };
-          return next(error);
-        }
-        socket.data.userId = user.id;
+      const identity = await resolveSocketIdentity(prisma, token);
+      if (typeof identity !== "string") {
+        socket.data.userId = identity.id;
+        socket.data.authUserId = token.id;
+        socket.data.impersonationId = token.impersonationId;
+        socket.data.effectiveRole = identity.role;
         socket.data.expiresAt = token.exp * 1000;
         socket.data.provider = token.provider;
         socket.data.credentialStamp = token.credentialStamp;
+        socket.data.sessionVersion = token.sessionVersion;
       } else {
-        const error = new Error("Account removed") as Error & { data: { code: string } };
-        error.data = { code: "ACCOUNT_REMOVED" };
+        const error = new Error("Socket identity unavailable") as Error & { data: { code: string } };
+        error.data = { code: identity };
         return next(error);
       }
       next();
@@ -108,12 +109,13 @@ app.prepare().then(async () => {
     }
 
     const broadcastPresence = () => {
-      io!.to("admins").emit("active-users", Array.from(new Set(activeUsers.values())));
+      void emitAuthorizedRoom(prisma, io!, "admins", "active-users", Array.from(new Set(activeUsers.values()))).catch(() => console.warn("Presence socket delivery unavailable."));
     };
 
     const registerUser = async () => {
       if (!userId || !socket.connected) return;
       try {
+        if (!await validateSocketIdentity(prisma, socket)) return;
         const user = await prisma.user.findUnique({
           where: { id: userId }, select: { role: true },
         });
@@ -144,7 +146,7 @@ app.prepare().then(async () => {
       lastUserUpdateNotification = now;
       // This is an invalidation signal only. The admin page fetches data through
       // its own HTTP endpoint, so a guest signup can safely trigger a refresh.
-      io!.to("admins").emit("update-users");
+      void emitAuthorizedRoom(prisma, io!, "admins", "update-users").catch(() => console.warn("User socket delivery unavailable."));
     });
 
     // Solicitar lista de usuários ativos
@@ -178,7 +180,7 @@ app.prepare().then(async () => {
           else targetSocket.leave("admins");
           targetSocket.emit("role-mudar", { newRole: target.role });
         }
-        io!.to("admins").emit("update-users");
+        await emitAuthorizedRoom(prisma, io!, "admins", "update-users");
       } catch {
         console.error("Unable to notify sockets of role change.");
       }
@@ -224,14 +226,14 @@ app.prepare().then(async () => {
             if (recentlyNotifiedValidations.has(notificationKey)) continue;
             recentlyNotifiedValidations.set(notificationKey, now + 30_000);
             notifiedOwners.add(event.userId);
-            io!.to(`user:${event.userId}`).emit("event-validated", {
+            await emitAuthorizedRoom(prisma, io!, `user:${event.userId}`, "event-validated", {
               eventId: event.id,
               eventName: event.nome,
               validatedAt: event.validatedAt.toISOString(),
             });
           }
           for (const ownerId of Array.from(notifiedOwners)) {
-            io!.to(`user:${ownerId}`).emit("event-history-updated");
+            await emitAuthorizedRoom(prisma, io!, `user:${ownerId}`, "event-history-updated");
           }
         }
         io!.emit("update-events");

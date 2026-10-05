@@ -26,7 +26,7 @@ function load(file, dependencies) {
       return result;
     },
   };
-  const { deleteUser } = load("lib/services/userAdministration.ts", { "@/lib/prisma": { __esModule: true, default: prisma } });
+  const { deleteUser } = load("lib/services/userAdministration.ts", { "@/lib/prisma": { __esModule: true, default: prisma }, "./userSuspension": require("./load-moderation-service.cjs")("lib/services/userSuspension.ts") });
   assert.equal((await deleteUser({ id: "member" }, async () => null)).status, "error");
   assert.equal((await deleteUser({ id: "admin" }, async () => "admin")).status, "error");
   current.role = "ADMIN";
@@ -47,8 +47,10 @@ function load(file, dependencies) {
   current.password = "password-hash";
   const credentials = require("./load-session-credential.cjs");
   const { authOptions } = load("lib/auth/options.ts", {
+    "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
+    "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
     "@/lib/auth/sessionCredential": credentials,
-    "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async args => {
+    "@/lib/prisma": { __esModule: true, default: { impersonationSession: { findFirst: async () => null }, user: { findUnique: async args => {
       assert.equal(args.select.password, true);
       if (unavailable) throw Error("database unavailable");
       return current;
