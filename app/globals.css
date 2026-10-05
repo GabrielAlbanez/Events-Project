@@ -37,6 +37,8 @@ body {
     --heroui-primary-foreground: var(--primary-foreground);
     --heroui-focus: var(--ring);
     --heroui-divider: var(--border);
+    --heroui-danger: var(--destructive);
+    --heroui-danger-foreground: var(--destructive-foreground);
   }
   .text-balance {
     text-wrap: balance;
@@ -59,7 +61,7 @@ body {
     --muted-foreground: 240 3.8% 46.1%;
     --accent: 24 95% 94%;
     --accent-foreground: 24 80% 28%;
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
@@ -98,8 +100,8 @@ body {
     --muted-foreground: 0 0% 63.92%;
     --accent: 0 0% 8.63%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 72% 65%;
+    --destructive-foreground: 0 0% 3.14%;
     --border: 0 0% 11%;
     --input: 0 0% 13%;
     --ring: 255 92% 76%;
