@@ -60,27 +60,27 @@ export function AppSidebar() {
   const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
 
   return (
-    <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-white/70 bg-white/90 shadow-[18px_0_50px_-32px_rgba(46,16,101,.4)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#111018]/90">
+    <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-sidebar-border bg-sidebar shadow-surface">
       <div className="px-5 pb-4 pt-6">
         <Link href="/" className="group flex items-center gap-3 rounded-2xl p-1 transition hover:opacity-80">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-700 to-indigo-700 text-white shadow-lg shadow-violet-700/25 transition group-hover:rotate-3 group-hover:scale-105">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground shadow-highlight transition group-hover:rotate-3 group-hover:scale-105">
             <MapPinned className="h-5 w-5" />
           </span>
           <div>
             <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight">
-              EventMap <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              EventMap <Sparkles className="h-3.5 w-3.5 text-primary" />
             </div>
-            <p className="text-xs text-zinc-500">Descubra. Encontre. Viva.</p>
+            <p className="text-xs text-muted-foreground">Descubra. Encontre. Viva.</p>
           </div>
         </Link>
       </div>
 
-      <div className="mx-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-violet-400/10 dark:from-violet-500/10 dark:to-indigo-500/5">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
-          <span className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,.12)]" />
+      <div className="mx-4 rounded-2xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-primary">
+          <span className="h-2 w-2 rounded-full bg-primary shadow-highlight" />
           Encontre sua próxima experiência
         </div>
-        <Button asChild className="h-10 w-full rounded-xl bg-zinc-950 text-white shadow-lg hover:bg-violet-700 dark:bg-white dark:text-zinc-950">
+        <Button asChild className="h-10 w-full rounded-xl bg-primary text-primary-foreground shadow-highlight hover:bg-primary/90">
           <Link href="/EventsCreated">Explorar agenda</Link>
         </Button>
       </div>
@@ -89,13 +89,13 @@ export function AppSidebar() {
         {groups.map(group => {
           const items = visibleItems.filter(item => group.paths.includes(item.href));
           if (!items.length) return null;
-          return <section key={group.label} className="mb-5" aria-label={group.label}><p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{group.label}</p>
+          return <section key={group.label} className="mb-5" aria-label={group.label}><p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
         <SidebarMenu className="gap-1.5">
           {items.map(({ label, href, icon: Icon }) => {
             const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
-                <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-zinc-600 transition-all duration-200 hover:translate-x-0.5 hover:bg-violet-50 hover:text-violet-700 data-[active=true]:bg-gradient-to-r data-[active=true]:from-violet-700 data-[active=true]:to-indigo-700 data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-violet-700/20 dark:text-zinc-300 dark:hover:bg-violet-400/10">
+                <SidebarMenuButton asChild isActive={active} className="relative h-11 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:shadow-highlight">
                   <Link href={href}>
                     <Icon className="h-5 w-5" />
                     <span>{label}</span>
@@ -109,34 +109,34 @@ export function AppSidebar() {
 
       {(role === "ADMIN" || role === "PROMOTER") && (
         <div className="px-4 pb-3">
-          <Button asChild variant="outline" className="h-11 w-full rounded-xl border-dashed border-violet-300 text-violet-700 hover:border-violet-500 hover:bg-violet-50 dark:border-violet-400/30 dark:text-violet-300">
+          <Button asChild variant="outline" className="h-11 w-full rounded-xl border-dashed border-primary/30 text-primary hover:border-primary hover:bg-muted">
             <Link href="/CriarEvento"><Plus className="h-4 w-4" /> Novo evento</Link>
           </Button>
         </div>
       )}
 
-      <div className="border-t border-zinc-100 bg-zinc-50/60 p-4 dark:border-white/10 dark:bg-white/[.02]">
+      <div className="border-t border-sidebar-border bg-sidebar-accent/40 p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Aparência</span>
+          <span className="text-sm font-medium text-sidebar-foreground">Aparência</span>
           <ThemeSwitcher />
         </div>
         {authenticatedUser ? (
           <>
-            <div className="flex items-center gap-3 rounded-2xl border border-zinc-200/70 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-              <Image width={40} height={40} src={avatar} alt="Foto do perfil" className="h-10 w-10 rounded-xl object-cover ring-2 ring-violet-100 dark:ring-violet-400/20" />
+            <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-surface">
+              <Image width={40} height={40} src={avatar} alt="Foto do perfil" className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
-                <p className="truncate text-xs text-zinc-500">{authenticatedUser.email}</p>
+                <p className="truncate text-xs text-muted-foreground">{authenticatedUser.email}</p>
               </div>
             </div>
             <LogoutButton />
           </>
         ) : status === "loading" ? (
-          <p role="status" className="text-sm text-zinc-500">Carregando conta...</p>
+          <p role="status" className="text-sm text-muted-foreground">Carregando conta...</p>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm leading-6 text-zinc-500">Entre para publicar eventos e salvar suas descobertas.</p>
-            <Button asChild className="w-full rounded-xl bg-violet-700 hover:bg-violet-800">
+            <p className="text-sm leading-6 text-muted-foreground">Entre para publicar eventos e salvar suas descobertas.</p>
+            <Button asChild className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
               <Link href="/login">Entrar na plataforma</Link>
             </Button>
           </div>
