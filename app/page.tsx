@@ -91,26 +91,26 @@ export default function Home() {
   }, [events, period, search, discovery]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAF9FF] text-zinc-950 dark:bg-[#111018] dark:text-white">
-      <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-zinc-200/70 bg-white/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90 md:px-7">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7">
         <div className="flex items-center gap-3">
-          <SidebarTrigger className="h-10 w-10 rounded-xl border border-zinc-200 dark:border-white/10" />
+          <SidebarTrigger className="h-10 w-10 rounded-xl border border-border" />
           <Link href="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-700 to-indigo-700 text-white shadow-md shadow-violet-700/25"><Sparkles className="h-5 w-5" /></span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-highlight"><Sparkles className="h-5 w-5" /></span>
             EventMap
           </Link>
         </div>
-        <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 text-sm md:flex dark:border-white/10 dark:bg-white/5">
-          <Link href="/" aria-current="page" className="rounded-full bg-white px-4 py-2 font-semibold text-violet-700 shadow-sm dark:bg-zinc-800 dark:text-violet-300">Descobrir</Link>
-          <Link href="/EventsCreated" className="rounded-full px-4 py-2 text-zinc-600 transition hover:text-violet-700 dark:text-zinc-300">Agenda</Link>
-          {canManageEvents && <Link href="/myEvents" className="rounded-full px-4 py-2 text-zinc-600 transition hover:text-violet-700 dark:text-zinc-300">Meus eventos</Link>}
+        <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-border bg-muted p-1 text-sm md:flex">
+          <Link href="/" aria-current="page" className="rounded-full bg-card px-4 py-2 font-semibold text-primary shadow-sm">Descobrir</Link>
+          <Link href="/EventsCreated" className="rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Agenda</Link>
+          {canManageEvents && <Link href="/myEvents" className="rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Meus eventos</Link>}
         </nav>
-        <Link href="/EventsCreated" className="flex items-center gap-2 rounded-full bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
+        <Link href="/EventsCreated" className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
       <main className={`${styles.main} relative min-h-[520px] flex-1 md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
-        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-zinc-200 bg-white shadow-[0_-12px_36px_-24px_rgba(0,0,0,.35)] transition-[height] duration-300 dark:border-white/10 dark:bg-zinc-950 md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
-          <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-700" /></button>
+        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-y-auto rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300   md:relative md:inset-auto md:h-[calc(100vh-72px)] md:rounded-none md:border-r md:border-t-0 md:shadow-none ${sheetExpanded ? "h-[72%]" : "h-[320px]"}`}>
+          <button type="button" aria-label={sheetExpanded ? "Recolher lista" : "Expandir lista"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className="flex h-7 shrink-0 touch-none items-center justify-center md:hidden"><span className="h-1 w-12 rounded-full bg-muted-foreground/40" /></button>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="relative isolate">
               <ParallaxCard
@@ -120,46 +120,46 @@ export default function Home() {
                 decorationClassName="absolute inset-0"
                 secondaryClassName="absolute inset-0"
                 secondaryDecoration={<>
-                  <span className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-violet-300/30 dark:border-violet-400/15" />
-                  <span className="absolute -right-2 -top-6 h-28 w-28 rounded-full border border-indigo-300/20 bg-gradient-to-br from-indigo-200/10 to-transparent dark:border-indigo-400/15 dark:from-indigo-400/10" />
-                  <span className="absolute -bottom-12 right-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(129,140,248,0.12),transparent_70%)] dark:bg-[radial-gradient(circle,rgba(129,140,248,0.16),transparent_70%)]" />
+                  <span className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-border" />
+                  <span className="absolute -right-2 -top-6 h-28 w-28 rounded-full border border-border bg-muted/20" />
+                  <span className="absolute -bottom-12 right-8 h-32 w-32 rounded-full bg-decoration-brand" />
                 </>}
               >
-                <span className="absolute -left-10 -top-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.22),transparent_70%)] dark:bg-[radial-gradient(circle,rgba(139,92,246,0.20),transparent_70%)]" />
-                <span className="absolute -left-8 -top-10 h-36 w-36 rounded-full border border-violet-300/20 dark:border-violet-400/10" />
+                <span className="absolute -left-10 -top-12 h-44 w-44 rounded-full bg-decoration-brand" />
+                <span className="absolute -left-8 -top-10 h-36 w-36 rounded-full border border-border" />
               </ParallaxCard>
             <FadeInView>
-            <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-orange-600 md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
+            <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
             <h1 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h1>
-            <p className="mt-1 hidden text-sm leading-6 text-zinc-500 md:block">Explore a agenda e escolha o que combina com você.</p>
+            <p className="mt-1 hidden text-sm leading-6 text-muted-foreground md:block">Explore a agenda e escolha o que combina com você.</p>
             </FadeInView>
             </div>
             <FadeInView stationary>
-            <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-500/10 dark:border-white/10 dark:bg-white/5">
-              <Search className="h-4 w-4 shrink-0 text-zinc-400" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400" />
-              {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"><X className="h-4 w-4 text-zinc-400" /></button>}
+            <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-border bg-muted px-4 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+              {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"><X className="h-4 w-4 text-muted-foreground" /></button>}
             </label>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-violet-700 text-white shadow-md shadow-violet-700/20" : "border border-zinc-200 bg-white text-zinc-600 hover:border-violet-300 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300"}`}>{filter.label}</button>)}
+              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-primary text-primary-foreground shadow-highlight" : "border border-border bg-card text-muted-foreground hover:border-primary/30   "}`}>{filter.label}</button>)}
             </div>
             </FadeInView>
           </div>
           <FadeInView stationary className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></FadeInView>
-          <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-white/10">
-            <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-zinc-400">{filteredEvents.length} encontrados</span></div>
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+            <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} encontrados</span></div>
             <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
-              {loading && <p role="status" className="relative overflow-hidden rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5"><span aria-hidden="true" className="pointer-events-none absolute inset-0 text-violet-300 dark:text-violet-500"><LoadingShimmer className="h-full w-full" /></span><span className="relative">Carregando eventos…</span></p>}
-              {loadError && <div role="alert" className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500 dark:bg-white/5"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
-              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-zinc-200 p-6 text-center dark:border-white/10"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-violet-500" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-zinc-500">Experimente outra busca ou período.</p></div>}
-              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-violet-400 bg-violet-50/70 dark:bg-violet-400/10" : "border-zinc-200 bg-white hover:border-violet-200 dark:border-white/10 dark:bg-white/5"}`}>
-                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-violet-700 to-indigo-700">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>
-                <div className="min-w-0 flex-1 py-1"><span className="text-[11px] font-bold uppercase tracking-wide text-orange-700 dark:text-orange-400">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{event.nome}</h3><p className="mt-1 flex items-center gap-1 truncate text-xs text-zinc-500"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
+              {loading && <p role="status" className="relative overflow-hidden rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><span aria-hidden="true" className="pointer-events-none absolute inset-0 text-muted-foreground/30"><LoadingShimmer className="h-full w-full" /></span><span className="relative">Carregando eventos…</span></p>}
+              {loadError && <div role="alert" className="rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
+              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border p-6 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
+              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setSheetExpanded(false); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30  "}`}>
+                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>
+                <div className="min-w-0 flex-1 py-1"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{event.nome}</h3><p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
               </button></InteractiveSurface>)}</StaggerList>
             </div>
           </div>
         </section>
-        <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-zinc-100 transition-[height] duration-300 dark:bg-zinc-900`} aria-label="Mapa dos eventos">
+        <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-muted transition-[height] duration-300 `} aria-label="Mapa dos eventos">
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
         </section>
       </main>
