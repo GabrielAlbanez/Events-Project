@@ -12,12 +12,17 @@ import { dispatchCommunitySignal, registerCommunitySubscriptions } from "./serve
 import { startCommunityWorker } from "./server/communityWorker.mjs";
 import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
 import { resolveSocketIdentity, validateSocketIdentity, emitAuthorizedRoom } from "./server/socketIdentity.mjs";
+import { configuredPublicOrigin } from "./lib/publicUrl.js";
 
 nextEnv.loadEnvConfig(process.cwd());
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
 const port = parseInt(process.env.PORT || "8081", 10);
+const allowedSocketOrigins = Array.from(new Set([
+  ...(process.env.SOCKET_IO_ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean),
+  ...(configuredPublicOrigin() ? [configuredPublicOrigin()!] : []),
+]));
 
 const prisma = new PrismaClient();
 const activeUsers = new Map<string, string>();
@@ -43,9 +48,13 @@ app.prepare().then(async () => {
   });
   io = new Server(httpServer, {
     cors: {
-      origin: (process.env.SOCKET_IO_ALLOWED_ORIGINS || "").split(",").filter(Boolean),
+      origin: allowedSocketOrigins,
       methods: ["GET", "POST"],
       credentials: true,
+    },
+    allowRequest: (request, callback) => {
+      const origin = request.headers.origin;
+      callback(null, !origin || allowedSocketOrigins.includes(origin));
     },
     cookie: {
       name: "io",

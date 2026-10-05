@@ -4,7 +4,7 @@ const ts=require('typescript');
 const {NextRequest}=require('next/server');
 const mod={exports:{}};
 const code=ts.transpileModule(fs.readFileSync('lib/auth/impersonationHttp.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-new Function('require','module','exports',code)(name=>name.startsWith('@/')?{}:require(name),mod,mod.exports);
+new Function('require','module','exports',code)(name=>name==='@/lib/publicUrl'?require('./load-public-url.cjs'):name.startsWith('@/')?{}:require(name),mod,mod.exports);
 const previous=process.env.NEXTAUTH_URL;
 try {
  process.env.NEXTAUTH_URL='https://preview.example.invalid';

@@ -5,7 +5,7 @@ const {NextRequest} = require('next/server');
 class CommunityError extends Error { constructor(status,message){super(message);this.status=status;} }
 const mod={exports:{}};
 const source=ts.transpileModule(fs.readFileSync('lib/community/http.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-new Function('require','module','exports',source)(name=>name==='./common'?{CommunityError}:require(name),mod,mod.exports);
+new Function('require','module','exports',source)(name=>name==='@/lib/publicUrl'?require('./load-public-url.cjs'):name==='./common'?{CommunityError}:require(name),mod,mod.exports);
 const previous=process.env.NEXTAUTH_URL;
 try {
  process.env.NEXTAUTH_URL='https://preview.example.invalid';

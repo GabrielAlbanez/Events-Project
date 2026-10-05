@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { EventReportError, reportEvent } from "@/lib/services/eventReports";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
+  if (!isAllowedRequestOrigin(request)) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ message: "Entre na sua conta para denunciar." }, { status: 401 });
   try {

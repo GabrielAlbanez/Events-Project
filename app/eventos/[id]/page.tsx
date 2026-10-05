@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eventInstant } from "@/lib/eventTime";
+import { publicSiteUrl } from "@/lib/publicUrl";
 import { getPublicEvent } from "@/lib/eventQueries";
 import EventPublicActions from "@/components/MyComponents/EventPublicActions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,8 +12,7 @@ import { StaggerList } from "@/components/animations/StaggerList";
 export const dynamic = "force-dynamic";
 type Props = { params: { id: string } };
 function siteBase(): URL {
-  try { const url = new URL(process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"); if (url.protocol === "http:" || url.protocol === "https:") return url; } catch { /* Use local development fallback. */ }
-  return new URL("http://localhost:3000");
+  return publicSiteUrl();
 }
 function absoluteUrl(value: string): string | undefined {
   try { const url = new URL(value, siteBase()); return ["http:", "https:"].includes(url.protocol) ? url.href : undefined; } catch { return undefined; }

@@ -29,6 +29,7 @@ function load(file, dependencies) {
   };
   const schemas = load("schemas/passwordRecovery.ts", {});
   const service = load("lib/services/passwordRecovery.ts", {
+    "@/lib/publicUrl": require("./load-public-url.cjs"),
     "@/lib/prisma": { __esModule: true, default: {} },
     "@/lib/community/common": { transact: async work => work(tx), CommunityError },
     "@/lib/mail/recovery": { sendRecoveryEmail: async (email, link) => deliveries.push({ email, link }) },

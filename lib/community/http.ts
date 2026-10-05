@@ -1,22 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CommunityError } from "./common";
 import { ZodError } from "zod";
-
-function isAllowedOrigin(request: NextRequest, origin: string): boolean {
-  if (origin === request.nextUrl.origin) return true;
-  // Trust only the explicitly configured public URL, never forwarded headers.
-  const publicUrl = process.env.NEXTAUTH_URL;
-  if (!publicUrl) return false;
-  try {
-    return origin === new URL(publicUrl).origin;
-  } catch {
-    return false;
-  }
-}
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 
 export function checkOrigin(request: NextRequest): void {
-  const origin = request.headers.get("origin");
-  if (origin && !isAllowedOrigin(request, origin)) throw new CommunityError(403, "Origem inválida.");
+  if (!isAllowedRequestOrigin(request)) throw new CommunityError(403, "Origem inválida.");
   if (Number(request.headers.get("content-length") ?? 0) > 16000) throw new CommunityError(413, "Solicitação muito grande.");
 }
 export function communityError(error: unknown): NextResponse {

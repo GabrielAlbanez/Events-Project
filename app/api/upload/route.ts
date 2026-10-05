@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { boundedMultipart, saveProfileImage, UploadError } from "@/lib/storage/profileImages";
@@ -6,8 +7,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const headers = { "Cache-Control": "no-store" };
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) throw new UploadError(403, "Origem inválida.");
+    if (!isAllowedRequestOrigin(request)) throw new UploadError(403, "Origem inválida.");
     const actor = await getAuthenticatedUser(request);
     if (!actor) throw new UploadError(401, "Entre na sua conta para enviar uma imagem.");
     const form = await boundedMultipart(request); const file = form.get("file");

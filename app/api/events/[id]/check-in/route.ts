@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { AttendanceError, checkInAttendee, getCheckInRoster } from "@/lib/services/attendance";
 
@@ -19,8 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
+  if (!isAllowedRequestOrigin(request)) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
   try {
     const user = await getAuthenticatedUser(request);
     if (!user) return NextResponse.json({ message: "Acesso negado." }, { status: 401 });

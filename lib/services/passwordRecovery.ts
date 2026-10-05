@@ -5,13 +5,14 @@ import { transact, CommunityError } from "@/lib/community/common";
 import { sendRecoveryEmail } from "@/lib/mail/recovery";
 import { sendVerificationEmail } from "@/lib/mail/verification";
 import { resetPasswordSchema } from "@/schemas/passwordRecovery";
+import { publicSiteUrl } from "@/lib/publicUrl";
 
 const genericMessage = "Se a conta puder receber este link, enviaremos as instruções por e-mail. Confira também o spam.";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 type Purpose = "recovery" | "verification";
 
 function baseUrl(): string {
-  const url = new URL(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
+  const url = publicSiteUrl();
   if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new Error("SECURE_MAIL_ORIGIN_REQUIRED");
   return url.origin;
 }

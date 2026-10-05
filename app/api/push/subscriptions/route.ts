@@ -1,10 +1,11 @@
 import { NextRequest,NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { z } from "zod";
 const subscriptionSchema=z.object({endpoint:z.string().url().max(2048),keys:z.object({p256dh:z.string().regex(/^[A-Za-z0-9_-]+$/).min(80).max(100),auth:z.string().regex(/^[A-Za-z0-9_-]+$/).min(20).max(30)})});
 function validEndpoint(endpoint:string){const url=new URL(endpoint);return url.protocol==="https:"&&(url.hostname==="fcm.googleapis.com"||url.hostname==="updates.push.services.mozilla.com"||url.hostname==="web.push.apple.com"||url.hostname.endsWith(".notify.windows.com"));}
-function validOrigin(request:NextRequest){return !request.headers.get("origin")||request.headers.get("origin")===request.nextUrl.origin;}
+function validOrigin(request:NextRequest){return isAllowedRequestOrigin(request);}
 export async function GET(request:NextRequest){
  const user=await getAuthenticatedUser(request);if(!user)return NextResponse.json({publicKey:null,subscribed:false},{status:401});
  const endpoint=request.nextUrl.searchParams.get("endpoint");

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development next dev",
     "dev:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=development HOSTNAME=localhost PORT=3000 NEXTAUTH_URL=http://localhost:3000 NEXT_PUBLIC_BASE_URL=http://localhost:3000 SOCKET_IO_ALLOWED_ORIGINS=http://localhost:3000 node dist/server.mjs",
+    "dev:socket:public": "node scripts/start-public-socket.cjs",
     "prisma:generate": "prisma generate",
     "build": "next build",
     "analyze": "cross-env ANALYZE=true next build",

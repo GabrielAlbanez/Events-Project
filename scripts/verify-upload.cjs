@@ -21,6 +21,7 @@ function load(file, dependencies) {
   await assert.rejects(storage.boundedMultipart(huge), error => error.status === 413);
   let actor = null, count = 1, rollback = 0, savedCount = 0, dbFailure = false;
   const route = load("app/api/upload/route.ts", {
+    "@/lib/publicUrl": require("./load-public-url.cjs"),
     "next/server": { NextResponse: { json: (body, init) => ({ body, status: init.status ?? 200 }) } },
     "@/lib/prisma": { __esModule: true, default: { user: { updateMany: async () => { if (dbFailure) throw Error("database failed"); return { count }; } } } },
     "@/lib/adminAuth": { getAuthenticatedUser: async () => actor },

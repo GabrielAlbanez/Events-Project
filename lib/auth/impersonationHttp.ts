@@ -2,19 +2,10 @@ import { encode, getToken, type JWT } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { resolveImpersonationIdentity } from "@/lib/auth/impersonation";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 
 export function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  if (origin === request.nextUrl.origin) return true;
-  // A tunnel changes the browser origin; only trust the configured public URL.
-  const publicUrl = process.env.NEXTAUTH_URL;
-  if (!publicUrl) return false;
-  try {
-    return origin === new URL(publicUrl).origin;
-  } catch {
-    return false;
-  }
+  return isAllowedRequestOrigin(request, true);
 }
 
 export async function readImpersonationToken(request: NextRequest) {

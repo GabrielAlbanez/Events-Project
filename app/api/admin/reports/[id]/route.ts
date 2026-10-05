@@ -1,13 +1,13 @@
 import { ReportStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 import { EventReportError, reviewEventReport } from "@/lib/services/eventReports";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
+  if (!isAllowedRequestOrigin(request)) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
   const adminId = await getAuthenticatedAdminId(request);
   if (!adminId) return NextResponse.json({ message: "Acesso negado." }, { status: 403 });
   try {

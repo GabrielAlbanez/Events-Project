@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import { sendVerificationEmail } from "@/lib/mail/verification";
 import { registerAccountInputSchema } from "@/schemas/accountInput";
+import { publicSiteUrl } from "@/lib/publicUrl";
 
 export interface RegisterUserInput {
   name: string;
@@ -27,7 +28,9 @@ export async function registerUser(data: RegisterUserInput) {
     }
 
     const token = uuidv4();
-    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/verifyEmail?token=${token}`;
+    const verificationUrl = new URL("/verifyEmail", publicSiteUrl());
+    verificationUrl.searchParams.set("token", token);
+    const verificationLink = verificationUrl.href;
     const passwordHash = await bcrypt.hash(password, 10);
     await prisma.$transaction(async (transaction) => {
       await transaction.user.create({ data: { name, email, password: passwordHash } });

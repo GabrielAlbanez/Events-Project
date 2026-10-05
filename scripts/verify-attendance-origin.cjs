@@ -6,6 +6,7 @@ const mod = {exports:{}};
 const source = ts.transpileModule(fs.readFileSync('app/api/events/[id]/registration/route.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 class AttendanceError extends Error {}
 new Function('require','module','exports',source)(name => {
+ if(name === '@/lib/publicUrl') return require('./load-public-url.cjs');
  if(name === '@/lib/adminAuth') return {getAuthenticatedUser:async()=>null};
  if(name === '@/lib/services/attendance') return {AttendanceError};
  return require(name);

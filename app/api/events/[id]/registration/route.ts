@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { AttendanceError, cancelRegistration, getRegistrationState, registerForEvent } from "@/lib/services/attendance";
 
@@ -9,16 +10,7 @@ function errorResponse(error: unknown) {
 }
 
 function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin || origin === request.nextUrl.origin) return true;
-  // The public origin is explicitly configured when running behind a tunnel.
-  const publicUrl = process.env.NEXTAUTH_URL;
-  if (!publicUrl) return false;
-  try {
-    return origin === new URL(publicUrl).origin;
-  } catch {
-    return false;
-  }
+  return isAllowedRequestOrigin(request);
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
