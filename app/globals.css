@@ -7,12 +7,37 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
-  background-image:
-    radial-gradient(circle at 15% 0%, hsl(262 85% 96%) 0, transparent 32rem),
-    radial-gradient(circle at 90% 5%, hsl(24 95% 94%) 0, transparent 30rem);
+  background-image: none;
 }
 
 @layer utilities {
+  /* HeroUI and Radix share the same semantic palette, including portal surfaces. */
+  .dark {
+    --heroui-background: var(--background);
+    --heroui-foreground: var(--foreground);
+    --heroui-content1: var(--card);
+    --heroui-content1-foreground: var(--card-foreground);
+    --heroui-content2: var(--secondary);
+    --heroui-content2-foreground: var(--secondary-foreground);
+    --heroui-content3: var(--muted);
+    --heroui-content3-foreground: var(--foreground);
+    --heroui-content4: var(--muted);
+    --heroui-content4-foreground: var(--foreground);
+    --heroui-default-50: var(--background);
+    --heroui-default-100: var(--card);
+    --heroui-default-200: var(--border);
+    --heroui-default-300: var(--input);
+    --heroui-default-400: var(--muted-foreground);
+    --heroui-default-500: var(--muted-foreground);
+    --heroui-default-600: var(--muted-foreground);
+    --heroui-default-700: var(--foreground);
+    --heroui-default-800: var(--foreground);
+    --heroui-default-900: var(--foreground);
+    --heroui-primary: var(--primary);
+    --heroui-primary-foreground: var(--primary-foreground);
+    --heroui-focus: var(--ring);
+    --heroui-divider: var(--border);
+  }
   .text-balance {
     text-wrap: balance;
   }
@@ -53,40 +78,48 @@ body {
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 262 71% 50%;
+    --shadow-surface: 0 8px 24px -12px hsl(var(--foreground) / 0.12);
+    --shadow-highlight: 0 4px 16px -8px hsl(var(--primary) / 0.22);
+    --shadow-sheet: 0 -12px 36px -24px hsl(var(--foreground) / 0.18);
+    --decoration-brand: radial-gradient(circle, hsl(var(--primary) / 0.08), transparent 70%);
   }
   .dark {
-    --background: 252 20% 8%;
+    --background: 0 0% 3.14%;
     --foreground: 0 0% 98%;
-    --card: 256 17% 12%;
+    --card: 0 0% 6.67%;
     --card-foreground: 0 0% 98%;
-    --popover: 256 17% 12%;
+    --popover: 0 0% 8.63%;
     --popover-foreground: 0 0% 98%;
     --primary: 255 92% 76%;
-    --primary-foreground: 252 20% 8%;
-    --secondary: 240 3.7% 15.9%;
+    --primary-foreground: 0 0% 3.14%;
+    --secondary: 0 0% 8.63%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 24 45% 19%;
-    --accent-foreground: 24 95% 75%;
+    --muted: 0 0% 8.63%;
+    --muted-foreground: 0 0% 63.92%;
+    --accent: 0 0% 8.63%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 0 0% 11%;
+    --input: 0 0% 13%;
     --ring: 255 92% 76%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-background: 0 0% 6.67%;
+    --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 255 92% 76%;
-    --sidebar-primary-foreground: 252 20% 8%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-primary-foreground: 0 0% 3.14%;
+    --sidebar-accent: 0 0% 8.63%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 11%;
     --sidebar-ring: 255 92% 76%;
+    --shadow-surface: 0 8px 24px -12px hsl(0 0% 0% / 0.5);
+    --shadow-highlight: 0 4px 16px -8px hsl(var(--primary) / 0.14);
+    --shadow-sheet: 0 -12px 36px -24px hsl(0 0% 0% / 0.5);
+    --decoration-brand: radial-gradient(circle, hsl(var(--primary) / 0.06), transparent 70%);
   }
 }
 
