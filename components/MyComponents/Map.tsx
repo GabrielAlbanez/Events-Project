@@ -89,6 +89,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     useState<google.maps.DirectionsResult | null>(null);
   const [showDirections, setShowDirections] = useState(false);
   const [isRouteTracing, setIsRouteTracing] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const routeRequestRef = useRef(0);
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
   const { resolvedTheme } = useTheme();
 
@@ -118,30 +120,65 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     }
   }, [router]);
 
-  // Traça rota entre origem e destino
-  const calculateRoute = useCallback((destination: google.maps.LatLngLiteral) => {
-    const origin = userLocation;
-    if (origin && destination) {
-      const directionsService = new google.maps.DirectionsService();
-      directionsService.route(
-        {
-          origin,
-          destination,
-          travelMode: google.maps.TravelMode.DRIVING,
-        },
-        (result, status) => {
-          if (status === google.maps.DirectionsStatus.OK) {
-            setDirections(result);
-            toast.success("Rota calculada com sucesso!");
-            setIsRouteTracing(true); // Move the modal to the right
-            setEventoAtivo(null); // Close the modal
-          } else {
-            toast.error("Erro ao calcular a rota.");
-          }
-        }
-      );
+  // A localização pode estar indisponível; nunca descarte o clique silenciosamente.
+  const calculateRoute = useCallback(async (target: google.maps.LatLngLiteral) => {
+    if (isRouteTracing) return;
+    const requestId = ++routeRequestRef.current;
+    setDestination(target);
+    setShowDirections(true);
+    setEventoAtivo(null);
+    setRouteError(null);
+    setDirections(null);
+    setIsRouteTracing(true);
+    let origin = userLocation;
+    try {
+      if (!origin) {
+        if (!navigator.geolocation) throw new Error("LOCATION_UNAVAILABLE");
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false, maximumAge: 300000, timeout: 7000,
+          });
+        }).catch(() => { throw new Error("LOCATION_UNAVAILABLE"); });
+        if (requestId !== routeRequestRef.current) return;
+        origin = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setUserLocation(origin);
+      }
+      const result = await new google.maps.DirectionsService().route({
+        origin, destination: target, travelMode: google.maps.TravelMode.DRIVING,
+      });
+      if (requestId !== routeRequestRef.current) return;
+      setDirections(result);
+      toast.success("Rota calculada com sucesso!");
+    } catch (error: unknown) {
+      if (requestId !== routeRequestRef.current) return;
+      const code = error instanceof Error ? error.message : String(error);
+      const message = code.includes("LOCATION_UNAVAILABLE")
+        ? "Selecione um local de partida ou permita o acesso à sua localização."
+        : code.includes("REQUEST_DENIED")
+          ? "O cálculo de rotas não está autorizado no mapa. Você pode abrir a rota no Google Maps."
+          : code.includes("ZERO_RESULTS")
+            ? "Não foi encontrada uma rota de carro entre esses locais."
+            : "Não foi possível calcular a rota. Tente novamente ou abra no Google Maps.";
+      setRouteError(message);
+      toast.error(message);
+    } finally {
+      if (requestId === routeRequestRef.current) setIsRouteTracing(false);
     }
-  }, [userLocation]);
+  }, [userLocation, isRouteTracing]);
+
+  useEffect(() => () => { routeRequestRef.current += 1; }, []);
+
+  const resetRouteRequest = useCallback(() => {
+    routeRequestRef.current += 1;
+    setIsRouteTracing(false);
+    setRouteError(null);
+    setDirections(null);
+  }, []);
+
+  const externalRouteUrl = destination ? "https://www.google.com/maps/dir/?" + new URLSearchParams({
+    api: "1", destination: `${destination.lat},${destination.lng}`, travelmode: "driving",
+    ...(userLocation ? { origin: `${userLocation.lat},${userLocation.lng}` } : {}),
+  }).toString() : null;
 
   // Limpa a rota
   const clearRoute = useCallback(() => {
@@ -150,6 +187,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
       return;
     }
     setDirections(null);
+    setRouteError(null);
     toast.info("Rota limpa com sucesso.");
     setIsRouteTracing(false); // Move the modal back to the center
     router.replace("/");
@@ -269,9 +307,12 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
               <div className="absolute left-3 right-[72px] top-3 z-10 rounded-2xl border border-border bg-card/95 p-4 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5 md:w-80">
                 <button type="button" onClick={() => setShowDirections(false)} className="mb-3 flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" /> Planejar rota</button>
                 <div className="space-y-3">
-                  <PlaceAutocomplete className="w-full rounded-xl border border-border" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => setUserLocation({ lat, lng })} />
-                  <PlaceAutocomplete className="w-full rounded-xl border border-border" placeholder="Destino" onPlaceSelect={({ lat, lng }) => setDestination({ lat, lng })} />
-                  <button type="button" className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => destination ? calculateRoute(destination) : toast.error("Selecione um destino.")}>Traçar rota</button>
+                  <PlaceAutocomplete ariaLabel="Local de partida da rota" className="w-full rounded-xl border border-border" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setUserLocation({ lat, lng }); }} />
+                  <p className="text-xs text-muted-foreground">{userLocation ? "Origem definida. Selecione outro local para alterar." : "Selecione a partida nas sugestões ou permita sua localização ao traçar."}</p>
+                  <PlaceAutocomplete ariaLabel="Destino da rota" className="w-full rounded-xl border border-border" placeholder="Destino" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setDestination({ lat, lng }); }} />
+                  {destination && <p className="text-xs text-muted-foreground">Destino definido. Selecione outro local para alterar.</p>}
+                  <button type="button" disabled={isRouteTracing} className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60" onClick={() => destination ? void calculateRoute(destination) : toast.error("Selecione um destino nas sugestões.")}>{isRouteTracing ? "Calculando rota…" : "Traçar rota"}</button>
+                  {routeError && <div role="alert" className="space-y-2 text-xs text-muted-foreground"><p>{routeError}</p>{externalRouteUrl && <a href={externalRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-primary underline underline-offset-4">Abrir rota no Google Maps</a>}</div>}
                   {directions && <button type="button" className="w-full text-xs text-muted-foreground hover:text-primary" onClick={clearRoute}>Limpar rota</button>}
                 </div>
               </div>
