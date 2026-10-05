@@ -33,7 +33,7 @@ export function RouteTransition({ children }: { children: ReactNode }) {
     <LazyMotion features={loadAnimationFeatures} strict>
       <m.div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[80] mx-auto h-0.5 w-56 max-w-[60vw] bg-gradient-to-r from-transparent via-violet-500 to-transparent shadow-[0_0_12px_rgba(139,92,246,0.3)]"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[80] mx-auto h-0.5 w-56 max-w-[60vw] bg-primary shadow-highlight"
         initial={false}
         animate={controls}
         style={{ opacity: 0 }}
