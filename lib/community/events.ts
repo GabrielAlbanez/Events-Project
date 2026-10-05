@@ -24,7 +24,7 @@ export async function eventSnapshot(eventId: string, actor: Actor | null): Promi
   const waitingCounts = await tx.communityQueueTicket.groupBy({ by: ["entryId"], where: { entry: { eventId }, status: "WAITING" }, _count: true });
   const snapshot: CommunityEventSnapshot = { event: { id: event.id, name: event.nome }, permissions: { authenticated: !!actor, manage, team }, announcements: [], questions: [], polls: [], program: [], queues: [], tasks: [], lostItems: [], team: [], feedback: { eligible: await feedbackEligible(tx, event, actor), mine: null, average: null, count: 0, comments: [] } };
   for (const entry of entries) {
-    if (entry.kind === "party.receipt") continue;
+    if (entry.kind === "party.receipt" || entry.kind === "party.image") continue;
     const d = data(entry.data);
     if (entry.kind === "announcement" && (manage || d.archived !== true)) snapshot.announcements.push({ id: entry.id, title: string(d.title), message: string(d.message), createdAt: entry.createdAt.toISOString(), archived: d.archived === true });
     if (entry.kind === "question") snapshot.questions.push({ id: entry.id, text: string(d.text), answer: string(d.answer), highlighted: d.highlighted === true });

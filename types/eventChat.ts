@@ -5,9 +5,10 @@ export interface EventChatMessage {
   createdAt: string;
   author: { id: string; name: string; image: string | null };
   own: boolean;
+  image?: { url: string };
 }
 export interface EventChatHistory {
-  event: { id: string; name: string; partnerId?: string };
+  event: { id: string; name: string; partnerId?: string; partnerImage?: string | null };
   messages: EventChatMessage[];
   nextBefore: number | null;
   hasMore: boolean;

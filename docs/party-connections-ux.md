@@ -30,3 +30,13 @@ Execute `npm run dev:socket`, abra localhost:3000 e use duas contas em perfis de
 6. Confira mobile/desktop, temas, foco por teclado, Escape no diálogo e preferência de movimento reduzido.
 
 Testes sem banco: `npm run test:party-connections`, `npm run test:event-chat`, `npm run test:community`, `npm run test:site-improvements`, `node scripts/verify-media.cjs` e `node scripts/verify-party-profile-client.cjs`.
+
+## Envio confiável e fotos nas conversas privadas
+
+Enviar ou Enter confirma a mensagem; Shift+Enter adiciona uma linha. Em falhas transitórias, o cliente confere o histórico e tenta novamente até quatro vezes (1, 2,5, 5 e 10 segundos), sempre com o mesmo identificador. Uma resposta perdida não duplica a mensagem. Erros permanentes não entram em loop; texto e prévia são preservados para correção. Após esgotar as tentativas, **Tentar agora** permite repetir o envio. A transação privada tem timeout de 15 segundos e o cliente aguarda até 35 segundos, acomodando também a espera por conexão. O histórico continua sendo a fonte de verdade.
+
+O botão de anexo aceita JPEG, PNG, WebP e AVIF de até 5 MB, com prévia e remoção antes do envio. Arquivos ficam em `.private-uploads/chat`, fora de `public/`, e metadados privados `party.image` usam a tabela CommunityEntry existente. **Nenhuma migração é necessária.** Preserve esse diretório no host; múltiplos hosts precisam compartilhar o mesmo armazenamento. Uma imagem sem mensagem só pode ser consultada pelo remetente durante 15 minutos. Imagens enviadas exigem uma sessão válida e acesso atual ao match em cada leitura, inclusive após bloqueio ou revogação. Uploads são limitados a seis por minuto por conta e validam assinatura e tamanho no servidor. Os metadados não aparecem na comunidade pública. Arquivos de prévias abandonadas permanecem no armazenamento; não há coleta automática nesta etapa.
+
+O cabeçalho e as bolhas mostram a foto do perfil das conexões, com fallback para a foto da conta e depois iniciais. Falhas de carregamento também mostram iniciais. O evento Socket.IO `typing` revalida remetente e destinatário; expira em cinco segundos. O fallback HTTP e os sinais persistidos permitem sincronização entre localhost e o túnel, com a latência da consulta entre instâncias. `chat-sync` apenas solicita reconciliação autorizada: não transporta conteúdo de mensagens fornecido pelo cliente.
+
+Para testar anexos, envie uma foto com e sem legenda, recarregue, abra a conversa na segunda conta e confirme o acesso. Após bloquear ou cancelar a inscrição, a URL da imagem deve negar acesso. Execute também `node scripts/verify-chat-images.cjs`; esse teste usa dependências simuladas e não substitui o teste entre duas sessões reais.

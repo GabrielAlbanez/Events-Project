@@ -14,6 +14,7 @@ import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server
 import { resolveSocketIdentity, validateSocketIdentity, emitAuthorizedRoom } from "./server/socketIdentity.mjs";
 import { configuredPublicOrigin } from "./lib/publicUrl.js";
 import { createSharedPresence } from "./server/sharedPresence.mjs";
+import { registerChatSignals } from "./server/chatSignals.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -125,6 +126,7 @@ app.prepare().then(async () => {
     const userId = authenticatedSocket.data.userId;
     enforceSocketCredentials(prisma, socket);
     registerCommunitySubscriptions(prisma, socket);
+    registerChatSignals(prisma, io!, socket);
     if (userId && authenticatedSocket.data.expiresAt) {
       enforceSocketExpiration(socket, authenticatedSocket.data.expiresAt);
     }

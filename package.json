@@ -25,7 +25,7 @@
     "test:activity": "node scripts/verify-community-activity.cjs && node scripts/verify-activity-realtime.cjs && node scripts/verify-activity-actions.cjs",
     "test:activity:db": "node scripts/verify-community-activity.cjs --database",
     "test:event-chat": "node scripts/verify-event-chat.cjs && node scripts/verify-event-chat-socket.cjs && node scripts/verify-event-chat-client.cjs",
-    "test:party-connections": "node scripts/verify-party-connections.cjs && node scripts/verify-party-socket.cjs && node scripts/verify-party-realtime.cjs && node scripts/verify-party-profile-client.cjs",
+    "test:party-connections": "node scripts/verify-party-connections.cjs && node scripts/verify-party-socket.cjs && node scripts/verify-party-realtime.cjs && node scripts/verify-party-profile-client.cjs && node scripts/verify-chat-images.cjs",
     "test:account-removal": "node scripts/verify-account-removal.cjs && node scripts/verify-account-revocation-socket.cjs && node scripts/verify-account-removal-client.cjs",
     "test:security": "node scripts/verify-profile-security.cjs && node scripts/verify-account-security.cjs && node scripts/verify-notification-worker.cjs && node scripts/verify-registration-security.cjs",
     "test:site-improvements": "node scripts/verify-password-recovery.cjs && node scripts/verify-upload.cjs && node scripts/verify-media.cjs && node scripts/verify-site-improvements.cjs && node scripts/verify-ux-guards.cjs",

@@ -3,7 +3,8 @@ import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { CommunityError } from "@/lib/community/common";
 import { checkOrigin, communityError, readCommunityBody } from "@/lib/community/http";
 import { privateHistory, privateSend } from "@/lib/partyConnections/messages";
-import { eventChatHistorySchema, eventChatSendSchema } from "@/schemas/eventChat";
+import { eventChatHistorySchema } from "@/schemas/eventChat";
+import { partySendSchema } from "@/schemas/partyMessage";
 import { z } from "zod";
 import { privateControl } from "@/lib/partyConnections/receipts";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     checkOrigin(request);
     const actor = await getAuthenticatedUser(request);
     if (!actor) throw new CommunityError(401, "Entre na sua conta.");
-    return NextResponse.json(await privateSend(params.eventId, params.matchId, actor, eventChatSendSchema.parse(await readCommunityBody(request))), { headers });
+    return NextResponse.json(await privateSend(params.eventId, params.matchId, actor, partySendSchema.parse(await readCommunityBody(request))), { headers });
   } catch (error) { return communityError(error); }
 }
 const controlSchema = z.discriminatedUnion("action", [

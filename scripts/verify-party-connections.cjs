@@ -12,6 +12,7 @@ function matches(row, where = {}) {
   return Object.entries(where).every(([key, value]) => {
     if (key === "OR") return value.some(clause => matches(row, clause));
     if (key === "AND") return value.every(clause => matches(row, clause));
+    if (key === "data" && value?.path) return value.path.reduce((item, part) => item?.[part], row.data) === value.equals;
     if (value && typeof value === "object" && !(value instanceof Date)) {
       if (key.includes("_") && !(key in row)) return matches(row, value);
       return Object.entries(value).every(([op, v]) => op === "in" ? v.includes(row[key]) : op === "not" ? row[key] !== v : op === "gte" ? row[key] >= v : op === "gt" ? row[key] > v : op === "lt" ? row[key] < v : false);
@@ -36,10 +37,11 @@ async function run() {
       upsert: async args => { let row = list({ where: args.where })[0]; if (row) Object.assign(row, args.update); else { row = { id: randomUUID(), createdAt: new Date(), active: true, ...args.create }; store[name].push(row); } return row; },
       groupBy: async args => { const items = list(args); const counts = new Map(); for (const row of items) counts.set(row.matchId, (counts.get(row.matchId) || 0) + 1); return Array.from(counts, ([matchId, count]) => ({ matchId, _count: { _all: count } })); },
       updateMany: async args => { const rows = list(args); rows.forEach(row => Object.assign(row, args.data)); return { count: rows.length }; },
+      update: async args => { const row = list(args)[0]; if (!row) throw new Error("Missing fixture row"); Object.assign(row, args.data); return row; },
       deleteMany: async args => { const rows = list(args); store[name] = store[name].filter(row => !rows.includes(row)); return { count: rows.length }; },
     };
   }
-  db = { $transaction: async work => work(db), $executeRaw: async () => 1 };
+  db = { $transaction: async work => { const original = structuredClone(store); try { return await work(db); } catch (error) { Object.assign(store, original); throw error; } }, $executeRaw: async () => 1 };
   db.user = table("user", [a, b, outsider].map(id => ({ id, role: id === outsider ? "ADMIN" : "BASIC" })));
   db.events = table("events", [{ id: eventId, nome: "Festa", status: "PUBLISHED" }]);
   db.eventRegistration = table("eventRegistration", [a, b].map(userId => ({ eventId, userId, status: "CONFIRMED" })));
@@ -66,6 +68,20 @@ async function run() {
   assert.equal((await privateHistory(eventId, matchId, actorA, {})).event.partnerId, b);
   assert.equal((await privateHistory(eventId, matchId, actorB, {})).event.partnerId, a);
   assert.equal((await privateSend(eventId, matchId, actorA, { clientId, text: "Olá" })).duplicate, true); assert.equal(store.partyMessage.length, 1);
+  const { partySendSchema } = load("schemas/partyMessage.ts");
+  const imageId = randomUUID(), imageClientId = randomUUID();
+  assert.equal(partySendSchema.safeParse({ clientId: imageClientId, text: "", imageId }).success, true);
+  assert.equal(partySendSchema.safeParse({ clientId: imageClientId, text: "" }).success, false);
+  store.communityEntry.push({ id: imageId, kind: "party.image", eventId, authorId: a, createdAt: new Date(), data: { matchId, filename: `${randomUUID()}.jpg`, messageId: null } });
+  const imageMessage = await privateSend(eventId, matchId, actorA, { clientId: imageClientId, text: "", imageId });
+  assert.ok(imageMessage.message.image.url.endsWith(`/images/${imageId}`));
+  assert.equal((await privateSend(eventId, matchId, actorA, { clientId: imageClientId, text: "", imageId })).duplicate, true);
+  assert.equal((await privateHistory(eventId, matchId, actorB, {})).messages.at(-1).image.url, imageMessage.message.image.url);
+  await assert.rejects(privateSend(eventId, matchId, actorA, { clientId: imageClientId, text: "", imageId: randomUUID() }), error => error.status === 409);
+  const countBeforeDeniedImage = store.partyMessage.length;
+  await assert.rejects(privateSend(eventId, matchId, actorB, { clientId: randomUUID(), text: "", imageId }), error => error.status === 400);
+  await assert.rejects(privateSend(eventId, matchId, actorA, { clientId: randomUUID(), text: "", imageId: randomUUID() }), error => error.status === 400);
+  assert.equal(store.partyMessage.length, countBeforeDeniedImage, "invalid attachments roll back the message");
   await assert.rejects(privateHistory(eventId, matchId, admin, {}), e => e.status === 403);
   await assert.rejects(privateHistory(randomUUID(), matchId, actorB, {}), e => e.status === 403);
   await assert.rejects(privateSend(eventId, matchId, actorA, { clientId, text: "Outra" }), e => e.status === 409);
@@ -85,7 +101,7 @@ async function run() {
   const receiptMessage = await privateSend(eventId, matchId, actorA, { clientId: randomUUID(), text: "Confirmacao privada" });
   await assert.rejects(privateControl(eventId, matchId, admin, { action: "typing", active: true }), e => e.status === 403);
   await assert.rejects(privateControl(randomUUID(), matchId, actorB, { action: "typing", active: true }), e => e.status === 403);
-  assert.equal((await connectionsSnapshot(eventId, actorB)).matches[0].unreadCount, 2);
+  assert.equal((await connectionsSnapshot(eventId, actorB)).matches[0].unreadCount, 3);
   await privateControl(eventId, matchId, actorB, { action: "receipt", messageId: receiptMessage.message.id, read: true });
   assert.equal((await privateHistory(eventId, matchId, actorA, {})).partnerReceipt.readThrough, receiptMessage.message.id);
   assert.equal((await connectionsSnapshot(eventId, actorB)).matches[0].unreadCount, 0);

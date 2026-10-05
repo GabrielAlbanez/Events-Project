@@ -17,6 +17,7 @@ function socket(userId, expiresAt) {
 async function main() {
   const { communityRoom, canReadCommunityRoom } = load("communityAccess");
   const { registerCommunitySubscriptions, dispatchCommunitySignal } = load("communityGateway");
+  const { registerChatSignals } = load("chatSignals");
   let eventStatus = "PUBLISHED", blocked = false, matchActive = true;
   const profiles = { a: { active: true, intent: "FRIENDSHIP", adultDeclared: false }, b: { active: true, intent: "COMPANY", adultDeclared: false } };
   const registrations = { a: "CONFIRMED", b: "CHECKED_IN", admin: "CONFIRMED" };
@@ -56,6 +57,18 @@ async function main() {
   const io = { sockets: { adapter: { rooms: new Map([["match:pair", new Set(["a", "b"])]]) }, sockets: new Map([["a", a], ["b", b]]) } };
   await dispatchCommunitySignal(db, io, "match:pair");
   assert.deepEqual(a.messages, [{ event: "community-updated", payload: { room: "match:pair" } }]);
+  for (const client of [a, b, admin]) registerChatSignals(db, io, client);
+  await a.handlers.get("typing")({ matchId: "pair", active: true });
+  const hint = b.messages.find(message => message.event === "typing");
+  assert.equal(hint.payload.userId, "a"); assert.ok(hint.payload.until > Date.now());
+  assert.equal(a.messages.some(message => message.event === "typing"), false, "typing is delivered only to the peer");
+  const hintCount = b.messages.filter(message => message.event === "typing").length;
+  await admin.handlers.get("typing")({ matchId: "pair", active: true });
+  await a.handlers.get("typing")({ matchId: "pair", user: false, active: true });
+  assert.equal(b.messages.filter(message => message.event === "typing").length, hintCount, "admin and forged payloads cannot emit hints");
+  const signalCount = b.messages.filter(message => message.event === "community-updated").length;
+  await a.handlers.get("chat-sync")({ matchId: "pair" });
+  assert.equal(b.messages.filter(message => message.event === "community-updated").length, signalCount + 1);
   blocked = true;
   await dispatchCommunitySignal(db, io, "match:pair");
   assert.equal(a.joined.size, 0); assert.equal(b.joined.size, 0);
