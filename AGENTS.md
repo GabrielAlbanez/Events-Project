@@ -34,6 +34,15 @@ EventMap é uma aplicação para descobrir, cadastrar e administrar eventos, com
 - Inspecione `git status` e o diff relevante antes de editar. Não descarte mudanças existentes nem use comandos destrutivos como `git reset --hard` ou `git checkout --` para limpar o trabalho do usuário.
 - Mudanças em `prisma/schema.prisma` devem considerar as migrações e o código consumidor. Não execute migrações destrutivas nem altere dados de produção sem autorização explícita.
 
+## Preferência permanente de Git
+
+- O usuário autoriza commit e push ao concluir alterações grandes neste projeto, sem pedir nova confirmação a cada entrega. O destino autorizado é `origin`, em `https://github.com/GabrielAlbanez/Events-Project.git`, na branch de trabalho da tarefa; confira o remoto antes do envio.
+- Considere grandes alterações a implementação de uma funcionalidade, uma mudança significativa em uma tela ou fluxo, ou uma correção que integre várias camadas. Ajustes pontuais não exigem publicação automática, salvo pedido explícito.
+- Antes de criar o commit, revise o diff e execute TypeScript, lint, build e testes pertinentes. Não publique alterações com falhas de validação não resolvidas; informe o impedimento quando uma integração externa bloquear a validação.
+- Inclua somente os arquivos pertinentes à tarefa, preserve alterações locais não relacionadas e nunca adicione segredos, arquivos `.env`, credenciais ou dados privados.
+- Faça commits com mensagens claras por entrega e envie a branch com push normal. Esta autorização não inclui force-push, merge, rebase, deploy ou alteração de dados no banco.
+- Se o push for bloqueado pela revisão automática, informe o motivo; não contorne o bloqueio. Ao concluir, informe o hash do commit, a branch e se o push foi confirmado.
+
 ## Fluxo de trabalho recomendado
 
 1. **Inspecionar:** identifique arquivos, dependências, scripts e alterações já existentes; leia os arquivos relacionados à funcionalidade.
