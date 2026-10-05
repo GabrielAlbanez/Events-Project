@@ -191,8 +191,8 @@ export default function Profile() {
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-          <Card className="overflow-hidden rounded-2xl shadow-sm">
-            <div className="relative h-24 overflow-hidden bg-gradient-to-r from-primary/20 via-primary/10 to-accent/70">
+          <Card className="overflow-hidden rounded-2xl shadow-surface">
+            <div className="relative h-24 overflow-hidden bg-muted bg-decoration-brand">
               <ParallaxCard
                 className="absolute inset-0"
                 decorationClassName="absolute inset-0"
@@ -205,7 +205,7 @@ export default function Profile() {
               </ParallaxCard>
             </div>
             <CardContent className="relative px-6 pb-6 pt-0">
-              <img src={profileImage || determineDefaultAvatar(account.name)} alt={`Foto de perfil de ${account.name || "usuário"}`} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-sm" />
+              <img src={profileImage || determineDefaultAvatar(account.name)} alt={`Foto de perfil de ${account.name || "usuário"}`} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
               <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
               <div className="mt-5">
@@ -217,8 +217,8 @@ export default function Profile() {
           </Card>
 
           <div className="min-w-0 space-y-6">
-            {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
-            <Card className="rounded-2xl shadow-sm">
+            {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
+            <Card className="rounded-2xl shadow-surface">
               <CardContent className="p-5 sm:p-7">
                 <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>
                 <Form {...form}>
@@ -235,7 +235,7 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl shadow-sm"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
+            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
           </div>
         </div>
       </div>
