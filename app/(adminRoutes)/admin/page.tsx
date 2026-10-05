@@ -114,7 +114,7 @@ export default function AdminPage() {
           <FadeInView delay={0.12} stationary><SummaryCard label="Promotores" value={counts.promoters} /></FadeInView>
         </div>
 
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6" aria-label="Lista de usuários">
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-surface sm:p-6" aria-label="Lista de usuários">
           {!socketConnected && <p role="status" className="mb-4 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">Conexão em tempo real indisponível. A lista pode estar desatualizada.</p>}
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 className="text-xl font-semibold">Lista de usuários</h2><p className="mt-1 text-sm text-muted-foreground">{loading ? "Carregando usuários..." : `${pagination.total} usuários encontrados · Página ${pagination.page} de ${pagination.totalPages}`}</p></div><Button type="button" variant="outline" disabled={loading} onClick={() => void fetchUsers()}>Atualizar lista</Button></div>
           <FilterBar filterValue={filterValue} onFilterChange={setFilterValue} statusValue={roleFilter} onStatusChange={value => { setRoleFilter(value); setPage(1); }} />
@@ -127,5 +127,5 @@ export default function AdminPage() {
 }
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-primary">{value}</p></div>;
+  return <div className="rounded-2xl border border-border bg-card p-5 shadow-surface"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-primary">{value}</p></div>;
 }
