@@ -1,0 +1,4 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "search.exclude": { "**/node_modules": true, "**/android/.gradle": true, "**/android/build": true, "**/android/app/build": true, "**/dist": true, "**/server/dist": true }
+}

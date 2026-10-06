@@ -1,0 +1,86 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Mobile: Android (emulador)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/android-dev.ps1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Mobile: API",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "api:start"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Mobile: Metro (Android)",
+      "type": "shell",
+      "command": "npx",
+      "args": [
+        "expo",
+        "start",
+        "--port",
+        "8082",
+        "--localhost"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated"
+      },
+      "options": {
+        "env": {
+          "EXPO_PUBLIC_API_URL": "http://10.0.2.2:4000",
+          "NODE_OPTIONS": "--dns-result-order=ipv4first"
+        }
+      }
+    },
+    {
+      "label": "Mobile: TypeScript",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "typecheck"
+      ],
+      "problemMatcher": "$tsc",
+      "group": "build"
+    },
+    {
+      "label": "Mobile: Lint",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "lint"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Mobile: Testes",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:client"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

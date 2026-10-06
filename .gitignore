@@ -1,39 +1,23 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/.next-dev/
-/out/
-
-# production
-/build
-/dist/
-/.private-uploads/
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Local configuration and credentials
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules/
+**/.next/
+**/.next-dev/
+**/dist/
+**/build/
+**/.expo/
+**/.cxx/
+**/.cache/
+**/.private-uploads/
+**/*.tsbuildinfo
+**/tsconfig.generated.json
+**/*.jks
+**/*.keystore
+**/*.pem
+**/*.p12
+**/*.key
+**/npm-debug.log*
+events-project-mobile/android/
+events-project-mobile/ios/
