@@ -5,8 +5,24 @@ import { validateSocketIdentity } from "./socketIdentity.mjs";
 import { dispatchCommunitySignal } from "./communityGateway.mjs";
 
 /** Transient hints only. Messages remain durable and authoritative in the API. */
-export function registerChatSignals(prisma: PrismaClient, io: Server, socket: Socket) {
+export function registerChatSignals(prisma: PrismaClient, io: Server, socket: Socket, onlineUserIds: () => string[] = () => []) {
   let lastTyping = 0, lastSync = 0, busy = false;
+  let lastPresence = 0;
+  socket.on("chat-presence", async (payload: unknown, acknowledge?: unknown) => {
+    if (typeof acknowledge !== "function") return;
+    const reply = acknowledge as (result: { ok: boolean; online?: boolean }) => void;
+    const room = communityRoom(payload);
+    if (!room?.startsWith("match:") || Date.now() - lastPresence < 1000) { reply({ ok: false }); return; }
+    lastPresence = Date.now();
+    try {
+      if (!await validateSocketIdentity(prisma, socket) || !await canReadCommunityRoom(prisma, room, socket.data.userId)) { reply({ ok: false }); return; }
+      const match = await prisma.partyMatch.findUnique({ where: { id: room.slice(6) }, select: { userAId: true, userBId: true } });
+      if (!match || !socket.connected) { reply({ ok: false }); return; }
+      const peerId = match.userAId === socket.data.userId ? match.userBId : match.userAId;
+      // Only the authorized peer's presence is disclosed; never the global presence list.
+      reply({ ok: true, online: onlineUserIds().includes(peerId) });
+    } catch { reply({ ok: false }); }
+  });
   socket.on("typing", async (payload: unknown) => {
     if (busy || !payload || typeof payload !== "object" || !("active" in payload) || typeof payload.active !== "boolean") return;
     const room = communityRoom(payload);

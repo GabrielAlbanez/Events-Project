@@ -41,14 +41,18 @@ export async function connectionsSnapshot(eventId: string, actor: Actor, after?:
     if (candidates.length > 40) result.nextAfter = candidates[39].userId;
     for (const match of matches) {
       const partner = available.get(match.userAId === actor.id ? match.userBId : match.userAId);
-      if (partner) result.matches.push({ id: match.id, profile: publicProfile(partner, true) });
+      if (partner) result.matches.push({ id: match.id, profile: publicProfile(partner, true), createdAt: match.createdAt.toISOString() });
     }
     if (result.matches.length) {
       const receipts = await tx.communityEntry.findMany({ where: { id: { in: result.matches.map(match => receiptKey(match.id, actor.id)) }, authorId: actor.id, kind: "party.receipt" } });
       const read = new Map(receipts.map(row => [row.id, receiptData(row).readThrough]));
       const counts = await tx.partyMessage.groupBy({ by: ["matchId"], where: { OR: result.matches.map(match => ({ matchId: match.id, authorId: { not: actor.id }, id: { gt: read.get(receiptKey(match.id, actor.id)) ?? 0 } })) }, _count: { _all: true } });
       const unread = new Map(counts.map(row => [row.matchId, row._count._all]));
-      result.matches = result.matches.map(match => ({ ...match, unreadCount: unread.get(match.id) ?? 0 }));
+      // Aggregate IDs first: fetch at most one preview per authorized match, never its full history.
+      const latestIds = await tx.partyMessage.groupBy({ by: ["matchId"], where: { matchId: { in: result.matches.map(match => match.id) } }, _max: { id: true } });
+      const previews = await tx.partyMessage.findMany({ where: { id: { in: latestIds.flatMap(row => row._max.id === null ? [] : [row._max.id]) } }, select: { matchId: true, text: true, createdAt: true, authorId: true }, take: result.matches.length });
+      const latest = new Map(previews.map(row => [row.matchId, { text: row.text ? row.text.slice(0, 160) : "Foto", createdAt: row.createdAt.toISOString(), own: row.authorId === actor.id }]));
+      result.matches = result.matches.map(match => ({ ...match, unreadCount: unread.get(match.id) ?? 0, lastMessage: latest.get(match.id) }));
     }
     return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });

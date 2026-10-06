@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { LazyMotion, m, useReducedMotion } from "framer-motion";
+import { LazyMotion, useReducedMotion } from "framer-motion";
 import { loadAnimationFeatures } from "@/components/animations/config";
 import { useSession } from "next-auth/react";
-import { ArrowDown, ArrowLeft, Check, ChevronUp, Loader2, MessageCircle, Paperclip, RefreshCw, Send, ShieldCheck, WifiOff, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ChevronUp, Loader2, ShieldCheck, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { FadeInView } from "@/components/animations/FadeInView";
 import { useEventChat } from "@/hooks/useEventChat";
 import { useEventChatRealtime } from "@/hooks/useEventChatRealtime";
-import { ChatAvatar, ChatMessageImage } from "./ChatAvatar";
+import { ChatHeader } from "./chat/ChatHeader";
+import { ChatList, type ChatListItem } from "./chat/ChatList";
+import { MessageList } from "./chat/MessageList";
+import { MessageInput } from "./chat/MessageInput";
+import styles from "./chat/Chat.module.css";
 
 const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
-function time(value: string) { return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function day(value: string) { return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" }).format(new Date(value)); }
 
 export default function EventChatHub({ eventId }: { eventId: string }) {
   const { data: session, status } = useSession();
@@ -27,14 +28,14 @@ function EventChatContent({ eventId }: { eventId: string }) {
   return <EventChatView eventId={eventId} chat={chat} realtime={realtime} />;
 }
 
-export function EventChatView({ eventId, chat, realtime, privateMode = false }: { eventId: string; chat: ReturnType<typeof useEventChat>; realtime: string; privateMode?: boolean }) {
+export function EventChatView({ eventId, chat, realtime, privateMode = false, conversations, selectedConversation, conversationsLoading, partnerOnline }: { eventId: string; chat: ReturnType<typeof useEventChat>; realtime: string; privateMode?: boolean; conversations?: ChatListItem[]; selectedConversation?: string; conversationsLoading?: boolean; partnerOnline?: boolean | null }) {
+  const [conversationOpen, setConversationOpen] = useState(true);
   const reduced = useReducedMotion();
   const { typing, acknowledge } = chat;
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<{ file: File; preview: string; uploaded?: { id: string; url: string } } | null>(null);
   const [attachmentError, setAttachmentError] = useState("");
   const attachmentInput = useRef<HTMLInputElement>(null);
-  const composing = useRef(false);
   const submitting = useRef(false);
   const draftRevision = useRef(0);
   const submittedDraft = useRef<{ text: string; attachment: typeof attachment; revision: number } | null>(null);
@@ -91,6 +92,8 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false }: 
   useEffect(() => { if (chat.denied) { setDraft(""); setUnread(0); } }, [chat.denied]);
   const viewport = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  const scrollIntent = useRef(0);
+  const noteScrollIntent = () => { scrollIntent.current = Date.now(); };
   const incomingVisible = useCallback(() => {
     const container = viewport.current;
     const bubble = container?.querySelector(`[data-message-id="${newestIncoming}"]`);
@@ -124,7 +127,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false }: 
       element.scrollTop = anchor.current.top + element.scrollHeight - anchor.current.height;
       anchor.current = null;
     } else if (newest !== lastMessage.current) {
-      if (following.current || lastMessage.current === null) element.scrollTop = element.scrollHeight;
+      if (following.current || lastMessage.current === null) { scrollIntent.current = 0; element.scrollTop = element.scrollHeight; }
       else setUnread(previous => previous + chat.messages.filter(message => message.id > (lastMessage.current ?? 0)).length);
     }
     if (!chat.loadingOlder && oldest === firstMessage.current) anchor.current = null;
@@ -140,7 +143,10 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false }: 
     document.addEventListener("visibilitychange", markReceipt);
     return () => { observer.disconnect(); document.removeEventListener("visibilitychange", markReceipt); };
   }, [newestIncoming, privateMode, acknowledge, incomingVisible]);
-  const bottom = () => { if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; following.current = true; setUnread(0); if (privateMode && newestIncoming && incomingVisible()) acknowledge(newestIncoming, true); };
+  const messageCount = visibleMessages.length;
+  const bottom = useCallback(() => { scrollIntent.current = 0; if (viewport.current) { if (viewport.current.scrollTo && !reduced && messageCount <= 200) viewport.current.scrollTo({ top: viewport.current.scrollHeight, behavior: "smooth" }); else viewport.current.scrollTop = viewport.current.scrollHeight; } following.current = true; setUnread(0); if (privateMode && newestIncoming && incomingVisible()) acknowledge(newestIncoming, true); }, [reduced, privateMode, newestIncoming, incomingVisible, acknowledge, messageCount]);
+  const imageLoaded = useCallback(() => { if (following.current) bottom(); }, [bottom]);
+  const rangeRendered = useCallback(() => { if (privateMode && newestIncoming && following.current && incomingVisible()) acknowledge(newestIncoming, true); }, [privateMode, newestIncoming, incomingVisible, acknowledge]);
   const older = async () => {
     if (viewport.current) anchor.current = { height: viewport.current.scrollHeight, top: viewport.current.scrollTop };
     await chat.loadOlder();
@@ -157,6 +163,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false }: 
         setAttachment(previous => previous?.file === selected.file ? { ...previous, uploaded } : previous);
       }
       submittedDraft.current = { text: submitted, attachment: selected && image ? { ...selected, uploaded: image } : selected, revision };
+      scrollIntent.current = 0; following.current = true;
       setDraft(previous => previous === submitted ? "" : previous); setAttachment(null);
       if (await chat.send(submitted, false, image?.id)) submittedDraft.current = null;
       else if (!currentChat.current.pending && !currentChat.current.sending) restoreDraft();
@@ -164,30 +171,58 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false }: 
       setAttachmentError(error instanceof Error ? error.message : "Não foi possível enviar a foto. Tente novamente.");
     } finally { submitting.current = false; }
   };
-  const retry = async () => {
-    const pendingMessage = chat.pending;
-    if (pendingMessage && await chat.send(pendingMessage.text, true)) submittedDraft.current = null;
-  };
+  const pendingMessage = chat.pending;
+  const sendMessage = chat.send;
+  const retry = useCallback(async () => {
+    if (pendingMessage && await sendMessage(pendingMessage.text, true)) submittedDraft.current = null;
+  }, [pendingMessage, sendMessage]);
   const statusLabel = !chat.online ? "Sem conexão" : realtime === "live" ? "Conectado ao chat" : realtime === "connecting" ? "Conectando" : realtime === "denied" ? "Acesso indisponível" : "Sincronizando pelo histórico";
-  return <LazyMotion features={loadAnimationFeatures} strict><main className="w-full min-w-0 px-4 py-5 sm:px-6 lg:px-10"><div className="mx-auto max-w-6xl space-y-5">
-    <FadeInView><header className="flex items-start gap-3"><SidebarTrigger /><div className="min-w-0 flex-1"><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Voltar às conexões" : "Voltar ao evento"}</Link><p className="mt-2 text-xs font-bold uppercase tracking-[.18em] text-primary">{privateMode ? "Uma conexão, uma conversa" : "Encontre sua turma"}</p><h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{privateMode ? "Vocês combinaram." : "O encontro começa aqui."}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{privateMode ? "Converse no seu ritmo. O interesse é mútuo; o respeito também precisa ser." : "Converse com quem também vai, tire dúvidas e combine os detalhes da festa."}</p></div></header></FadeInView>
-    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
-      <section aria-label="Conversa dos participantes" className="flex min-w-0 flex-col overflow-hidden rounded-3xl border bg-card shadow-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-primary/5 p-4 sm:p-5"><div className="flex min-w-0 items-center gap-3">{privateMode ? <ChatAvatar name={chat.event?.name ?? "Participante"} image={chat.event?.partnerImage} className="size-11 text-sm" /> : <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><MessageCircle size={22} aria-hidden="true" /></span>}<div className="min-w-0"><h2 className="break-words font-semibold">{chat.event?.name ?? (privateMode ? "Conversa privada" : "Chat do evento")}</h2><p role="status" className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><span className={`size-2 rounded-full ${chat.online && realtime === "live" ? "bg-emerald-500" : "bg-amber-500"}`} aria-hidden="true" />{statusLabel}</p></div></div><button type="button" disabled={!chat.online || chat.loading || chat.denied} onClick={() => void chat.refresh()} className={`${action} border bg-background`}><RefreshCw size={15} aria-hidden="true" />Atualizar</button></div>
-        {chat.error && <p role="alert" className="border-b border-amber-500/20 bg-amber-500/10 px-5 py-3 text-sm leading-6">{chat.error}</p>}
-        {!chat.online && <p role="status" className="flex items-center gap-2 border-b px-5 py-3 text-sm text-muted-foreground"><WifiOff size={16} aria-hidden="true" />Você pode escrever enquanto está offline. Envie ao reconectar.</p>}
-        <div ref={viewport} tabIndex={0} aria-label="Histórico de mensagens" onScroll={() => { const element = viewport.current; if (element) { following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 90; if (following.current) { setUnread(0); if (privateMode && newestIncoming && incomingVisible()) acknowledge(newestIncoming, true); } } }} className="h-[min(42dvh,420px)] min-h-[180px] overflow-y-auto overscroll-contain bg-muted/15 px-4 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:h-[52dvh] sm:px-6">
+  const peerStatus = privateMode && partnerOnline !== undefined && partnerOnline !== null ? partnerOnline ? "online" : "offline" : statusLabel;
+
+  const items = conversations ?? [{ id: eventId, name: chat.event?.name ?? "Chat do evento", href: `/eventos/${encodeURIComponent(eventId)}/chat`, preview: chat.messages.at(-1)?.text || "Converse com os participantes" }];
+
+  return <LazyMotion features={loadAnimationFeatures} strict><main className={styles.page}>
+
+    <div className={styles.toolbar}><SidebarTrigger /><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Conexões da festa" : "Voltar ao evento"}</Link></div>
+
+    <section className={`${styles.shell} ${conversationOpen ? styles.conversationOpen : styles.listOpen}`} aria-label="Chat">
+
+      <ChatList items={items} selected={selectedConversation ?? eventId} onSelect={() => setConversationOpen(true)} loading={conversationsLoading} />
+
+      <section className={styles.conversation} aria-label="Conversa dos participantes">
+
+        <ChatHeader name={chat.event?.name ?? (privateMode ? "Conversa privada" : "Chat do evento")} image={chat.event?.partnerImage} status={peerStatus} typing={typingVisible} refresh={() => void chat.refresh()} disabled={!chat.online || chat.loading || chat.denied} back={() => setConversationOpen(false)} />
+
+        {chat.error && <p role="alert" className={styles.notice}>{chat.error}</p>}
+
+        {!chat.online && <p role="status" className={styles.notice}>Sem conexão. Você pode escrever e enviar ao reconectar.</p>}
+
+        <div ref={viewport} tabIndex={0} aria-label="Histórico de mensagens" onWheel={noteScrollIntent} onTouchMove={noteScrollIntent} onPointerDown={noteScrollIntent} onKeyDown={event => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) noteScrollIntent(); }} onScroll={() => { const element = viewport.current; if (element) { if (Date.now() - scrollIntent.current < 1500) following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 90; if (following.current) { setUnread(0); if (privateMode && newestIncoming && incomingVisible()) acknowledge(newestIncoming, true); } } }} className={styles.history}>
+
           {chat.nextBefore !== null && !chat.denied && <div className="mb-5 text-center"><button type="button" disabled={chat.loadingOlder || !chat.online} onClick={() => void older()} className={`${action} border bg-background`}>{chat.loadingOlder ? <Loader2 size={15} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ChevronUp size={15} aria-hidden="true" />}Mensagens anteriores</button></div>}
-          {chat.loading ? <div role="status" className="grid min-h-64 place-content-center gap-3 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto animate-spin motion-reduce:animate-none" aria-hidden="true" />Buscando sua conversa…</div> : chat.denied ? <div className="grid min-h-64 place-content-center gap-4 text-center"><ShieldCheck className="mx-auto size-10 text-primary" aria-hidden="true" /><h3 className="text-lg font-semibold">Uma conversa para quem vai ao evento</h3><p className="max-w-sm text-sm leading-6 text-muted-foreground">Entre na sua conta e confirme sua participação para conversar com os participantes.</p><Link href={`/eventos/${encodeURIComponent(eventId)}`} className={`${action} bg-primary text-primary-foreground`}>Ver minha participação</Link></div> : visibleMessages.length === 0 ? <div className="grid min-h-64 place-content-center gap-3 text-center"><span className="mx-auto grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary"><MessageCircle size={30} aria-hidden="true" /></span><h3 className="text-lg font-semibold">Dê o primeiro oi</h3><p className="max-w-xs text-sm leading-6 text-muted-foreground">Apresente-se ou conte o que mais quer aproveitar no evento.</p></div> : <ol className="space-y-4">{visibleMessages.map((message, index) => {
-            const dateChanged = index === 0 || day(message.createdAt) !== day(visibleMessages[index - 1].createdAt);
-            return <m.li data-message-id={message.id > 0 ? message.id : undefined} key={message.clientId} initial={{ opacity: reduced || message.id < 0 ? 1 : 0, y: reduced || message.id < 0 ? 0 : 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? 0 : .18 }}>{dateChanged && <p className="mb-5 text-center text-[11px] font-medium text-muted-foreground">{day(message.createdAt)}</p>}<div className={`flex items-end gap-2 ${message.own ? "flex-row-reverse" : ""}`}><ChatAvatar name={message.author.name} image={message.author.image} className="size-8 text-xs" /><article className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[78%] ${message.own ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border bg-background"}`}><p className={`mb-1 text-xs font-semibold ${message.own ? "text-primary-foreground/80" : "text-primary"}`}>{message.own ? "Você" : message.author.name}</p>{message.image && <ChatMessageImage url={message.image.url} onLoad={() => { if (following.current) bottom(); }} />}{message.text && <p className="whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{message.text}</p>}<p className={`mt-2 flex items-center justify-end gap-1 text-[10px] ${message.own ? "text-primary-foreground/75" : "text-muted-foreground"}`}><time dateTime={message.createdAt}>{time(message.createdAt)}</time>{privateMode && message.id > 0 && <span aria-label={`Mensagem número ${message.id}`}>· #{message.id}</span>}{message.id < 0 ? <span role="status">Aguardando confirmação</span> : message.own && <><Check size={12} aria-hidden="true" /><span>{privateMode ? (chat.partnerReceipt?.readThrough ?? 0) >= message.id ? "Lida" : (chat.partnerReceipt?.deliveredThrough ?? 0) >= message.id ? "Entregue" : "Enviada" : "Enviada"}</span></>}</p></article></div></m.li>;
-          })}</ol>}
+
+          {chat.loading ? <p role="status" className={styles.empty}>Buscando sua conversa…</p> : chat.denied ? <div className={styles.empty}><ShieldCheck className="mx-auto mb-3 size-8" /><p>Confirme sua participação para acessar esta conversa.</p><Link href={`/eventos/${encodeURIComponent(eventId)}`} className={action}>Ver minha participação</Link></div> : visibleMessages.length === 0 ? <div className={styles.empty}><h2 className="mb-2 text-lg font-semibold">Dê o primeiro oi</h2><p>As melhores conexões começam com uma conversa.</p></div> : <MessageList messages={visibleMessages} viewport={viewport} following={following} privateMode={privateMode} deliveredThrough={chat.partnerReceipt?.deliveredThrough ?? 0} readThrough={chat.partnerReceipt?.readThrough ?? 0} failed={chat.retryStopped} retry={retry} onImageLoad={imageLoaded} onRangeRendered={rangeRendered} />}
+
         </div>
-        {typingVisible && <div role="status" className="flex items-center gap-2 border-t px-5 py-3 text-xs text-muted-foreground"><span className="flex gap-1" aria-hidden="true">{[0, 1, 2].map(index => <m.span key={index} className="size-1.5 rounded-full bg-primary" animate={reduced ? { opacity: 1 } : { opacity: [.35, 1, .35], y: [0, -2, 0] }} transition={{ duration: .8, repeat: reduced ? 0 : Infinity, delay: index * .12 }} />)}</span>Digitando…</div>}
-        {unread > 0 && !chat.denied && <button type="button" onClick={bottom} className="mx-4 my-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 text-sm font-semibold text-primary"><ArrowDown size={15} aria-hidden="true" />{unread} {unread === 1 ? "nova mensagem" : "novas mensagens"}</button>}
-        {!chat.denied && <form onSubmit={submit} className="sticky bottom-0 z-10 space-y-3 border-t bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5"><label htmlFor="event-chat-message" className="block text-sm font-semibold">Sua mensagem</label><textarea id="event-chat-message" value={draft} onChange={event => changeDraft(event.target.value)} onBlur={stopTyping} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={2} maxLength={1000} aria-describedby="event-chat-hint" placeholder={privateMode ? "Escreva sua mensagem…" : "Quem mais está animado para o evento?"} className="block max-h-40 min-h-20 w-full resize-y rounded-2xl border bg-muted/30 px-4 py-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />{privateMode && <><input ref={attachmentInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" tabIndex={-1} aria-label="Selecionar foto para enviar" onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />{attachment && <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-3"><img src={attachment.preview} alt="Prévia da foto anexada" className="h-24 w-24 rounded-lg object-contain" /><div className="min-w-0 flex-1"><p className="break-words text-xs font-medium">{attachment.file.name}</p><p className="mt-1 text-xs text-muted-foreground">Pronta para enviar · até 5 MB</p></div><button type="button" aria-label="Remover foto anexada" disabled={chat.sending || chat.imageUploading || !!chat.pending} onClick={() => setAttachment(null)} className={`${action} border bg-background px-3`}><X size={16} aria-hidden="true" /></button></div>}{attachmentError && <p role="alert" className="text-sm text-destructive">{attachmentError}</p>}</>}<div className="flex flex-wrap items-center justify-between gap-3"><p id="event-chat-hint" className="text-xs text-muted-foreground">{draft.length}/1000 · {privateMode ? "Enter envia · Shift+Enter quebra a linha" : "Texto simples, sem dados pessoais"}</p><div className="flex items-center gap-2">{privateMode && <button type="button" aria-label="Anexar foto" disabled={chat.sending || chat.imageUploading || chat.loading || !!chat.pending} onClick={() => { setAttachmentError(""); attachmentInput.current?.click(); }} className={`${action} border bg-background px-3`}><Paperclip size={18} aria-hidden="true" /></button>}<button type="submit" disabled={!chat.online || chat.sending || chat.imageUploading || chat.loading || !!chat.pending || (!draft.trim() && !attachment)} className={`${action} bg-primary text-primary-foreground`}>{chat.imageUploading ? <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{chat.imageUploading ? "Enviando foto…" : "Enviar mensagem"}</button></div></div>{chat.pending && !chat.sending && <aside className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3"><p className="text-xs leading-5">{chat.retryStopped ? "As tentativas automáticas terminaram sem confirmação. O conteúdo permanece aqui; toque em Tentar agora para repetir o envio." : "Seu envio está aguardando conexão ou confirmação. Tentaremos novamente automaticamente; o conteúdo permanece aqui."}</p><button type="button" disabled={!chat.online} onClick={() => void retry()} className={`${action} mt-2 border bg-background`}>Tentar agora</button></aside>}</form>}
+
+        {unread > 0 && !chat.denied && <button type="button" onClick={bottom} className={styles.jump}><ArrowDown size={18} aria-hidden="true" />{unread} {unread === 1 ? "nova mensagem" : "novas mensagens"}</button>}
+
+        {!chat.denied && <MessageInput value={draft} onChange={changeDraft} onBlur={stopTyping} onSubmit={submit} disabled={!chat.online || chat.sending || chat.imageUploading || chat.loading || !!chat.pending} hasAttachment={!!attachment} uploading={chat.imageUploading} attach={privateMode ? () => { setAttachmentError(""); attachmentInput.current?.click(); } : undefined}>
+
+          {privateMode && <><input ref={attachmentInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" tabIndex={-1} aria-label="Selecionar foto para enviar" onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />{attachment && <div className="mb-2 flex items-start gap-3 rounded-xl border p-3"><img src={attachment.preview} alt="Prévia da foto anexada" className="h-24 w-24 rounded-lg object-contain" /><div className="min-w-0 flex-1"><p className="break-words text-xs font-medium">{attachment.file.name}</p><p className="mt-1 text-xs">Pronta para enviar · até 5 MB</p></div><button type="button" aria-label="Remover foto anexada" disabled={chat.sending || chat.imageUploading || !!chat.pending} onClick={() => setAttachment(null)} className={styles.iconButton}><X size={16} aria-hidden="true" /></button></div>}{attachmentError && <p role="alert" className="mb-2 text-sm text-destructive">{attachmentError}</p>}</>}
+
+          {chat.imageUploading && <p role="status" className="flex items-center gap-2 text-xs"><Loader2 size={14} className="animate-spin motion-reduce:animate-none" />Enviando foto…</p>}
+
+          {chat.pending && !chat.sending && <aside className={styles.notice}><p>{chat.retryStopped ? "Não foi possível confirmar o envio. Sua mensagem está preservada." : "Tentaremos novamente automaticamente, sem duplicar a mensagem."}</p><button type="button" disabled={!chat.online} onClick={() => void retry()} className="min-h-10 underline">Tentar agora</button></aside>}
+
+        </MessageInput>}
+
+        <p className={styles.privacy}>{privateMode ? "Conversa privada entre os dois participantes. Não compartilhe dados sensíveis." : "Chat dos participantes confirmados e da equipe do evento."}</p>
+
       </section>
-      <aside className="space-y-4"><div className="rounded-3xl border bg-card shadow-surface p-5"><ShieldCheck className="mb-4 size-7 text-primary" aria-hidden="true" /><h2 className="text-lg font-semibold">Mesmo evento, boas conexões</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">{privateMode ? "Esta conversa é privada entre vocês. Gestores não recebem acesso automático. Uma denúncia pode incluir a mensagem que você escolher como evidência." : "Este chat é compartilhado com os participantes confirmados, o organizador e administradores."}</p><ul className="mt-5 space-y-3 text-sm leading-6"><li>✦ Combine pontos de encontro públicos.</li><li>✦ Respeite quem está conversando.</li><li>✦ Não compartilhe telefone, ingresso ou informações sensíveis.</li></ul><p className="mt-4 border-t pt-4 text-xs leading-5 text-muted-foreground">As mensagens ficam no histórico. Este espaço conecta pessoas; não é um assistente de IA.</p></div><Link href={`/eventos/${encodeURIComponent(eventId)}/comunidade`} className="block rounded-3xl border bg-card p-5 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><p className="font-semibold">Tudo sobre a festa →</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Avisos oficiais, programação, filas e perguntas na comunidade.</p></Link></aside>
-    </div>
-  </div></main></LazyMotion>;
+
+    </section>
+
+  </main></LazyMotion>;
+
 }

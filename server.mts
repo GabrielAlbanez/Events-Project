@@ -126,7 +126,7 @@ app.prepare().then(async () => {
     const userId = authenticatedSocket.data.userId;
     enforceSocketCredentials(prisma, socket);
     registerCommunitySubscriptions(prisma, socket);
-    registerChatSignals(prisma, io!, socket);
+    registerChatSignals(prisma, io!, socket, () => sharedPresence.getSnapshot());
     if (userId && authenticatedSocket.data.expiresAt) {
       enforceSocketExpiration(socket, authenticatedSocket.data.expiresAt);
     }

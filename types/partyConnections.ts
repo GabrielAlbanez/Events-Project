@@ -9,6 +9,6 @@ export interface PartyConnectionsSnapshot {
   mine: PartyOwnProfile | null;
   profiles: PartyPublicProfile[];
   nextAfter: string | null;
-  matches: { id: string; profile: PartyPublicProfile; unreadCount?: number }[];
+  matches: { id: string; profile: PartyPublicProfile; unreadCount?: number; createdAt?: string; lastMessage?: { text: string; createdAt: string; own: boolean } }[];
   blocks: { userId: string; displayName: string }[];
 }

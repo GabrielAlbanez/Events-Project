@@ -57,7 +57,13 @@ async function main() {
   const io = { sockets: { adapter: { rooms: new Map([["match:pair", new Set(["a", "b"])]]) }, sockets: new Map([["a", a], ["b", b]]) } };
   await dispatchCommunitySignal(db, io, "match:pair");
   assert.deepEqual(a.messages, [{ event: "community-updated", payload: { room: "match:pair" } }]);
-  for (const client of [a, b, admin]) registerChatSignals(db, io, client);
+  for (const client of [a, b, admin]) registerChatSignals(db, io, client, () => ["b", "unrelated"]);
+  await a.handlers.get("chat-presence")({ matchId: "pair" }, reply => { ack = reply; });
+  assert.deepEqual(ack, { ok: true, online: true }, "only the authorized peer's presence is returned");
+  await b.handlers.get("chat-presence")({ matchId: "pair" }, reply => { ack = reply; });
+  assert.deepEqual(ack, { ok: true, online: false });
+  await admin.handlers.get("chat-presence")({ matchId: "pair" }, reply => { ack = reply; });
+  assert.deepEqual(ack, { ok: false }, "admin does not gain private presence access");
   await a.handlers.get("typing")({ matchId: "pair", active: true });
   const hint = b.messages.find(message => message.event === "typing");
   assert.equal(hint.payload.userId, "a"); assert.ok(hint.payload.until > Date.now());
@@ -70,6 +76,9 @@ async function main() {
   await a.handlers.get("chat-sync")({ matchId: "pair" });
   assert.equal(b.messages.filter(message => message.event === "community-updated").length, signalCount + 1);
   blocked = true;
+  const blockedClient = socket("a"); registerChatSignals(db, io, blockedClient, () => ["b"]);
+  await blockedClient.handlers.get("chat-presence")({ matchId: "pair" }, reply => { ack = reply; });
+  assert.deepEqual(ack, { ok: false }, "blocking revokes private presence");
   await dispatchCommunitySignal(db, io, "match:pair");
   assert.equal(a.joined.size, 0); assert.equal(b.joined.size, 0);
   assert.ok(a.messages.some(message => message.event === "community-access-denied"));
