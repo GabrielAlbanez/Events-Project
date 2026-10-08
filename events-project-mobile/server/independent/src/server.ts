@@ -109,6 +109,8 @@ const server = createIndependentAuthServer({
   interactions: new PostgresInteractionService(
     pool,
     new PostgresEventReader(pool),
+    process.env.CHECKIN_SIGNING_SECRET || authSecret,
+    undefined,
     authSecret,
   ),
   promoters: new PostgresPromoterService(pool, eventReader),
