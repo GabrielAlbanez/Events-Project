@@ -7,7 +7,7 @@ import { mediaUrl } from '../services/config';
 import { onSocket, peerPresence, sendTyping, syncChat } from '../services/realtime';
 import { useResource } from '../hooks/useResource';
 import { useSession } from '../context/SessionContext';
-import { useTheme } from '../theme';
+import { design, useTheme } from '../theme';
 import type { EventChatHistory, EventChatMessage } from '../types';
 import type { NativeScreenProps } from './NativeScreen';
 import { Avatar, Button, Card, Label, State } from '../components/ui';
@@ -18,15 +18,15 @@ type Row = { key: string; message: EventChatMessage; status: string; date: strin
 const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => { const value = Math.floor(Math.random() * 16); return (char === 'x' ? value : value & 3 | 8).toString(16); });
 const Bubble = memo(function Bubble({ row, retry, eventId, privateChat, onBlocked }: { row: Row; retry: (draft: Draft) => void; eventId: string; privateChat: boolean; onBlocked: () => void }) {
   const theme = useTheme(); const message = row.message;
-  return <View style={{ gap: 6, paddingVertical: 4 }}>
-    {row.date && <View style={{ alignSelf: 'center', borderRadius: 12, padding: 6, backgroundColor: theme.surface }}><Label muted size={11}>{row.date}</Label></View>}
-    <View style={{ flexDirection: message.own ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+  return <View style={{ gap: design.space.sm, paddingVertical: design.space.xs }}>
+    {row.date && <View style={{ alignSelf: 'center', borderRadius: design.radius.pill, paddingVertical: design.space.sm, paddingHorizontal: design.space.lg, backgroundColor: theme.surfaceMuted }}><Label muted size={design.type.caption}>{row.date}</Label></View>}
+    <View style={{ flexDirection: message.own ? 'row-reverse' : 'row', gap: design.space.sm, alignItems: 'flex-end' }}>
       <Avatar name={message.author.name} uri={mediaUrl(message.author.image)} />
-      <View style={{ maxWidth: '78%', padding: 12, borderRadius: 18, backgroundColor: message.own ? theme.soft : theme.surface, borderWidth: 1, borderColor: theme.border, gap: 5 }}>
+      <View style={{ maxWidth: '78%', padding: design.space.md, borderRadius: design.radius.md, borderBottomRightRadius: message.own ? design.space.xs : design.radius.md, borderBottomLeftRadius: message.own ? design.radius.md : design.space.xs, backgroundColor: message.own ? theme.soft : theme.surfaceElevated, borderWidth: 1, borderColor: theme.border, gap: design.space.xs }}>
         <Label size={12} bold>{message.own ? 'Você' : message.author.name}</Label>
         {message.image?.url && <ProtectedChatImage path={message.image.url} />}
         {Boolean(message.text) && <Label>{message.text}</Label>}
-        <Label muted size={10}>{new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {row.status}</Label>
+        <Label muted size={design.type.caption}>{new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {row.status}</Label>
         {privateChat && !message.own && message.id > 0 && <PartySafetyMenu eventId={eventId} userId={message.author.id} displayName={message.author.name} messageId={message.id} evidence={message.text} label="Denunciar esta mensagem" onBlocked={onBlocked} />}{row.pending?.failed && <Button title="Reenviar" secondary onPress={() => retry(row.pending!)} />}
       </View>
     </View>
@@ -149,29 +149,29 @@ function ChatConversation({ route, onBack, navigate }: NativeScreenProps) {
     typingStop.current = setTimeout(() => sendTyping(matchId, false), 3000);
   };
   const typing = Math.max(typingUntil, resource.data?.partnerReceipt?.typingUntil ?? 0) > clock;
-  if (!resource.data) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.background, padding: 20 }}><State loading={resource.loading} error={resource.error} retry={resource.reload} />{onBack && <Button title="Voltar" secondary onPress={onBack} />}</SafeAreaView>;
+  if (!resource.data) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.background, padding: design.space.xl }}><State loading={resource.loading} error={resource.error} retry={resource.reload} />{onBack && <Button title="Voltar" secondary onPress={onBack} />}</SafeAreaView>;
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: theme.background }}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center', borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.surface }}>
-        {onBack && <Pressable accessibilityLabel="Voltar" accessibilityRole="button" onPress={onBack} style={{ padding: 12 }}><Label size={26}>‹</Label></Pressable>}
+      <View style={{ paddingHorizontal: design.space.lg, paddingVertical: design.space.md, flexDirection: 'row', gap: design.space.md, alignItems: 'center', borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.surface }}>
+        {onBack && <Pressable accessibilityLabel="Voltar" accessibilityRole="button" onPress={onBack} style={({ pressed }) => ({ minWidth: design.size.touch, minHeight: design.size.touch, alignItems: 'center', justifyContent: 'center', borderRadius: design.radius.md, backgroundColor: theme.surfaceMuted, opacity: pressed ? design.opacity.pressed : 1 })}><Label size={26}>‹</Label></Pressable>}
         <Avatar name={resource.data?.event.name ?? 'Chat'} uri={mediaUrl(resource.data?.event.partnerImage)} />
-        <View style={{ flex: 1 }}><Label bold>{resource.data?.event.name ?? 'Conversa'}</Label><Label muted size={12}>{typing ? 'Digitando…' : online === true ? 'Online agora' : matchId ? 'Conversa privada' : 'Conversa em grupo'}</Label></View>
+        <View style={{ flex: 1, gap: design.space.xs }}><Label bold size={design.type.body}>{resource.data?.event.name ?? 'Conversa'}</Label><Label muted size={12}>{typing ? 'Digitando…' : online === true ? 'Online agora' : matchId ? 'Conversa privada' : 'Conversa em grupo'}</Label></View>
         {matchId && resource.data?.event.partnerId && <PartySafetyMenu eventId={eventId} userId={resource.data.event.partnerId} displayName={resource.data.event.name} label="Segurança" onBlocked={() => navigate({ name: 'connections', id: eventId })} />}
       </View>
-      <FlatList ref={list} data={rows} keyExtractor={row => row.key} renderItem={({ item }) => <Bubble row={item} eventId={eventId} privateChat={Boolean(matchId)} onBlocked={() => navigate({ name: 'connections', id: eventId })} retry={draft => { void send(draft); }} />} keyboardShouldPersistTaps="handled" initialNumToRender={20} windowSize={7} onScroll={onScroll} scrollEventThrottle={100} contentContainerStyle={{ padding: 12, gap: 4 }} maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+      <FlatList ref={list} data={rows} keyExtractor={row => row.key} renderItem={({ item }) => <Bubble row={item} eventId={eventId} privateChat={Boolean(matchId)} onBlocked={() => navigate({ name: 'connections', id: eventId })} retry={draft => { void send(draft); }} />} keyboardShouldPersistTaps="handled" initialNumToRender={20} windowSize={7} onScroll={onScroll} scrollEventThrottle={100} contentContainerStyle={{ padding: design.space.lg, gap: design.space.xs }} maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         ListHeaderComponent={(hasOlder ?? resource.data?.hasMore) ? <Button title="Mensagens anteriores" secondary busy={olderBusy} onPress={() => { atEnd.current = false; void previous(); }} /> : null}
         ListEmptyComponent={resource.loading ? <State loading /> : resource.error ? <State error={resource.error} retry={() => { void resource.reload(); }} /> : <State empty="Comece a conversa." />}
         onContentSizeChange={() => { if (atEnd.current) list.current?.scrollToEnd({ animated: false }); }} />
       {newCount > 0 && <Button title={`Ir para o fim · ${newCount} novas`} secondary onPress={() => { atEnd.current = true; setNewCount(0); list.current?.scrollToEnd({ animated: false }); }} />}
-      <View style={{ padding: 12, gap: 8, backgroundColor: theme.surface, borderTopWidth: 1, borderColor: theme.border }}>
+      <View style={{ padding: design.space.md, gap: design.space.sm, backgroundColor: theme.surface, borderTopWidth: 1, borderColor: theme.border }}>
         {error && <Label muted size={12}>{error}</Label>}{resource.error && rows.length > 0 && <Label muted size={12}>{resource.error}</Label>}
         {attachment && <Card><Label size={12}>Imagem pronta para enviar</Label><Button title="Remover imagem" secondary onPress={() => setAttachment(null)} /></Card>}
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-          {matchId && <Pressable accessibilityRole="button" accessibilityLabel="Anexar imagem" disabled={uploading} onPress={() => { void pick(); }} style={{ padding: 14 }}><Label size={24}>{uploading ? '…' : '＋'}</Label></Pressable>}
+        <View style={{ flexDirection: 'row', gap: design.space.sm, alignItems: 'flex-end' }}>
+          {matchId && <Pressable accessibilityRole="button" accessibilityLabel="Anexar imagem" disabled={uploading} onPress={() => { void pick(); }} style={({ pressed }) => ({ minWidth: design.size.touch, minHeight: design.size.touch, alignItems: 'center', justifyContent: 'center', borderRadius: design.radius.md, backgroundColor: theme.surfaceMuted, opacity: uploading ? design.opacity.disabled : pressed ? design.opacity.pressed : 1 })}><Label size={24}>{uploading ? '…' : '＋'}</Label></Pressable>}
           <TextInput ref={input} accessibilityLabel="Mensagem" autoFocus multiline maxLength={1000} value={text} onChangeText={changeText} placeholder="Escreva sua mensagem…" placeholderTextColor={theme.muted} submitBehavior={Platform.OS === 'web' ? 'newline' : 'submit'} onSubmitEditing={() => { if (Platform.OS !== 'web') void send(); }}
             onKeyPress={event => { const native = event.nativeEvent as typeof event.nativeEvent & { shiftKey?: boolean }; if (Platform.OS === 'web' && native.key === 'Enter' && !native.shiftKey) { event.preventDefault(); void send(); } }}
-            style={{ flex: 1, minHeight: 46, maxHeight: 120, color: theme.text, backgroundColor: theme.background, borderRadius: 20, padding: 12, fontSize: 16, fontFamily: 'Geist' }} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensagem" disabled={!text.trim() && !attachment || uploading} onPress={() => { void send(); }} style={({ pressed }) => ({ backgroundColor: theme.soft, borderRadius: 24, padding: 14, opacity: pressed ? 0.7 : 1 })}><Label bold>➤</Label></Pressable>
+            style={{ flex: 1, minHeight: design.size.touch, maxHeight: 120, color: theme.text, backgroundColor: theme.surfaceMuted, borderWidth: 1, borderColor: theme.border, borderRadius: design.radius.lg, padding: design.space.md, fontSize: design.type.body, fontFamily: design.font.regular }} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensagem" disabled={!text.trim() && !attachment || uploading} onPress={() => { void send(); }} style={({ pressed }) => ({ backgroundColor: theme.soft, minWidth: design.size.touch, minHeight: design.size.touch, alignItems: 'center', justifyContent: 'center', borderRadius: design.radius.pill, padding: design.space.md, opacity: !text.trim() && !attachment || uploading ? design.opacity.disabled : pressed ? design.opacity.pressed : 1 })}><Label bold>➤</Label></Pressable>
         </View>
       </View>
     </KeyboardAvoidingView>
