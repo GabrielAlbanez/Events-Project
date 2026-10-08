@@ -11,14 +11,14 @@ function load(file, dependencies) {
 (async () => {
   process.env.EMAIL_USER = "test"; process.env.EMAIL_PASS = "test";
   process.env.NEXTAUTH_URL = "http://localhost:3000";
-  let user = { id: "u1", email: "member@example.invalid", password: "existing", emailVerified: false, name: "Member" };
+  let user = { id: "u1", email: "member@example.invalid", password: "existing", emailVerified: false, name: "Member", sessionVersion: 0 };
   let stored = null, rate = 0, claimed = 1;
   const deliveries = [], updates = [];
   class CommunityError extends Error { constructor(status, message) { super(message); this.status = status; } }
   const tx = {
     communitySignal: { create: async args => { assert.equal(args.data.room, "user:u1"); } },
     $executeRaw: async () => 1,
-    user: { findFirst: async () => user, updateMany: async args => { updates.push(args); return { count: user ? 1 : 0 }; } },
+    user: { findFirst: async () => user, updateMany: async args => { updates.push(args); if (!user) return { count: 0 }; user.password = args.data.password; user.sessionVersion += args.data.sessionVersion.increment; return { count: 1 }; } },
     verificationToken: {
       count: async () => rate,
       create: async args => { if (args.data.identifier.startsWith("account-recovery:")) stored = args.data; },
@@ -41,7 +41,9 @@ function load(file, dependencies) {
   const token = new URL(deliveries[0].link).searchParams.get("token");
   assert.equal(token.length, 64); assert.notEqual(stored.token, token);
   await service.resetAccountPassword({ token, password: "new-password" });
-  assert.deepEqual(updates[0].data, { password: "hashed-new-password" });
+  assert.deepEqual(updates[0].data, { password: "hashed-new-password", sessionVersion: { increment: 1 } });
+  assert.equal(user.sessionVersion, 1);
+  assert.equal(require("./load-account-access.cjs").accountSessionValid(0, user.sessionVersion), false);
   await assert.rejects(service.resetAccountPassword({ token, password: "new-password" }));
   await service.requestAccountLink(user.email, "recovery", "global");
   const expiredToken = new URL(deliveries.at(-1).link).searchParams.get("token");

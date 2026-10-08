@@ -54,7 +54,7 @@ function load(file, dependencies) {
     "../lib/auth/sessionCredential.js": credentials, "../lib/auth/impersonation.js": require("./load-session-impersonation.cjs"), "./socketIdentity.mjs": socketIdentity });
   const io = { sockets: { sockets: new Map() } };
   const makeSocket = (id, provider, stamp) => {
-    const socket = { connected: true, data: { userId: "u1", provider, credentialStamp: stamp }, events: [], emit(event) { this.events.push(event); }, disconnect(force) { assert.equal(force, true); this.connected = false; } };
+    const socket = { connected: true, data: { userId: "u1", provider, credentialStamp: stamp, effectiveRole: "BASIC" }, events: [], emit(event) { this.events.push(event); }, disconnect(force) { assert.equal(force, true); this.connected = false; } };
     io.sockets.sockets.set(id, socket); return socket;
   };
   const old = makeSocket("old", "credentials", first.credentialStamp), current = makeSocket("new", "credentials", fresh.credentialStamp), oauth = makeSocket("oauth", "google"), legacy = makeSocket("legacy", "credentials");

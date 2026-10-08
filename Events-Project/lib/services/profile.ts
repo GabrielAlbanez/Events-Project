@@ -62,14 +62,21 @@ export const resetDataProfile = async (data: ProfileUpdateInput, resolveCurrentU
                 return { status: "error", message: "A nova senha não pode ser igual à senha atual" };
             }
             updateData.password = await bcrypt.hash(newPassword, 10);
+            updateData.sessionVersion = { increment: 1 };
         }
 
         if (Object.keys(updateData).length === 0) {
             return { status: "error", message: "Nenhuma alteração foi feita" };
         }
-        const updated = await prisma.user.updateMany({
-            where: { id: user.id, password: user.password },
-            data: updateData,
+        const updated = await prisma.$transaction(async transaction => {
+            const result = await transaction.user.updateMany({
+                where: { id: user.id, password: user.password },
+                data: updateData,
+            });
+            if (result.count === 1 && updateData.password !== undefined) {
+                await transaction.communitySignal.create({ data: { room: `user:${user.id}` } });
+            }
+            return result;
         });
         if (updated.count !== 1) {
             return { status: "error", message: "Seu perfil foi alterado em outra solicitação. Atualize a página e tente novamente." };

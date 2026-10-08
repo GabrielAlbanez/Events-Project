@@ -3,6 +3,7 @@ import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import { boundedMultipart, saveProfileImage, UploadError } from "@/lib/storage/profileImages";
+import { admitProfileUpload } from "@/lib/storage/profileUploadQuota";
 export const dynamic = "force-dynamic";
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error) || typeof error.code !== "string") return undefined;
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
     if (form.get("userId") !== actor.id) throw new UploadError(403, "Não autorizado.");
     const purpose = request.nextUrl.searchParams.get("purpose");
     if (purpose && purpose !== "party") throw new UploadError(400, "Destino de imagem inválido.");
+    stage = "admission";
+    await admitProfileUpload(actor.id);
     stage = "storage";
     const saved = await saveProfileImage(file);
     if (purpose === "party") return NextResponse.json({ filePath: saved.url }, { headers });
