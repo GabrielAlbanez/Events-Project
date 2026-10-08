@@ -65,6 +65,37 @@ test('event publishing carries real multipart files without forcing boundary hea
   assert.equal(captured.options.body.get('isFree'), 'true');
   assert.equal(await captured.options.body.get('banner').text(), 'image-bytes');
 });
+test('profile image upload targets the independent API profile route', async () => {
+  let captured;
+  const c = client(async (url, options) => {
+    if (url === 'blob:avatar') return { blob: async () => new Blob(['avatar-bytes'], { type: 'image/png' }) };
+    captured = { url, options };
+    return response({ url: 'https://api.example/v1/media/profile/asset-id' });
+  }, 'web');
+  const uploaded = await c.uploadImage({ uri: 'blob:avatar', fileName: 'avatar.png', mimeType: 'image/png' }, '/profile/image');
+  assert.equal(uploaded.url, 'https://api.example/v1/media/profile/asset-id');
+  assert.equal(captured.url, 'https://gateway.example/v1/profile/image');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['Content-Type'], undefined);
+  assert.equal(await captured.options.body.get('file').text(), 'avatar-bytes');
+});
+test('legacy Web profile uploads resolve through the API media proxy', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'config.ts'), 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  vm.runInNewContext(compiled, {
+    exports,
+    process: { env: { EXPO_PUBLIC_API_URL: 'https://api.example/' } },
+  });
+  assert.equal(
+    exports.mediaUrl('/uploads/1234567890123-uploaded_image.jpg'),
+    'https://api.example/v1/media/profile/legacy/1234567890123-uploaded_image.jpg',
+  );
+  assert.equal(exports.mediaUrl('/v1/media/events/event-image'), 'https://api.example/v1/media/events/event-image');
+  assert.equal(exports.mediaUrl('https://lh3.googleusercontent.com/photo'), 'https://lh3.googleusercontent.com/photo');
+});
 function credentials(store, platform = 'ios') {
   const source = fs.readFileSync(path.join(__dirname, '..', 'credentials.ts'), 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -93,7 +124,7 @@ test('web preview stores credentials only in session memory', async () => {
   assert.equal(await c.loadCredential(), null);
 });
 
-test('native socket sends both NextAuth cookie names and never subscribes user rooms by id', () => {
+test('native socket sends its bearer token and never subscribes user rooms by id', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'realtime.ts'), 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {}, events = new Map(), sent = [];
@@ -109,7 +140,8 @@ test('native socket sends both NextAuth cookie names and never subscribes user r
     throw new Error('Unexpected import');
   }, setTimeout, clearTimeout });
   const stop = exports.startRealtime('encrypted-session');
-  assert.equal(options.extraHeaders.Cookie, 'next-auth.session-token=encrypted-session; __Secure-next-auth.session-token=encrypted-session');
+  assert.equal(options.auth.token, 'encrypted-session');
+  assert.deepEqual(Object.keys(options.auth), ['token']);
   let updates = 0, revoked = 0;
   const stopRevocation = exports.onSocket('account-impersonated', () => revoked++);
   for (const handler of events.get('connect_error')) handler(new Error('Network unavailable'));

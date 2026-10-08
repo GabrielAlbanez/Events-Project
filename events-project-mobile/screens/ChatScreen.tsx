@@ -179,3 +179,5 @@ function ChatConversation({ route, onBack, navigate }: NativeScreenProps) {
 }
 
 export function ChatScreen(props: NativeScreenProps) { const { user } = useSession(); return <ChatConversation key={`${props.route.id}:${props.route.matchId || ''}:${user?.id || 'guest'}`} {...props} />; }
+
+

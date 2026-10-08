@@ -22,3 +22,5 @@ async function persistCredential(value: Credential | null): Promise<void> {
   if (value) await SecureStore.setItemAsync(KEY, JSON.stringify(value), { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
   else await SecureStore.deleteItemAsync(KEY);
 }
+
+

@@ -9,3 +9,4 @@ export type ActivitySnapshot = {
   counts: { queues: number; called: number; tasks: number; registrations: number; rooms: number };
   truncated: { queues: boolean; tasks: boolean; registrations: boolean; rooms: boolean };
 };
+

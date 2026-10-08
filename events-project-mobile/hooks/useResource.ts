@@ -37,3 +37,4 @@ export function useResource<T>(load: () => Promise<T>, key: string, subscription
   const current = state.identity === identity ? state : { data: null, loading: true, error: null };
   return { ...current, refresh, reload: refresh, setData };
 }
+

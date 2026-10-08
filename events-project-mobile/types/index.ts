@@ -14,3 +14,4 @@ export interface Registration { id: string; status: 'CONFIRMED' | 'WAITLISTED' |
 export interface EventInput { nome: string; banner: string; carrossel: string[]; descricao: string; dataInicio: string; dataFim: string; endereco: string; linkParaCompra: string; category: string; isFree: boolean; priceCents: number; capacity?: number | null; lat?: number | null; lng?: number | null; startTime?: string | null; endTime?: string | null; timezone?: string; status?: EventStatus }
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export interface MediaAsset { uri: string; fileName?: string | null; mimeType?: string | null; fileSize?: number }
+

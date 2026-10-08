@@ -13,3 +13,4 @@ module.exports = function withAndroidObjectPaths(config) {
     return result;
   });
 };
+

@@ -122,3 +122,9 @@ export function privateImageSource(path: string): { uri: string; headers: Record
   if (!path.startsWith('/api/party-connections/')) throw new ApiError('Imagem da conversa indisponível.', 400);
   return { uri: `${requireApiUrl()}/v1${path.slice(4)}`, headers: bearer ? { Authorization: `Bearer ${bearer}` } : {} };
 }
+
+
+
+
+
+
