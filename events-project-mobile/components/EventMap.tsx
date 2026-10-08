@@ -1,0 +1,19 @@
+import React, { useRef, useState } from 'react';
+import MapView, { Marker } from 'react-native-maps';
+import { Platform, useWindowDimensions, View } from 'react-native';
+import Constants from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
+import * as Location from 'expo-location';
+import type { Evento } from '../types';
+import { useTheme } from '../theme';
+import { Button, Label } from './ui';
+interface MapConfiguration { androidMapsConfigured?: boolean }
+const darkMap = [{ elementType: 'geometry', stylers: [{ color: '#17151E' }] },{ elementType: 'labels.text.fill', stylers: [{ color: '#AAA4B8' }] },{ elementType: 'labels.text.stroke', stylers: [{ color: '#17151E' }] },{ featureType: 'water', elementType: 'geometry', stylers: [{ color: '#08080E' }] }];
+export function EventMap({ events, onSelect }: { events: Evento[]; onSelect: (id: string) => void }) {
+  const { height } = useWindowDimensions(), theme = useTheme(); const ref = useRef<MapView>(null); const [locating, setLocating] = useState(false), [error, setError] = useState<string | null>(null), [user, setUser] = useState<{ latitude: number; longitude: number } | null>(null);
+  const located = events.filter(event => typeof event.lat === 'number' && typeof event.lng === 'number'), first = located[0];
+  async function locate() { setLocating(true); setError(null); let timeout: ReturnType<typeof setTimeout> | undefined; try { const permission = await Location.requestForegroundPermissionsAsync(); if (!permission.granted) throw new Error('Permita a localização para centralizar o mapa. Você pode continuar explorando os eventos.'); const position = await Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('A localização demorou para responder. Tente novamente em um local com sinal.')), 15000); })]); const coordinate = { latitude: position.coords.latitude, longitude: position.coords.longitude }; setUser(coordinate); ref.current?.animateToRegion({ ...coordinate, latitudeDelta: 0.08, longitudeDelta: 0.08 }, 250); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível localizar você.'); } finally { clearTimeout(timeout); setLocating(false); } }
+  const configuration = Constants.expoConfig?.extra as MapConfiguration | undefined;
+  if (Platform.OS === 'android' && !isRunningInExpoGo() && configuration?.androidMapsConfigured !== true) return <View accessibilityRole="alert" style={{ padding: 18, borderRadius: 22, backgroundColor: theme.surface, gap: 8 }}><Label bold>Mapa indisponível nesta versão</Label><Label muted size={13}>Você pode continuar explorando os eventos nos cartões abaixo. O mapa será habilitado quando a configuração Android estiver pronta.</Label></View>;
+  return <View style={{ gap: 10 }}><View style={{ height: Math.max(350, Math.min(520, height * 0.52)), borderRadius: 22, overflow: 'hidden' }}><MapView ref={ref} accessibilityLabel="Mapa de eventos" style={{ flex: 1 }} customMapStyle={theme.background === '#080808' ? darkMap : undefined} userInterfaceStyle={theme.background === '#080808' ? 'dark' : 'light'} initialRegion={{ latitude: first?.lat ?? -23.55052, longitude: first?.lng ?? -46.633308, latitudeDelta: 0.15, longitudeDelta: 0.15 }}>{located.map(event => <Marker key={event.id} coordinate={{ latitude: event.lat!, longitude: event.lng! }} title={event.nome} description={event.endereco} pinColor={theme.primary} onPress={() => onSelect(event.id)} />)}{user && <Marker coordinate={user} title="Você está aqui" pinColor="#14B8A6" />}</MapView></View><Button title="Perto de mim" secondary busy={locating} onPress={() => void locate()} />{error && <Label muted size={13}>{error}</Label>}{!located.length && <Label muted size={13}>Os eventos encontrados ainda não possuem coordenadas. Explore os cartões abaixo.</Label>}</View>;
+}

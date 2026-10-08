@@ -1,0 +1,6 @@
+node_modules/
+dist/
+tsconfig.generated.json
+.env
+.env.*
+!.env.example

@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+const load = require('./load-moderation-service.cjs');
+const access = require('./load-account-access.cjs');
+const impersonation = require('./load-impersonation.cjs');
+const socketIdentity = load('server/socketIdentity.mts',{'../lib/auth/accountAccess.js':access,'../lib/auth/sessionCredential.js':require('./load-session-credential.cjs'),'../lib/auth/impersonation.js':impersonation});
+(async () => {
+ const user={id:'user',role:'BASIC',name:'Demo',sessionVersion:0,suspendedAt:null,suspendedUntil:null};
+ const db={user:{findUnique:async()=>user},impersonationSession:{findFirst:async()=>null,updateMany:async()=>({count:0})}};
+ const options=load('lib/auth/options.ts',{'@/lib/prisma':{__esModule:true,default:db},'@next-auth/prisma-adapter':{PrismaAdapter:()=>({})},'@/lib/auth/accountAccess':access,'@/lib/auth/googleProfileImage':require('./load-google-profile-image.cjs'),'@/lib/auth/sessionCredential':require('./load-session-credential.cjs'),'@/lib/auth/impersonation':impersonation});
+ const old={id:'user',provider:'google',sessionVersion:0};
+ assert.equal((await socketIdentity.resolveSocketIdentity(db,old)).id,'user');
+ user.suspendedAt=new Date(); user.sessionVersion=1;
+ const jwt=await options.authOptions.callbacks.jwt({token:{...old}});
+ assert.equal(jwt.error,'AccountSuspended');
+ assert.equal((await options.authOptions.callbacks.session({session:{},token:jwt})).user.id,'');
+ assert.equal(await socketIdentity.resolveSocketIdentity(db,old),'ACCOUNT_SUSPENDED');
+ const socket={connected:true,data:{userId:'user',authUserId:'user',provider:'google',sessionVersion:0},events:[],emit(name){this.events.push(name)},disconnect(){this.connected=false}};
+ assert.equal(await socketIdentity.validateSocketIdentity(db,socket),false);assert.deepEqual(socket.events,['account-suspended']);
+ user.suspendedAt=null;user.sessionVersion=2;
+ assert.equal((await options.authOptions.callbacks.jwt({token:{...old}})).error,'SessionRevoked');
+ assert.equal(await socketIdentity.resolveSocketIdentity(db,old),'SESSION_REVOKED');
+ const newJwt=await options.authOptions.callbacks.jwt({token:{},user,account:{provider:'google'}});
+ assert.equal(newJwt.sessionVersion,2);assert.equal(newJwt.error,undefined);
+ assert.equal((await socketIdentity.resolveSocketIdentity(db,newJwt)).id,'user');
+ user.suspendedAt=new Date();user.suspendedUntil=new Date(0);user.sessionVersion=3;
+ assert.equal(access.isAccountSuspended(user),false);
+ assert.equal(await socketIdentity.resolveSocketIdentity(db,newJwt),'SESSION_REVOKED');
+ const afterExpiry=await options.authOptions.callbacks.jwt({token:{},user,account:{provider:'google'}});
+ assert.equal(afterExpiry.error,undefined);assert.equal((await socketIdentity.resolveSocketIdentity(db,afterExpiry)).id,'user');
+ console.log('PASS: real JWT/socket callbacks reject suspension and old sessions, notify/disconnect, resume/new-login and timed expiry.');
+})().catch(e=>{console.error(e);process.exitCode=1});
+
