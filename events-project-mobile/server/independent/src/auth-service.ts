@@ -47,7 +47,7 @@ export interface LoginResult {
 }
 
 export class MobileAuthError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message);
     this.name = 'MobileAuthError';
   }

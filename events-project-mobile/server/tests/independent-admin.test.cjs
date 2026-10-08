@@ -357,3 +357,41 @@ test('impersonation token can be restored only from signed, matching session cla
     'MobileAuthService normal-token verification must reject support-session tokens.',
   );
 });
+
+
+test('support acquisition checks the target under its row lock before inserting or rotating the admin', async () => {
+  const statements = [];
+  const client = {
+    async query(sql, values) {
+      statements.push({ sql, values });
+      if (sql.includes('SELECT role FROM "User"')) return { rows: [{ role: 'ADMIN' }] };
+      if (sql.includes('SELECT id, name, "sessionVersion" FROM "User"')) return { rows: [{ id: 'admin-1', name: 'Admin', sessionVersion: 1 }] };
+      if (sql.includes('FROM "User" u WHERE u.id = $1 FOR UPDATE')) return { rows: [{ id: 'target-1', role: 'BASIC', name: 'Target', sessionVersion: 0, provider: 'credentials' }] };
+      if (sql.includes('FROM "ImpersonationSession"') && sql.includes('WHERE "userId" = $1')) {
+        assert.equal(values[0], 'target-1');
+        assert.match(sql, /"endedAt" IS NULL AND "expiresAt" > \$2/);
+        assert.match(sql, /FOR UPDATE/);
+        return { rows: [{ id: 'another-admin-support' }] };
+      }
+      return { rows: [] };
+    }, release() {},
+  };
+  const service = new PostgresAdminService({ async connect() { return client; } }, () => new Date('2026-10-08T12:00:00Z'), { issue() { throw new Error('must not issue'); } });
+  await assert.rejects(service.startImpersonation('admin-1', 'target-1', { reason: 'Investigate account problem' }), error => error.status === 409);
+  assert.ok(statements.findIndex(entry => entry.sql.includes('FROM "User" u WHERE u.id = $1 FOR UPDATE')) < statements.findIndex(entry => entry.sql.includes('WHERE "userId" = $1')));
+  assert.ok(statements.some(entry => entry.sql === 'ROLLBACK'));
+  assert.equal(statements.some(entry => entry.sql.includes('INSERT INTO "ImpersonationSession"') || entry.sql.includes('UPDATE "User" SET "sessionVersion"')), false);
+});
+
+test('ordinary support exclusion checks both target and administrator only while their support session is active', async () => {
+  let active = true;
+  const service = new PostgresAdminService({ async query(sql, values) {
+    assert.ok(sql.includes("s.\"adminId\" = $1 OR (s.\"userId\" = $1 AND admin.role = 'ADMIN')"));
+    assert.match(sql, /s."endedAt" IS NULL AND s."expiresAt" > \$2/);
+    assert.equal(values[0], 'target-1');
+    return { rows: active ? [{ id: 'support-1' }] : [] };
+  } });
+  await assert.rejects(service.assertOrdinarySessionAllowed('target-1'), error => error.status === 403 && error.code === 'ACCOUNT_IMPERSONATED');
+  active = false;
+  await service.assertOrdinarySessionAllowed('target-1');
+});

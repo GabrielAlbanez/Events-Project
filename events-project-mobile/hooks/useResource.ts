@@ -12,17 +12,36 @@ export function useResource<T>(load: () => Promise<T>, key: string, subscription
   const loader = useRef(load);
   useEffect(() => { loader.current = load; }, [load]);
   const serial = useRef(0);
-  const refresh = useCallback(async () => {
-    const version = ++serial.current;
-    setState(current => current.identity === identity ? { ...current, loading: current.data === null, error: null } : { identity, data: null, loading: true, error: null });
-    try {
-      const data = await loader.current();
-      if (version === serial.current) setState({ identity, data, loading: false, error: null });
-    } catch (cause) {
-      if (version === serial.current) setState(current => ({ identity, data: current.identity === identity && !isAccessFailure(cause) ? current.data : null, loading: false, error: cause instanceof Error ? cause.message : 'Não foi possível carregar.' }));
+  const activeIdentity = useRef(identity);
+  activeIdentity.current = identity;
+  const inFlight = useRef<{ identity: string; promise: Promise<void>; queued: boolean } | null>(null);
+  const refresh = useCallback(async function runRefresh(): Promise<void> {
+    if (activeIdentity.current !== identity) return;
+    const previous = inFlight.current;
+    if (previous?.identity === identity) {
+      previous.queued = true;
+      return previous.promise;
     }
+    const current = { identity, promise: Promise.resolve(), queued: false };
+    inFlight.current = current;
+    const version = ++serial.current;
+    current.promise = Promise.resolve().then(async () => {
+      setState(current => current.identity === identity ? { ...current, loading: current.data === null, error: null } : { identity, data: null, loading: true, error: null });
+      try {
+        const data = await loader.current();
+        if (version === serial.current) setState({ identity, data, loading: false, error: null });
+      } catch (cause) {
+        if (version === serial.current) setState(current => ({ identity, data: current.identity === identity && !isAccessFailure(cause) ? current.data : null, loading: false, error: cause instanceof Error ? cause.message : 'Não foi possível carregar.' }));
+      } finally {
+        if (inFlight.current === current) {
+          inFlight.current = null;
+          if (current.queued && activeIdentity.current === identity) void runRefresh();
+        }
+      }
+    });
+    return current.promise;
   }, [identity]);
-  const invalidate = useCallback(() => { serial.current++; }, []);
+  const invalidate = useCallback(() => { serial.current++; inFlight.current = null; }, []);
   useEffect(() => {
     let active = true;
     void Promise.resolve().then(() => { if (active) return refresh(); });

@@ -243,3 +243,95 @@ test('realtime authentication rejects revoked and suspended mobile sessions', as
 });
 
 after(() => {});
+
+
+test('support acquisition revalidates existing target sockets and rejects new ordinary connections', async () => {
+  const io = new FakeServer(); let blocked = false;
+  const transport = realtime.attachIndependentRealtime(io, {
+    async authenticate(token) {
+      if (blocked && token === 'ordinary-token') throw Object.assign(new Error('Support active'), { status: 403, code: 'ACCOUNT_IMPERSONATED' });
+      return { id: 'target-1', role: 'BASIC' };
+    }, domainAccess: { async canSubscribe() { return true; } },
+  });
+  try {
+    const ordinary = new FakeSocket(io, 'ordinary', { token: 'ordinary-token' });
+    assert.equal(await io.connectSocket(ordinary), null);
+    await ordinary.receive('community-subscribe', { matchId: 'match-1' }, () => {});
+    blocked = true;
+    await transport.revalidateUser('target-1');
+    assert.equal(ordinary.connected, false);
+    assert.equal(ordinary.messages('account-impersonated').length, 1);
+    const denied = await io.connectSocket(new FakeSocket(io, 'blocked', { token: 'ordinary-token' }));
+    assert.equal(denied.data.code, 'ACCOUNT_IMPERSONATED');
+    const support = new FakeSocket(io, 'support', { token: 'support-token' });
+    assert.equal(await io.connectSocket(support), null);
+    await transport.revalidateUser('target-1'); assert.equal(support.connected, true);
+    blocked = false;
+    assert.equal(await io.connectSocket(new FakeSocket(io, 'released', { token: 'ordinary-token' })), null);
+  } finally { transport.close(); }
+});
+
+test('a target cannot type through an existing socket after its validation cache expires', async () => {
+  const io = new FakeServer(); let blocked = false; let timestamp = 0;
+  const transport = realtime.attachIndependentRealtime(io, {
+    now: () => timestamp,
+    async authenticate() {
+      if (blocked) throw Object.assign(new Error('Support active'), { status: 403, code: 'ACCOUNT_IMPERSONATED' });
+      return { id: 'target-1', role: 'BASIC' };
+    }, domainAccess: { async canSubscribe() { return true; } },
+  });
+  try {
+    const socket = new FakeSocket(io, 'existing', { token: 'ordinary-token' });
+    await io.connectSocket(socket); blocked = true; timestamp = 3001;
+    await socket.receive('typing', { matchId: 'match-1', active: true });
+    assert.equal(socket.connected, false);
+    assert.equal(socket.messages('account-impersonated').length, 1);
+  } finally { transport.close(); }
+});
+
+
+
+test('temporary authentication failures skip delivery without disconnecting or revoking saved sessions', async () => {
+  const io = new FakeServer(); let unavailable = false;
+  const transport = realtime.attachIndependentRealtime(io, {
+    async authenticate() { if (unavailable) throw new Error('temporary database failure'); return { id: 'target-1', role: 'BASIC' }; },
+    domainAccess: { async canSubscribe() { return true; } },
+  });
+  try {
+    const socket = new FakeSocket(io, 'existing', { token: 'ordinary-token' });
+    await io.connectSocket(socket);
+    await socket.receive('community-subscribe', { matchId: 'match-1' }, () => {});
+    unavailable = true;
+    let failedReply;
+    await socket.receive('community-subscribe', { matchId: 'match-1' }, reply => { failedReply = reply; });
+    assert.equal(failedReply.ok, false);
+    assert.equal(socket.messages('community-access-denied').length, 0);
+    assert.equal(socket.ioRooms.has('match:match-1'), true);
+    await transport.revalidateUser('target-1');
+    assert.equal(socket.connected, true);
+    assert.equal(socket.messages('session-expired').length, 0);
+    assert.equal(socket.messages('account-impersonated').length, 0);
+    unavailable = false;
+    let accepted;
+    await socket.receive('community-subscribe', { matchId: 'match-1' }, reply => { accepted = reply; });
+    assert.equal(accepted.ok, true);
+  } finally { transport.close(); }
+});
+
+test('active users require a fresh admin role and a role change during the database read prevents delivery', async () => {
+  const io = new FakeServer(); let role = 'ADMIN'; let reads = 0;
+  const transport = realtime.attachIndependentRealtime(io, {
+    async authenticate() { return { id: 'admin-1', role }; },
+    domainAccess: { async canSubscribe() { return true; } },
+    async readActiveUserIds() { reads++; role = 'BASIC'; return ['private-online-user']; },
+  });
+  try {
+    const socket = new FakeSocket(io, 'admin', { token: 'admin-token' });
+    await io.connectSocket(socket);
+    role = 'BASIC'; await socket.receive('request-active-users');
+    assert.equal(reads, 0); assert.deepEqual(socket.messages('active-users').at(-1).args[0], []);
+    role = 'ADMIN'; await socket.receive('request-active-users');
+    assert.equal(reads, 1);
+    assert.equal(socket.messages('active-users').some(message => message.args[0].includes('private-online-user')), false);
+  } finally { transport.close(); }
+});

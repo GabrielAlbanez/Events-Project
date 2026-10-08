@@ -127,6 +127,7 @@ export async function resolveMobileIdentity(
     if (user.id !== ordinaryClaims.subject) {
       throw new MobileAuthError(401, 'Sua sessão foi encerrada. Entre novamente.');
     }
+    await dependencies.service?.assertOrdinarySessionAllowed(user.id);
     return { user, impersonation: null };
   }
   const claims = await impersonationClaims(token, dependencies, false);
