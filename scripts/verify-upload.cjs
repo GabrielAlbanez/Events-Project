@@ -19,11 +19,17 @@ function load(file, dependencies) {
   const saved = await storage.saveProfileImage(file); await saved.remove(); assert.equal(written, 1); assert.equal(removed, 1);
   const huge = new Request("http://localhost", { method: "POST", headers: { "content-type": "multipart/form-data; boundary=x" }, body: new Uint8Array(storage.maximumMultipartBytes + 1) });
   await assert.rejects(storage.boundedMultipart(huge), error => error.status === 413);
-  let actor = null, count = 1, rollback = 0, savedCount = 0, dbFailure = false;
+  let actor = null, count = 1, rollback = 0, savedCount = 0, dbFailure = false, notifications = [];
+  const prisma = {
+    $transaction: async callback => callback({
+      user: { updateMany: async () => { if (dbFailure) throw Error("database failed"); return { count }; } },
+      $queryRaw: async (_query, userId) => { notifications.push(userId); return []; },
+    }),
+  };
   const route = load("app/api/upload/route.ts", {
     "@/lib/publicUrl": require("./load-public-url.cjs"),
     "next/server": { NextResponse: { json: (body, init) => ({ body, status: init.status ?? 200 }) } },
-    "@/lib/prisma": { __esModule: true, default: { user: { updateMany: async () => { if (dbFailure) throw Error("database failed"); return { count }; } } } },
+    "@/lib/prisma": { __esModule: true, default: prisma },
     "@/lib/adminAuth": { getAuthenticatedUser: async () => actor },
     "@/lib/storage/profileImages": { ...storage, boundedMultipart: async () => ({ get: key => key === "userId" ? "u1" : file }), saveProfileImage: async () => { savedCount++; return { url: "/uploads/safe.jpg", remove: async () => { rollback++; } }; } },
   });
@@ -32,11 +38,12 @@ function load(file, dependencies) {
   actor = { id: "u1" }; count = 0;
   assert.equal((await route.POST(request)).status, 401); assert.equal(rollback, 1);
   count = 1; assert.equal((await route.POST(request)).status, 200);
+  assert.deepEqual(notifications, ["u1"]);
   dbFailure = true; assert.equal((await route.POST(request)).status, 500); assert.equal(rollback, 2);
   request.nextUrl.searchParams.set("purpose", "party");
   assert.equal((await route.POST(request)).status, 200); // No profile write even when user update fails.
   request.nextUrl.searchParams.set("purpose", "other");
   assert.equal((await route.POST(request)).status, 400);
   request.headers.set("origin", "https://other.invalid"); assert.equal((await route.POST(request)).status, 403);
-  console.log("PASS: upload signature validation, streamed size bound, exclusive UUID files, removed-account denial, origin and DB rollback");
+  console.log("PASS: upload signature validation, streamed size bound, exclusive UUID files, removed-account denial, origin, DB rollback and realtime notification");
 })().catch(error => { console.error(error); process.exitCode = 1; });

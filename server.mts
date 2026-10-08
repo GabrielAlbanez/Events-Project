@@ -13,8 +13,9 @@ import { startCommunityWorker } from "./server/communityWorker.mjs";
 import { disconnectRemovedAccount, startAccountRevocationWorker } from "./server/accountRevocation.mjs";
 import { resolveSocketIdentity, validateSocketIdentity, emitAuthorizedRoom } from "./server/socketIdentity.mjs";
 import { configuredPublicOrigin } from "./lib/publicUrl.js";
-import { createSharedPresence } from "./server/sharedPresence.mjs";
+import { createDatabasePresence } from "./server/databasePresence.mjs";
 import { registerChatSignals } from "./server/chatSignals.mjs";
+import { startProfileImageRealtime } from "./server/profileImageRealtime.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -66,6 +67,11 @@ app.prepare().then(async () => {
       secure: process.env.NODE_ENV === "production",
     },
   });
+  const stopProfileImageRealtime = startProfileImageRealtime(
+    process.env.DATABASE_LISTEN_URL || process.env.DATABASE_URL,
+    () => io!,
+  );
+  httpServer.on("close", stopProfileImageRealtime);
 
   const stopNotifications = startNotificationWorker(prisma, (userId, event) => {
     void emitAuthorizedRoom(prisma, io!, "user:" + userId, event).catch(() => console.warn("Notification socket delivery unavailable."));
@@ -76,11 +82,12 @@ app.prepare().then(async () => {
   const stopAccountRevocation = startAccountRevocationWorker(prisma, io);
   httpServer.on("close", stopAccountRevocation);
 
-  const sharedPresence = createSharedPresence({
+  const sharedPresence = createDatabasePresence({
+    prisma,
     getLocalUserIds: () => Array.from(new Set(activeUsers.values())),
     onChange: (userIds) => emitAuthorizedRoom(prisma, io!, "admins", "active-users", userIds),
   });
-  httpServer.on("close", () => { void sharedPresence.stop(); });
+  httpServer.on("close", () => { void sharedPresence.stop().catch(error => console.error("Unable to stop shared presence:", error)); });
   const shutdown = () => {
     void sharedPresence.stop().finally(() => { process.exit(0); });
   };

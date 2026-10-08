@@ -34,10 +34,16 @@ export async function validateSocketIdentity(prisma: PrismaClient, socket: Socke
     effectiveRole: socket.data.effectiveRole,
   };
   const identity = await resolveSocketIdentity(prisma, token);
-  if (typeof identity === "string" || identity.id !== socket.data.userId || (socket.data.effectiveRole && identity.role !== socket.data.effectiveRole)) {
+  if (typeof identity === "string" || identity.id !== socket.data.userId) {
     if (!socket.connected) return false;
     socket.emit(identity === "ACCOUNT_SUSPENDED" ? "account-suspended" : identity === "ACCOUNT_REMOVED" ? "account-removed" : identity === "ACCOUNT_IMPERSONATED" ? "account-impersonated" : "session-expired");
     socket.disconnect(true); return false;
+  }
+  if (identity.role !== socket.data.effectiveRole) {
+    socket.data.effectiveRole = identity.role;
+    if (identity.role === "ADMIN") await socket.join("admins");
+    else await socket.leave("admins");
+    socket.emit("role-mudar", { newRole: identity.role });
   }
   return socket.connected;
 }

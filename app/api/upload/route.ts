@@ -18,8 +18,11 @@ export async function POST(request: NextRequest) {
     const saved = await saveProfileImage(file);
     if (purpose === "party") return NextResponse.json({ filePath: saved.url }, { headers });
     try {
-      const updated = await prisma.user.updateMany({ where: { id: actor.id }, data: { image: saved.url } });
-      if (!updated.count) throw new UploadError(401, "Esta conta não está mais disponível.");
+      await prisma.$transaction(async (transaction) => {
+        const updated = await transaction.user.updateMany({ where: { id: actor.id }, data: { image: saved.url } });
+        if (!updated.count) throw new UploadError(401, "Esta conta não está mais disponível.");
+        await transaction.$queryRaw`SELECT pg_notify('eventmap_profile_image_updated', ${actor.id})`;
+      });
     } catch (error) { await saved.remove().catch(() => console.warn("Profile upload rollback unavailable.")); throw error; }
     return NextResponse.json({ filePath: saved.url }, { headers });
   } catch (error) {
