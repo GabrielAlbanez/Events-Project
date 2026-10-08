@@ -17,12 +17,12 @@
       }
     },
     {
-      "label": "Mobile: API",
+      "label": "Mobile: API independente",
       "type": "shell",
-      "command": "npm",
+      "command": "npm.cmd",
       "args": [
         "run",
-        "api:start"
+        "api:dev"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -32,7 +32,7 @@
     {
       "label": "Mobile: Metro (Android)",
       "type": "shell",
-      "command": "npx",
+      "command": "npx.cmd",
       "args": [
         "expo",
         "start",
@@ -46,7 +46,8 @@
       },
       "options": {
         "env": {
-          "EXPO_PUBLIC_API_URL": "http://10.0.2.2:4000",
+          "EXPO_PUBLIC_API_URL": "http://10.0.2.2:4100",
+          "EXPO_PUBLIC_SOCKET_URL": "http://10.0.2.2:4100",
           "NODE_OPTIONS": "--dns-result-order=ipv4first"
         }
       }
@@ -54,7 +55,7 @@
     {
       "label": "Mobile: TypeScript",
       "type": "shell",
-      "command": "npm",
+      "command": "npm.cmd",
       "args": [
         "run",
         "typecheck"
@@ -65,7 +66,7 @@
     {
       "label": "Mobile: Lint",
       "type": "shell",
-      "command": "npm",
+      "command": "npm.cmd",
       "args": [
         "run",
         "lint"
@@ -75,12 +76,76 @@
     {
       "label": "Mobile: Testes",
       "type": "shell",
-      "command": "npm",
+      "command": "npm.cmd",
       "args": [
         "run",
         "test:client"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "Ambiente: Expo Go",
+      "type": "shell",
+      "command": "npx.cmd",
+      "args": [
+        "expo",
+        "start",
+        "--go",
+        "--lan"
+      ],
+      "options": {
+        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile",
+        "env": {}
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "Ambiente: Iniciar tudo",
+      "dependsOn": [
+        "Ambiente: Backend completo",
+        "Ambiente: Expo desenvolvimento"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Ambiente: Backend completo",
+      "type": "shell",
+      "command": "npm.cmd",
+      "args": [
+        "run",
+        "backend"
+      ],
+      "options": {
+        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Ambiente: Expo desenvolvimento",
+      "type": "shell",
+      "command": "npm.cmd",
+      "args": [
+        "run",
+        "start:dev"
+      ],
+      "options": {
+        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }

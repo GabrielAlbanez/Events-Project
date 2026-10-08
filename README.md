@@ -1,20 +1,28 @@
-# EventMap — site e aplicativo mobile
+# EventMap ? site e aplicativo mobile
 
-Este repositório contém os dois projetos:
+Este reposit?rio cont?m os dois projetos:
 
-- `Events-Project/`: site Next.js, Prisma, autenticação e servidor Socket.IO.
-- `events-project-mobile/`: aplicativo Expo/React Native e API mobile em `server/`.
+- `Events-Project/`: site Next.js, Prisma, autentica??o e Socket.IO pr?prios.
+- `events-project-mobile/`: aplicativo Expo/React Native e backend Node.js independente em `server/`.
+
+As aplica??es compartilham o PostgreSQL. O backend mobile n?o importa nem inicia o projeto web; sua API e seu Socket.IO s?o atendidos pelo mesmo processo. Presen?a e notifica??es de conta entre as aplica??es utilizam o banco compartilhado.
 
 ## Site
 
-Execute dentro de `Events-Project`: `npm ci`, configure o ambiente conforme a documentação existente, execute `npm run prisma:generate` e `npm run dev:socket`.
+Dentro de `Events-Project`, instale as depend?ncias com `npm ci` e configure o ambiente conforme o README dessa pasta. Use `npm run dev` para Next.js ou `npm run dev:socket` quando precisar dos recursos Socket.IO.
 
 ## Aplicativo mobile
 
-Execute dentro de `events-project-mobile`: `npm ci`, copie `.env.example` para `.env` e configure os endereços acessíveis ao dispositivo. Instale também a API com `npm ci --prefix server`.
+Dentro de `events-project-mobile`:
 
-Com as dependências e o ambiente do site configurados, execute `npm run api:build`, `npm run api:start` e, em outro terminal, `npx expo start`. A API detecta automaticamente a pasta irmã `Events-Project`; `WEB_PROJECT_PATH` permite indicar outro caminho.
+1. Execute `npm ci` e `npm ci --prefix server`.
+2. Configure `.env` e `server/.env` a partir dos respectivos exemplos. Use o mesmo banco do site e um segredo de autentica??o exclusivo do mobile.
+3. Revise as migra??es em `server/independent/migrations` e o ambiente de destino antes de executar `npm run api:migrate`.
+4. Execute `npm run backend` para API e Socket.IO mobile, por padr?o na porta 4100.
+5. Em outro terminal, execute `npx expo start`. Login Google nativo exige uma development build; consulte `docs/ANDROID_SETUP.md`.
 
-Consulte `events-project-mobile/docs/ANDROID_SETUP.md` e `events-project-mobile/docs/MIGRATION.md` para Google, Maps, ambiente Android, funcionalidades e limitações.
+No celular f?sico, configure os endere?os p?blicos da API e do socket com o IP LAN do computador. No emulador Android, utilize `10.0.2.2`. Ambos devem apontar para a porta configurada no backend.
 
-Segredos, credenciais, dependências e builds não são versionados. A exportação iOS não substitui testes e compilação em macOS/dispositivo Apple. O banco e o Socket.IO são compartilhados; não execute migrações sem revisar o ambiente de destino.
+Consulte os READMEs de cada projeto e `events-project-mobile/docs/MOBILE_PROJECT_CONTEXT.md` para configura??o e limita??es.
+
+Segredos, credenciais, depend?ncias e builds n?o s?o versionados. A exporta??o JavaScript iOS n?o substitui compila??o nativa e testes em dispositivo Apple.

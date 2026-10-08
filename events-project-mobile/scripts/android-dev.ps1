@@ -5,7 +5,8 @@ $env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
 $env:NODE_ENV = 'development'
-$env:EXPO_PUBLIC_API_URL = 'http://10.0.2.2:4000'
+$env:EXPO_PUBLIC_API_URL = 'http://10.0.2.2:4100'
+$env:EXPO_PUBLIC_SOCKET_URL = 'http://10.0.2.2:4100'
 # Only the generated C++ cache uses this alias; Node keeps the real project path.
 $mapping = (& subst) | Where-Object { $_ -match '^X:\\: => ' }
 if ($mapping) {

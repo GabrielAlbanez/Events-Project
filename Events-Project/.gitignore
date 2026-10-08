@@ -18,6 +18,7 @@
 /build
 /dist/
 /.private-uploads/
+/public/uploads/
 
 # misc
 .DS_Store

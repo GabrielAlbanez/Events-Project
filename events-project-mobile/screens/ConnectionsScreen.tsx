@@ -36,3 +36,4 @@ function ConnectionsView({ route, navigate, onBack }: NativeScreenProps) { const
 
 
 export function ConnectionsScreen(props: NativeScreenProps) { const { user } = useSession(); return <ConnectionsView key={`${props.route.id}:${user?.id || 'guest'}`} {...props} />; }
+

@@ -13,8 +13,8 @@ let socket: Socket | null = null;
 let stopLifecycle: (() => void) | null = null;
 export function startRealtime(token: string | null): () => void {
   stopRealtime();
-  if (!SOCKET_URL || Platform.OS === 'web') return () => {};
-  socket = io(SOCKET_URL, { autoConnect: false, transports: ['websocket'], extraHeaders: token ? { Cookie: `next-auth.session-token=${token}; __Secure-next-auth.session-token=${token}` } : {}, reconnection: true, reconnectionAttempts: 12, reconnectionDelayMax: 10000 });
+  if (!SOCKET_URL || Platform.OS === 'web' || !token) return () => {};
+  socket = io(SOCKET_URL, { autoConnect: false, transports: ['websocket'], auth: token ? { token } : {}, reconnection: true, reconnectionAttempts: 12, reconnectionDelayMax: 10000 });
   const connection = socket;
   for (const [event, handlers] of eventListeners) for (const handler of handlers) connection.on(event, handler);
   connection.on('connect', () => { connection.emit('register-user'); for (const entry of subscriptions.values()) connection.emit('community-subscribe', entry.payload); for (const listener of listeners) listener(); });

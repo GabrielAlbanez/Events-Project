@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
 import { requireApiUrl } from './config';
 import type { ActivitySnapshot, CommunityEventSnapshot, CommunityRoomSnapshot, CommunityRoomSummary, EventChatHistory, EventChatSendResult, EventInput, Evento, Json, LoginResult, MediaAsset, NotificationDTO, PartyConnectionsSnapshot, User } from '../types';
 export class ApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = 'ApiError'; } }
@@ -34,6 +35,17 @@ async function perform<T>(path: string, method: string, body?: string | FormData
     if (error instanceof ApiError) throw error;
     if (controller.signal.aborted) throw new ApiError('Solicitação interrompida ou tempo de conexão esgotado.', 408);
     if (error instanceof Error && error.message.startsWith('Configure EXPO_PUBLIC')) throw error;
+    const errorName = error && typeof error === 'object' && 'name' in error && typeof error.name === 'string'
+      ? error.name
+      : 'UnknownError';
+    const errorMessage = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+      ? error.message.slice(0, 160)
+      : 'Unknown transport error';
+    console.warn('Mobile API transport failed.', {
+      method,
+      errorName,
+      message: errorMessage,
+    });
     throw new ApiError('Não foi possível conectar. Confira sua internet e o endereço da API.', 0);
   } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
 }
@@ -89,17 +101,20 @@ export async function uploadImage(asset: MediaAsset, path = '/upload'): Promise<
     const response = await fetch(asset.uri);
     form.append('file', await response.blob(), asset.fileName ?? 'image.jpg');
   } else {
-    // React Native FormData accepts URI descriptors in place of browser Blob values.
-    form.append('file', { uri: asset.uri, name: asset.fileName ?? 'image.jpg', type: asset.mimeType ?? 'image/jpeg' } as unknown as Blob);
+    appendNativeAsset(form, 'file', asset);
   }
   return perform(path, 'POST', form);
 }
 
 export interface EventMedia { banner?: MediaAsset; carrossel?: MediaAsset[] }
+function appendNativeAsset(form: FormData, field: string, asset: MediaAsset): void {
+  const file = new File(asset.uri);
+  form.append(field, file, asset.fileName ?? file.name);
+}
 async function appendAsset(form: FormData, field: string, asset: MediaAsset): Promise<void> {
   if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) throw new ApiError('Cada imagem deve ter no máximo 5 MB.', 400);
   if (Platform.OS === 'web') { const response = await fetch(asset.uri); form.append(field, await response.blob(), asset.fileName ?? 'image.jpg'); }
-  else form.append(field, { uri: asset.uri, name: asset.fileName ?? 'image.jpg', type: asset.mimeType ?? 'image/jpeg' } as unknown as Blob);
+  else appendNativeAsset(form, field, asset);
 }
 export async function saveEvent(body: Omit<EventInput, 'banner' | 'carrossel'> | EventInput, media: EventMedia, eventId?: string, submit = true): Promise<{ success: true; message: string; evento: Evento; id: string }> {
   if ((media.carrossel?.length ?? 0) > 10) throw new ApiError('Selecione até 10 imagens para o carrossel.', 400);
@@ -122,3 +137,4 @@ export function privateImageSource(path: string): { uri: string; headers: Record
   if (!path.startsWith('/api/party-connections/')) throw new ApiError('Imagem da conversa indisponível.', 400);
   return { uri: `${requireApiUrl()}/v1${path.slice(4)}`, headers: bearer ? { Authorization: `Bearer ${bearer}` } : {} };
 }
+

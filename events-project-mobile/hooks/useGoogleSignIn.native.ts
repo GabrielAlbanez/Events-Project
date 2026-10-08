@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { isRunningInExpoGo } from 'expo';
 import { useSession } from '../context/SessionContext';
 type GoogleSdk = typeof import('@react-native-google-signin/google-signin');
 
@@ -32,6 +33,10 @@ export function useGoogleSignIn(onSuccess?: () => void) {
   const signIn = useCallback(async () => {
     if (inFlight.current) return;
     setError(null);
+    if (isRunningInExpoGo()) {
+      setError('O login Google exige a development build do EventMap; não funciona no Expo Go.');
+      return;
+    }
     if (!configured) {
       setError('O acesso com Google ainda não está configurado neste aplicativo.');
       return;
@@ -43,7 +48,9 @@ export function useGoogleSignIn(onSuccess?: () => void) {
       sdk = await configureGoogle();
       const { GoogleSignin, isSuccessResponse } = sdk;
       // The native SDK verifies Android package/signing identity; no tunnel callback is used.
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
       const response = await GoogleSignin.signIn();
       if (!isSuccessResponse(response)) return;
       const idToken = response.data.idToken;
@@ -59,6 +66,8 @@ export function useGoogleSignIn(onSuccess?: () => void) {
           setError('O acesso com Google já está em andamento.');
         } else if (cause.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
           setError('Atualize os serviços do Google Play para entrar com o Google.');
+        } else if (cause.code === '10' || cause.code === 'DEVELOPER_ERROR') {
+          setError('A configuração Google não corresponde a este app ou certificado. Confira o package e o SHA-1 da build.');
         } else {
           setError('Não foi possível entrar com o Google. Tente novamente.');
         }

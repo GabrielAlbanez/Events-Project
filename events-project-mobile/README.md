@@ -1,6 +1,7 @@
 # EventMap Mobile
 
-React Native + Expo SDK 57 + TypeScript. Código web preservado. A API separada reutiliza os serviços e o Prisma do site; não cria outro banco nem altera o schema.
+React Native + Expo SDK 57 + TypeScript. O frontend e o backend mobile são
+independentes do projeto Web e compartilham somente o banco PostgreSQL.
 
 ## Organização
 
@@ -9,10 +10,10 @@ React Native + Expo SDK 57 + TypeScript. Código web preservado. A API separada 
 - `components/`: UI, mapa, QR, avatar, eventos e comunidade.
 - `services/`: HTTP, credenciais e Socket.IO.
 - `hooks/`, `context/`, `types/`, `theme/`: recursos, sessão, contratos e identidade visual.
-- `server/`: API autenticada separada; consulte `server/README.md`.
-- `docs/MIGRATION.md`: inventário, diferenças e validação pendente.
+- `server/`: API independente em Node.js + PostgreSQL; consulte `server/README.md`.
 
-O site ainda está em `C:\Users\gabri\Events-Project`. A mudança física para `C:\Users\gabri\EventsApp\Events-Project` aguarda liberação dos processos que mantêm a pasta aberta. Não pare o site enquanto houver necessidade de acesso pelo túnel. Após movê-lo, recompile a API.
+Para contexto técnico de sessões, presença, fotos compartilhadas e login Google,
+consulte [`docs/MOBILE_PROJECT_CONTEXT.md`](./docs/MOBILE_PROJECT_CONTEXT.md).
 
 ## Executar
 
@@ -21,8 +22,8 @@ No projeto mobile:
 ```powershell
 npm install
 npm --prefix server install
-npm run api:build
-npm run api:start
+npm run api:migrate
+npm run api:dev
 ```
 
 Em outro terminal:
@@ -31,18 +32,23 @@ Em outro terminal:
 npx expo start
 ```
 
-Mantenha também o servidor Socket.IO do site (`npm run dev:socket`) ou o comando público existente configurado com a URL HTTPS do túnel.
+Configure `server/.env` a partir de `server/.env.example` com o banco, segredo
+mobile, IDs OAuth e credenciais de e-mail. Configure `.env` do Expo com os URLs
+públicos; use a porta 4100 e o IP LAN do computador no dispositivo físico. O
+Socket.IO também é atendido pela API independente. Reinicie o Expo após alterar
+as variáveis públicas.
 
-Copie `.env.example` para `.env` e informe URLs públicas. Em dispositivo físico, `localhost` aponta para o telefone: use o IP LAN do computador e porta 4000 para a API. Fora da mesma rede, a API precisa de endpoint HTTPS próprio; o túnel do site na porta 3000 não publica automaticamente a API na porta 4000. Reinicie Expo após alterar variáveis públicas.
-
-A API usa os segredos do ambiente servidor e do web. Nunca coloque DATABASE_URL, NEXTAUTH_SECRET ou client secret em EXPO_PUBLIC. Credenciais nativas ficam no SecureStore; o preview web usa memória e não persiste login.
+A API não lê configurações ou arquivos do site. Nunca coloque `DATABASE_URL`,
+`MOBILE_AUTH_SECRET` ou client secret em `EXPO_PUBLIC`. Credenciais nativas ficam
+no SecureStore; o preview web usa memória e não persiste login.
 
 ## Integrações que exigem configuração
 
-- Google nativo: IDs OAuth por plataforma, package/bundle e assinatura Android, mais `GOOGLE_NATIVE_CLIENT_IDS` no servidor. Não reutilize indiscriminadamente o client web. Use development build para validar callback nativo. Sem configuração, o botão informa a indisponibilidade.
+- Google nativo: o fluxo Android/iOS usa `@react-native-google-signin/google-signin` com config plugin e exige development build (não funciona no Expo Go). Configure client IDs OAuth, package/bundle, SHA-1 do certificado Android e `GOOGLE_NATIVE_CLIENT_IDS` no servidor; a audiência web do token precisa constar na API. O client ID iOS e o scheme correspondente são necessários no iOS. Não reutilize client IDs ou client secrets indiscriminadamente.
+- Presença online Web/mobile: ambos publicam snapshots autenticados em `RealtimePresenceSnapshot` no PostgreSQL compartilhado. Execute `npm run api:migrate` antes de iniciar os servidores; entradas antigas expiram automaticamente se um processo terminar abruptamente.
 - Mapas Android/iOS: chaves restritas por plataforma na configuração Expo; exigem recompilar o binário. O preview web mostra fallback e não simula Google Maps nativo.
 - Câmera/galeria/localização: permissões nativas; validar em aparelho.
-- Socket.IO nativo usa o mesmo servidor do site e a sessão NextAuth validada no servidor. No preview web, usa atualização HTTP periódica, pois o navegador não permite enviar o cookie nativo no handshake.
+- Socket.IO nativo usa a API mobile e seu token bearer; no Expo Web a atualização é HTTP.
 - Push do navegador não equivale a push nativo. Registro de notificações Expo/APNs/FCM não foi implementado.
 - Cloudflare: URL temporária muda ao recriar quick tunnel. URL fixa em túnel nomeado exige domínio próprio; alternativa depende de conta/serviço autorizado. Google OAuth web exige cadastrar a URI de callback exata do endereço usado.
 
@@ -59,6 +65,6 @@ npm run build
 npx expo-doctor
 ```
 
-Os testes da API usam isolamento e não criam contas, eventos nem migrações no banco compartilhado. Exportar bundles confirma compilação, não confirma todos os fluxos em dispositivos.
+Os testes da API usam isolamento e não criam contas, eventos nem migrações no banco compartilhado. Exportar bundles confirma compilação, não confirma integrações reais nem fluxos em dispositivos.
 
 O projeto mobile não tem destino Git definido. Não publique seus arquivos no repositório web por engano. `.env`, armazenamento privado e artefatos gerados ficam fora de versionamento.
