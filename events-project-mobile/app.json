@@ -26,6 +26,14 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "androidMapsConfigured": false,
+      "router": {},
+      "eas": {
+        "projectId": "377ee40f-34e2-4a5c-883c-c85e6917dfff"
+      }
+    },
+    "owner": "gabrel_albanez"
   }
 }

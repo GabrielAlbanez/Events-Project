@@ -66,3 +66,40 @@ Referências: https://docs.expo.dev/guides/google-authentication/ e https://reac
 - Development build Android x86_64 (emulador): BUILD SUCCESSFUL; APK em android/app/build/outputs/apk/debug/app-debug.apk. Para aparelho físico, npm run android recompila para a arquitetura selecionada.
 - Nenhum aparelho conectado no adb. Não foi executada escolha real de conta Google nem login em dispositivo.
 - Não foi compilado iOS: falta cliente OAuth iOS e ambiente macOS/EAS com provisionamento Apple.
+
+## EAS para iPhone (configurado em 8 de outubro de 2026)
+
+Projeto vinculado: https://expo.dev/accounts/gabrel_albanez/projects/events-project-mobile
+
+- eas.json: developmentClient, distribuição internal, ambiente development, iOS físico (não simulador).
+- app.json: owner e extra.eas.projectId vinculados ao projeto correto.
+- .easignore: exclui .env, backend, artefatos nativos gerados, caches e credenciais locais.
+- Ambiente EAS development: Client IDs Google Web/iOS/Android, URL da API, URL Socket e chave Maps Android enviados com visibilidade sensitive. Client IDs públicos e URLs são incorporados no app; essa visibilidade não os torna segredos no dispositivo.
+- DATABASE_URL e MOBILE_AUTH_SECRET não foram enviados ao EAS.
+- Cliente OAuth iOS configurado localmente e no EAS; plugin oficial gera o URL scheme a partir da variável.
+- A API atual usa IP de rede local na porta 4100; PC e iPhone precisam estar no mesmo Wi-Fi. Um túnel do Metro não disponibiliza automaticamente a API.
+
+Pendências externas: a consulta do EAS não encontrou equipes Apple associadas à conta Expo. Conta Expo/EAS não substitui assinatura Apple Developer. É necessário autenticar a conta Apple com assinatura ativa e registrar o iPhone. Não foi iniciada uma build iOS nem alterada a assinatura Apple.
+
+Na pasta do app, registre o iPhone (o CLI poderá solicitar login Apple e autenticação de dois fatores):
+
+```powershell
+npx eas-cli@latest device:create
+```
+
+Abra no Safari do iPhone o link de registro fornecido pelo EAS e conclua o registro. Depois:
+
+```powershell
+npx eas-cli@latest build --platform ios --profile development
+```
+
+Permita ao EAS configurar certificados/perfis dessa aplicação quando solicitado. A instalação estará disponível no link da build concluída. Abra esse link no Safari e instale; ative o Modo de Desenvolvedor no iPhone se solicitado pelo iOS.
+
+Depois da instalação, em terminais separados:
+
+```powershell
+npm run api:dev
+npx expo start --dev-client --lan
+```
+
+Validação desta configuração: eas config --platform ios --profile development confirmou bundle com.eventmap.mobile, vínculo EAS e perfil development/internal para iPhone físico. TypeScript e lint passaram. A autenticação Google e a instalação no iPhone continuam dependendo da build assinada e do teste no aparelho.
