@@ -289,13 +289,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
 
   useEffect(() => {
-
     const handleRoleChange = ({ newRole }: { newRole: string }) => {
-
       toast.success(`Sua permissão agora é ${newRole}.`);
-
       void update();
-
     };
 
     socket.on("role-mudar", handleRoleChange);
@@ -304,7 +300,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   }, [update]);
 
-
+  useEffect(() => {
+    const handleProfileImageUpdate = (notice: unknown) => {
+      if (!notice || typeof notice !== "object" || !("userId" in notice)
+        || typeof notice.userId !== "string" || notice.userId !== userId) return;
+      void update();
+    };
+    socket.on("profile-image-updated", handleProfileImageUpdate);
+    return () => { socket.off("profile-image-updated", handleProfileImageUpdate); };
+  }, [update, userId]);
 
   useEffect(() => {
 
