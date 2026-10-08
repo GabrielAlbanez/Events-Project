@@ -16,7 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router', 'expo-secure-store', 'expo-web-browser', 'expo-font',
     ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
       ? [['@react-native-google-signin/google-signin', { iosUrlScheme: `com.googleusercontent.apps.${process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.replace(/\.apps\.googleusercontent\.com$/, '')}` }]] as NonNullable<ExpoConfig['plugins']>
-      : ['@react-native-google-signin/google-signin']),
+      : []), // Android without Firebase uses native autolinking; iOS needs its OAuth URL scheme.
     './plugins/withAndroidObjectPaths.cjs',
     ['expo-camera', { cameraPermission: 'Permita ao EventMap ler o QR de check-in.', recordAudioAndroid: false }],
     ['expo-image-picker', { photosPermission: 'Permita ao EventMap selecionar fotos do perfil e dos eventos.', cameraPermission: 'Permita ao EventMap tirar uma foto.' }],
