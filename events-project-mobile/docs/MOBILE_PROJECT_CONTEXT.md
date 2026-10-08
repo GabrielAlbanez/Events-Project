@@ -86,7 +86,10 @@ Android pode usar `http://10.0.2.2:4100`.
   desse ID no config plugin.
 - O módulo nativo não funciona no Expo Go: instale/recompile uma development
   build depois de alterar plugin, package, scheme ou configuração nativa. O
-  `GoogleSignin.hasPlayServices` é chamado apenas no Android.
+  `GoogleSignin.hasPlayServices` é chamado apenas no Android. O botão permanece
+  acionável com configuração incompleta para mostrar o erro específico; no
+  Android, não exigir `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` em runtime porque
+  o SDK solicita o ID token pela audiência Web.
 - O ambiente local verificado tem IDs Google Android/Web preenchidos e o
   servidor aceita o Web client como audiência. O iOS local ainda não tem client
   ID configurado.

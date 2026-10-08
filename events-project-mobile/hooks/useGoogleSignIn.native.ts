@@ -6,7 +6,6 @@ type GoogleSdk = typeof import('@react-native-google-signin/google-signin');
 
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
 let initialized = false;
 
 async function configureGoogle(): Promise<GoogleSdk> {
@@ -20,11 +19,7 @@ async function configureGoogle(): Promise<GoogleSdk> {
 
 export function useGoogleSignIn(onSuccess?: () => void) {
   const { googleSignIn } = useSession();
-  const configured = Boolean(
-    webClientId
-    && (Platform.OS !== 'ios' || iosClientId)
-    && (Platform.OS !== 'android' || androidClientId),
-  );
+  const configured = Boolean(webClientId && (Platform.OS !== 'ios' || iosClientId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
