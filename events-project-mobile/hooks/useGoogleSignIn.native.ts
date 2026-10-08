@@ -2,21 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import { useSession } from '../context/SessionContext';
+import { configureGoogle, requestGoogleToken } from '../services/googleNative';
 type GoogleSdk = typeof import('@react-native-google-signin/google-signin');
 
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-let initialized = false;
-
-async function configureGoogle(): Promise<GoogleSdk> {
-  const sdk = await import('@react-native-google-signin/google-signin');
-  if (!initialized) {
-    sdk.GoogleSignin.configure({ webClientId, iosClientId, offlineAccess: false });
-    initialized = true;
-  }
-  return sdk;
-}
-
 export function useGoogleSignIn(onSuccess?: () => void) {
   const { googleSignIn } = useSession();
   const configured = Boolean(webClientId && (Platform.OS !== 'ios' || iosClientId));
@@ -46,15 +36,8 @@ export function useGoogleSignIn(onSuccess?: () => void) {
     let sdk: GoogleSdk | undefined;
     try {
       sdk = await configureGoogle();
-      const { GoogleSignin, isSuccessResponse } = sdk;
-      // The native SDK verifies Android package/signing identity; no tunnel callback is used.
-      if (Platform.OS === 'android') {
-        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      }
-      const response = await GoogleSignin.signIn();
-      if (!isSuccessResponse(response)) return;
-      const idToken = response.data.idToken;
-      if (!idToken) throw new Error('O Google não retornou uma credencial de acesso.');
+      const idToken = await requestGoogleToken(sdk, Platform.OS === 'android');
+      if (!idToken) return;
       await googleSignIn(idToken);
       if (mounted.current) onSuccess?.();
     } catch (cause) {
@@ -68,6 +51,8 @@ export function useGoogleSignIn(onSuccess?: () => void) {
           setError('Atualize os serviços do Google Play para entrar com o Google.');
         } else if (cause.code === '10' || cause.code === 'DEVELOPER_ERROR') {
           setError('A configuração Google não corresponde a este app ou certificado. Confira o package e o SHA-1 da build.');
+        } else if (cause.code === '7' || cause.code === 'NETWORK_ERROR') {
+          setError('Falha de rede ao conectar ao Google. Confira sua internet e tente novamente.');
         } else {
           setError('Não foi possível entrar com o Google. Tente novamente.');
         }

@@ -4,6 +4,7 @@ import { api, onUnauthorized, setApiToken } from '../services/api';
 import { loadCredential, saveCredential, type Credential } from '../services/credentials';
 import { onSocket, startRealtime, stopRealtime } from '../services/realtime';
 import type { LoginResult, User } from '../types';
+import { signOutGoogle } from '../services/googleNative';
 import { signalAction, signalMessage, type SessionSignal } from '../services/sessionPolicy';
 interface Session { user: User | null; loading: boolean; error: string | null; signIn(email: string, password: string): Promise<void>; googleSignIn(idToken: string): Promise<void>; signOut(): Promise<void>; refresh(): Promise<void>; applyProfileImage(image: string): void; startImpersonation(userId: string, reason: string): Promise<void>; endImpersonation(): Promise<void> }
 const Context = createContext<Session | null>(null);
@@ -17,7 +18,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const credential = useRef<Credential | null>(null);
   const generation = useRef(0);
   const clearSession = useCallback(async () => { generation.current++; stopRealtime(); credential.current = null; setApiToken(null); setUser(null); setError(null); try { await saveCredential(null); } catch { setError('Não foi possível remover a sessão salva. Tente novamente.'); } }, []);
-  const signOut = useCallback(async () => { try { if (credential.current) await api.logout(); } catch { /* Local access must close even while offline; server audit expires independently. */ } finally { await clearSession(); } }, [clearSession]);
+  const signOut = useCallback(async () => { try { if (credential.current) await api.logout(); } catch { /* Local access must close even while offline; server audit expires independently. */ } finally {
+      await clearSession();
+      if (user?.provider === 'google') {
+        try { await signOutGoogle(); } catch { /* Local logout still succeeds if native cleanup fails. */ }
+      }
+    } }, [clearSession, user?.provider]);
   const install = useCallback(async (result: LoginResult) => { const version = ++generation.current; stopRealtime(); setApiToken(null); setUser(null); credential.current = null; const saved = { token: result.token, expiresAt: result.expiresAt, impersonating: Boolean(result.user.impersonation ?? result.impersonation) }; await saveCredential(saved); if (version !== generation.current) return; credential.current = saved; setApiToken(saved.token); setUser({ ...result.user, ...(result.impersonation ? { impersonation: result.impersonation } : {}) }); setError(null); }, []);
   const refresh = useCallback(async () => { if (!credential.current) return; const version = generation.current; if (credential.current.impersonating) { const status = await api.sessionStatus(); if (version !== generation.current) return; if (status.restoreRequired && status.session) { await install(status.session); return; } } const current = await api.me(); if (version === generation.current) { setUser(current); setError(null); } }, [install]);
   const applyProfileImage = useCallback((image: string) => { setUser(current => current ? { ...current, image } : current); }, []);
