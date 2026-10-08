@@ -89,6 +89,10 @@ function harness() {
     h.type('Texto antigo'); const newer = h.submit(); h.render(); h.type('Novo texto');
     h.calls[1].finish('permanent'); await newer; await h.flush();
     assert.equal(h.input().props.value, 'Novo texto', 'failure never replaces new typing');
+    assert.ok(h.button('Restaurar mensagem').props.disabled, 'failed content remains recoverable without overwriting new typing');
+    assert.ok(h.text(h.button('Restaurar mensagem')).includes('Restaurar'));
+    h.type(''); h.button('Restaurar mensagem').props.onClick(); h.render();
+    assert.equal(h.input().props.value, 'Texto antigo', 'rejected outgoing text survives subsequent composition');
 
     h.type('Conexão atrasada'); const transient = h.submit(); h.render();
     const clientId = h.calls[2].pending.clientId;
@@ -120,6 +124,12 @@ function harness() {
     assert.equal(h.viewport.scrollTop, 0, 'explicit historical scroll is preserved on arrival');
     const jump = h.nodes().find(node => node.type === 'button' && h.text(node).includes('nova mensagem')); assert.ok(jump); jump.props.onClick();
     assert.equal(h.viewport.scrollTop, 2000, 'jump restores follow intent and reaches the bottom');
+    h.type('Texto privado rejeitado'); const deniedDraft = h.submit(); h.render(); h.type('Novo rascunho privado');
+    h.calls.at(-1).finish('permanent'); await deniedDraft; await h.flush();
+    assert.ok(h.button('Restaurar mensagem'));
+    h.chat.denied = true; h.render(); h.render();
+    assert.ok(!h.button('Restaurar mensagem'), 'access revocation removes failed outgoing recovery');
+    assert.ok(!h.nodes().some(node => node.type === 'textarea'), 'revoked chat hides the composer');
     console.log('PASS real EventChatView: instant bubble, draft clearing, double submit guard, truthful status, permanent recovery, new typing preservation, transient retry identity and photo progress');
   } finally { h.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
