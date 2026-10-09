@@ -1,20 +1,41 @@
+"use client";
+
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { ArrowDown, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import type { Evento } from "@/types";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 import styles from "./HomeScroll.module.css";
 
+const HomeScrollScene = dynamic(() => import("./HomeScrollScene"), { ssr: false });
+
 export type HomePresentationProps = {
   events: Evento[];
   loading: boolean;
   loadError: boolean;
+  scrollContainer: RefObject<HTMLDivElement>;
 };
 
-export function HomePresentation({ events, loading, loadError }: HomePresentationProps) {
+export function HomePresentation({ events, loading, loadError, scrollContainer }: HomePresentationProps) {
+  const hero = useRef<HTMLElement>(null);
+  const mapPlane = useRef<HTMLDivElement>(null);
+  const pinPlane = useRef<HTMLDivElement>(null);
+  const ticketPlane = useRef<HTMLDivElement>(null);
+  const [enableDepth, setEnableDepth] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1100px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
+    const update = () => setEnableDepth(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const featured = events.slice(0, 3);
   return (
-    <div className={styles.presentation}>
-      <section className={styles.hero} aria-labelledby="home-title">
+    <div className={styles.presentation} data-depth={enableDepth || undefined}>
+      {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} />}
+      <section ref={hero} className={styles.hero} aria-labelledby="home-title">
         <div className={styles.heroCopy}>
           <h1 id="home-title">Bons momentos.<br />Mais perto.</h1>
           <p>Shows, encontros e novas experiências. Descubra o que acontece ao seu redor e encontre seu próximo evento.</p>
@@ -24,7 +45,7 @@ export function HomePresentation({ events, loading, loadError }: HomePresentatio
           </div>
         </div>
         <div className={styles.art} aria-hidden="true">
-          <div className={styles.mapPlane}>
+          <div ref={mapPlane} className={styles.mapPlane}>
             <svg viewBox="0 0 500 400" fill="none" className={styles.streetGrid}>
               <path d="M-20 80L520 230M-20 185L520 335M80-20L-25 420M195-20L90 420M310-20L205 420M425-20L320 420M540-20L435 420" />
               <path d="M-10 275L280 125L520 190" className={styles.routeLine} />
@@ -32,14 +53,14 @@ export function HomePresentation({ events, loading, loadError }: HomePresentatio
             <span className={styles.mapDot} />
             <span className={styles.mapDotSecondary} />
           </div>
-          <div className={styles.pinPlane}>
+          <div ref={pinPlane} className={styles.pinPlane}>
             <svg viewBox="0 0 140 180" className={styles.heroPin}>
               <path d="M70 6C33 6 6 34 6 70C6 113 70 174 70 174S134 113 134 70C134 34 107 6 70 6Z" fill="currentColor" />
               <circle cx="70" cy="68" r="25" className={styles.pinHole} />
               <path d="M70 53V83M55 68H85" className={styles.pinSpark} />
             </svg>
           </div>
-          <div className={styles.ticketPlane}>
+          <div ref={ticketPlane} className={styles.ticketPlane}>
             <span className={styles.ticketIcon}><CalendarDays size={24} /></span>
             <span><strong>Seu próximo momento</strong><span>Começa por aqui</span></span>
             <span className={styles.ticketPerforation} />

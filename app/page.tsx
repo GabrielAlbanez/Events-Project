@@ -28,6 +28,7 @@ const filters: { label: string; value: Period }[] = [
 
 export default function Home() {
   const socket = useSocket();
+  const homeScrollContainer = useRef<HTMLDivElement>(null);
   const { data: session, status } = useSession();
   const canManageEvents = status === "authenticated" && Boolean(session?.user?.id) &&
     (session?.user?.role === "ADMIN" || session?.user?.role === "PROMOTER");
@@ -112,8 +113,8 @@ export default function Home() {
         <Link href="/EventsCreated" className="flex items-center gap-2 min-h-11 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
-      <div className={styles.scroller}>
-      <HomePresentation events={events} loading={loading} loadError={loadError} />
+      <div ref={homeScrollContainer} className={styles.scroller}>
+      <HomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} />
       <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>

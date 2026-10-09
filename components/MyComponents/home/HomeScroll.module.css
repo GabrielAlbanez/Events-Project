@@ -28,7 +28,7 @@
 .primaryAction:hover { opacity: .9; }
 .secondaryAction:hover { background: hsl(var(--muted)); }
 .primaryAction:focus-visible, .secondaryAction:focus-visible, .cardLink:focus-visible, .scrollCue:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 5px; }
-.art { position: relative; width: 100%; height: 420px; max-width: 550px; justify-self: center; }
+.art { perspective: 1100px; transform-style: preserve-3d; position: relative; width: 100%; height: 420px; max-width: 550px; justify-self: center; }
 .mapPlane { position: absolute; inset: 30px 0; border: 1px solid hsl(var(--border)); border-radius: 40px; background: hsl(var(--card)); transform: rotate(-12deg) skewY(4deg); overflow: hidden; box-shadow: 0 28px 60px hsl(var(--foreground) / .035); }
 .streetGrid { width: 100%; height: 100%; stroke: hsl(var(--border)); stroke-width: 1; }
 .streetGrid .routeLine { stroke: hsl(var(--primary) / .45); stroke-width: 3; stroke-dasharray: 8 8; }
