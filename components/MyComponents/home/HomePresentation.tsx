@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject, type MouseEvent } from "react";
 import { ArrowDown, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import type { Evento } from "@/types";
 import { parseEventDate } from "@/lib/discoveryPeriod";
@@ -28,21 +28,40 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1100px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
-    const update = () => setEnableDepth(media.matches);
+    let enableTimer: number | undefined;
+    const update = () => {
+      window.clearTimeout(enableTimer);
+      if (!media.matches) setEnableDepth(false);
+      else enableTimer = window.setTimeout(() => setEnableDepth(true), 250);
+    };
     update();
     media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
+    return () => { window.clearTimeout(enableTimer); media.removeEventListener("change", update); };
   }, []);
   const featured = events.slice(0, 3);
+  const cardKey = featured.map(event => event.id).join("|");
+
+  const navigateWithinHome = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const container = scrollContainer.current;
+    const target = document.getElementById(event.currentTarget.hash.slice(1));
+    if (!container || !target || !container.contains(target)) return;
+    event.preventDefault();
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - (target.id === "home-discovery" ? 0 : 16);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    container.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" });
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${event.currentTarget.hash}`);
+    target.focus({ preventScroll: true });
+  };
   return (
     <div className={styles.presentation} data-depth={enableDepth || undefined}>
-      {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} featured={featuredSection} cards={featuredCards} />}
+      {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} featured={featuredSection} cards={featuredCards} cardKey={cardKey} />}
       <section ref={hero} className={styles.hero} aria-labelledby="home-title">
         <div className={styles.heroCopy}>
           <h1 id="home-title">Bons momentos.<br />Mais perto.</h1>
           <p>Shows, encontros e novas experiências. Descubra o que acontece ao seu redor e encontre seu próximo evento.</p>
           <div className={styles.heroActions}>
-            <a href="#home-discovery" className={styles.primaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a>
+            <a href="#home-discovery" onClick={navigateWithinHome} className={styles.primaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a>
             <Link href="/EventsCreated" className={styles.secondaryAction}>Ver agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
           </div>
         </div>
@@ -68,21 +87,21 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
             <span className={styles.ticketPerforation} />
           </div>
         </div>
-        <a href="#home-featured" className={styles.scrollCue}><ArrowDown size={15} aria-hidden="true" /> Continue explorando</a>
+        <a href="#home-featured" onClick={navigateWithinHome} className={styles.scrollCue}><ArrowDown size={15} aria-hidden="true" /> Continue explorando</a>
       </section>
 
-      <section ref={featuredSection} id="home-featured" className={styles.featured} aria-labelledby="home-featured-title">
+      <section ref={featuredSection} id="home-featured" tabIndex={-1} className={styles.featured} aria-labelledby="home-featured-title">
         <div className={styles.featuredInner}>
         <div className={styles.sectionHeading}>
           <div><h2 id="home-featured-title">A próxima experiência pode estar aqui.</h2><p>Conheça alguns dos eventos da agenda.</p></div>
           <Link href="/EventsCreated" className={styles.secondaryAction}>Toda a agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
         </div>
         <div className={styles.cards}>
-          {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div /><span /><span /></div>) : featured.map((event, index) => {
+          {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div className={styles.skeletonPoster} /><div className={styles.skeletonBody}><span /><span /><span /></div></div>) : featured.map((event, index) => {
             const date = parseEventDate(event.dataInicio);
             return <article ref={node => { featuredCards.current[index] = node; }} key={event.id} className={styles.eventCard}>
               <Link href={`/eventos/${event.id}`} className={styles.cardLink}>
-                <div className={styles.poster}>{event.banner ? <img src={event.banner} alt="" loading="lazy" decoding="async" /> : <CalendarDays size={42} aria-hidden="true" />}</div>
+                <div className={styles.poster}>{event.banner ? <img src={event.banner} alt="" width={800} height={500} loading="lazy" decoding="async" /> : <CalendarDays size={42} aria-hidden="true" />}</div>
                 <div className={styles.cardBody}>
                   <span className={styles.date}>{date ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(date) : "Data a confirmar"}</span>
                   <h3>{event.nome}</h3>
@@ -92,7 +111,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
               </Link>
             </article>;
           })}
-          {!loading && featured.length === 0 && <div className={styles.empty}><CalendarDays size={28} aria-hidden="true" /><p>{loadError ? "A agenda não carregou. Você pode tentar novamente no mapa abaixo." : "Explore o mapa para encontrar novos eventos."}</p><a href="#home-discovery" className={styles.secondaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a></div>}
+          {!loading && featured.length === 0 && <div className={styles.empty}><CalendarDays size={28} aria-hidden="true" /><p>{loadError ? "A agenda não carregou. Você pode tentar novamente no mapa abaixo." : "Explore o mapa para encontrar novos eventos."}</p><a href="#home-discovery" onClick={navigateWithinHome} className={styles.secondaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a></div>}
         </div>
         {loading && <span role="status" className="sr-only">Carregando destaques da agenda…</span>}
         </div>
@@ -102,7 +121,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
         <MapPin size={22} aria-hidden="true" />
         <h2 id="home-discovery-intro">Escolha o seu lugar.<br />Encontre o seu evento.</h2>
         <p>Use o mapa, busque por nome ou filtre a agenda. A descoberta começa com você.</p>
-        <a href="#home-discovery" className={styles.secondaryAction}>Ir para o mapa <ArrowDown size={18} aria-hidden="true" /></a>
+        <a href="#home-discovery" onClick={navigateWithinHome} className={styles.secondaryAction}>Ir para o mapa <ArrowDown size={18} aria-hidden="true" /></a>
       </section>
     </div>
   );

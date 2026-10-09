@@ -12,10 +12,11 @@ type HomeScrollSceneProps = {
   ticketPlane: PlaneRef;
   featured: RefObject<HTMLElement>;
   cards: MutableRefObject<(HTMLElement | null)[]>;
+  cardKey: string;
 };
 
 /** Motion-only driver: the presentation remains visible before this chunk loads. */
-export default function HomeScrollScene({ container, hero, mapPlane, pinPlane, ticketPlane, featured, cards }: HomeScrollSceneProps) {
+export default function HomeScrollScene({ container, hero, mapPlane, pinPlane, ticketPlane, featured, cards, cardKey }: HomeScrollSceneProps) {
   const { scrollYProgress } = useScroll({ container, target: hero, offset: ["start start", "end start"] });
   const { scrollYProgress: galleryProgress } = useScroll({ container, target: featured, offset: ["start end", "end start"] });
   const gallery = useSpring(galleryProgress, { stiffness: 120, damping: 28, mass: 0.4 });
@@ -45,13 +46,24 @@ export default function HomeScrollScene({ container, hero, mapPlane, pinPlane, t
   useMotionValueEvent(ticketTransform, "change", value => { if (ticketPlane.current) ticketPlane.current.style.transform = value; });
 
   useEffect(() => {
+    if (mapPlane.current) mapPlane.current.style.transform = mapTransform.get();
+    if (pinPlane.current) pinPlane.current.style.transform = pinTransform.get();
+    if (ticketPlane.current) ticketPlane.current.style.transform = ticketTransform.get();
     const planes = [mapPlane.current, pinPlane.current, ticketPlane.current];
-    const cardNodes = cards.current;
+    const cardNodes = [...cards.current];
     return () => {
       planes.forEach(plane => { if (plane) plane.style.removeProperty("transform"); });
       cardNodes.forEach(card => { if (card) { card.style.removeProperty("transform"); card.style.removeProperty("will-change"); } });
     };
-  }, [mapPlane, pinPlane, ticketPlane, cards]);
+  }, [mapPlane, pinPlane, ticketPlane, cards, mapTransform, pinTransform, ticketTransform]);
+
+  useEffect(() => {
+    applyCard(cards.current[0], cardLeft.get(), gallery.get());
+    applyCard(cards.current[1], cardMiddle.get(), gallery.get());
+    applyCard(cards.current[2], cardRight.get(), gallery.get());
+    const nodes = [...cards.current];
+    return () => nodes.forEach(card => { if (card) { card.style.removeProperty("transform"); card.style.removeProperty("will-change"); } });
+  }, [cardKey, cards, cardLeft, cardMiddle, cardRight, gallery]);
   return null;
 }
 
