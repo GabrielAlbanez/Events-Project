@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+let slots=[],index=0,effects=[],session={status:'authenticated',data:{user:{id:'viewer'}}};
+const react={useState(initial){const i=index++;if(!(i in slots))slots[i]=initial;return[slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];},useMemo(fn){return fn();},useEffect(fn){effects.push(fn);},useId(){return'people';},useRef(value){const i=index++;return slots[i]??(slots[i]={current:value});}};
+const jsx=(type,props)=>({type,props:props??{}});
+function load(file,deps={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText)(name=>name in deps?deps[name]:name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:name==='next-auth/react'?{useSession:()=>session}:name==='next/link'?{__esModule:true,default:'a'}:name==='lucide-react'?new Proxy({},{get:(_,key)=>key}):name==='./PartyAvatar'?{__esModule:true,default:'avatar'}:require(name),m,m.exports);return m.exports;}
+function nodes(tree){const all=[];function visit(v){if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v==='object'&&'type'in v){all.push(v);visit(v.props.children);}}visit(tree);return all;}
+function render(Component,props){index=0;return Component(props);}function reset(){slots=[];effects=[];index=0;}
+(async()=>{
+ global.window={location:{origin:'https://example.com'}};let copied='',shared='';Object.defineProperty(global,'navigator',{configurable:true,value:{clipboard:{writeText:async text=>{copied=text;}}}});
+ const helper=load('lib/planInvite.ts');const {PlanInvite}=load('components/MyComponents/PlanInvite.tsx',{'@/lib/planInvite':helper});
+ const events=Array.from({length:7},(_,i)=>({id:String(i),nome:'Evento '+i,status:'PUBLISHED',dataInicio:'2099-01-01',endereco:'Campinas'}));reset();let tree=render(PlanInvite,{events});assert.ok(nodes(tree).find(n=>n.type==='button').props.disabled);assert.ok(nodes(tree).filter(n=>n.type==='input').every(n=>!n.props.checked));
+ for(let i=0;i<5;i++){tree=render(PlanInvite,{events});nodes(tree).filter(n=>n.type==='input')[i].props.onChange();}
+ tree=render(PlanInvite,{events});assert.ok(nodes(tree).filter(n=>n.type==='input')[5].props.disabled);nodes(tree).find(n=>n.type==='button').props.onClick();tree=render(PlanInvite,{events});const preview=nodes(tree).find(n=>n.type==='textarea').props.value;assert.equal((preview.match(/https:\/\//g)||[]).length,5);assert.ok(!preview.includes('Evento 5'));
+ await nodes(tree).filter(n=>n.type==='button')[1].props.onClick();assert.equal(copied,preview);
+ navigator.share=async payload=>{shared=payload.text;};tree=render(PlanInvite,{events});await nodes(tree).filter(n=>n.type==='button')[1].props.onClick();assert.equal(shared,preview);
+ const People=load('components/MyComponents/EventPeoplePreview.tsx').default;
+ let snapshot={eligible:false,mine:null,profiles:[{userId:'hidden',displayName:'Private Person',photoUrl:''}]},fetches=0;global.fetch=async()=>{fetches++;return{ok:true,json:async()=>snapshot};};reset();let outer=render(People,{eventId:'event'}),inner=outer.type,props=outer.props;tree=render(inner,props);assert.equal(fetches,0);nodes(tree).find(n=>n.type==='button').props.onClick();await new Promise(resolve=>setImmediate(resolve));tree=render(inner,props);assert.equal(nodes(tree).filter(n=>n.type==='avatar').length,0,'no profile if registration ineligible');
+ snapshot={...snapshot,eligible:true,mine:{active:false}};nodes(tree).find(n=>n.type==='button').props.onClick();await new Promise(resolve=>setImmediate(resolve));tree=render(inner,props);assert.equal(nodes(tree).filter(n=>n.type==='avatar').length,0,'no profile before opt-in');
+ snapshot={...snapshot,mine:{active:true}};nodes(tree).find(n=>n.type==='button').props.onClick();await new Promise(resolve=>setImmediate(resolve));tree=render(inner,props);assert.equal(nodes(tree).filter(n=>n.type==='avatar').length,1);
+ console.log('PASS: invitation selection/preview/share/copy and participant opt-in UI gates');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -3,6 +3,7 @@
 import { getAuthenticatedUser } from "@/lib/adminAuth";
 import type { Evento } from "@/types";
 import type { NotificationDTO } from "@/types/features";
+import * as recommendations from "@/lib/services/recommendations";
 import * as favorites from "@/lib/services/favorites";
 import * as notifications from "@/lib/services/notifications";
 import * as promoters from "@/lib/services/promoters";
@@ -53,4 +54,8 @@ export async function updatePromoterProfile(input:{bio:string;contactUrl:string}
 
 export async function getPromoterStats() {
   return promoters.getPromoterStats(getAuthenticatedUser);
+}
+
+export async function getRecommendedEvents() {
+  return recommendations.getRecommendedEvents(getAuthenticatedUser);
 }

@@ -9,7 +9,7 @@ function load(name) {
   return mod.exports;
 }
 function socket(userId, expiresAt) {
-  return { data: { userId, expiresAt }, connected: true, handlers: new Map(), messages: [], joined: new Set(),
+  return { data: { userId, expiresAt, effectiveRole: userId === "admin" ? "ADMIN" : "BASIC" }, connected: true, handlers: new Map(), messages: [], joined: new Set(),
     on(event, listener) { this.handlers.set(event, listener); }, emit(event, payload) { this.messages.push({ event, payload }); },
     async join(room) { this.joined.add(room); }, async leave(room) { this.joined.delete(room); }, disconnect() { this.connected = false; },
   };
