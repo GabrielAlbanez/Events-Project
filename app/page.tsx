@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "./discovery.module.css";
+import { HomePresentation } from "@/components/MyComponents/home/HomePresentation";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { StaggerList } from "@/components/animations/StaggerList";
 import { InteractiveSurface } from "@/components/animations/InteractiveSurface";
@@ -111,7 +112,9 @@ export default function Home() {
         <Link href="/EventsCreated" className="flex items-center gap-2 min-h-11 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
-      <main className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
+      <div className={styles.scroller}>
+      <HomePresentation events={events} loading={loading} loadError={loadError} />
+      <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
@@ -141,7 +144,7 @@ export default function Home() {
               </ParallaxCard>
             <FadeInView>
             <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h1>
+            <h2 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h2>
             <p className="mt-1 hidden text-sm leading-6 text-muted-foreground md:block">Explore a agenda e escolha o que combina com você.</p>
             </FadeInView>
             </div>
@@ -175,6 +178,7 @@ export default function Home() {
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
         </section>
       </main>
+      </div>
     </div>
   );
 }
