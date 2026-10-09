@@ -70,7 +70,7 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
   const focus=()=>updateRing(ringValue.get());node?.addEventListener("home-ring-focus",focus);
   const resume=()=>{if(node && !node.contains(document.activeElement)){delete node.dataset.focusedIndex;updateRing(ringValue.get());}};
   const scrollNode=container.current;scrollNode?.addEventListener("scroll",resume,{passive:true});
-  const moving=[...heroPosters.current,node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const moving=[...heroPosters.current,node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
   const pending=timers.current;
   return()=>{scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
  // Ref containers are stable; eventKey refreshes newly loaded poster/card nodes.
