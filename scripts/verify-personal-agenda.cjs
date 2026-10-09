@@ -50,6 +50,8 @@ function load(file, dependencies = {}) {
  const React = require("react");
  const { renderToStaticMarkup } = require("react-dom/server");
  const ui = load("components/MyComponents/PersonalAgenda.tsx", {
+  "@/components/MyComponents/PlanInvite": { PlanInvite: () => null },
+  "@/components/MyComponents/EventRecommendations": { EventRecommendations: () => null },
   "next/link": { __esModule: true, default: props => React.createElement("a", props) },
   "@/lib/personalAgenda": { groupSavedEvents: events => groups.groupSavedEvents(events, new Date("2026-10-09T20:00:00Z")) },
   "@/components/MyComponents/TableEventsClient": { EventCards: ({ events }) => React.createElement("div", null, events.map(event => React.createElement("article", { key: event.id }, event.nome))) },
