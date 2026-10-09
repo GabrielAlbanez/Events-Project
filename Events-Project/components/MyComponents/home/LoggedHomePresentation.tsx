@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, useId
 import { ArrowDown, ArrowUpRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import type { HomePresentationProps } from "./HomePresentation";
 import { LoggedHomePoster } from "./LoggedHomePoster";
-
+import LoggedHomeAgenda from "./LoggedHomeAgenda";
 import { useLoggedHomeData } from "./useLoggedHomeData";
 import styles from "./LoggedHomeScroll.module.css";
 
@@ -73,5 +73,6 @@ export function LoggedHomePresentation({ events, loading, loadError, scrollConta
       </div>
     </section>
     <section ref={mapSection} className={styles.mapSection} aria-labelledby="logged-map-title"><div className={styles.mapPin}><div className={styles.sectionHeading}><span className={styles.sectionLabel}>Encontre seu lugar</span><h2 id="logged-map-title">A cidade é o<br />seu próximo cenário.</h2><p>Veja onde os eventos acontecem. No mapa interativo, você pode buscar, filtrar e traçar sua rota.</p></div><div className={styles.mapStage}><div ref={mapPlane} className={styles.mapPlane}><svg viewBox="0 0 800 520" aria-hidden="true" preserveAspectRatio="none"><g className={styles.blocks}>{[[80,70],[245,65],[470,40],[615,120],[120,300],[410,330],[605,360]].map(([x,y],index) => <rect key={index} x={x} y={y} width={index%2 ? 100:120} height={70} rx={12} />)}</g><g className={styles.streets}><path d="M0 150L800 220M0 320L800 350M180 0L110 520M380 0L320 520M600 0L560 520" /></g><path className={styles.river} d="M0 420C200 360 300 470 470 435S700 390 800 455"/><defs><clipPath id={routeClip}><rect data-map-route-reveal x="0" y="0" width="800" height="520" /></clipPath></defs><path clipPath={`url(#${routeClip})`} className={styles.route} pathLength="1" d="M180 355C240 280 315 290 380 245S475 170 570 140" /></svg>{suggestions.slice(0,3).map(({event},index) => <div className={styles.mapMarker} key={event.id} style={{ left: `${[28,62,78][index]}%`,top:`${[64,32,66][index]}%` }}><span data-map-pin className={styles.mapMarkerPin}><MapPin size={20} aria-hidden="true" /></span><span data-map-note className={styles.mapChip}>{event.nome}</span></div>)}<span className={styles.mapCaption}>Ilustração da experiência de descoberta</span></div></div><div className={styles.mapFooter}><p>Os locais e as rotas reais estão no mapa interativo.</p><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar mapa real <ArrowDown size={18} aria-hidden="true" /></a></div></div></section>
+    <LoggedHomeAgenda events={data.saved} loading={data.agendaLoading} error={data.agendaError} onRetry={data.retryAgenda} stackRef={ticketStack} />
 <section ref={closing} /></div>;
 }
