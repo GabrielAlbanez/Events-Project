@@ -19,6 +19,8 @@ export type HomePresentationProps = {
 
 export function HomePresentation({ events, loading, loadError, scrollContainer }: HomePresentationProps) {
   const hero = useRef<HTMLElement>(null);
+  const featuredSection = useRef<HTMLElement>(null);
+  const featuredCards = useRef<(HTMLElement | null)[]>([]);
   const mapPlane = useRef<HTMLDivElement>(null);
   const pinPlane = useRef<HTMLDivElement>(null);
   const ticketPlane = useRef<HTMLDivElement>(null);
@@ -34,7 +36,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
   const featured = events.slice(0, 3);
   return (
     <div className={styles.presentation} data-depth={enableDepth || undefined}>
-      {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} />}
+      {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} featured={featuredSection} cards={featuredCards} />}
       <section ref={hero} className={styles.hero} aria-labelledby="home-title">
         <div className={styles.heroCopy}>
           <h1 id="home-title">Bons momentos.<br />Mais perto.</h1>
@@ -69,15 +71,16 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
         <a href="#home-featured" className={styles.scrollCue}><ArrowDown size={15} aria-hidden="true" /> Continue explorando</a>
       </section>
 
-      <section id="home-featured" className={styles.featured} aria-labelledby="home-featured-title">
+      <section ref={featuredSection} id="home-featured" className={styles.featured} aria-labelledby="home-featured-title">
+        <div className={styles.featuredInner}>
         <div className={styles.sectionHeading}>
           <div><h2 id="home-featured-title">A próxima experiência pode estar aqui.</h2><p>Conheça alguns dos eventos da agenda.</p></div>
           <Link href="/EventsCreated" className={styles.secondaryAction}>Toda a agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
         </div>
         <div className={styles.cards}>
-          {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div /><span /><span /></div>) : featured.map(event => {
+          {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div /><span /><span /></div>) : featured.map((event, index) => {
             const date = parseEventDate(event.dataInicio);
-            return <article key={event.id} className={styles.eventCard}>
+            return <article ref={node => { featuredCards.current[index] = node; }} key={event.id} className={styles.eventCard}>
               <Link href={`/eventos/${event.id}`} className={styles.cardLink}>
                 <div className={styles.poster}>{event.banner ? <img src={event.banner} alt="" loading="lazy" decoding="async" /> : <CalendarDays size={42} aria-hidden="true" />}</div>
                 <div className={styles.cardBody}>
@@ -92,6 +95,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
           {!loading && featured.length === 0 && <div className={styles.empty}><CalendarDays size={28} aria-hidden="true" /><p>{loadError ? "A agenda não carregou. Você pode tentar novamente no mapa abaixo." : "Explore o mapa para encontrar novos eventos."}</p><a href="#home-discovery" className={styles.secondaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a></div>}
         </div>
         {loading && <span role="status" className="sr-only">Carregando destaques da agenda…</span>}
+        </div>
       </section>
 
       <section className={styles.discoveryIntro} aria-labelledby="home-discovery-intro">

@@ -104,3 +104,12 @@
   .empty { min-height: 200px; padding: 24px; }
   .discoveryIntro { padding: 44px 24px; }
 }
+
+/* Only the editorial gallery pins; interactive discovery stays outside perspective. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .presentation[data-depth] .featured { min-height: 830px; }
+  .presentation[data-depth] .featuredInner { position: sticky; top: 32px; }
+  .presentation[data-depth] .cards { perspective: 1400px; transform-style: preserve-3d; }
+  .presentation[data-depth] .eventCard { position: relative; transform-origin: center center; }
+  .presentation[data-depth] .eventCard:nth-child(2) { z-index: 2; }
+}
