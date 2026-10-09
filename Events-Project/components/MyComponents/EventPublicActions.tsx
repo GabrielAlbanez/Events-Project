@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bookmark, Share2, CalendarPlus, Flag, TicketCheck, Users } from "lucide-react";
 import { getFavoriteState, toggleFavorite, setEventReminder, toggleFollow } from "@/app/(actions)/engagement/action";
 import CheckInPass from "./CheckInPass";
+import EventPeoplePreview from "./EventPeoplePreview";
 
 type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
 type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null };
@@ -100,6 +101,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus }: 
       </div>}
       {registrationError && registration && <p role="alert" className="mt-3 text-sm text-destructive">{registrationError}</p>}
     </section>}
+    {eventStatus === "PUBLISHED" && <EventPeoplePreview eventId={eventId} />}
     <div className="flex flex-wrap gap-2">
       {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (!result.saved) setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><Bookmark className="h-4 w-4" />{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href="/login">Entrar para salvar</Link>}
       <button type="button" onClick={() => void share()} className={button}><Share2 className="h-4 w-4" />Compartilhar</button>

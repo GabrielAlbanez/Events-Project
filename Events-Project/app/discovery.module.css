@@ -1,9 +1,21 @@
 .shell {
   height: 100vh;
   height: 100dvh;
+  overflow: hidden;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+  scroll-padding-top: 16px;
 }
 
 .main {
+  height: calc(100dvh - 72px);
+  flex: none;
+  scroll-margin-top: 16px;
   --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }

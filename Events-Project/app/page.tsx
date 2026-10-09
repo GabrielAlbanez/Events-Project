@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "./discovery.module.css";
+import { HomePresentation } from "@/components/MyComponents/home/HomePresentation";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { StaggerList } from "@/components/animations/StaggerList";
 import { InteractiveSurface } from "@/components/animations/InteractiveSurface";
@@ -27,6 +28,7 @@ const filters: { label: string; value: Period }[] = [
 
 export default function Home() {
   const socket = useSocket();
+  const homeScrollContainer = useRef<HTMLDivElement>(null);
   const { data: session, status } = useSession();
   const canManageEvents = status === "authenticated" && Boolean(session?.user?.id) &&
     (session?.user?.role === "ADMIN" || session?.user?.role === "PROMOTER");
@@ -103,15 +105,17 @@ export default function Home() {
             <BrandLogo priority />
           </Link>
         </div>
-        <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-border bg-muted p-1 text-sm md:flex">
-          <Link href="/" aria-current="page" className="rounded-full bg-card px-4 py-2 font-semibold text-primary shadow-sm">Descobrir</Link>
-          <Link href="/EventsCreated" className="rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Agenda</Link>
-          {canManageEvents && <Link href="/myEvents" className="rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Meus eventos</Link>}
+        <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-border bg-muted p-1 text-sm xl:flex">
+          <Link href="/" aria-current="page" className="inline-flex min-h-11 items-center rounded-full bg-card px-4 py-2 font-semibold text-primary shadow-sm">Descobrir</Link>
+          <Link href="/EventsCreated" className="inline-flex min-h-11 items-center rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Agenda</Link>
+          {canManageEvents && <Link href="/myEvents" className="inline-flex min-h-11 items-center rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Meus eventos</Link>}
         </nav>
-        <Link href="/EventsCreated" className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
+        <Link href="/EventsCreated" className="flex items-center gap-2 min-h-11 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
-      <main className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
+      <div ref={homeScrollContainer} className={styles.scroller}>
+      <HomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} />
+      <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
@@ -141,7 +145,7 @@ export default function Home() {
               </ParallaxCard>
             <FadeInView>
             <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h1>
+            <h2 className="text-2xl font-bold tracking-tight md:text-[2rem]">Encontre seu próximo evento</h2>
             <p className="mt-1 hidden text-sm leading-6 text-muted-foreground md:block">Explore a agenda e escolha o que combina com você.</p>
             </FadeInView>
             </div>
@@ -149,23 +153,23 @@ export default function Home() {
             <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-border bg-muted px-4 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-              {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"><X className="h-4 w-4 text-muted-foreground" /></button>}
+              {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4 text-muted-foreground" /></button>}
             </label>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition ${period === filter.value ? "bg-primary text-primary-foreground shadow-highlight" : "border border-border bg-card text-muted-foreground hover:border-primary/30   "}`}>{filter.label}</button>)}
+              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`min-h-11 shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${period === filter.value ? "bg-primary text-primary-foreground shadow-highlight" : "border border-border bg-card text-muted-foreground hover:border-primary/30   "}`}>{filter.label}</button>)}
             </div>
             </FadeInView>
           </div>
           <FadeInView stationary className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></FadeInView>
           <div className="flex min-h-0 flex-1 flex-col border-t border-border">
-            <div className="flex items-center justify-between px-5 py-3 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} encontrados</span></div>
+            <div className="flex items-center justify-between px-5 py-4 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} encontrados</span></div>
             <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
-              {loading && <p role="status" className="relative overflow-hidden rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><span aria-hidden="true" className="pointer-events-none absolute inset-0 text-muted-foreground/30"><LoadingShimmer className="h-full w-full" /></span><span className="relative">Carregando eventos…</span></p>}
-              {loadError && <div role="alert" className="rounded-2xl bg-muted p-5 text-sm text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
-              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border p-6 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
-              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-2 text-left transition hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30  "}`}>
-                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary">{event.banner && <img src={event.banner} alt="" className="h-full w-full object-cover" />}</div>
-                <div className="min-w-0 flex-1 py-1"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{event.nome}</h3><p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
+              {loading && <div role="status" className="space-y-2"><span className="sr-only">Carregando eventos…</span>{[0, 1, 2].map((item) => <div key={item} aria-hidden="true" className="relative flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-3"><div className="h-[84px] w-[84px] shrink-0 rounded-xl bg-muted" /><div className="flex min-w-0 flex-1 flex-col justify-center gap-3"><div className="h-2.5 w-20 rounded bg-muted" /><div className="h-3.5 w-4/5 rounded bg-muted" /><div className="h-3 w-3/5 rounded bg-muted" /></div><LoadingShimmer className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/20" /></div>)}</div>}
+              {loadError && <div role="alert" className="rounded-2xl border border-border bg-muted/40 p-5 text-sm leading-6 text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
+              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
+              <StaggerList className="space-y-2">{filteredEvents.map((event) => <InteractiveSurface key={event.id}><button type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-3 text-left transition hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30  "}`}>
+                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary/10">{event.banner ? <img src={event.banner} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-primary"><CalendarDays className="h-6 w-6" aria-hidden="true" /><span className="text-[10px] font-semibold">EventMap</span></div>}</div>
+                <div className="min-w-0 flex-1 py-0.5"><span className="block text-[11px] font-semibold leading-4 text-primary">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-5 tracking-tight">{event.nome}</h3><p className="mt-2 flex items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
               </button></InteractiveSurface>)}</StaggerList>
             </div>
           </div>
@@ -175,6 +179,7 @@ export default function Home() {
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
         </section>
       </main>
+      </div>
     </div>
   );
 }

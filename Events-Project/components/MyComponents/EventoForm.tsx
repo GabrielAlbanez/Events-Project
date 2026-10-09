@@ -38,7 +38,7 @@ type EventoFormData = {
 type EventDate = ReturnType<typeof parseDate>;
 type EventDateRange = { start: EventDate; end: EventDate };
 
-const sectionClass = "rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7";
+const sectionClass = "rounded-2xl border border-border bg-card p-5 shadow-surface sm:p-7";
 const descriptionOutline = "O que vai acontecer:\n\nPara quem é o evento:\n\nProgramação e atrações:\n\nInformações de entrada:";
 const hasUsefulDescription = (value: string) =>
   value.replace(/O que vai acontecer:|Para quem é o evento:|Programação e atrações:|Informações de entrada:/gi, "").trim().length >= 10;
@@ -244,14 +244,14 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   <FormLabel>Descrição <Required /></FormLabel>
                   <FormControl><Textarea placeholder="Conte o que o público vai encontrar, para quem é o evento e informações importantes de acesso." className="min-h-32 resize-y" maxLength={3000} {...field} /></FormControl>
                   <FormDescription>Inclua atrações, programação e orientações de entrada. {field.value.length}/3000 caracteres.</FormDescription>
-                  {!field.value.trim() && <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => field.onChange(descriptionOutline)}>
+                  {!field.value.trim() && <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => field.onChange(descriptionOutline)}>
                     Usar roteiro para a descrição
                   </button>}
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField name="category" rules={{ required: "Escolha uma categoria." }} render={({ field }) => (
-                <FormItem><FormLabel>Categoria <Required /></FormLabel><FormControl><select {...field} className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Selecione uma categoria</option>{eventCategories.map((option) => <option key={option} value={option}>{option}</option>)}</select></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Categoria <Required /></FormLabel><FormControl><select {...field} className="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:text-sm"><option value="">Selecione uma categoria</option>{eventCategories.map((option) => <option key={option} value={option}>{option}</option>)}</select></FormControl><FormMessage /></FormItem>
               )} />
             </div>
           </section>
@@ -263,7 +263,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <DateRangePicker
                   label="Período do evento"
                   isRequired
-                  className="w-full max-w-md"
+                  className="w-full max-w-md" classNames={{ inputWrapper: "min-h-14 rounded-xl border border-input bg-background shadow-sm", selectorButton: "min-h-11 min-w-11" }}
                   minValue={today(getLocalTimeZone()) as unknown as React.ComponentProps<typeof DateRangePicker>["minValue"]}
                   value={dateRange as unknown as React.ComponentProps<typeof DateRangePicker>["value"]}
                   onChange={(value) => {
@@ -282,19 +282,19 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <legend className="px-1 text-sm font-semibold">Repetir este evento</legend>
                 <p className="text-sm text-muted-foreground">Crie outras datas com o mesmo local, horário e informações. Cada edição poderá ser revisada separadamente.</p>
                 <label htmlFor="event-recurrence" className="block text-sm font-medium">Frequência</label>
-                <select id="event-recurrence" value={recurrence} onChange={(event) => setRecurrence(event.target.value as typeof recurrence)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <select id="event-recurrence" value={recurrence} onChange={(event) => setRecurrence(event.target.value as typeof recurrence)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:text-sm">
                   <option value="none">Não repetir</option>
                   <option value="WEEKLY">Toda semana</option>
                   <option value="MONTHLY">Todo mês</option>
                 </select>
                 {recurrence !== "none" && <div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="event-repeat-every" className="grid gap-2 text-sm font-medium">Repetir a cada
-                    <select id="event-repeat-every" value={repeatEvery} onChange={(event) => setRepeatEvery(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <select id="event-repeat-every" value={repeatEvery} onChange={(event) => setRepeatEvery(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:text-sm">
                       {[1, 2, 3, 4].map((interval) => <option key={interval} value={interval}>{interval} {recurrence === "WEEKLY" ? interval === 1 ? "semana" : "semanas" : interval === 1 ? "mês" : "meses"}</option>)}
                     </select>
                   </label>
                   <label htmlFor="event-occurrences" className="grid gap-2 text-sm font-medium">Número de edições
-                    <input id="event-occurrences" type="number" min={2} max={52} step={1} value={occurrences} onChange={(event) => setOccurrences(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                    <input id="event-occurrences" type="number" min={2} max={52} step={1} value={occurrences} onChange={(event) => setOccurrences(Number(event.target.value))} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:text-sm" />
                   </label>
                   <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
                 </div>}
@@ -314,7 +314,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                         <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} onChange={(event) => { field.onChange(event); setCoordinates(null); }} />
                       )}
                       {mapsLoaded && (
-                        <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
+                        <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
                           {addressMode === "search" ? "Não encontrou? Digite o endereço" : "Buscar endereço no mapa"}
                         </button>
                       )}
@@ -353,7 +353,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   setBanner(file);
                 }} />
                 <p id="event-banner-help" className="mt-2 text-sm text-muted-foreground">Escolha uma imagem horizontal, nítida e com o assunto principal visível.</p>
-                {(bannerUrl || initialEvent?.banner) && <div className="relative mt-3 overflow-hidden rounded-xl border border-border"><img src={bannerUrl || initialEvent?.banner} alt="Prévia do banner selecionado" className="aspect-[16/9] w-full object-cover" />{bannerUrl && <button type="button" onClick={removeBanner} aria-label="Remover banner" className="absolute right-3 top-3 rounded-full bg-background p-2 text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button>}</div>}
+                {(bannerUrl || initialEvent?.banner) && <div className="relative mt-3 overflow-hidden rounded-xl border border-border"><img src={bannerUrl || initialEvent?.banner} alt="Prévia do banner selecionado" className="aspect-[16/9] w-full object-cover" />{bannerUrl && <button type="button" onClick={removeBanner} aria-label="Remover banner" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button>}</div>}
               </div>
               <div>
                 <label htmlFor="event-gallery" className="mb-2 block text-sm font-medium">Mais fotos <span className="font-normal text-muted-foreground">(opcional)</span></label>
@@ -366,7 +366,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   event.target.value = "";
                 }} />
                 <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores.</p>
-                {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 rounded-full bg-background p-1.5 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
+                {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
               </div>
             </div>
           </section>
@@ -378,7 +378,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start" aria-label="Ajuda para criar evento">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-surface">
             <div className="flex items-center gap-2 text-primary"><Sparkles className="h-5 w-5" /><h2 className="font-semibold">Seu evento, passo a passo</h2></div>
             <p className="mt-2 text-sm text-muted-foreground">Acompanhe o que falta para enviar.</p>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={completeCount} aria-valuemin={0} aria-valuemax={3} aria-label="Etapas preenchidas"><div className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none" style={{ width: `${(completeCount / 3) * 100}%` }} /></div>
@@ -386,7 +386,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             <ul className="mt-5 space-y-3">{checklist.map((item) => <li key={item.label} className="flex items-center gap-3 text-sm"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${item.ready ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{item.ready ? <Check className="h-4 w-4" /> : <span className="h-2 w-2 rounded-full bg-current" />}</span>{item.label}</li>)}</ul>
           </div>
           <div className="mt-4 rounded-2xl border border-accent bg-accent/40 p-5"><div className="flex items-center gap-2 font-semibold text-accent-foreground"><ImagePlus className="h-5 w-5" /> Dica de divulgação</div><p className="mt-2 text-sm text-foreground">Um título claro, uma descrição objetiva e um banner legível ajudam o público a reconhecer seu evento.</p></div>
-          {(nome.trim() || endereco.trim() || bannerUrl) && <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Prévia das informações do evento">
+          {(nome.trim() || endereco.trim() || bannerUrl) && <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card shadow-surface" aria-label="Prévia das informações do evento">
             {bannerUrl && <img src={bannerUrl} alt="" className="aspect-[16/9] w-full object-cover" />}
             <div className="p-4"><p className="text-xs font-semibold uppercase tracking-wide text-primary">Prévia do evento</p><h3 className="mt-2 break-words font-semibold">{nome.trim() || "Nome do evento"}</h3><p className="mt-1 break-words text-sm text-muted-foreground">{endereco.trim() || "O endereço aparecerá aqui"}</p></div>
           </div>}

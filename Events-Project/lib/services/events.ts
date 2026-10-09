@@ -1,6 +1,7 @@
 import { Evento } from "@/types";
 import prisma from "@/lib/prisma";
 import type { ResolveCurrentUser } from "@/lib/services/authContext";
+import { eventUpdateNotice } from "@/lib/eventScheduleChanges";
 import { notifyEventAudience } from "@/lib/eventNotifications";
 import { publicEventSelect } from "@/lib/eventQueries";
 import { parseEventInput } from "@/schemas/eventInput";
@@ -61,7 +62,7 @@ async function save(formData: FormData, userId: string | null, eventId: string |
             if (status === "PENDING")
                 await notifyEventAudience(transaction, event, { title: "Evento em revisão", message: "O evento foi enviado para análise.", includeAdmins: true });
             if (existing?.status === "PUBLISHED")
-                await notifyEventAudience(transaction, event, { title: "Evento atualizado", message: "O evento foi atualizado e está em revisão.", includeFavorites: true });
+                await notifyEventAudience(transaction, event, { ...eventUpdateNotice(existing, parsed.data), includeFavorites: true });
             if (existing?.status === "PUBLISHED")
                 await transaction.favorite.updateMany({ where: { eventId: event.id }, data: { reminderSentAt: null } });
             return event;

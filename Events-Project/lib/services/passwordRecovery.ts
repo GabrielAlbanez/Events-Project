@@ -73,7 +73,7 @@ export async function resetAccountPassword(input: unknown): Promise<{ message: s
     const userId = stored.identifier.slice("account-recovery:".length);
     const claimed = await tx.verificationToken.deleteMany({ where: { token: hash(token), identifier: stored.identifier, expires: { gt: new Date() } } });
     if (!claimed.count) throw new CommunityError(400, "Link inválido ou expirado. Solicite um novo link.");
-    const updated = await tx.user.updateMany({ where: { id: userId, password: { not: null } }, data: { password: passwordHash } });
+    const updated = await tx.user.updateMany({ where: { id: userId, password: { not: null } }, data: { password: passwordHash, sessionVersion: { increment: 1 } } });
     if (!updated.count) throw new CommunityError(400, "Link inválido ou expirado. Solicite um novo link.");
     await tx.communitySignal.create({ data: { room: `user:${userId}` } });
   });

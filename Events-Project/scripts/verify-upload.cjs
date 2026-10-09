@@ -29,16 +29,21 @@ function load(file, dependencies) {
       },
     }),
   };
+  let admitted = 0, quotaFailure = false;
   const route = load("app/api/upload/route.ts", {
     "@/lib/publicUrl": require("./load-public-url.cjs"),
     "next/server": { NextResponse: { json: (body, init) => ({ body, status: init.status ?? 200 }) } },
     "@/lib/prisma": { __esModule: true, default: prisma },
+    "@/lib/storage/profileUploadQuota": { admitProfileUpload: async id => { assert.equal(id, "u1"); if (quotaFailure) throw new storage.UploadError(429, "quota"); admitted++; } },
     "@/lib/adminAuth": { getAuthenticatedUser: async () => actor },
     "@/lib/storage/profileImages": { ...storage, boundedMultipart: async () => ({ get: key => key === "userId" ? "u1" : file }), saveProfileImage: async () => { savedCount++; return { url: "/uploads/safe.jpg", remove: async () => { rollback++; } }; } },
   });
   const request = { headers: new Headers(), nextUrl: { origin: "http://localhost", searchParams: new URLSearchParams() } };
   assert.equal((await route.POST(request)).status, 401); assert.equal(savedCount, 0);
   actor = { id: "u1" }; count = 0;
+  quotaFailure = true;
+  assert.equal((await route.POST(request)).status, 429); assert.equal(savedCount, 0);
+  quotaFailure = false;
   assert.equal((await route.POST(request)).status, 401); assert.equal(rollback, 1);
   count = 1; assert.equal((await route.POST(request)).status, 200);
   assert.deepEqual(notifications, [{
@@ -56,6 +61,10 @@ function load(file, dependencies) {
   assert.equal(errors[0][1].errorName, "Error");
   request.nextUrl.searchParams.set("purpose", "party");
   assert.equal((await route.POST(request)).status, 200); // No profile write even when user update fails.
+  const beforeQuota = savedCount;
+  quotaFailure = true;
+  assert.equal((await route.POST(request)).status, 429); assert.equal(savedCount, beforeQuota);
+  assert.equal(admitted, 4);
   request.nextUrl.searchParams.set("purpose", "other");
   assert.equal((await route.POST(request)).status, 400);
   request.headers.set("origin", "https://other.invalid"); assert.equal((await route.POST(request)).status, 403);
