@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "./discovery.module.css";
+import { LoggedHomePresentation } from "@/components/MyComponents/home/LoggedHomePresentation";
 import { HomePresentation } from "@/components/MyComponents/home/HomePresentation";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { StaggerList } from "@/components/animations/StaggerList";
@@ -114,7 +115,7 @@ export default function Home() {
       </header>
 
       <div ref={homeScrollContainer} className={styles.scroller}>
-      <HomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} />
+      {status === "authenticated" ? <LoggedHomePresentation key={session?.user?.id} events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} /> : <HomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} />}
       <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
