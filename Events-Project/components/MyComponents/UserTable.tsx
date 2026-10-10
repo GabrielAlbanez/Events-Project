@@ -25,7 +25,6 @@ import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { Evento, User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
-import { profileMediaUrl } from "@/lib/profileMediaUrl";
 import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
@@ -226,9 +225,9 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           <User
             avatarProps={{
               radius: "lg",
-              src: profileMediaUrl(user.image) || determineDefaultAvatar(user.name),
+              src: undefined,
               showFallback: true,
-              fallback: <ProfileAvatar name={user.name} size={40} className="h-full w-full rounded-lg" />,
+              fallback: <ProfileAvatar src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
               imgProps: { referrerPolicy: "no-referrer" },
             }}
             name={user.name}
@@ -380,12 +379,10 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               <div className="flex items-center gap-3">
                 <User
                   avatarProps={{
-                    src:
-                      profileMediaUrl(selectedUser.image) ||
-                      determineDefaultAvatar(selectedUser.name),
+                    src: undefined,
                     size: "lg",
                     showFallback: true,
-                    fallback: <ProfileAvatar name={selectedUser.name} size={56} className="h-full w-full rounded-full" />,
+                    fallback: <ProfileAvatar src={selectedUser.image || determineDefaultAvatar(selectedUser.name)} name={selectedUser.name} size={56} className="h-full w-full rounded-full object-cover" />,
                     imgProps: { referrerPolicy: "no-referrer" },
                   }}
                   name={selectedUser.name}
