@@ -47,3 +47,17 @@ assert.ok(reducedTickets.some(values=>values.some(([prop,value,important])=>prop
 const ticketLayout=rulesFor(agendaCss,'.ticket');assert.ok(ticketLayout.every(values=>!values.some(([prop,value])=>prop==='animation-timeline'||(prop==='animation'&&value!=='none'))),'Unsupported browsers have no ticket animation');
 for(const selector of ['.stub a','.main h3 a'])assert.deepEqual(rulesFor(agendaCss,selector),rulesFor(postcss.parse(cp.execFileSync('git',['show','601546f:Events-Project/'+path+'LoggedHomeAgenda.module.css'],{encoding:'utf8'})),selector),'44px targets remain unchanged');
 console.log('PASS: progressive touch ticket depth, visible static fallbacks, focus stability and unchanged touch targets');
+for(const cssName of ['LoggedHomeScroll.module.css','LoggedHomeAgenda.module.css']){
+ const css=postcss.parse(source(path+cssName));const headings=[];
+ css.walkRules('.headingLine>span[data-heading-line]',rule=>{if(rule.nodes.some(node=>node.prop==='animation-timeline'&&node.value==='view(block)'))headings.push(rule);});
+ assert.equal(headings.length,1,'Each home heading module has one touch timeline');
+ const parents=[];for(let parent=headings[0].parent;parent;parent=parent.parent)if(parent.type==='atrule')parents.push([parent.name,parent.params]);
+ assert.ok(parents.some(([name,params])=>name==='supports'&&params.includes('animation-timeline: view(block)')&&params.includes('overflow-clip-margin:12px')));
+ assert.ok(parents.some(([name,params])=>name==='media'&&params==='(prefers-reduced-motion:no-preference)'));
+ assert.ok(parents.some(([name,params])=>name==='media'&&params==='(max-width:1099px), (pointer:coarse), (hover:none)'));
+ const frames=[];css.walkAtRules('keyframes',rule=>{if(rule.params==='touchHeadingLine')frames.push(rule);});assert.equal(frames.length,1);
+ for(const frame of frames[0].nodes)assert.ok(frame.nodes.every(node=>node.type==='decl'&&node.prop==='transform'),'Headings animate only transform and never become transparent');
+ assert.deepEqual(frames[0].nodes.map(frame=>frame.nodes[0].value),['translateY(8px)','translateY(0)']);
+ assert.ok(rulesFor(css,'.headingLine').some(values=>values.some(([prop,value])=>prop==='overflow-clip-margin'&&value==='12px')),'Clip margin accommodates the whole moving line without layout shifts');
+}
+console.log('PASS: touch heading timelines, readable first paint, clipped reveal without opacity/layout changes');

@@ -67,3 +67,17 @@
  from { transform:perspective(800px) rotateX(6deg) scale(.97); opacity:1; }
  to { transform:perspective(800px) rotateX(0deg) scale(1); opacity:1; }
 }
+/* Touch headings stay readable, including when already visible on first paint. */
+@supports (animation-timeline: view(block)) and (overflow-clip-margin:12px) {
+ @media (prefers-reduced-motion:no-preference) {
+  @media (max-width:1099px), (pointer:coarse), (hover:none) {
+   .headingLine { overflow:clip; overflow-clip-margin:12px; }
+   .headingLine>span[data-heading-line] { animation:touchHeadingLine linear both; animation-timeline:view(block); animation-range:entry 0% entry 100%; }
+   .headingLine>span[data-heading-line="1"] { animation-range:entry 10% entry 100%; }
+  }
+ }
+}
+@keyframes touchHeadingLine {
+ from { transform:translateY(8px); }
+ to { transform:translateY(0); }
+}
