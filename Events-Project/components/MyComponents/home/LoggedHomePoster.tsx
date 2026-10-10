@@ -5,18 +5,26 @@ import { useState, type PointerEvent } from "react";
 import type { Evento } from "@/types";
 import styles from "./LoggedHomeScroll.module.css";
 
-export function posterFallback(id: string): string {
+export function posterFallback(id: string, index?: number): string {
+  if (index !== undefined && Number.isInteger(index) && index >= 0) return `/branding/posters/poster-${index % 6 + 1}.webp`;
   let hash = 0;
   for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return `/branding/posters/poster-${hash % 6 + 1}.webp`;
 }
-function safePosterSource(value: string | null | undefined, fallback: string): string {
+export function safePosterSource(value: string | null | undefined, fallback: string): string {
   if (!value || value !== value.trim()) return fallback;
   if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return value;
   try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : fallback; } catch { return fallback; }
 }
-export function LoggedHomePoster({ event, decorative = false, priority = false }: { event: Evento; decorative?: boolean; priority?: boolean }) {
-  const fallback = posterFallback(event.id);
+export function LoggedHomeEventBanner({ event, className, sizes, fallbackIndex }: { event: Evento; className?: string; sizes: string; fallbackIndex?: number }) {
+  const fallback = posterFallback(event.id, fallbackIndex);
+  const [failed, setFailed] = useState(false);
+  const source = failed ? fallback : safePosterSource(event.banner, fallback);
+  return <Image key={source} src={source} alt="" fill sizes={sizes} unoptimized={!source.startsWith("/")} onError={() => setFailed(true)} className={className} />;
+}
+
+export function LoggedHomePoster({ event, decorative = false, priority = false, fallbackIndex }: { event: Evento; decorative?: boolean; priority?: boolean; fallbackIndex?: number }) {
+  const fallback = posterFallback(event.id, fallbackIndex);
   const [failed, setFailed] = useState(false);
   const source = failed ? fallback : safePosterSource(event.banner, fallback);
   const tilt = (pointer: PointerEvent<HTMLDivElement>) => {

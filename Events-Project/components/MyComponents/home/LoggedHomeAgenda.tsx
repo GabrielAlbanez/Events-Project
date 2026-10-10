@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useSession } from "next-auth/react";
 import { ArrowUpRight, CalendarDays, MapPin, Ticket } from "lucide-react";
 import CheckInPass from "@/components/MyComponents/CheckInPass";
@@ -9,6 +9,7 @@ import { groupSavedEvents } from "@/lib/personalAgenda";
 import { eventInstant } from "@/lib/eventTime";
 import type { Evento } from "@/types";
 import styles from "./LoggedHomeAgenda.module.css";
+import { LoggedHomeEventBanner } from "./LoggedHomePoster";
 
 type RegistrationStatus = "CONFIRMED" | "CHECKED_IN" | "WAITLISTED" | "CANCELLED";
 type RegistrationValue = RegistrationStatus | "LOADING" | "ERROR" | null;
@@ -82,15 +83,15 @@ export default function LoggedHomeAgenda({ events, loading, error, onRetry, stac
   return <section ref={section} className={styles.section} id="logged-home-agenda" aria-labelledby="logged-home-agenda-title">
     <div className={styles.intro}>
       <span className={styles.eyebrow}>Minha agenda</span>
-      <h2 id="logged-home-agenda-title">Seus próximos<br />bons momentos.</h2>
+      <h2 id="logged-home-agenda-title"><span className={styles.headingLine}><span data-heading-line="0">Seus próximos</span></span>{" "}<span className={styles.headingLine}><span data-heading-line="1">bons momentos.</span></span></h2>
       <p>Os eventos que você salvou, em ordem. Sua inscrição e sua entrada aparecem aqui quando estiverem disponíveis.</p>
       <Link className={styles.action} href="/salvos">Abrir minha agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
     </div>
     <div className={styles.content}>
-      <div ref={stackRef} className={styles.stack} aria-busy={loading}>
-        {loading ? [0, 1, 2].map(index => <div key={index} className={`${styles.ticket} ${styles.skeleton}`} aria-hidden="true"><span /><span /><span /></div>) : error ? <div className={styles.empty} role="alert"><Ticket aria-hidden="true" /><h3>Sua agenda não carregou.</h3><p>Tente novamente para ver seus eventos salvos.</p><button className={styles.action} type="button" onClick={onRetry}>Tentar novamente</button></div> : upcoming.length ? upcoming.map((event, index) => <article key={event.id} className={styles.ticket} data-ticket data-home-ticket data-index={index}>
-          <div className={styles.main}><span className={styles.ticketLabel}>Evento salvo · {String(index + 1).padStart(2, "0")}</span><h3><Link href={`/eventos/${encodeURIComponent(event.id)}`}>{event.nome}</Link></h3><p><CalendarDays size={15} aria-hidden="true" />{eventDate(event)}</p><p><MapPin size={15} aria-hidden="true" /><span>{event.endereco || "Local a confirmar"}</span></p><span className={styles.status}>{registrationLabel(event.id)}</span></div>
-          <div className={styles.stub}><Ticket size={28} aria-hidden="true" /><Link href={`/eventos/${encodeURIComponent(event.id)}`} aria-label={`Ver detalhes de ${event.nome}`}>Ver evento <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+      <div ref={stackRef} className={styles.stack} aria-busy={loading} data-ticket-count={loading ? 3 : upcoming.length} style={{ "--ticket-count": loading ? 3 : Math.max(1, upcoming.length) } as CSSProperties}>
+        {loading ? [0, 1, 2].map(index => <div key={index} className={`${styles.ticket} ${styles.skeleton}`} aria-hidden="true"><span /><span /><span /></div>) : error ? <div className={styles.empty} role="alert"><Ticket aria-hidden="true" /><h3>Sua agenda não carregou.</h3><p>Tente novamente para ver seus eventos salvos.</p><button className={styles.action} type="button" onClick={onRetry}>Tentar novamente</button></div> : upcoming.length ? upcoming.map((event, index) => <article key={event.id} className={styles.ticket} data-ticket data-home-ticket data-index={index} data-next-event={index === 0 || undefined}>
+          <div className={styles.main}><span className={styles.ticketLabel}>Evento salvo · {String(index + 1).padStart(2, "0")}</span><h3><Link href={`/eventos/${encodeURIComponent(event.id)}`} title={event.nome}>{event.nome}</Link></h3><p><CalendarDays size={15} aria-hidden="true" />{eventDate(event)}</p><p><MapPin size={15} aria-hidden="true" /><span>{event.endereco || "Local a confirmar"}</span></p><span className={styles.status}>{registrationLabel(event.id)}</span></div>
+          <div className={styles.stub}><div className={styles.banner} aria-hidden="true"><LoggedHomeEventBanner key={`${event.id}:${event.banner || ""}`} event={event} className={styles.bannerImage} sizes="(max-width: 420px) 56px, 80px" /></div><Link href={`/eventos/${encodeURIComponent(event.id)}`} aria-label={`Ver detalhes de ${event.nome}`}>Ver evento <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
         </article>) : <div className={styles.empty}><Ticket aria-hidden="true" /><h3>Seu próximo plano começa aqui.</h3><p>Salve um evento para encontrá-lo na sua agenda.</p><Link className={styles.action} href="/#home-discovery">Explorar eventos <ArrowUpRight size={18} aria-hidden="true" /></Link></div>}
       </div>
       {!loading && !error && registrationError && <div className={styles.registrationError} role="status"><p>Não foi possível conferir uma ou mais inscrições. Os eventos continuam salvos na sua agenda.</p><button type="button" className={styles.action} disabled={registrationLoading} onClick={() => setRetryRegistrations(value => value + 1)}>{registrationLoading ? "Atualizando inscrições…" : "Tentar atualizar inscrições"}</button></div>}
