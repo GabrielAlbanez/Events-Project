@@ -55,7 +55,7 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  function updateTickets(value:number) {
   ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]").forEach((node,index)=>{
    const side=index-1;
-   write(node,`translate3d(${side*(value-.5)*18}px,${(value-.5)*-10}px,${index*14}px) rotateX(${(.5-value)*8}deg) rotateZ(${side*(value-.5)*5}deg)`);
+   write(node,`translate3d(${side*(value-.5)*140}px,${(value-.5)*-42}px,${index*30}px) rotateX(${(.5-value)*30}deg) rotateZ(${side*(value-.5)*12}deg)`);
   });
  }
  useMotionValueEvent(heroValue,"change",updateHero);

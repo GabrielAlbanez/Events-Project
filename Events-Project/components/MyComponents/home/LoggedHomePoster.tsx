@@ -10,11 +10,18 @@ export function posterFallback(id: string): string {
   for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return `/branding/posters/poster-${hash % 6 + 1}.webp`;
 }
-function safePosterSource(value: string | null | undefined, fallback: string): string {
+export function safePosterSource(value: string | null | undefined, fallback: string): string {
   if (!value || value !== value.trim()) return fallback;
   if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return value;
   try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : fallback; } catch { return fallback; }
 }
+export function LoggedHomeEventBanner({ event, className, sizes }: { event: Evento; className?: string; sizes: string }) {
+  const fallback = posterFallback(event.id);
+  const [failed, setFailed] = useState(false);
+  const source = failed ? fallback : safePosterSource(event.banner, fallback);
+  return <Image key={source} src={source} alt="" fill sizes={sizes} unoptimized={!source.startsWith("/")} onError={() => setFailed(true)} className={className} />;
+}
+
 export function LoggedHomePoster({ event, decorative = false, priority = false }: { event: Evento; decorative?: boolean; priority?: boolean }) {
   const fallback = posterFallback(event.id);
   const [failed, setFailed] = useState(false);
