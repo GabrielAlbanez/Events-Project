@@ -72,7 +72,8 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  }
  function updateMap(value:number) {
   const reveal=mapPlane.current?.querySelector<SVGRectElement>("[data-map-route-reveal]");if(reveal)reveal.style.transform=`scaleX(${clamp(value*1.4)})`;
-  write(mapPlane.current,`rotateX(${(1-value)*56}deg) rotateZ(${(1-value)*-10}deg) scale(${.85+value*.15})`);
+  const end=clamp((value-.76)/.24),zoom=end*end*(3-2*end)*.09;
+  write(mapPlane.current,`rotateX(${(1-value)*56}deg) rotateZ(${(1-value)*-10}deg) scale(${.85+value*.15+zoom})`);
   mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]").forEach(pin=>write(pin,`translateZ(${value*24}px) rotateX(${(1-value)*-56}deg)`));
  }
  function updateTickets(value:number) {

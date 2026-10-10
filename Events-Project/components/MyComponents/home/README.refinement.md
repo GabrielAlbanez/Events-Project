@@ -9,3 +9,4 @@ O teste verify-logged-home-refinement compara os efeitos e chamadas da agenda, o
 2. Pôsteres: seis fallbacks distribuídos por posição; hero e anel usam o mesmo índice de evento. Banners reais preservados. Lint, TypeScript, build e teste de fontes/fallbacks passaram.
 3. Carrossel mobile/tablet: rotateY e scale ligados à posição com view(inline), somente em @supports e sem movimento reduzido. Lint, TypeScript e build passaram.
 4. Hero → anel: camada decorativa de voo, medidas fora do loop de animação, transform/opacity e cleanup de resize/observer/refs. Luzes preservadas. Lint sem avisos, TypeScript e build passaram.
+5. Mapa ilustrado: zoom curto até 1.09 no último trecho; CTA e Google Maps real intactos. Lint, TypeScript e build passaram.
