@@ -11,3 +11,4 @@ O teste verify-logged-home-refinement compara os efeitos e chamadas da agenda, o
 4. Hero → anel: camada decorativa de voo, medidas fora do loop de animação, transform/opacity e cleanup de resize/observer/refs. Luzes preservadas. Lint sem avisos, TypeScript e build passaram.
 5. Mapa ilustrado: zoom curto até 1.09 no último trecho; CTA e Google Maps real intactos. Lint, TypeScript e build passaram.
 6. Títulos: máscaras por linha e translateY por scroll; texto visível no SSR, linhas já visíveis não são escondidas na hidratação e toque/reduced-motion continuam estáticos. Lint, TypeScript e build passaram.
+7. Fechamento: parallax/zoom discreto do título e brilho, sem mudar cores/opacidade; will-change removido ao parar e no cleanup. Lint sem avisos, TypeScript e build passaram.

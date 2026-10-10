@@ -51,6 +51,8 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  const {scrollYProgress:heroRaw} = useScroll({container,target:hero,offset:["start start","end start"]});
  const {scrollYProgress:ringRaw} = useScroll({container,target:ringSection,offset:["start start","end end"]});
  const {scrollYProgress:mapRaw} = useScroll({container,target:mapSection,offset:["start start","end end"]});
+ const {scrollYProgress:closingRaw}=useScroll({container,target:closing,offset:["start end","end start"]});
+ const closingProgress=useSpring(closingRaw,{stiffness:100,damping:28,mass:.4});
  const {scrollYProgress:ticketRaw} = useScroll({container,target:ticketStack,offset:["start end","end start"]});
  const heroProgress=useSpring(heroRaw,{stiffness:100,damping:25,mass:.4});
  const ringProgress=useSpring(ringRaw,{stiffness:120,damping:30,mass:.4});
@@ -100,6 +102,16 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
    write(node,`translate3d(${side*(value-.5)*140}px,${(value-.5)*-42}px,${index*30}px) rotateX(${(.5-value)*30}deg) rotateZ(${side*(value-.5)*12}deg)`);
   });
  }
+ function updateClosing(raw:number) {
+  const value=clamp(raw),node=closing.current;if(!node)return;
+  write(node.querySelector("h2"),`translate3d(0,${(.5-value)*28}px,0) scale(${.985+value*.03})`);
+  node.style.setProperty("--closing-glow-offset",`${(.5-value)*36}px`);
+  node.style.setProperty("--closing-glow-scale",String(1+value*.035));
+  node.style.setProperty("--closing-glow-change","transform");
+  const old=timers.current.get(node);if(old)clearTimeout(old);
+  timers.current.set(node,setTimeout(()=>{node.style.removeProperty("--closing-glow-change");timers.current.delete(node);},180));
+ }
+ useMotionValueEvent(closingProgress,"change",updateClosing);
  useMotionValueEvent(scrollY,"change",updateHeadings);
  useMotionValueEvent(heroValue,"change",updateHero);
  useMotionValueEvent(ringValue,"change",updateRing);
@@ -111,6 +123,7 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
   const resize=()=>{measureFlights();measureHeadings();updateHeadings(scrollY.get());updateHero(heroValue.get());};
   window.addEventListener("resize",resize);
   const sizes=new ResizeObserver(resize);if(hero.current?.parentElement)sizes.observe(hero.current.parentElement);if(hero.current)sizes.observe(hero.current);if(ring.current?.parentElement)sizes.observe(ring.current.parentElement);
+  updateClosing(closingProgress.get());
   activeIndex.current=-1;updateHero(heroValue.get());updateRing(ringValue.get());updateMap(mapValue.get());updateTickets(ticketValue.get());
   if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(overall.get())})`;
   const node=ring.current;
@@ -118,9 +131,10 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
   const resume=()=>{if(node && !node.contains(document.activeElement)){delete node.dataset.focusedIndex;updateRing(ringValue.get());}};
   const scrollNode=container.current;scrollNode?.addEventListener("scroll",resume,{passive:true});
   const heroNodes=[...heroPosters.current],flightNodes=[...flightPosters.current];
-  const moving=[...heroNodes,...flightNodes,...headingGeometry.current.map(item=>item.node),node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const moving=[...heroNodes,...flightNodes,...headingGeometry.current.map(item=>item.node),closing.current?.querySelector<HTMLElement>("h2"),node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const closingNode=closing.current;
   const pending=timers.current;
-  return()=>{window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];headingGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
+  return()=>{["--closing-glow-offset","--closing-glow-scale","--closing-glow-change"].forEach(key=>closingNode?.style.removeProperty(key));window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];headingGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
  // Ref containers are stable; eventKey refreshes newly loaded poster/card nodes.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[eventKey,count]);
