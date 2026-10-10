@@ -25,7 +25,8 @@
 .section a:focus-visible,.section button:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:4px; }
 @media(min-width:1100px) and (pointer:fine) and (prefers-reduced-motion:no-preference) { .section { grid-template-columns:.9fr 1.1fr; gap:72px; }.stack { gap:20px; transform-style:preserve-3d; }.ticket { min-height:205px; } }
 @media(max-width:420px) { .ticket { grid-template-columns:minmax(0,1fr) 76px; }.main { padding:18px; }.main h3 { font-size:21px; }.stub { padding:8px; }.section { padding-block:64px; } }
-@media(prefers-reduced-motion:reduce),(pointer:coarse) { .stack { perspective:none; }.ticket { transform:none!important; } }
+@media(pointer:coarse) { .stack { perspective:none; } }
+@media(prefers-reduced-motion:reduce) { .stack { perspective:none; }.ticket { transform:none!important; animation:none!important; } }
 
 .registrationError { margin-top:16px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); border-radius:calc(var(--radius) + 8px); padding:18px; color:hsl(var(--muted-foreground)); font-size:13px; line-height:1.6; }
 .registrationError p { margin-bottom:12px; }
@@ -52,3 +53,17 @@
 
 /* Keep ticket title links comfortable to tap without changing their destinations. */
 .main h3 a { display:block; min-height:44px; }
+
+/* Each touch ticket settles before it is read; the vertical layout stays unchanged. */
+@supports (animation-timeline: view(block)) {
+ @media (prefers-reduced-motion:no-preference) {
+  @media (max-width:1099px), (pointer:coarse), (hover:none) {
+   .ticket[data-ticket] { animation:touchTicketDepth linear both; animation-timeline:view(block); animation-range:entry 0% entry 100%; }
+   .ticket[data-ticket]:focus-within { animation:none; transform:none; }
+  }
+ }
+}
+@keyframes touchTicketDepth {
+ from { transform:perspective(800px) rotateX(6deg) scale(.97); opacity:1; }
+ to { transform:perspective(800px) rotateX(0deg) scale(1); opacity:1; }
+}
