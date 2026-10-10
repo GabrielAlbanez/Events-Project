@@ -15,6 +15,24 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  const timers = useRef(new Map<HTMLElement,ReturnType<typeof setTimeout>>());
  const activeIndex = useRef(-1);
  const flightGeometry=useRef<{x:number;y:number;endX:number;endY:number;scale:number}[]>([]);
+ const headingGeometry=useRef<{node:HTMLElement;top:number;height:number;index:number;revealed:boolean}[]>([]);
+ function measureHeadings() {
+  const scroll=container.current,root=hero.current?.parentElement;if(!scroll||!root)return;
+  const viewport=scroll.getBoundingClientRect(),previous=new Map(headingGeometry.current.map(item=>[item.node,item.revealed]));
+  headingGeometry.current=Array.from(root.querySelectorAll<HTMLElement>("[data-heading-line]")).map(node=>{
+   const transform=node.style.transform;node.style.removeProperty("transform");const bounds=node.getBoundingClientRect();node.style.transform=transform;
+   return {node,top:bounds.top-viewport.top+scroll.scrollTop,height:bounds.height,index:Number(node.dataset.headingLine)||0,revealed:previous.get(node)??(bounds.top<viewport.bottom&&bounds.bottom>viewport.top)};
+  });
+ }
+ function updateHeadings(value:number) {
+  const height=container.current?.clientHeight||1;
+  headingGeometry.current.forEach(item=>{
+   if(item.revealed)return;
+   const progress=clamp((value-(item.top-height*.9)-item.index*24)/(height*.42));
+   write(item.node,`translateY(${(1-progress)*item.height*1.15}px)`);
+   if(progress===1)item.revealed=true;
+  });
+ }
  function measureFlights() {
   const root=hero.current?.parentElement,stage=ring.current?.parentElement;
   if(!root||!stage||!ring.current)return;
@@ -29,7 +47,7 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
    return {x:bounds.left-origin.left+(bounds.width-width)/2,y:bounds.top-origin.top,endX:target.left-origin.left+target.width/2-width/2+Math.sin(angle)*radius*.5,endY:target.top-origin.top+target.height/2-width*4/3/2,scale:targetWidth/Math.max(1,width)};
   });
  }
- const {scrollYProgress:overall} = useScroll({container});
+ const {scrollYProgress:overall,scrollY} = useScroll({container});
  const {scrollYProgress:heroRaw} = useScroll({container,target:hero,offset:["start start","end start"]});
  const {scrollYProgress:ringRaw} = useScroll({container,target:ringSection,offset:["start start","end end"]});
  const {scrollYProgress:mapRaw} = useScroll({container,target:mapSection,offset:["start start","end end"]});
@@ -82,16 +100,17 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
    write(node,`translate3d(${side*(value-.5)*140}px,${(value-.5)*-42}px,${index*30}px) rotateX(${(.5-value)*30}deg) rotateZ(${side*(value-.5)*12}deg)`);
   });
  }
+ useMotionValueEvent(scrollY,"change",updateHeadings);
  useMotionValueEvent(heroValue,"change",updateHero);
  useMotionValueEvent(ringValue,"change",updateRing);
  useMotionValueEvent(mapValue,"change",updateMap);
  useMotionValueEvent(ticketValue,"change",updateTickets);
  useMotionValueEvent(overall,"change",value=>{if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(value)})`;});
  useEffect(()=>{
-  measureFlights();
-  const resize=()=>{measureFlights();updateHero(heroValue.get());};
+  measureFlights();measureHeadings();updateHeadings(scrollY.get());
+  const resize=()=>{measureFlights();measureHeadings();updateHeadings(scrollY.get());updateHero(heroValue.get());};
   window.addEventListener("resize",resize);
-  const sizes=new ResizeObserver(resize);if(hero.current)sizes.observe(hero.current);if(ring.current?.parentElement)sizes.observe(ring.current.parentElement);
+  const sizes=new ResizeObserver(resize);if(hero.current?.parentElement)sizes.observe(hero.current.parentElement);if(hero.current)sizes.observe(hero.current);if(ring.current?.parentElement)sizes.observe(ring.current.parentElement);
   activeIndex.current=-1;updateHero(heroValue.get());updateRing(ringValue.get());updateMap(mapValue.get());updateTickets(ticketValue.get());
   if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(overall.get())})`;
   const node=ring.current;
@@ -99,9 +118,9 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
   const resume=()=>{if(node && !node.contains(document.activeElement)){delete node.dataset.focusedIndex;updateRing(ringValue.get());}};
   const scrollNode=container.current;scrollNode?.addEventListener("scroll",resume,{passive:true});
   const heroNodes=[...heroPosters.current],flightNodes=[...flightPosters.current];
-  const moving=[...heroNodes,...flightNodes,node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const moving=[...heroNodes,...flightNodes,...headingGeometry.current.map(item=>item.node),node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
   const pending=timers.current;
-  return()=>{window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
+  return()=>{window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];headingGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
  // Ref containers are stable; eventKey refreshes newly loaded poster/card nodes.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[eventKey,count]);

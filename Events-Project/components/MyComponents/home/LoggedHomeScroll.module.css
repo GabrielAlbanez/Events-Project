@@ -50,3 +50,6 @@
 /* The flight layer contains only decorative posters, outside the clipped hero lights. */
 .flightLayer { position:absolute; inset:0; overflow:clip; pointer-events:none; z-index:3; }
 .flightPoster { position:absolute; top:0; left:0; width:240px; opacity:0; transform-origin:center; }
+
+.headingLine { display:block; overflow:hidden; padding-bottom:.12em; margin-bottom:-.12em; }
+.headingLine>span { display:block; }

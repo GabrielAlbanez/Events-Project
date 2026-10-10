@@ -46,3 +46,6 @@
  .ticket:focus-within { z-index:10; }
 }
 @media(max-width:420px) { .ticket { --stub-width:76px; }.banner { width:56px; }.stub { gap:12px; } }
+
+.headingLine { display:block; overflow:hidden; padding-bottom:.12em; margin-bottom:-.12em; }
+.headingLine>span { display:block; }

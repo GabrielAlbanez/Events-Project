@@ -83,7 +83,7 @@ export default function LoggedHomeAgenda({ events, loading, error, onRetry, stac
   return <section ref={section} className={styles.section} id="logged-home-agenda" aria-labelledby="logged-home-agenda-title">
     <div className={styles.intro}>
       <span className={styles.eyebrow}>Minha agenda</span>
-      <h2 id="logged-home-agenda-title">Seus próximos<br />bons momentos.</h2>
+      <h2 id="logged-home-agenda-title"><span className={styles.headingLine}><span data-heading-line="0">Seus próximos</span></span>{" "}<span className={styles.headingLine}><span data-heading-line="1">bons momentos.</span></span></h2>
       <p>Os eventos que você salvou, em ordem. Sua inscrição e sua entrada aparecem aqui quando estiverem disponíveis.</p>
       <Link className={styles.action} href="/salvos">Abrir minha agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
     </div>
