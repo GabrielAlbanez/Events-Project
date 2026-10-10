@@ -219,7 +219,7 @@ export default function Profile() {
               </ParallaxCard>
             </div>
             <CardContent className="relative px-6 pb-6 pt-0">
-              <ProfileAvatar src={profileImage || determineDefaultAvatar(account.name)} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
+              <ProfileAvatar preview src={profileImage || determineDefaultAvatar(account.name)} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
               <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
               <div className="mt-5">

@@ -107,7 +107,7 @@ export function AppSidebar() {
         {authenticatedUser ? (
           <>
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-surface md:rounded-2xl md:p-3">
-              <ProfileAvatar size={40} src={avatar} name={authenticatedUser.name} className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
+              <ProfileAvatar preview size={40} src={avatar} name={authenticatedUser.name} className="h-10 w-10 rounded-xl object-cover ring-2 ring-border" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{authenticatedUser.name || "Usuário"}</p>
                 <p className="truncate text-xs text-muted-foreground">{authenticatedUser.email}</p>

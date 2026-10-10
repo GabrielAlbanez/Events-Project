@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { ProfileAvatar } from "./ProfileAvatar";
 
-export function ChatAvatar({ name, image, className = "size-8 text-xs" }: { name: string; image?: string | null; className?: string }) {
-  return <span role="img" aria-label={`Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}><ProfileAvatar src={image} name={name} size={48} decorative className="h-full w-full object-cover" fallbackClassName="bg-transparent font-semibold text-primary" /></span>;
+export function ChatAvatar({ name, image, className = "size-8 text-xs", preview = false }: { name: string; image?: string | null; className?: string; preview?: boolean }) {
+  return <span role={preview ? undefined : "img"} aria-label={preview ? undefined : `Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}><ProfileAvatar preview={preview} src={image} name={name} size={48} decorative className="h-full w-full object-cover" fallbackClassName="bg-transparent font-semibold text-primary" /></span>;
 }
 
 export function ChatMessageImage({ url, onLoad }: { url: string; onLoad?: () => void }) {

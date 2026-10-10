@@ -227,7 +227,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               radius: "lg",
               src: undefined,
               showFallback: true,
-              fallback: <ProfileAvatar src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
+              fallback: <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
               imgProps: { referrerPolicy: "no-referrer" },
             }}
             name={user.name}
@@ -319,7 +319,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         {users.map(user => (
           <article key={user.id} role="listitem" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none">
             <div className="flex min-w-0 items-start gap-3">
-              <ProfileAvatar src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
                 <h3 className="break-words text-sm font-semibold text-foreground">{user.name || "Conta sem nome"}</h3>
                 <p className="mt-1 break-all text-xs text-muted-foreground">{user.email}</p>
