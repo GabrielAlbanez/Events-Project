@@ -61,3 +61,20 @@ for(const cssName of ['LoggedHomeScroll.module.css','LoggedHomeAgenda.module.css
  assert.ok(rulesFor(css,'.headingLine').some(values=>values.some(([prop,value])=>prop==='overflow-clip-margin'&&value==='12px')),'Clip margin accommodates the whole moving line without layout shifts');
 }
 console.log('PASS: touch heading timelines, readable first paint, clipped reveal without opacity/layout changes');
+const scene=source(path+'LoggedHomeScrollScene.tsx'),presentation=source(path+'LoggedHomePresentation.tsx');
+const initialScene=cp.execFileSync('git',['show','601546f:Events-Project/'+path+'LoggedHomeScrollScene.tsx'],{encoding:'utf8'});
+assert.deepEqual(calls(scene,['useScroll','useSpring']),calls(initialScene,['useScroll','useSpring']),'All scroll offsets and spring settings unchanged');
+assert.ok(!scene.includes('home-discovery'),'The animation controller never targets the real map');
+assert.match(presentation,/\{depth && <div ref=\{curtain\} className=\{styles.homeCurtain\} data-home-curtain aria-hidden="true" \/>\}/,'Decorative curtain exists only in desktop depth');
+const mapPosition=presentation.indexOf('<section ref={mapSection}'),agendaPosition=presentation.indexOf('<LoggedHomeAgenda'),closingPosition=presentation.indexOf('<section ref={closing}'),curtainPosition=presentation.indexOf('data-home-curtain');
+assert.ok(mapPosition<agendaPosition&&agendaPosition<closingPosition&&closingPosition<curtainPosition,'Map, agenda and closing order unchanged');
+const curtainRules=rulesFor(scrollCss,'.closing .homeCurtain');assert.equal(curtainRules.length,1);
+for(const [prop,value] of [['position','absolute'],['bottom','0'],['height','120px'],['pointer-events','none']])assert.ok(curtainRules[0].some(([key,entry])=>key===prop&&entry===value),'Home curtain is contained and noninteractive');
+assert.ok(!curtainRules[0].some(([prop])=>['z-index','filter','backdrop-filter'].includes(prop)),'Curtain does not overlay or filter the real map');
+assert.ok(scene.includes('mapNode?.style.removeProperty("opacity")')&&scene.includes('curtainNode?.style.removeProperty("opacity")'),'New fade styles are cleaned up');
+assert.match(scene,/zoom=end\*end\*\(3-2\*end\)\*\.16/);assert.match(scene,/Math\.sin\(Math\.PI\*handoff\)\*\.35/);
+for(const progress of [0,.2,.5,.76,.9,1]){
+ const end=Math.max(0,Math.min(1,(progress-.76)/.24)),opacity=1-end*end*(3-2*end)*.65;
+ assert.ok(opacity>=.35-1e-9&&opacity<=1);
+}
+console.log('PASS: home-only map exit and boundary curtain, preserved order/CTA destinations/scroll settings, fade cleanup');

@@ -6,14 +6,19 @@ export type LoggedHomeScrollSceneProps = {
  container: Plane; hero: RefObject<HTMLElement>; heroPosters: MutableRefObject<(HTMLElement | null)[]>;
  flightPosters: MutableRefObject<(HTMLElement | null)[]>;
  ringSection: RefObject<HTMLElement>; ring: Plane; mapSection: RefObject<HTMLElement>; mapPlane: Plane;
- ticketStack: Plane; closing: RefObject<HTMLElement>; progressBar: Plane;
+ ticketStack: Plane; closing: RefObject<HTMLElement>; progressBar: Plane; curtain: Plane;
  eventKey: string; count: number; onActive: (index: number) => void;
 };
 const clamp = (value: number) => Math.min(1,Math.max(0,value));
 export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps) {
- const {container,hero,heroPosters,flightPosters,ringSection,ring,mapSection,mapPlane,ticketStack,closing,progressBar,count,eventKey,onActive} = props;
+ const {container,hero,heroPosters,flightPosters,ringSection,ring,mapSection,mapPlane,ticketStack,closing,progressBar,curtain,count,eventKey,onActive} = props;
  const timers = useRef(new Map<HTMLElement,ReturnType<typeof setTimeout>>());
  const activeIndex = useRef(-1);
+ const curtainStart = useRef(.5);
+ function measureCurtain() {
+  const height=closing.current?.offsetHeight||0,viewport=container.current?.clientHeight||1;
+  curtainStart.current=height/(height+viewport);
+ }
  const flightGeometry=useRef<{x:number;y:number;endX:number;endY:number;scale:number}[]>([]);
  const headingGeometry=useRef<{node:HTMLElement;top:number;height:number;index:number;revealed:boolean}[]>([]);
  function measureHeadings() {
@@ -92,7 +97,8 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  }
  function updateMap(value:number) {
   const reveal=mapPlane.current?.querySelector<SVGRectElement>("[data-map-route-reveal]");if(reveal)reveal.style.transform=`scaleX(${clamp(value*1.4)})`;
-  const end=clamp((value-.76)/.24),zoom=end*end*(3-2*end)*.09;
+  const end=clamp((value-.76)/.24),zoom=end*end*(3-2*end)*.16;
+  if(mapPlane.current)mapPlane.current.style.opacity=String(1-end*end*(3-2*end)*.65);
   write(mapPlane.current,`rotateX(${(1-value)*56}deg) rotateZ(${(1-value)*-10}deg) scale(${.85+value*.15+zoom})`);
   mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]").forEach(pin=>write(pin,`translateZ(${value*24}px) rotateX(${(1-value)*-56}deg)`));
  }
@@ -104,6 +110,9 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  }
  function updateClosing(raw:number) {
   const value=clamp(raw),node=closing.current;if(!node)return;
+  const handoff=clamp((value-curtainStart.current)/Math.max(.001,1-curtainStart.current));
+  write(curtain.current,`translateY(${28*(1-handoff)}px) scaleY(${.92+handoff*.08})`);
+  if(curtain.current)curtain.current.style.opacity=String(Math.sin(Math.PI*handoff)*.35);
   write(node.querySelector("h2"),`translate3d(0,${(.5-value)*28}px,0) scale(${.985+value*.03})`);
   node.style.setProperty("--closing-glow-offset",`${(.5-value)*36}px`);
   node.style.setProperty("--closing-glow-scale",String(1+value*.035));
@@ -119,8 +128,8 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  useMotionValueEvent(ticketValue,"change",updateTickets);
  useMotionValueEvent(overall,"change",value=>{if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(value)})`;});
  useEffect(()=>{
-  measureFlights();measureHeadings();updateHeadings(scrollY.get());
-  const resize=()=>{measureFlights();measureHeadings();updateHeadings(scrollY.get());updateHero(heroValue.get());};
+  measureFlights();measureHeadings();measureCurtain();updateHeadings(scrollY.get());
+  const resize=()=>{measureFlights();measureHeadings();measureCurtain();updateHeadings(scrollY.get());updateHero(heroValue.get());updateClosing(closingProgress.get());};
   window.addEventListener("resize",resize);
   const sizes=new ResizeObserver(resize);if(hero.current?.parentElement)sizes.observe(hero.current.parentElement);if(hero.current)sizes.observe(hero.current);if(ring.current?.parentElement)sizes.observe(ring.current.parentElement);
   updateClosing(closingProgress.get());
@@ -131,10 +140,10 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
   const resume=()=>{if(node && !node.contains(document.activeElement)){delete node.dataset.focusedIndex;updateRing(ringValue.get());}};
   const scrollNode=container.current;scrollNode?.addEventListener("scroll",resume,{passive:true});
   const heroNodes=[...heroPosters.current],flightNodes=[...flightPosters.current];
-  const moving=[...heroNodes,...flightNodes,...headingGeometry.current.map(item=>item.node),closing.current?.querySelector<HTMLElement>("h2"),node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
-  const closingNode=closing.current;
+  const moving=[...heroNodes,...flightNodes,...headingGeometry.current.map(item=>item.node),closing.current?.querySelector<HTMLElement>("h2"),node,mapPlane.current,curtain.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const closingNode=closing.current,mapNode=mapPlane.current,curtainNode=curtain.current;
   const pending=timers.current;
-  return()=>{["--closing-glow-offset","--closing-glow-scale","--closing-glow-change"].forEach(key=>closingNode?.style.removeProperty(key));window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];headingGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
+  return()=>{mapNode?.style.removeProperty("opacity");curtainNode?.style.removeProperty("opacity");["--closing-glow-offset","--closing-glow-scale","--closing-glow-change"].forEach(key=>closingNode?.style.removeProperty(key));window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];headingGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
  // Ref containers are stable; eventKey refreshes newly loaded poster/card nodes.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[eventKey,count]);

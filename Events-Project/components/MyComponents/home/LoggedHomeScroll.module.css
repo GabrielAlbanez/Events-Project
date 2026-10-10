@@ -68,3 +68,6 @@
  from { transform:translateY(8px); }
  to { transform:translateY(0); }
 }
+/* Home-owned boundary, clipped inside the closing padding; never above the real map. */
+.closing .homeCurtain { position:absolute; inset-inline:0; bottom:0; height:120px; pointer-events:none; opacity:0; transform-origin:center bottom; background:linear-gradient(transparent,hsl(var(--background))); }
+@media (prefers-reduced-motion:reduce) { .homeCurtain { display:none; } }
