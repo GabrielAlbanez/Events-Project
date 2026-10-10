@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 export function ChatAvatar({ name, image, className = "size-8 text-xs" }: { name: string; image?: string | null; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [image]);
-  const initials = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase() || "?";
-  return <span role="img" aria-label={`Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}>
-    {image && !failed ? <img src={image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-full w-full object-cover" /> : initials}
-  </span>;
+  return <span role="img" aria-label={`Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}><ProfileAvatar src={image} name={name} size={48} decorative className="h-full w-full object-cover" fallbackClassName="bg-transparent font-semibold text-primary" /></span>;
 }
 
 export function ChatMessageImage({ url, onLoad }: { url: string; onLoad?: () => void }) {

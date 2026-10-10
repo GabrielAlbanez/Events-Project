@@ -10,12 +10,24 @@ function load(file) {
   return module.exports;
 }
 (async () => {
-  const { profileMediaUrl } = load('lib/profileMediaUrl.ts');
+  const { profileMediaUrl, profileImageIsOptimized } = load('lib/profileMediaUrl.ts');
   const asset = '12345678-1234-1234-1234-123456789012';
   assert.equal(profileMediaUrl('http://192.168.1.2:4100/v1/media/profile/' + asset), '/api/profile-media/' + asset);
   assert.equal(profileMediaUrl('/uploads/photo.png'), '/uploads/photo.png');
   assert.equal(profileMediaUrl('https://lh3.googleusercontent.com/photo'), 'https://lh3.googleusercontent.com/photo');
   assert.equal(profileMediaUrl(null), null);
+  assert.equal(profileMediaUrl(''), null);
+  assert.equal(profileMediaUrl('  '), null);
+  assert.equal(profileMediaUrl('javascript:alert(1)'), null);
+  assert.equal(profileMediaUrl('bad source'), null);
+  assert.equal(profileMediaUrl('https://other.invalid/avatar.jpg'), 'https://other.invalid/avatar.jpg');
+  assert.equal(profileMediaUrl('blob:https://site.invalid/preview'), 'blob:https://site.invalid/preview');
+  assert.equal(profileMediaUrl('/v1/media/events/' + asset), '/api/party-profile-media/' + asset);
+  assert.equal(profileMediaUrl('http://localhost:4100/uploads/' + asset + '.webp'), '/uploads/' + asset + '.webp');
+  assert.equal(profileImageIsOptimized('/api/party-profile-media/' + asset), false);
+  assert.equal(profileImageIsOptimized('https://other.invalid/avatar.jpg'), false);
+  assert.equal(profileImageIsOptimized('https://lh3.googleusercontent.com/photo'), true);
+  assert.equal(profileImageIsOptimized('blob:https://site.invalid/preview'), false);
   const { GET } = load('app/api/profile-media/[assetId]/route.ts');
   const read = assetId => GET(new Request('https://site.invalid'), { params: { assetId } });
   assert.equal((await read('../private')).status, 404); assert.equal(calls, 0);

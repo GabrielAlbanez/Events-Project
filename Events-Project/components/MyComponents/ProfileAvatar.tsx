@@ -3,29 +3,32 @@
 import Image from "next/image";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { profileMediaUrl } from "@/lib/profileMediaUrl";
+import { profileMediaUrl, profileImageIsOptimized } from "@/lib/profileMediaUrl";
 
 type ProfileAvatarProps = {
   src?: string | null;
   name?: string | null;
   className?: string;
   size: number;
+  decorative?: boolean;
+  label?: string;
+  fallbackClassName?: string;
+  initialsLength?: number;
 };
 
 export function ProfileAvatar(props: ProfileAvatarProps) {
   return <ProfileAvatarImage key={props.src || "empty"} {...props} />;
 }
 
-function ProfileAvatarImage({ src: originalSource, name, className, size }: ProfileAvatarProps) {
+function ProfileAvatarImage({ src: originalSource, name, className, size, decorative = false, label: customLabel, fallbackClassName, initialsLength = 2 }: ProfileAvatarProps) {
   const src = profileMediaUrl(originalSource);
   const [failedSource, setFailedSource] = useState<string | null>(null);
-  const label = `Foto de perfil de ${name || "usuário"}`;
-  const initials = (name?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("") || "U").toUpperCase();
-  const isOptimizedSource = Boolean(src && (src.startsWith("/") || /^https:\/\/(lh3\.googleusercontent\.com|cdnb\.artstation\.com|pbs\.twimg\.com)\//.test(src)));
+  const label = customLabel || `Foto de perfil de ${name || "usuário"}`;
+  const initials = (name?.trim().split(/\s+/).filter(Boolean).slice(0, initialsLength).map((part) => part[0]).join("") || "U").toUpperCase();
 
   if (!src || failedSource === src) {
-    return <span role="img" aria-label={label} className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden bg-muted font-semibold text-muted-foreground", className)}><span aria-hidden="true">{initials}</span></span>;
+    return <span role={decorative ? undefined : "img"} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden", fallbackClassName ?? "bg-muted font-semibold text-muted-foreground", className)}><span aria-hidden="true">{initials}</span></span>;
   }
 
-  return <Image key={src} src={src} alt={label} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!isOptimizedSource} className={className} onError={() => setFailedSource(src)} />;
+  return <Image src={src} alt={decorative ? "" : label} aria-hidden={decorative || undefined} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!profileImageIsOptimized(src)} className={className} onError={() => setFailedSource(src)} />;
 }

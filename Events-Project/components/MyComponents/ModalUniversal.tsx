@@ -1,4 +1,5 @@
 import React from "react";
+import { ProfileAvatar } from "./ProfileAvatar";
 import {
   Modal,
   ModalContent,
@@ -35,11 +36,7 @@ const ModalUniversal: React.FC<ModalUniversalProps> = ({
         </ModalHeader>
         <ModalBody>
           <div className="flex flex-col items-center">
-            <img
-              src={imageSrc}
-              alt="Prévia da foto escolhida"
-              className="w-64 h-64 rounded-full object-cover"
-            />
+            <ProfileAvatar src={imageSrc} name="Você" label="Prévia da foto escolhida" size={256} className="w-64 h-64 rounded-full object-cover" />
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           {pending && <p role="status" className="text-sm text-muted-foreground">Enviando e salvando sua foto…</p>}

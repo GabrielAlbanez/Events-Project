@@ -1,6 +1,5 @@
 "use client";
-import { useState } from "react";
+import { ProfileAvatar } from "./ProfileAvatar";
 export default function PartyAvatar({ url, name, decorative = false }: { url: string; name: string; decorative?: boolean }) {
-  const [failed, setFailed] = useState(false);
-  return url && !failed ? <img src={url} alt={decorative ? "" : `Foto escolhida por ${name}`} loading="lazy" referrerPolicy="no-referrer" className="size-full object-cover" onError={() => setFailed(true)} /> : <span aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>;
+  return <ProfileAvatar src={url} name={name} size={128} initialsLength={1} decorative={decorative} label={`Foto escolhida por ${name}`} className="size-full object-cover" fallbackClassName="bg-transparent text-inherit" />;
 }
