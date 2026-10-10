@@ -24,6 +24,7 @@ export function LoggedHomePresentation({ events, loading, loadError, scrollConta
   const routeClip = useId().replace(/:/g, "");
   const hero = useRef<HTMLElement>(null), ringSection = useRef<HTMLElement>(null), mapSection = useRef<HTMLElement>(null), closing = useRef<HTMLElement>(null);
   const heroPosters = useRef<(HTMLElement | null)[]>([]);
+  const flightPosters = useRef<(HTMLElement | null)[]>([]);
   const ring = useRef<HTMLDivElement>(null), mapPlane = useRef<HTMLDivElement>(null), ticketStack = useRef<HTMLDivElement>(null), progressBar = useRef<HTMLDivElement>(null);
   const [depth, setDepth] = useState(false), [active, setActive] = useState(0);
   const [greeting, setGreeting] = useState("Olá"), [today, setToday] = useState("");
@@ -73,7 +74,7 @@ export function LoggedHomePresentation({ events, loading, loadError, scrollConta
   };
   return <div className={styles.presentation} data-depth={depth || undefined}>
     <div ref={progressBar} className={styles.progress} aria-hidden="true" />
-    {depth && <LoggedHomeScrollScene container={scrollContainer} hero={hero} heroPosters={heroPosters} ringSection={ringSection} ring={ring} mapSection={mapSection} mapPlane={mapPlane} ticketStack={ticketStack} closing={closing} progressBar={progressBar} eventKey={`${cardKey}:${data.recommendationsLoading}:${data.agendaLoading}:${data.saved.map(event => event.id).join("|")}`} count={suggestions.length} onActive={setActive} />}
+    {depth && <LoggedHomeScrollScene container={scrollContainer} hero={hero} heroPosters={heroPosters} flightPosters={flightPosters} ringSection={ringSection} ring={ring} mapSection={mapSection} mapPlane={mapPlane} ticketStack={ticketStack} closing={closing} progressBar={progressBar} eventKey={`${cardKey}:${data.recommendationsLoading}:${data.agendaLoading}:${data.saved.map(event => event.id).join("|")}`} count={suggestions.length} onActive={setActive} />}
     <section ref={hero} className={styles.hero} aria-labelledby="logged-home-title">
       <div className={styles.beams} aria-hidden="true"><span /><span /></div>
       <div className={styles.sparks} aria-hidden="true">{[0,1,2,3,4,5,6,7].map(index => <i key={index} style={{ left: `${12 + index * 11}%`, top: `${18 + index % 3 * 22}%`, animationDelay: `${-index * .7}s` }} />)}</div>
@@ -81,6 +82,7 @@ export function LoggedHomePresentation({ events, loading, loadError, scrollConta
       <div className={styles.stage} aria-hidden="true"><div className={styles.floor} /><span className={styles.orb} /><span className={styles.orbSecondary} />{[1,2,0].map((eventIndex, position) => <div key={position} ref={node => { heroPosters.current[position] = node; }} className={`${styles.float} ${styles[`float${position}`]}`}><div className={styles.bob}>{suggestions[eventIndex] ? <LoggedHomePoster event={suggestions[eventIndex].event} fallbackIndex={eventIndex} decorative priority={position === 2} /> : <div className={styles.posterPlaceholder} />}</div></div>)}</div></div>
       <a href="#home-for-you" onClick={navigate} className={styles.cue}><ArrowDown size={16} aria-hidden="true" /> Continue explorando</a>
     </section>
+    {depth && <div className={styles.flightLayer} aria-hidden="true">{[1,2,0].map((eventIndex, position) => suggestions[eventIndex] ? <div key={suggestions[eventIndex].event.id} ref={node => { flightPosters.current[position] = node; }} className={styles.flightPoster}><LoggedHomePoster event={suggestions[eventIndex].event} fallbackIndex={eventIndex} decorative /></div> : null)}</div>}
     <section id="home-for-you" ref={ringSection} tabIndex={-1} className={styles.ringSection} data-count={suggestions.length} data-loading={data.recommendationsLoading || undefined} aria-labelledby="logged-recommendations-title">
       <div className={styles.pin}><div className={styles.sectionHeading}><span className={styles.sectionLabel}>Escolhas para você</span><h2 id="logged-recommendations-title">O próximo plano<br />tem a sua cara.</h2><p>Eventos da agenda, escolhidos a partir das suas descobertas.</p>{data.recommendationsError && suggestions.length > 0 && <div role="status" className={styles.fallbackNotice}><p>Suas recomendações estão indisponíveis. Exibimos próximos eventos da agenda.</p><button type="button" className={styles.secondaryAction} onClick={data.retryRecommendations}>Tentar novamente</button></div>}</div>
       

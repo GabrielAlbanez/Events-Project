@@ -4,15 +4,31 @@ import { useMotionValueEvent, useScroll, useSpring, useTransform } from "framer-
 type Plane = RefObject<HTMLDivElement>;
 export type LoggedHomeScrollSceneProps = {
  container: Plane; hero: RefObject<HTMLElement>; heroPosters: MutableRefObject<(HTMLElement | null)[]>;
+ flightPosters: MutableRefObject<(HTMLElement | null)[]>;
  ringSection: RefObject<HTMLElement>; ring: Plane; mapSection: RefObject<HTMLElement>; mapPlane: Plane;
  ticketStack: Plane; closing: RefObject<HTMLElement>; progressBar: Plane;
  eventKey: string; count: number; onActive: (index: number) => void;
 };
 const clamp = (value: number) => Math.min(1,Math.max(0,value));
 export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps) {
- const {container,hero,heroPosters,ringSection,ring,mapSection,mapPlane,ticketStack,closing,progressBar,count,eventKey,onActive} = props;
+ const {container,hero,heroPosters,flightPosters,ringSection,ring,mapSection,mapPlane,ticketStack,closing,progressBar,count,eventKey,onActive} = props;
  const timers = useRef(new Map<HTMLElement,ReturnType<typeof setTimeout>>());
  const activeIndex = useRef(-1);
+ const flightGeometry=useRef<{x:number;y:number;endX:number;endY:number;scale:number}[]>([]);
+ function measureFlights() {
+  const root=hero.current?.parentElement,stage=ring.current?.parentElement;
+  if(!root||!stage||!ring.current)return;
+  const origin=root.getBoundingClientRect(),target=stage.getBoundingClientRect(),targetWidth=ring.current.offsetWidth;
+  const radius=Number.parseFloat(ring.current.style.getPropertyValue("--ring-radius"))||170;
+  flightGeometry.current=heroPosters.current.map((node,index)=>{
+   const copy=flightPosters.current[index];if(!node||!copy)return {x:0,y:0,endX:0,endY:0,scale:1};
+   const transform=node.style.transform;node.style.removeProperty("transform");
+   const bounds=node.getBoundingClientRect(),width=node.offsetWidth;node.style.transform=transform;
+   copy.style.width=width+"px";
+   const eventIndex=[1,2,0][index],angle=eventIndex*2*Math.PI/Math.max(1,count);
+   return {x:bounds.left-origin.left+(bounds.width-width)/2,y:bounds.top-origin.top,endX:target.left-origin.left+target.width/2-width/2+Math.sin(angle)*radius*.5,endY:target.top-origin.top+target.height/2-width*4/3/2,scale:targetWidth/Math.max(1,width)};
+  });
+ }
  const {scrollYProgress:overall} = useScroll({container});
  const {scrollYProgress:heroRaw} = useScroll({container,target:hero,offset:["start start","end start"]});
  const {scrollYProgress:ringRaw} = useScroll({container,target:ringSection,offset:["start start","end end"]});
@@ -35,6 +51,13 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  function updateHero(value: number) {
   heroPosters.current.forEach((node,index)=>{
    const side=[-1,1,0][index] ?? 0;
+   const flight=clamp((value-.35)/.65),copy=flightPosters.current[index],geometry=flightGeometry.current[index];
+   if(node)node.style.opacity=String(1-clamp(flight/.12));
+   if(copy&&geometry){
+    const ease=flight*flight*(3-2*flight);
+    write(copy,`perspective(1000px) translate3d(${geometry.x+(geometry.endX-geometry.x)*ease}px,${geometry.y+(geometry.endY-geometry.y)*ease}px,0) rotateY(${side*12*(1-ease)}deg) rotateZ(${side*5*(1-ease)}deg) scale(${1+(geometry.scale-1)*ease})`);
+    copy.style.opacity=String(clamp(flight/.12)*clamp((1-flight)/.18));
+   }
    write(node,`translate3d(0,${-value * (index===2?130:70+index*24)}px,${index===2?70:20}px) rotateY(${side*12-value*side*8}deg) rotateZ(${side*5}deg)`);
   });
  }
@@ -64,15 +87,20 @@ export default function LoggedHomeScrollScene(props: LoggedHomeScrollSceneProps)
  useMotionValueEvent(ticketValue,"change",updateTickets);
  useMotionValueEvent(overall,"change",value=>{if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(value)})`;});
  useEffect(()=>{
+  measureFlights();
+  const resize=()=>{measureFlights();updateHero(heroValue.get());};
+  window.addEventListener("resize",resize);
+  const sizes=new ResizeObserver(resize);if(hero.current)sizes.observe(hero.current);if(ring.current?.parentElement)sizes.observe(ring.current.parentElement);
   activeIndex.current=-1;updateHero(heroValue.get());updateRing(ringValue.get());updateMap(mapValue.get());updateTickets(ticketValue.get());
   if(progressBar.current)progressBar.current.style.transform=`scaleX(${clamp(overall.get())})`;
   const node=ring.current;
   const focus=()=>updateRing(ringValue.get());node?.addEventListener("home-ring-focus",focus);
   const resume=()=>{if(node && !node.contains(document.activeElement)){delete node.dataset.focusedIndex;updateRing(ringValue.get());}};
   const scrollNode=container.current;scrollNode?.addEventListener("scroll",resume,{passive:true});
-  const moving=[...heroPosters.current,node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
+  const heroNodes=[...heroPosters.current],flightNodes=[...flightPosters.current];
+  const moving=[...heroNodes,...flightNodes,node,mapPlane.current,...Array.from(mapPlane.current?.querySelectorAll<SVGRectElement>("[data-map-route-reveal]")??[]),...Array.from(mapPlane.current?.querySelectorAll<HTMLElement>("[data-map-pin]")??[]),...Array.from(ticketStack.current?.querySelectorAll<HTMLElement>("[data-ticket]")??[]),progressBar.current];
   const pending=timers.current;
-  return()=>{scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
+  return()=>{window.removeEventListener("resize",resize);sizes.disconnect();flightGeometry.current=[];heroNodes.forEach(item=>item?.style.removeProperty("opacity"));flightNodes.forEach(item=>{item?.style.removeProperty("opacity");item?.style.removeProperty("width");});scrollNode?.removeEventListener("scroll",resume);node?.removeEventListener("home-ring-focus",focus);pending.forEach(timer=>clearTimeout(timer));pending.clear();moving.forEach(item=>{item?.style.removeProperty("transform");item?.style.removeProperty("will-change");});};
  // Ref containers are stable; eventKey refreshes newly loaded poster/card nodes.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[eventKey,count]);

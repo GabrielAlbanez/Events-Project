@@ -46,3 +46,7 @@
  50% { transform:rotateY(0deg) scale(1); }
  100% { transform:rotateY(-14deg) scale(.88); }
 }
+
+/* The flight layer contains only decorative posters, outside the clipped hero lights. */
+.flightLayer { position:absolute; inset:0; overflow:clip; pointer-events:none; z-index:3; }
+.flightPoster { position:absolute; top:0; left:0; width:240px; opacity:0; transform-origin:center; }
