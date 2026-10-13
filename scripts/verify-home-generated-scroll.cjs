@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const presentation = read('components/MyComponents/home/HomePresentation.tsx');
+const scene = read('components/MyComponents/home/HomeScrollScene.tsx');
+const css = read('components/MyComponents/home/HomeScroll.module.css');
+assert.match(presentation, /import Image from "next\/image"/);
+assert.match(presentation, /\["live", "jazz", "sunset"\]/);
+assert.match(presentation, /priority=\{index === 0\}/);
+assert.match(presentation, /sizes="/);
+assert.match(presentation, /events\.slice\(0, 3\)/);
+assert.match(presentation, /href=\{`\/eventos\/\$\{event\.id\}`\}/);
+assert.equal((scene.match(/useScroll\(\{container,target:/g) || []).length, 3);
+assert.match(scene, /heroPosters\.current\.forEach/);
+assert.match(scene, /translate3d/);
+assert.match(scene, /rotateY/);
+assert.match(scene, /observer\.disconnect\(\)/);
+assert.match(scene, /clearTimeout\(cleanupTimer\.current\)/);
+assert.match(scene, /removeProperty\("will-change"\)/);
+assert.doesNotMatch(scene, /window\.addEventListener\("scroll"|setState/);
+assert.match(css, /animation-timeline: view\(\)/);
+assert.match(css, /prefers-reduced-motion: reduce/);
+assert.match(css, /aspect-ratio: 3 \/ 4/);
+assert.match(css, /\.heroPoster, \.heroPosterInner \{ animation: none !important/);
+for (const name of ['live', 'jazz', 'sunset']) {
+ const file = path.join(root, `public/branding/home-${name}-v1.webp`);
+ assert.ok(fs.existsSync(file), `Missing generated ${name} asset`);
+ assert.ok(fs.statSync(file).size <= 65 * 1024, `${name} asset exceeds 65KB`);
+}
+console.log('Generated home scroll guards passed (source contracts and image budget).');
