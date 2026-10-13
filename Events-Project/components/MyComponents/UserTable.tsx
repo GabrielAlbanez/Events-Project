@@ -225,6 +225,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           <User
             avatarProps={{
               radius: "lg",
+              classNames: { fallback: "h-full w-full" },
               src: undefined,
               showFallback: true,
               fallback: <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
@@ -381,6 +382,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                   avatarProps={{
                     src: undefined,
                     size: "lg",
+                    classNames: { fallback: "h-full w-full" },
                     showFallback: true,
                     fallback: <ProfileAvatar src={selectedUser.image || determineDefaultAvatar(selectedUser.name)} name={selectedUser.name} size={56} className="h-full w-full rounded-full object-cover" />,
                     imgProps: { referrerPolicy: "no-referrer" },

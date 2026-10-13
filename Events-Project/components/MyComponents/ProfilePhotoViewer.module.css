@@ -1,0 +1,26 @@
+/* Entrance runs on the mounted portal content; CSS keeps the Radix exit lifecycle. */
+.viewer.viewer[data-state="open"] {
+  animation: none;
+}
+
+.viewer.viewer[data-state="closed"] {
+  animation: photoDismiss 150ms ease-in both;
+}
+
+@keyframes photoDismiss {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer.viewer[data-state] {
+    animation: none;
+    transition: none;
+  }
+}

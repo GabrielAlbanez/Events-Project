@@ -33,5 +33,5 @@ function ProfileAvatarImage({ src: originalSource, name, className, size, decora
   }
 
   const image = <Image src={src} alt={decorative ? "" : label} aria-hidden={decorative || undefined} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!profileImageIsOptimized(src)} className={preview ? "h-full w-full rounded-[inherit] object-cover" : className} onError={() => setFailedSource(src)} />;
-  return preview ? <ProfilePhotoViewer src={src} label={label} className={className}>{image}</ProfilePhotoViewer> : image;
+  return preview ? <ProfilePhotoViewer src={src} label={label} name={name} className={className}>{image}</ProfilePhotoViewer> : image;
 }
