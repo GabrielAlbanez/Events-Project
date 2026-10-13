@@ -11,7 +11,7 @@ export function LoginPresentation() {
         <p className="mt-3 text-sm leading-6 text-muted-foreground xl:text-base xl:leading-7">Eventos por perto, pessoas para conhecer e experiências para viver.</p>
       </div>
       <div aria-hidden="true" className="relative mt-4 h-24 overflow-hidden rounded-3xl border border-border bg-muted xl:mt-7 xl:h-auto xl:aspect-square">
-        <Image src="/branding/login-city-v1.webp" alt="" width={960} height={960} sizes="(min-width: 1280px) 460px, (min-width: 448px) 448px, 100vw" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/branding/login-night-v2.webp" alt="" width={960} height={960} sizes="(min-width: 1280px) 460px, (min-width: 448px) 448px, 100vw" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         <ParallaxCard pointerHost="parent" className="pointer-events-none absolute inset-0 hidden xl:block" decorationClassName="absolute inset-0" secondaryClassName="absolute inset-0" secondaryDecoration={<span className="absolute bottom-8 right-5 flex items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 text-xs font-medium text-foreground shadow-surface"><CalendarDays className="h-4 w-4 text-primary" />Sua próxima experiência</span>}>
           <span className="absolute left-5 top-7 flex items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2.5 text-xs font-medium text-foreground shadow-surface"><MapPin className="h-4 w-4 text-primary" />Descubra por perto</span>
           <span className="absolute bottom-8 left-5 grid h-12 w-12 place-items-center rounded-2xl border border-border bg-card/95 text-primary shadow-surface"><MapPin className="h-5 w-5" /></span>
