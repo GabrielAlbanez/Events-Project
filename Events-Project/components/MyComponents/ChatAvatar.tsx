@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { ProfileAvatar } from "./ProfileAvatar";
+import type { PhotoViewerPhoto } from "@/lib/photoViewer";
 import { PhotoViewer } from "./PhotoViewer";
 import { profileMediaUrl } from "@/lib/profileMediaUrl";
 
-export function ChatAvatar({ name, image, className = "size-8 text-xs", preview = false }: { name: string; image?: string | null; className?: string; preview?: boolean }) {
-  return <span role={preview ? undefined : "img"} aria-label={preview ? undefined : `Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}><ProfileAvatar preview={preview} src={image} name={name} size={48} decorative className="h-full w-full object-cover" fallbackClassName="bg-transparent font-semibold text-primary" /></span>;
+export function ChatAvatar({ name, image, className = "size-8 text-xs", preview = false, gallery, photoId }: { name: string; image?: string | null; className?: string; preview?: boolean; gallery?: readonly PhotoViewerPhoto[]; photoId?: string }) {
+  return <span role={preview ? undefined : "img"} aria-label={preview ? undefined : `Foto de ${name}`} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 font-semibold text-primary ${className}`}><ProfileAvatar gallery={gallery} photoId={photoId} preview={preview} src={image} name={name} size={48} decorative className="h-full w-full object-cover" fallbackClassName="bg-transparent font-semibold text-primary" /></span>;
 }
 
-export function ChatMessageImage({ url, onLoad }: { url: string; onLoad?: () => void }) {
+export function ChatMessageImage({ url, onLoad, gallery, photoId }: { url: string; onLoad?: () => void; gallery?: readonly PhotoViewerPhoto[]; photoId?: string }) {
   const [failed, setFailed] = useState(false);
   const source = profileMediaUrl(url);
   useEffect(() => setFailed(false), [url]);
   if (failed || !source) return <div className="my-2 space-y-2"><p role="status" className="text-xs">Não foi possível carregar a foto.</p><button type="button" onClick={() => setFailed(false)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-current/20 px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar carregar foto</button></div>;
-  return <PhotoViewer src={source} label="Foto enviada na conversa" mode="message" className="mb-2 max-w-full overflow-hidden rounded-xl"><img src={source} alt="Foto enviada na conversa" referrerPolicy="no-referrer" loading="lazy" onLoad={onLoad} onError={() => setFailed(true)} className="max-h-72 max-w-full object-contain" /></PhotoViewer>;
+  return <PhotoViewer gallery={gallery} photoId={photoId} src={source} label="Foto enviada na conversa" mode="message" className="mb-2 max-w-full overflow-hidden rounded-xl"><img src={source} alt="Foto enviada na conversa" referrerPolicy="no-referrer" loading="lazy" onLoad={onLoad} onError={() => setFailed(true)} className="max-h-72 max-w-full object-contain" /></PhotoViewer>;
 }

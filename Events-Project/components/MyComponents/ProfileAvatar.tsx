@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { ProfilePhotoViewer } from "./ProfilePhotoViewer";
+import type { PhotoViewerPhoto } from "@/lib/photoViewer";
 import { cn } from "@/lib/utils";
 import { profileMediaUrl, profileImageIsOptimized } from "@/lib/profileMediaUrl";
 
@@ -16,13 +17,15 @@ type ProfileAvatarProps = {
   fallbackClassName?: string;
   initialsLength?: number;
   preview?: boolean;
+  gallery?: readonly PhotoViewerPhoto[];
+  photoId?: string;
 };
 
 export function ProfileAvatar(props: ProfileAvatarProps) {
   return <ProfileAvatarImage key={props.src || "empty"} {...props} />;
 }
 
-function ProfileAvatarImage({ src: originalSource, name, className, size, decorative = false, label: customLabel, fallbackClassName, initialsLength = 2, preview = false }: ProfileAvatarProps) {
+function ProfileAvatarImage({ src: originalSource, name, className, size, decorative = false, label: customLabel, fallbackClassName, initialsLength = 2, preview = false, gallery, photoId }: ProfileAvatarProps) {
   const src = profileMediaUrl(originalSource);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const label = customLabel || `Foto de perfil de ${name || "usuário"}`;
@@ -33,5 +36,5 @@ function ProfileAvatarImage({ src: originalSource, name, className, size, decora
   }
 
   const image = <Image src={src} alt={decorative ? "" : label} aria-hidden={decorative || undefined} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!profileImageIsOptimized(src)} className={preview ? "h-full w-full rounded-[inherit] object-cover" : className} onError={() => setFailedSource(src)} />;
-  return preview ? <ProfilePhotoViewer src={src} label={label} className={className}>{image}</ProfilePhotoViewer> : image;
+  return preview ? <ProfilePhotoViewer gallery={gallery} photoId={photoId} src={src} label={label} className={className}>{image}</ProfilePhotoViewer> : image;
 }

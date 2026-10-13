@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowUpRight, Users } from "lucide-react";
@@ -21,6 +21,7 @@ function PeoplePreview({ eventId, status }: { eventId: string; status: "loading"
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<PartyConnectionsSnapshot | null>(null);
   const [error, setError] = useState("");
+  const photoGallery = useMemo(() => (data?.profiles.slice(0, 6) ?? []).map(profile => ({ id: profile.userId, src: profile.photoUrl, label: `Foto escolhida por ${profile.displayName}` })), [data?.profiles]);
   const connections = `/eventos/${encodeURIComponent(eventId)}/conexoes`;
   useEffect(() => { active.current = true; return () => { active.current = false; request.current?.abort(); }; }, []);
 
@@ -51,7 +52,7 @@ function PeoplePreview({ eventId, status }: { eventId: string; status: "loading"
     {status === "unauthenticated" ? <Link href="/login" className={`${action} mt-4`}>Entre para conhecer participantes</Link> : <button type="button" disabled={status === "loading" || loading} aria-expanded={opened} aria-controls={`${id}-people`} onClick={() => void load()} className={`${action} mt-4`}>{loading ? "Consultando conexões…" : opened ? "Atualizar participantes" : "Ver participantes"}</button>}
     {opened && <div id={`${id}-people`} aria-busy={loading} className="mt-4 space-y-3">
       {loading ? <p role="status" className="text-sm text-muted-foreground">Buscando perfis disponíveis…</p> : error ? <div><p role="alert" className="text-sm text-destructive">{error}</p><button type="button" onClick={() => void load()} className={`${action} mt-3`}>Tentar novamente</button></div> : data && !data.eligible ? <p className="text-sm leading-relaxed text-muted-foreground">Confirme sua presença neste evento para conhecer outros participantes. Se estiver na lista de espera, aguarde a confirmação da vaga.</p> : data && !data.mine?.active ? <div><p className="text-sm leading-relaxed text-muted-foreground">Você decide participar: crie ou ative seu perfil nas conexões para ver outras pessoas e escolher como aparecer.</p><Link href={connections} className={`${action} mt-3 text-primary`}>Configurar meu perfil <ArrowUpRight aria-hidden="true" className="size-4" /></Link></div> : data && <>
-        {data.profiles.length > 0 ? <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{data.profiles.slice(0, 6).map(profile => <li key={profile.userId} className="flex min-w-0 flex-col items-center gap-2 rounded-xl bg-muted/40 p-3 text-center"><span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 font-semibold text-primary"><PartyAvatar preview key={profile.photoUrl} url={profile.photoUrl} name={profile.displayName} decorative /></span><span className="w-full break-words text-sm font-medium">{profile.displayName}</span></li>)}</ul> : <p className="text-sm text-muted-foreground">Ainda não há novos perfis disponíveis para você neste evento. Suas conexões existentes continuam na área de conexões.</p>}
+        {data.profiles.length > 0 ? <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{data.profiles.slice(0, 6).map(profile => <li key={profile.userId} className="flex min-w-0 flex-col items-center gap-2 rounded-xl bg-muted/40 p-3 text-center"><span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 font-semibold text-primary"><PartyAvatar gallery={photoGallery} photoId={profile.userId} preview key={profile.photoUrl} url={profile.photoUrl} name={profile.displayName} decorative /></span><span className="w-full break-words text-sm font-medium">{profile.displayName}</span></li>)}</ul> : <p className="text-sm text-muted-foreground">Ainda não há novos perfis disponíveis para você neste evento. Suas conexões existentes continuam na área de conexões.</p>}
         <Link href={connections} className={`${action} w-full text-primary`}>Explorar conexões <ArrowUpRight aria-hidden="true" className="size-4" /></Link>
       </>}
     </div>}

@@ -1,12 +1,13 @@
 "use client";
 
-import { memo, useEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import type { EventChatMessage } from "@/types/eventChat";
 import { MessageBubble, chatDate } from "./MessageBubble";
 import { messageWindow } from "./messageWindow";
 
 const WINDOW_THRESHOLD = 200;
 export const MessageList = memo(function MessageList({ messages, viewport, following, privateMode, deliveredThrough, readThrough, failed, retry, onImageLoad, onRangeRendered }: { messages: EventChatMessage[]; viewport: RefObject<HTMLDivElement>; following?: MutableRefObject<boolean>; privateMode: boolean; deliveredThrough: number; readThrough: number; failed: boolean; retry: () => void; onImageLoad: () => void; onRangeRendered?: () => void }) {
+  const photoGallery = useMemo(() => messages.flatMap(message => message.image ? [{ id: message.clientId, src: message.image.url, label: `Foto enviada por ${message.author.name}` }] : []), [messages]);
   const list = useRef<HTMLOListElement>(null);
   const measured = useRef(new Map<string, number>());
   const preserveBottom = useRef(false);
@@ -67,6 +68,6 @@ export const MessageList = memo(function MessageList({ messages, viewport, follo
     const index = range.start + offset, previous = messages[index - 1];
     const dateChanged = !previous || new Date(message.createdAt).toDateString() !== new Date(previous.createdAt).toDateString();
     const first = dateChanged || previous?.author.id !== message.author.id || new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() > 5 * 60 * 1000;
-    return <MessageBubble key={message.clientId} message={message} first={first} date={dateChanged ? chatDate(message.createdAt) : undefined} privateMode={privateMode} deliveredThrough={deliveredThrough} readThrough={readThrough} failed={failed && message.id < 0} retry={retry} onImageLoad={onImageLoad} windowKey={message.clientId} />;
+    return <MessageBubble photoGallery={photoGallery} key={message.clientId} message={message} first={first} date={dateChanged ? chatDate(message.createdAt) : undefined} privateMode={privateMode} deliveredThrough={deliveredThrough} readThrough={readThrough} failed={failed && message.id < 0} retry={retry} onImageLoad={onImageLoad} windowKey={message.clientId} />;
   })}{range.after > 0 && <li aria-hidden="true" style={{ height: range.after }} />}</ol>;
 });
