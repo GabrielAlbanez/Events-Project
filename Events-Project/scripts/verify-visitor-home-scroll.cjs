@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const base = 'components/MyComponents/home/';
+const presentation = fs.readFileSync(base + 'HomePresentation.tsx', 'utf8');
+const scene = fs.readFileSync(base + 'HomeScrollScene.tsx', 'utf8');
+const css = fs.readFileSync(base + 'HomeScroll.module.css', 'utf8');
+assert.equal((scene.match(/=useScroll\(/g) || []).length, 3, 'One scroll driver per scene');
+assert.equal((scene.match(/useScroll\(\{container,target:/g) || []).length, 3, 'Every scene observes the actual scroller');
+assert.ok(scene.includes('observer.disconnect()') && scene.includes('clearTimeout(cleanupTimer.current)'), 'Observer and promotion timer cleaned up');
+assert.ok(!/useState|getBoundingClientRect\(\)/.test(scene.slice(scene.indexOf('function updateHero'), scene.indexOf('useMotionValueEvent(heroProgress'))), 'No frame state updates or layout reads');
+assert.ok(scene.includes('style.removeProperty("transform")') && scene.includes('style.removeProperty("opacity")') && scene.includes('style.removeProperty("will-change")'), 'Inline motion cleaned up');
+assert.ok(presentation.includes('data-home-route-reveal') && scene.includes('scaleX('), 'Compositor route reveal');
+assert.ok(presentation.includes('ssr: false') && presentation.includes('data-home-heading-line'), 'Lazy motion driver, server-visible line content');
+assert.ok(presentation.includes('<InteractiveSurface') && presentation.includes('href={`/eventos/${event.id}`}'), 'Hover feedback retains real event links');
+assert.ok(css.includes('@supports (animation-timeline: view())') && css.includes('prefers-reduced-motion: reduce'), 'Touch animation gated by support and motion preference');
+assert.ok(css.includes('position: sticky') && css.includes('.headingMask > span { display: block; }'), 'Sticky preserved and headings visible without JS');
+assert.ok(!scene.includes('getElementById("home-discovery")') && !scene.includes('Map.tsx'), 'Map not touched by motion driver');
+console.log('Visitor home scroll guards passed');
