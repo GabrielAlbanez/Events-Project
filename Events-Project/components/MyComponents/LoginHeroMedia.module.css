@@ -1,0 +1,30 @@
+.media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.slide { position: absolute; inset: 0; }
+.image {
+  object-fit: cover;
+  animation: cityDrift 22s ease-in-out infinite alternate;
+  animation-play-state: paused;
+  transform-origin: 50% 50%;
+}
+.slide:nth-child(2) .image { animation-delay: -5s; transform-origin: 35% 45%; }
+.slide:nth-child(3) .image { animation-delay: -10s; transform-origin: 65% 55%; }
+.slide:nth-child(4) .image { animation-delay: -15s; transform-origin: 45% 60%; }
+.media[data-running="true"] .image { animation-play-state: running; }
+.shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 45%, hsl(var(--background) / .2));
+}
+@keyframes cityDrift {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.08) translate3d(-2%, -1%, 0); }
+}
+.media[data-reduced="true"] .image { animation: none; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .image { animation: none; transform: none; }
+}
