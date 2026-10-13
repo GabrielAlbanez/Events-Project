@@ -25,6 +25,7 @@ import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { Evento, User as UserType } from "@/types";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
+import { profileMediaUrl } from "@/lib/profileMediaUrl";
 import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
@@ -225,7 +226,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
           <User
             avatarProps={{
               radius: "lg",
-              src: user.image || determineDefaultAvatar(user.name),
+              src: profileMediaUrl(user.image) || determineDefaultAvatar(user.name),
               showFallback: true,
               fallback: <ProfileAvatar name={user.name} size={40} className="h-full w-full rounded-lg" />,
               imgProps: { referrerPolicy: "no-referrer" },
@@ -380,7 +381,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                 <User
                   avatarProps={{
                     src:
-                      selectedUser.image ||
+                      profileMediaUrl(selectedUser.image) ||
                       determineDefaultAvatar(selectedUser.name),
                     size: "lg",
                     showFallback: true,

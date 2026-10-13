@@ -79,7 +79,7 @@ export function AppSidebar() {
             const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
-                <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:shadow-highlight">
+                <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-primary data-[active=true]:font-semibold data-[active=true]:ring-1 data-[active=true]:ring-inset data-[active=true]:ring-sidebar-border">
                   <Link href={href}>
                     <Icon className="h-5 w-5" />
                     <span>{label}</span>
@@ -93,7 +93,7 @@ export function AppSidebar() {
 
       {(role === "ADMIN" || role === "PROMOTER") && (
         <div className="hidden shrink-0 px-4 pb-3 md:block">
-          <Button asChild variant="outline" className="h-11 w-full rounded-xl border-dashed border-primary/30 text-primary hover:border-primary hover:bg-muted">
+          <Button asChild variant="outline" className="h-11 w-full rounded-xl border-border text-sidebar-foreground hover:border-primary/30 hover:bg-muted">
             <Link href="/CriarEvento"><Plus className="h-4 w-4" /> Novo evento</Link>
           </Button>
         </div>

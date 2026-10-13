@@ -1,5 +1,17 @@
 .frame {
   aspect-ratio: 1;
+  box-shadow: 0 2px 5px -2px hsl(var(--primary) / 0.35);
+}
+
+.wordmark {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.wordmarkAccent {
+  color: hsl(var(--primary));
+  font-weight: 450;
 }
 
 .image {

@@ -112,7 +112,7 @@ export default function CardEvents({ events }: CardEventsProps) {
           <article key={event.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md">
             <div className="relative h-48 overflow-hidden bg-muted">
               {event.banner ? (
-                <Image src={event.banner} alt={`Capa do evento ${event.nome}`} removeWrapper className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                <Image src={event.banner} alt={`Capa do evento ${event.nome}`} removeWrapper className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none" />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground"><CalendarDays className="size-12" aria-hidden="true" /></div>
               )}

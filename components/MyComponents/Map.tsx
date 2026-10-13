@@ -98,22 +98,25 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const enderecoParam = searchParams.get("endereco");
   const router = useRouter();
 
+  const locationRequestRef = useRef(0);
   const mapRef = useRef<google.maps.Map | null>(null);
   const handleMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; }, []);
   const handleMapUnmount = useCallback(() => { mapRef.current = null; }, []);
 
   // Captura a localização atual
   const getCurrentLocation = useCallback(() => {
+    const requestId = ++locationRequestRef.current;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (requestId !== locationRequestRef.current) return;
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
 
           router.replace("/");
         },
-        () => toast.error("Não foi possível acessar sua localização.")
+        () => { if (requestId === locationRequestRef.current) toast.error("Não foi possível acessar sua localização."); }
       );
     } else {
       toast.error("Geolocalização não suportada pelo navegador.");
@@ -215,9 +218,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   }, []);
 
   useEffect(() => {
+    const requestId = ++locationRequestRef.current;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (requestId !== locationRequestRef.current) return;
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
@@ -226,13 +231,16 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
         { enableHighAccuracy: false, maximumAge: 300000, timeout: 7000 }
       );
     }
+    return () => { locationRequestRef.current += 1; };
   }, []);
 
   useEffect(() => {
     if (!enderecoParam) return;
-    convertAddressToCoordinates(decodeURIComponent(enderecoParam))
-      .then(setCurrentLocation)
-      .catch(() => toast.error("Erro ao localizar endereço."));
+    const requestId = ++locationRequestRef.current;
+    convertAddressToCoordinates(enderecoParam)
+      .then(location => { if (requestId === locationRequestRef.current) setCurrentLocation(location); })
+      .catch(() => { if (requestId === locationRequestRef.current) toast.error("Erro ao localizar endereço."); });
+    return () => { locationRequestRef.current += 1; };
   }, [convertAddressToCoordinates, enderecoParam]);
 
   const [geocodedEvents, setGeocodedEvents] = useState<Evento[]>([]);

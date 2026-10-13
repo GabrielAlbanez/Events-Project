@@ -13,6 +13,7 @@ async function main() {
     '@/lib/prisma':{__esModule:true,default:{}},
     '@/lib/adminAuth':{getAuthenticatedUser:async()=>{authenticatedReads++;return null;},getAuthenticatedAdminId:async()=>{authenticatedReads++;return null;}},
     '@/lib/storage/profileImages':{UploadError},
+    '@/lib/storage/profileUploadQuota':{admitProfileUpload:async()=>{throw Error('unauthorized requests must not reserve upload admission');}},
     '@/lib/services/attendance':{AttendanceError},
     '@/lib/services/eventReports':{},
     '@/lib/services/checkIn':{},

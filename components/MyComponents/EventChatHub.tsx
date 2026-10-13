@@ -39,6 +39,8 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
   const submitting = useRef(false);
   const draftRevision = useRef(0);
   const submittedDraft = useRef<{ text: string; attachment: typeof attachment; revision: number } | null>(null);
+  const [failedDrafts, setFailedDrafts] = useState<NonNullable<typeof submittedDraft.current>[]>([]);
+  const failedDraft = failedDrafts[0];
   const currentChat = useRef(chat); currentChat.current = chat;
   const restoreDraft = useCallback(() => {
     const submitted = submittedDraft.current;
@@ -49,6 +51,8 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
         const restored = { ...submitted.attachment, preview: URL.createObjectURL(submitted.attachment.file) };
         setAttachment(value => { if (value) { URL.revokeObjectURL(restored.preview); return value; } return restored; });
       }
+    } else if (!currentChat.current.denied) {
+      setFailedDrafts(previous => [...previous, submitted]);
     }
     submittedDraft.current = null;
   }, []);
@@ -69,7 +73,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
   useEffect(() => () => stopTyping(), [stopTyping]);
   const attachmentPreview = attachment?.preview;
   useEffect(() => () => { if (attachmentPreview) URL.revokeObjectURL(attachmentPreview); }, [attachmentPreview]);
-  useEffect(() => { if (chat.denied) { setAttachment(null); setAttachmentError(""); } }, [chat.denied]);
+  useEffect(() => { if (chat.denied) { setAttachment(null); setAttachmentError(""); setFailedDrafts([]); submittedDraft.current = null; } }, [chat.denied]);
   const chooseImage = (file?: File) => {
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type) || file.size === 0 || file.size > 5 * 1024 * 1024) {
@@ -210,6 +214,8 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
         {!chat.denied && <MessageInput value={draft} onChange={changeDraft} onBlur={stopTyping} onSubmit={submit} disabled={!chat.online || chat.sending || chat.imageUploading || chat.loading || !!chat.pending} hasAttachment={!!attachment} uploading={chat.imageUploading} attach={privateMode ? () => { setAttachmentError(""); attachmentInput.current?.click(); } : undefined}>
 
           {privateMode && <><input ref={attachmentInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" tabIndex={-1} aria-label="Selecionar foto para enviar" onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />{attachment && <div className="mb-2 flex items-start gap-3 rounded-xl border p-3"><img src={attachment.preview} alt="Prévia da foto anexada" className="h-24 w-24 rounded-lg object-contain" /><div className="min-w-0 flex-1"><p className="break-words text-xs font-medium">{attachment.file.name}</p><p className="mt-1 text-xs">Pronta para enviar · até 5 MB</p></div><button type="button" aria-label="Remover foto anexada" disabled={chat.sending || chat.imageUploading || !!chat.pending} onClick={() => setAttachment(null)} className={styles.iconButton}><X size={16} aria-hidden="true" /></button></div>}{attachmentError && <p role="alert" className="mb-2 text-sm text-destructive">{attachmentError}</p>}</>}
+
+          {failedDraft && <aside className={styles.notice}><p>A mensagem rejeitada foi preservada: {failedDraft.text || failedDraft.attachment?.file.name}</p><button type="button" disabled={!!draft || !!attachment || chat.sending || chat.imageUploading || !!chat.pending} onClick={() => { if (!failedDraft || chat.denied) return; setDraft(failedDraft.text); if (failedDraft.attachment) setAttachment({ ...failedDraft.attachment, preview: URL.createObjectURL(failedDraft.attachment.file) }); setFailedDrafts(previous => previous.slice(1)); }} className="min-h-10 underline">Restaurar mensagem</button><p>Envie ou apague o texto atual para restaurar.</p></aside>}
 
           {chat.imageUploading && <p role="status" className="flex items-center gap-2 text-xs"><Loader2 size={14} className="animate-spin motion-reduce:animate-none" />Enviando foto…</p>}
 
