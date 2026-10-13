@@ -29,4 +29,12 @@ for (const name of ['live', 'jazz', 'sunset']) {
  assert.ok(fs.existsSync(file), `Missing generated ${name} asset`);
  assert.ok(fs.statSync(file).size <= 65 * 1024, `${name} asset exceeds 65KB`);
 }
-console.log('Generated home scroll guards passed (source contracts and image budget).');
+assert.match(presentation, /data-home-city-plane/);
+assert.match(presentation, /data-home-city-marker/);
+assert.match(presentation, /viewBox="0 0 800 480"/);
+assert.match(presentation, /aria-hidden="true"><div className=\{styles.cityPlane\}/);
+assert.match(scene, /handoff=clamp/);
+assert.match(scene, /data-home-gallery-floor/);
+assert.doesNotMatch(presentation, /GoogleMaps|from ".*\/Map"/);
+assert.match(css, /\.presentation \.cityPlane \{ animation: none; transform: none/);
+console.log('Generated home scroll guards passed (scene continuity, illustrative map, source contracts and image budget).');

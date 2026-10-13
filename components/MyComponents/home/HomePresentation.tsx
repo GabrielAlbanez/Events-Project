@@ -60,6 +60,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
   return (
     <div className={styles.presentation} data-depth={enableDepth || undefined}>
       {enableDepth && <HomeScrollScene container={scrollContainer} hero={hero} mapPlane={mapPlane} pinPlane={pinPlane} ticketPlane={ticketPlane} heroPosters={heroPosters} featured={featuredSection} cards={featuredCards} cardKey={cardKey} discovery={discovery} />}
+      <div className={styles.sceneContinuity} aria-hidden="true"><svg viewBox="0 0 1200 2200" preserveAspectRatio="none"><path d="M980 -100C310 200 1120 540 600 880S40 1300 680 1590S1180 1910 580 2300" /></svg></div>
       <section ref={hero} className={styles.hero} aria-labelledby="home-title">
         <div className={styles.heroCopy} data-home-copy>
           <h1 id="home-title"><span className={styles.headingMask}><span data-home-heading-line>Bons momentos.</span></span><span className={styles.headingMask}><span data-home-heading-line>Mais perto.</span></span></h1>
@@ -94,7 +95,7 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
           <div><h2 id="home-featured-title"><span className={styles.headingMask}><span data-home-heading-line>A próxima experiência</span></span><span className={styles.headingMask}><span data-home-heading-line>pode estar aqui.</span></span></h2><p>Conheça alguns dos eventos da agenda.</p></div>
           <Link href="/EventsCreated" className={styles.secondaryAction}>Toda a agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
         </div>
-        <div className={styles.cards}>
+        <div className={styles.galleryStage} data-home-gallery-stage><div className={styles.galleryFloor} data-home-gallery-floor aria-hidden="true" /><div className={styles.cards}>
           {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div className={styles.skeletonPoster} /><div className={styles.skeletonBody}><span /><span /><span /></div></div>) : featured.map((event, index) => {
             const date = parseEventDate(event.dataInicio);
             return <article ref={node => { featuredCards.current[index] = node; }} key={event.id} className={styles.eventCard}>
@@ -111,16 +112,29 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
           })}
           {!loading && featured.length === 0 && <div className={styles.empty}><CalendarDays size={28} aria-hidden="true" /><p>{loadError ? "A agenda não carregou. Você pode tentar novamente no mapa abaixo." : "Explore o mapa para encontrar novos eventos."}</p><a href="#home-discovery" onClick={navigateWithinHome} className={styles.secondaryAction}>Explorar mapa <ArrowDown size={18} aria-hidden="true" /></a></div>}
         </div>
+        </div>
         {loading && <span role="status" className="sr-only">Carregando destaques da agenda…</span>}
         </div>
       </section>
 
       <section ref={discovery} className={styles.discoveryIntro} aria-labelledby="home-discovery-intro">
         <div className={styles.discoveryBackdrop} data-home-discovery-backdrop aria-hidden="true" />
+        <div className={styles.cityStage} aria-hidden="true"><div className={styles.cityPlane} data-home-city-plane>
+          <svg viewBox="0 0 800 480" fill="none" preserveAspectRatio="none">
+            <path className={styles.cityRiver} d="M-20 350C130 230 230 420 420 330S650 220 830 270V500H-20Z" />
+            <g className={styles.cityBlocks}><rect x="90" y="80" width="110" height="80" rx="12" /><rect x="300" y="70" width="125" height="90" rx="12" /><rect x="520" y="70" width="150" height="85" rx="12" /><rect x="90" y="230" width="110" height="85" rx="12" /><rect x="290" y="230" width="120" height="65" rx="12" /><rect x="525" y="230" width="145" height="60" rx="12" /></g>
+            <g className={styles.cityStreets}><path d="M0 190H800M240 0V480M470 0V480M720 0V480" /><path d="M0 55H800M45 0V480" /></g>
+            <path className={styles.cityRoute} d="M150 275H240V190H470V120H600" />
+            <g className={styles.cityMarker}><circle cx="150" cy="275" r="11" /><circle cx="370" cy="190" r="11" /><circle cx="600" cy="120" r="11" /></g>
+          </svg>
+          <span className={styles.cityRaisedPin} data-home-city-marker><MapPin size={34} /></span>
+        </div></div>
+        <div className={styles.discoveryCopy} data-home-discovery-copy>
         <span className={styles.discoveryPin} data-home-discovery-pin><MapPin size={22} aria-hidden="true" /></span>
         <h2 id="home-discovery-intro"><span className={styles.headingMask}><span data-home-heading-line>Escolha o seu lugar.</span></span><span className={styles.headingMask}><span data-home-heading-line>Encontre o seu evento.</span></span></h2>
         <p>Use o mapa, busque por nome ou filtre a agenda. A descoberta começa com você.</p>
         <a href="#home-discovery" onClick={navigateWithinHome} className={styles.secondaryAction}>Ir para o mapa <ArrowDown size={18} aria-hidden="true" /></a>
+        </div>
       </section>
     </div>
   );

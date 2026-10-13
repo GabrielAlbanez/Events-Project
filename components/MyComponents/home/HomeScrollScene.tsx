@@ -47,7 +47,8 @@ export default function HomeScrollScene({container,hero,mapPlane,pinPlane,ticket
   heroPosters.current.forEach((node,index)=>{
    const side=index===0?0:index===1?-1:1;
    const depth=index===0?70:-45;
-   write(node,`translate3d(${side*phase*34}px,${-phase*(index===0?155:index===1?80:210)}px,${depth+phase*(index===0?190:90)}px) rotateY(${side*(18-phase*38)+phase*(index===0?-14:0)}deg) rotateX(${phase*-10}deg) rotateZ(${side*(7-phase*3)}deg) scale(${1+phase*.08})`);
+   const passage=clamp((phase-.12)/.62);
+   write(node,`translate3d(${side*passage*65}px,${passage*(index===0?130:index===1?85:65)}px,${depth+passage*(index===0?180:120)}px) rotateY(${side*(18-passage*18)}deg) rotateX(${passage*-9}deg) rotateZ(${side*(7-passage*7)}deg) scale(${1+passage*.12})`,1-clamp((phase-.58)/.35));
   });
   write(hero.current?.querySelector<HTMLElement>("[data-home-copy]"),`translateY(${-phase*40}px)`,1-phase*.7);
   write(mapPlane.current?.querySelector<SVGElement>("[data-home-route-reveal]"),`scaleX(${.18+phase*.82})`);
@@ -57,13 +58,18 @@ export default function HomeScrollScene({container,hero,mapPlane,pinPlane,ticket
   const phase=clamp(value),entrance=1-clamp((phase-.1)/.35),departure=clamp((phase-.7)/.3);
   cards.current.forEach((node,index)=>{
    const side=index-1,center=index===1;
-   write(node,`translate3d(${side*entrance*-65}px,${entrance*80-departure*28}px,${(1-entrance)*(center?65:18)}px) rotateX(${entrance*18-departure*5}deg) rotateY(${-side*entrance*22}deg) scale(${center?1+(1-entrance)*.04:1})`);
-  });headings(featured.current,phase);release();
+   write(node,`translate3d(${side*entrance*-120}px,${entrance*115-departure*28}px,${(1-entrance)*(center?100:15)-entrance*80}px) rotateX(${entrance*28-departure*5}deg) rotateY(${-side*entrance*32}deg) scale(${.9+(1-entrance)*.1})`);
+  });
+  write(featured.current?.querySelector<HTMLElement>("[data-home-gallery-floor]"),`rotateX(${72-entrance*8}deg) scale(${.85+(1-entrance)*.15})`,.25+(1-entrance)*.35);
+  headings(featured.current,phase);release();
  }
  function updateDiscovery(value:number) {
   const phase=clamp(value),settle=clamp((phase-.08)/.4);
   write(discovery.current?.querySelector<HTMLElement>("[data-home-discovery-pin]"),`translateY(${(1-settle)*-52}px) rotate(${(1-settle)*-12}deg) scale(${.9+settle*.1})`);
   write(discovery.current?.querySelector<HTMLElement>("[data-home-discovery-backdrop]"),`scale(${1+phase*.06})`);
+  const approach=clamp((phase-.04)/.5),handoff=clamp((phase-.64)/.24);
+  write(discovery.current?.querySelector<HTMLElement>("[data-home-city-plane]"),`translateY(${(1-approach)*60}px) rotateX(${(1-approach)*58}deg) rotateZ(${(1-approach)*-12}deg) scale(${.74+approach*.3+handoff*.12})`,1-handoff);
+  write(discovery.current?.querySelector<HTMLElement>("[data-home-city-marker]"),`translateZ(${24+approach*24}px) rotateX(${(1-approach)*-58}deg)`);
   headings(discovery.current,phase);release();
  }
  useMotionValueEvent(heroProgress,"change",updateHero);
