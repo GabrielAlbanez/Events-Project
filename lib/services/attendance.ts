@@ -137,13 +137,13 @@ export async function cancelRegistration(eventId: string, userId: string) {
 }
 
 function signingSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET;
+  const secret = process.env.CHECKIN_SIGNING_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret || secret.length < 32) throw new AttendanceError("Check-in temporariamente indisponível.", 503);
   return secret;
 }
 
-function signature(payload: string): string {
-  return createHmac("sha256", signingSecret()).update(`eventmap-checkin-v1:${payload}`).digest("base64url");
+function signature(payload: string, secret = signingSecret()): string {
+  return createHmac("sha256", secret).update(`eventmap-checkin-v1:${payload}`).digest("base64url");
 }
 
 type CheckInClaims = { registrationId: string; eventId: string; qrVersion: number; expiresAt: number };
@@ -162,9 +162,14 @@ function verifyCheckInToken(token: string): CheckInClaims {
   if (token.length > 1000) throw new AttendanceError("QR Code inválido.", 400);
   const [payload, signed, extra] = token.split(".");
   if (!payload || !signed || extra) throw new AttendanceError("QR Code inválido.", 400);
-  const expected = Buffer.from(signature(payload));
   const received = Buffer.from(signed);
-  if (received.length !== expected.length || !timingSafeEqual(received, expected)) throw new AttendanceError("QR Code inválido.", 400);
+  // Preserve unexpired codes issued before enabling the shared check-in key.
+  const secrets = [signingSecret(), process.env.NEXTAUTH_SECRET].filter((secret): secret is string => !!secret && secret.length >= 32);
+  const valid = secrets.some(secret => {
+    const expected = Buffer.from(signature(payload, secret));
+    return received.length === expected.length && timingSafeEqual(received, expected);
+  });
+  if (!valid) throw new AttendanceError("QR Code inválido.", 400);
   try {
     const claims: unknown = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!claims || typeof claims !== "object") throw new Error("invalid");

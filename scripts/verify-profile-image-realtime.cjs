@@ -61,7 +61,7 @@ async function main() {
   assert.match(socketSource, /startProfileImageRealtime/);
   assert.match(clientSource, /socket\.on\("profile-image-updated", handleProfileImageUpdate\)/);
   assert.match(clientSource, /notice\.userId !== userId\) return;\s*void update\(\)/);
-  assert.match(uploadSource, /transaction\.\$queryRaw`SELECT pg_notify\('eventmap_profile_image_updated', \$\{actor\.id\}\)`/);
+  assert.match(uploadSource, /transaction\.\$queryRaw`SELECT pg_notify\('eventmap_profile_image_updated', \$\{actor\.id\}\) IS NULL`/);
   assert.match(adminServiceSource, /pg_notify\('eventmap_user_role_updated'/);
   assert.doesNotMatch(adminServiceSource.slice(adminServiceSource.indexOf("async updateUserRole"), adminServiceSource.indexOf("async deleteUser")), /sessionVersion/);
 

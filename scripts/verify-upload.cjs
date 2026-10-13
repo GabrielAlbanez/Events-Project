@@ -23,25 +23,48 @@ function load(file, dependencies) {
   const prisma = {
     $transaction: async callback => callback({
       user: { updateMany: async () => { if (dbFailure) throw Error("database failed"); return { count }; } },
-      $queryRaw: async (_query, userId) => { notifications.push(userId); return []; },
+      $queryRaw: async (query, ...values) => {
+        notifications.push({ sql: query.join("$PARAM"), values });
+        return [{ "?column?": true }];
+      },
     }),
   };
+  let admitted = 0, quotaFailure = false;
   const route = load("app/api/upload/route.ts", {
     "@/lib/publicUrl": require("./load-public-url.cjs"),
     "next/server": { NextResponse: { json: (body, init) => ({ body, status: init.status ?? 200 }) } },
     "@/lib/prisma": { __esModule: true, default: prisma },
+    "@/lib/storage/profileUploadQuota": { admitProfileUpload: async id => { assert.equal(id, "u1"); if (quotaFailure) throw new storage.UploadError(429, "quota"); admitted++; } },
     "@/lib/adminAuth": { getAuthenticatedUser: async () => actor },
     "@/lib/storage/profileImages": { ...storage, boundedMultipart: async () => ({ get: key => key === "userId" ? "u1" : file }), saveProfileImage: async () => { savedCount++; return { url: "/uploads/safe.jpg", remove: async () => { rollback++; } }; } },
   });
   const request = { headers: new Headers(), nextUrl: { origin: "http://localhost", searchParams: new URLSearchParams() } };
   assert.equal((await route.POST(request)).status, 401); assert.equal(savedCount, 0);
   actor = { id: "u1" }; count = 0;
+  quotaFailure = true;
+  assert.equal((await route.POST(request)).status, 429); assert.equal(savedCount, 0);
+  quotaFailure = false;
   assert.equal((await route.POST(request)).status, 401); assert.equal(rollback, 1);
   count = 1; assert.equal((await route.POST(request)).status, 200);
-  assert.deepEqual(notifications, ["u1"]);
-  dbFailure = true; assert.equal((await route.POST(request)).status, 500); assert.equal(rollback, 2);
+  assert.deepEqual(notifications, [{
+    sql: "SELECT pg_notify('eventmap_profile_image_updated', $PARAM) IS NULL",
+    values: ["u1"],
+  }]);
+  dbFailure = true;
+  const errors = [];
+  const originalError = console.error;
+  console.error = (...values) => errors.push(values);
+  try { assert.equal((await route.POST(request)).status, 500); } finally { console.error = originalError; }
+  assert.equal(rollback, 2);
+  assert.equal(errors[0][0], "Profile image upload failed.");
+  assert.equal(errors[0][1].stage, "database");
+  assert.equal(errors[0][1].errorName, "Error");
   request.nextUrl.searchParams.set("purpose", "party");
   assert.equal((await route.POST(request)).status, 200); // No profile write even when user update fails.
+  const beforeQuota = savedCount;
+  quotaFailure = true;
+  assert.equal((await route.POST(request)).status, 429); assert.equal(savedCount, beforeQuota);
+  assert.equal(admitted, 4);
   request.nextUrl.searchParams.set("purpose", "other");
   assert.equal((await route.POST(request)).status, 400);
   request.headers.set("origin", "https://other.invalid"); assert.equal((await route.POST(request)).status, 403);
