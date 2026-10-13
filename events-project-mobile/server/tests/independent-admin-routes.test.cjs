@@ -6,6 +6,7 @@ const { build } = require('esbuild');
 
 const filename = path.resolve(__dirname, '../independent/src/admin-routes.ts');
 let createAdminRouteHandler;
+let resolveMobileIdentity;
 
 test('load isolated admin route adapter', async () => {
   const result = await build({
@@ -21,12 +22,14 @@ test('load isolated admin route adapter', async () => {
   compiled.paths = Module._nodeModulePaths(path.dirname(filename));
   compiled._compile(result.outputFiles[0].text, filename);
   createAdminRouteHandler = compiled.exports.createAdminRouteHandler;
+  resolveMobileIdentity = compiled.exports.resolveMobileIdentity;
   assert.equal(typeof createAdminRouteHandler, 'function');
 });
 
 function dependencies(overrides = {}) {
   const calls = [];
   const admin = {
+    async assertOrdinarySessionAllowed() {},
     async listUsers(...args) { calls.push(['listUsers', ...args]); return { status: 'success', data: [] }; },
     async updateUserRole(...args) { calls.push(['updateUserRole', ...args]); return { id: args[1], role: args[2].role }; },
     async deleteUser(...args) { calls.push(['deleteUser', ...args]); return { ok: true }; },
@@ -151,4 +154,19 @@ test('start impersonation preserves standard auth provider and records request a
     { ip: '127.0.0.1' },
     'google',
   ]);
+});
+
+
+test('ordinary identity is denied during support and resumes after release without deleting its bearer', async () => {
+  const setup = dependencies();
+  let active = true;
+  setup.dependencies.service.assertOrdinarySessionAllowed = async id => {
+    assert.equal(id, 'admin-1');
+    if (active) throw Object.assign(new Error('Support active'), { status: 403, code: 'ACCOUNT_IMPERSONATED' });
+  };
+  await assert.rejects(resolveMobileIdentity('admin-token', setup.dependencies), error => error.status === 403 && error.code === 'ACCOUNT_IMPERSONATED');
+  active = false;
+  const identity = await resolveMobileIdentity('admin-token', setup.dependencies);
+  assert.equal(identity.user.id, 'admin-1');
+  assert.equal(identity.impersonation, null);
 });

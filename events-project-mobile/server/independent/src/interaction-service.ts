@@ -171,9 +171,10 @@ export class PostgresInteractionService {
     private readonly events: EventReader,
     private readonly signingSecret: string,
     private readonly now: () => Date = () => new Date(),
+    private readonly previousSigningSecret?: string,
   ) {
     if (Buffer.byteLength(signingSecret, 'utf8') < 32) {
-      throw new Error('Configure MOBILE_AUTH_SECRET com pelo menos 32 bytes.');
+      throw new Error('Configure a chave de check-in com pelo menos 32 bytes.');
     }
   }
 
@@ -462,9 +463,14 @@ export class PostgresInteractionService {
     if (token.length > 1000) throwAttendance(400, 'QR Code inválido.');
     const parts = token.split('.');
     if (parts.length !== 2) throwAttendance(400, 'QR Code inválido.');
-    const expected = createHmac('sha256', this.signingSecret).update(`eventmap-checkin-v1:${parts[0]}`).digest();
     const actual = Buffer.from(parts[1]);
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throwAttendance(400, 'QR Code inválido.');
+    const secrets = [this.signingSecret, this.previousSigningSecret]
+      .filter((secret): secret is string => !!secret && Buffer.byteLength(secret, 'utf8') >= 32);
+    const valid = secrets.some(secret => {
+      const expected = Buffer.from(createHmac('sha256', secret).update(`eventmap-checkin-v1:${parts[0]}`).digest('base64url'));
+      return actual.length === expected.length && timingSafeEqual(actual, expected);
+    });
+    if (!valid) throwAttendance(400, 'QR Code inválido.');
     let claims: { registrationId: string; eventId: string; qrVersion: number; expiresAt: number };
     try {
       const value: unknown = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));

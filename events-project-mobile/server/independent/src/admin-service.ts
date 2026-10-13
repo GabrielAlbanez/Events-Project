@@ -676,6 +676,13 @@ export class PostgresAdminService {
         [actorId, this.now()],
       );
       if (active.rows[0]) throw new MobileAuthError(409, 'Já existe uma sessão de suporte ativa.');
+      const targetSession = await client.query(
+        `SELECT id FROM "ImpersonationSession"
+         WHERE "userId" = $1 AND "endedAt" IS NULL AND "expiresAt" > $2
+         LIMIT 1 FOR UPDATE`,
+        [userId, this.now()],
+      );
+      if (targetSession.rows[0]) throw new MobileAuthError(409, 'Essa conta já está sendo acessada.');
       const id = randomUUID();
       const startedAt = this.now();
       const expiresAt = new Date(startedAt.getTime() + impersonationLifetimeMs);
@@ -732,6 +739,20 @@ export class PostgresAdminService {
       };
       return login;
     });
+  }
+
+  async assertOrdinarySessionAllowed(userId: string): Promise<void> {
+    const active = await this.pool.query(
+      `SELECT s.id FROM "ImpersonationSession" s
+       LEFT JOIN "User" admin ON admin.id = s."adminAccountId"
+       WHERE (s."adminId" = $1 OR (s."userId" = $1 AND admin.role = 'ADMIN'))
+         AND s."endedAt" IS NULL AND s."expiresAt" > $2
+       LIMIT 1`,
+      [userId, this.now()],
+    );
+    if (active.rows[0]) {
+      throw new MobileAuthError(403, 'Um administrador está acessando sua conta no momento. Tente novamente em instantes.', 'ACCOUNT_IMPERSONATED');
+    }
   }
 
   async endImpersonationWithToken(claims: VerifiedImpersonationToken): Promise<LoginResult> {

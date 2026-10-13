@@ -5,8 +5,7 @@ import { Pool } from 'pg';
 import path from 'node:path';
 import { createAccessToken } from './access-token';
 import { PostgresAccountService } from './account-service';
-import { MobileAuthError } from './auth-service';
-import type { GoogleProfile } from './auth-service';
+import { createGoogleTokenVerifier } from './google-token-verifier';
 import { PostgresEventReader } from './event-repository';
 import { PostgresEventAuthoringService } from './event-authoring-service';
 import { PostgresEventReadCalendarService } from './event-read-calendar-service';
@@ -110,6 +109,8 @@ const server = createIndependentAuthServer({
   interactions: new PostgresInteractionService(
     pool,
     new PostgresEventReader(pool),
+    process.env.CHECKIN_SIGNING_SECRET || authSecret,
+    undefined,
     authSecret,
   ),
   promoters: new PostgresPromoterService(pool, eventReader),
@@ -118,28 +119,7 @@ const server = createIndependentAuthServer({
     .split(',')
     .map(value => value.trim())
     .filter(Boolean),
-  async verifyGoogleIdToken(idToken): Promise<GoogleProfile> {
-    if (!googleAudiences.length) {
-      throw new MobileAuthError(503, 'Login Google ainda não foi configurado no servidor.');
-    }
-    let ticket;
-    try {
-      ticket = await google.verifyIdToken({ idToken, audience: googleAudiences });
-    } catch {
-      throw new MobileAuthError(401, 'Não foi possível validar seu login Google.');
-    }
-    const payload = ticket.getPayload();
-    if (!payload?.sub || !payload.email || payload.email_verified !== true) {
-      throw new MobileAuthError(401, 'Use uma conta Google com email verificado.');
-    }
-    return {
-      subject: payload.sub,
-      email: payload.email,
-      emailVerified: true,
-      name: payload.name ?? null,
-      image: payload.picture ?? null,
-    };
-  },
+  verifyGoogleIdToken: createGoogleTokenVerifier(google, googleAudiences),
 });
 
 const port = Number(process.env.MOBILE_API_PORT || 4100);

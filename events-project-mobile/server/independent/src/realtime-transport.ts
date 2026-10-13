@@ -1,4 +1,4 @@
-import { createMobileAuthService } from './auth-service';
+import { createMobileAuthService, MobileAuthError } from './auth-service';
 import type { AccessToken, MobileAuthRepository, Role } from './auth-service';
 
 export type RealtimeSubscription =
@@ -54,6 +54,9 @@ export interface IndependentRealtimeOptions {
 
 interface Connection {
   actor: RealtimeUser;
+  token: string;
+  checkedAt: number;
+  checking: Promise<boolean> | null;
   rooms: Set<string>;
   roomSubscriptions: Map<string, RealtimeSubscription>;
   typingRooms: Set<string>;
@@ -79,6 +82,7 @@ const identifierRooms: Record<(typeof idKeys)[number], string> = {
 };
 const typingLifetimeMs = 5_000;
 const sweepIntervalMs = 1_000;
+const authenticationCacheMs = 3_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -166,6 +170,7 @@ export interface RealtimeNotifier {
 }
 
 export interface IndependentRealtimeTransport extends RealtimeNotifier {
+  revalidateUser(userId: string): Promise<void>;
   close(): void;
 }
 
@@ -195,8 +200,10 @@ export function attachIndependentRealtime(
   const emitTyping = (room: string, userId: string, until: number): void => {
     for (const socket of socketsByRoom.get(room) ?? []) {
       const recipient = connections.get(socket);
-      if (recipient?.actor.id !== userId && socket.connected !== false) {
-        socket.emit('typing', { room, userId, until });
+      if (recipient && recipient.actor.id !== userId && socket.connected !== false) {
+        void revalidate(socket, recipient).then(allowed => {
+          if (allowed && connections.get(socket) === recipient) socket.emit('typing', { room, userId, until });
+        });
       }
     }
   };
@@ -247,8 +254,41 @@ export function attachIndependentRealtime(
     connections.delete(socket);
   };
 
+  const revalidate = (socket: RealtimeSocket, connection: Connection, force = false): Promise<boolean> => {
+    if (connection.checking) return force
+      ? connection.checking.then(valid => valid ? revalidate(socket, connection, true) : false)
+      : connection.checking;
+    if (!force && now() - connection.checkedAt < authenticationCacheMs) return Promise.resolve(true);
+    connection.checkedAt = now();
+    connection.checking = Promise.resolve().then(() => options.authenticate(connection.token)).then(actor => {
+      if (connections.get(socket) !== connection || socket.connected === false) return false;
+      if (actor.id !== connection.actor.id) throw new MobileAuthError(401, 'Identity changed.');
+      connection.actor = actor;
+      return true;
+    }).catch(error => {
+      connection.checkedAt = now() - authenticationCacheMs;
+      if (connections.get(socket) === connection && (error?.status === 401 || error?.status === 403)) {
+        socket.emit(error?.code === 'ACCOUNT_IMPERSONATED' ? 'account-impersonated' : 'session-expired');
+        socket.disconnect(true);
+        removeSocket(socket);
+      }
+      return false;
+    }).finally(() => { connection.checking = null; });
+    return connection.checking;
+  };
+  const canSubscribe = async (socket: RealtimeSocket, connection: Connection, subscription: RealtimeSubscription, force = false): Promise<boolean> => {
+    if (!await revalidate(socket, connection, force)) {
+      if (connections.get(socket) === connection && socket.connected !== false) throw new Error('Authentication temporarily unavailable.');
+      return false;
+    }
+    return 'user' in subscription || options.domainAccess.canSubscribe(connection.actor, subscription);
+  };
   const sweep = setInterval(() => {
     const timestamp = now();
+    for (const socket of sockets) {
+      const connection = connections.get(socket);
+      if (connection && timestamp - connection.checkedAt >= 15_000) void revalidate(socket, connection, true);
+    }
     for (const [room, users] of typing) {
       for (const [userId, entry] of users) {
         if (entry.until > timestamp) continue;
@@ -281,6 +321,9 @@ export function attachIndependentRealtime(
       }
       connections.set(socket, {
         actor,
+        token,
+        checkedAt: now(),
+        checking: null,
         rooms: new Set(),
         roomSubscriptions: new Map(),
         typingRooms: new Set(),
@@ -290,7 +333,11 @@ export function attachIndependentRealtime(
         limits: new Map(),
       });
       next();
-    }).catch(() => next(new Error('Unauthorized.')));
+    }).catch(error => {
+      const rejected = new Error('Unauthorized.') as Error & { data?: { code: string } };
+      if (error?.code === 'ACCOUNT_IMPERSONATED') rejected.data = { code: error.code };
+      next(rejected);
+    });
   });
 
   io.on('connection', socket => {
@@ -331,8 +378,7 @@ export function attachIndependentRealtime(
       const requestId = ++connection.nextSubscriptionRequest;
       connection.pendingSubscriptions.set(room, requestId);
       void (async () => {
-        let allowed = 'user' in subscription;
-        if (!allowed) allowed = await options.domainAccess.canSubscribe(connection.actor, subscription);
+        const allowed = await canSubscribe(socket, connection, subscription, true);
         if (connections.get(socket) !== connection || connection.pendingSubscriptions.get(room) !== requestId) {
           ack?.({ ok: false });
           return;
@@ -355,7 +401,10 @@ export function attachIndependentRealtime(
         members.add(socket);
         socketsByRoom.set(room, members);
         ack?.({ ok: true });
-      })().catch(() => ack?.({ ok: false }));
+      })().catch(() => {
+        if (connection.pendingSubscriptions.get(room) === requestId) connection.pendingSubscriptions.delete(room);
+        ack?.({ ok: false });
+      });
     });
 
     socket.on('community-unsubscribe', (...args: unknown[]) => {
@@ -380,7 +429,7 @@ export function attachIndependentRealtime(
         || !allowRate(connection, 'typing', 12, 10_000, now())
       ) return;
       const subscription: RealtimeSubscription = { matchId: payload.matchId };
-      void options.domainAccess.canSubscribe(connection.actor, subscription).then(allowed => {
+      void canSubscribe(socket, connection, subscription).then(allowed => {
         if (!allowed || connections.get(socket) !== connection) return;
         const room = roomFor(subscription, connection.actor.id);
         const users = typing.get(room);
@@ -409,7 +458,7 @@ export function attachIndependentRealtime(
       if (!isRecord(payload) || Object.keys(payload).length !== 1 || !isIdentifier(payload.matchId)
         || !allowRate(connection, 'chat-sync', 20, 10_000, now())) return;
       const subscription: RealtimeSubscription = { matchId: payload.matchId };
-      void options.domainAccess.canSubscribe(connection.actor, subscription).then(allowed => {
+      void canSubscribe(socket, connection, subscription).then(allowed => {
         if (allowed && connections.get(socket) === connection) io.to(roomFor(subscription, connection.actor.id)).emit('community-updated', {
           room: roomFor(subscription, connection.actor.id),
         });
@@ -425,7 +474,7 @@ export function attachIndependentRealtime(
         return;
       }
       const subscription: RealtimeSubscription = { matchId: payload.matchId };
-      void options.domainAccess.canSubscribe(connection.actor, subscription).then(allowed => {
+      void canSubscribe(socket, connection, subscription).then(allowed => {
         if (connections.get(socket) !== connection) return;
         if (!allowed) {
           ack({ ok: false });
@@ -443,17 +492,19 @@ export function attachIndependentRealtime(
 
     socket.on('request-active-users', () => {
       if (!allowRate(connection, 'active-users', 5, 60_000, now())) return;
-      if (connection.actor.role !== 'ADMIN') {
-        socket.emit('active-users', []);
-        return;
-      }
       void (async () => {
+        if (!await revalidate(socket, connection, true)) return;
+        if (connection.actor.role !== 'ADMIN') {
+          socket.emit('active-users', []);
+          return;
+        }
         try {
           const userIds = new Set<string>([...socketsByUser.keys()]);
           for (const userId of await options.readActiveUserIds?.() ?? []) {
             if (isIdentifier(userId)) userIds.add(userId);
           }
-          if (connections.get(socket) === connection && socket.connected !== false) {
+          if (await revalidate(socket, connection, true) && connection.actor.role === 'ADMIN'
+            && connections.get(socket) === connection && socket.connected !== false) {
             socket.emit('active-users', [...userIds].slice(0, maxSockets));
           }
         } catch (error) {
@@ -475,6 +526,12 @@ export function attachIndependentRealtime(
   };
 
   return {
+    async revalidateUser(userId) {
+      await Promise.all([...(socketsByUser.get(userId) ?? [])].map(socket => {
+        const connection = connections.get(socket);
+        return connection ? revalidate(socket, connection, true) : Promise.resolve(false);
+      }));
+    },
     communityUpdated,
     profileImageUpdated(userId) {
       if (!isIdentifier(userId)) throw new Error('Invalid realtime user id.');

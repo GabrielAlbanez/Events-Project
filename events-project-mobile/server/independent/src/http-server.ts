@@ -15,7 +15,7 @@ import { createAdminRouteHandler, resolveMobileIdentity } from './admin-routes';
 import type { PostgresAdminService } from './admin-service';
 import type { VerifiedImpersonationToken } from './impersonation-token';
 import { attachIndependentRealtime } from './realtime-transport';
-import type { RealtimeDomainAccess, RealtimeNotifier, RealtimeUser } from './realtime-transport';
+import type { IndependentRealtimeTransport, RealtimeDomainAccess, RealtimeUser } from './realtime-transport';
 import type { listenForProfileImageChanges } from './profile-image-notifications';
 import type { PostgresCommunityService } from './community-service';
 import type {
@@ -365,7 +365,7 @@ export function createIndependentAuthServer(dependencies: IndependentServerDepen
   const adminRoutes = createAdminRouteHandler(adminDependencies);
   const origins = new Set(dependencies.browserOrigins ?? []);
   const rates = new Map<string, RateEntry>();
-  let realtime: RealtimeNotifier | null = null;
+  let realtime: IndependentRealtimeTransport | null = null;
 
   const server = createServer(async (request, response) => {
     const origin = request.headers.origin;
@@ -411,6 +411,11 @@ export function createIndependentAuthServer(dependencies: IndependentServerDepen
           ip: remote,
         });
         if (result) {
+          if (request.method === 'POST' && url.pathname === '/v1/admin/impersonation/start'
+            && result.status === 200 && body && typeof body === 'object'
+            && 'userId' in body && typeof body.userId === 'string') {
+            await realtime?.revalidateUser(body.userId);
+          }
           send(response, result.status, result.body);
           return;
         }

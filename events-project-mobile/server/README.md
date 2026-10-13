@@ -114,3 +114,12 @@ npm run build
 Os testes automatizados não usam o banco configurado. A integração real exige
 aplicar a migração e validar acesso ao PostgreSQL, login Google, e-mail, uploads,
 Socket.IO e fluxos autenticados em um development build.
+
+### QR Codes entre Web e mobile
+
+Configure `CHECKIN_SIGNING_SECRET` com o mesmo valor privado de pelo menos 32
+bytes no ambiente do site e em `server/.env`. Essa chave assina somente QR Codes;
+`NEXTAUTH_SECRET` e `MOBILE_AUTH_SECRET` continuam separados. Reinicie ambos os
+servidores após configurar. Sem a variável, cada processo mantém sua chave
+anterior. Códigos locais emitidos antes da troca continuam aceitos até sua
+expiração de cinco minutos. Nunca use prefixo público para essa variável.
