@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { HomeEventImage } from "./HomeEventImage";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type RefObject, type MouseEvent } from "react";
 import { ArrowDown, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
@@ -9,6 +9,12 @@ import type { Evento } from "@/types";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 import { InteractiveSurface } from "@/components/animations/InteractiveSurface";
 import styles from "./HomeScroll.module.css";
+
+const dateLabel = (value: string) => {
+  const date = parseEventDate(value);
+  return date ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(date) : "Data a confirmar";
+};
+const eventPrice = (event: Evento) => event.isFree === true ? "Gratuito" : typeof event.priceCents === "number" && Number.isFinite(event.priceCents) && event.priceCents > 0 ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(event.priceCents / 100) : "Consulte ingressos";
 
 const HomeScrollScene = dynamic(() => import("./HomeScrollScene"), { ssr: false });
 
@@ -70,8 +76,8 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
             <Link href="/EventsCreated" className={styles.secondaryAction}>Ver agenda <ArrowUpRight size={18} aria-hidden="true" /></Link>
           </div>
         </div>
-        <div className={styles.art} aria-hidden="true">
-          <div ref={mapPlane} className={styles.mapPlane}>
+        <div className={styles.art} aria-label="Eventos em destaque">
+          <div ref={mapPlane} className={styles.mapPlane} aria-hidden="true">
             <svg viewBox="0 0 500 400" fill="none" className={styles.streetGrid}>
               <path d="M-20 80L520 230M-20 185L520 335M80-20L-25 420M195-20L90 420M310-20L205 420M425-20L320 420M540-20L435 420" />
               <defs><clipPath id="visitor-home-route"><rect data-home-route-reveal width="500" height="400" /></clipPath></defs>
@@ -80,11 +86,16 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
             <span className={styles.mapDot} />
             <span className={styles.mapDotSecondary} />
           </div>
-          <div ref={pinPlane} className={styles.heroGlow} />
-          <div ref={ticketPlane} className={styles.heroHalo} />
-          {["live", "jazz", "sunset"].map((image, index) => <div key={image} ref={node => { heroPosters.current[index] = node; }} className={styles.heroPoster} data-home-photo-plane={index}>
-            <div className={styles.heroPosterInner}><Image src={`/branding/home-${image}-v1.webp`} alt="" fill sizes="(max-width: 767px) 44vw, (max-width: 1099px) 230px, 280px" priority={index === 0} className={styles.heroPhoto} /><div className={styles.photoShine} /></div>
+          <div ref={pinPlane} className={styles.heroGlow} aria-hidden="true" />
+          <div ref={ticketPlane} className={styles.heroHalo} aria-hidden="true" />
+          {loading ? [0, 1, 2].map(index => <div key={index} className={`${styles.heroPoster} ${styles.heroPosterSkeleton}`} data-home-photo-plane={index} aria-hidden="true" />) : featured.map((event, index) => <div key={event.id} ref={node => { heroPosters.current[index] = node; }} className={styles.heroPoster} data-home-photo-plane={index}>
+            <Link href={`/eventos/${event.id}`} className={styles.heroPosterInner}>
+              <HomeEventImage banner={event.banner} index={index} sizes="(max-width: 767px) 44vw, (max-width: 1099px) 230px, 280px" priority={index === 0} className={styles.heroPhoto} />
+              <div className={styles.photoShine} aria-hidden="true" />
+              <div className={styles.heroPosterCaption}><span>{dateLabel(event.dataInicio)}</span><strong>{event.nome}</strong></div>
+            </Link>
           </div>)}
+          {!loading && featured.length === 0 && <div className={styles.heroArtEmpty}><CalendarDays size={28} aria-hidden="true" /><p>{loadError ? "Não foi possível carregar os eventos." : "Os próximos eventos aparecerão aqui."}</p></div>}
         </div>
         <a href="#home-featured" onClick={navigateWithinHome} className={styles.scrollCue}><ArrowDown size={15} aria-hidden="true" /> Continue explorando</a>
       </section>
@@ -97,14 +108,17 @@ export function HomePresentation({ events, loading, loadError, scrollContainer }
         </div>
         <div className={styles.galleryStage} data-home-gallery-stage><div className={styles.galleryFloor} data-home-gallery-floor aria-hidden="true" /><div className={styles.cards}>
           {loading ? [0, 1, 2].map(item => <div key={item} aria-hidden="true" className={styles.skeleton}><div className={styles.skeletonPoster} /><div className={styles.skeletonBody}><span /><span /><span /></div></div>) : featured.map((event, index) => {
-            const date = parseEventDate(event.dataInicio);
             return <article ref={node => { featuredCards.current[index] = node; }} key={event.id} className={styles.eventCard}>
               <InteractiveSurface className={styles.cardSurface}><Link href={`/eventos/${event.id}`} className={styles.cardLink}>
-                <div className={styles.poster}>{event.banner ? <img src={event.banner} alt="" width={800} height={500} loading="lazy" decoding="async" /> : <CalendarDays size={42} aria-hidden="true" />}</div>
+                <div className={styles.poster}>
+                  <HomeEventImage banner={event.banner} index={index} sizes="(max-width: 767px) calc(100vw - 48px), (max-width: 1099px) 30vw, 32vw" className={styles.eventPhoto} />
+                  <span className={styles.dateBadge}>{dateLabel(event.dataInicio)}</span>
+                </div>
                 <div className={styles.cardBody}>
-                  <span className={styles.date}>{date ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(date) : "Data a confirmar"}</span>
+                  {(event.category || event.startTime) && <div className={styles.eventMeta}>{event.category && <span>{event.category}</span>}{event.startTime && <span>{event.startTime}</span>}</div>}
                   <h3>{event.nome}</h3>
-                  <p><MapPin size={14} aria-hidden="true" /><span>{event.endereco}</span></p>
+                  <p><MapPin size={14} aria-hidden="true" /><span>{event.endereco || "Local a confirmar"}</span></p>
+                  <span className={styles.eventPrice}>{eventPrice(event)}</span>
                   <span className={styles.cardAction}>Conhecer evento <ArrowUpRight size={17} aria-hidden="true" /></span>
                 </div>
               </Link></InteractiveSurface>

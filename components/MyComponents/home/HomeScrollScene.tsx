@@ -58,7 +58,7 @@ export default function HomeScrollScene({container,hero,mapPlane,pinPlane,ticket
   const phase=clamp(value),entrance=1-clamp((phase-.1)/.35),departure=clamp((phase-.7)/.3);
   cards.current.forEach((node,index)=>{
    const side=index-1,center=index===1;
-   write(node,`translate3d(${side*entrance*-120}px,${entrance*115-departure*28}px,${(1-entrance)*(center?100:15)-entrance*80}px) rotateX(${entrance*28-departure*5}deg) rotateY(${-side*entrance*32}deg) scale(${.9+(1-entrance)*.1})`);
+   write(node,`translate3d(${side*entrance*-120}px,${entrance*115-departure*28}px,${(1-entrance)*(center?100:15)-entrance*80}px) rotateX(${entrance*18-departure*5}deg) rotateY(${-side*entrance*20}deg) scale(${.9+(1-entrance)*.1})`);
   });
   write(featured.current?.querySelector<HTMLElement>("[data-home-gallery-floor]"),`rotateX(${72-entrance*8}deg) scale(${.85+(1-entrance)*.15})`,.25+(1-entrance)*.35);
   headings(featured.current,phase);release();
