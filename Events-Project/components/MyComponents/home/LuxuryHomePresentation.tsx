@@ -9,6 +9,7 @@ import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
 import type { HomePresentationProps } from "./HomePresentation";
 import { HomeEventImage } from "./HomeEventImage";
+import { HeroCarousel, HeroSearch, type HeroSearchValues } from "./HeroDiscovery";
 import { useLoggedHomeData } from "./useLoggedHomeData";
 import LoggedHomeAgenda from "./LoggedHomeAgenda";
 import styles from "./LuxuryHome.module.css";
@@ -82,11 +83,14 @@ function Stat({ value, label, description, loading }: { value: number; label: st
 
 type LuxuryHomePresentationProps = HomePresentationProps & {
   period: DiscoveryPeriod;
+  searchValue: string;
+  categoryValue: string;
   periodLinks: { label: string; value: DiscoveryPeriod; href: string }[];
   onPeriodChange: (period: DiscoveryPeriod) => void;
+  onQuickSearch: (values: HeroSearchValues) => void;
 };
 
-export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer, period, periodLinks, onPeriodChange }: LuxuryHomePresentationProps) {
+export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer, period, periodLinks, onPeriodChange, onQuickSearch, searchValue, categoryValue }: LuxuryHomePresentationProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const ticketStack = useRef<HTMLDivElement>(null);
   const { status } = useSession();
@@ -110,7 +114,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
     categories: new Set(publicUpcoming.map(event => event.category?.trim()).filter(Boolean)).size,
   }), [publicUpcoming]);
   const suggestions = data.suggestions.slice(0, 6);
-  const heroSuggestions = suggestions.slice(0, 3);
+  const heroSuggestions = suggestions.slice(0, 5);
   const heroEventIds = new Set(heroSuggestions.map(({ event }) => event.id));
   const remainingSuggestions = suggestions.filter(({ event }) => !heroEventIds.has(event.id));
   const gallerySuggestions = remainingSuggestions.length >= 2 ? remainingSuggestions : suggestions;
@@ -134,30 +138,15 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
     <section className={styles.hero} aria-labelledby="luxury-home-title" data-scroll-hero>
       <div className={styles.heroPin} data-scroll-hero-pin>
       <div className={styles.heroCopy} data-scroll-copy>
-        <p className={styles.greeting}>{authenticated && data.sessionName && <><span className={styles.greetingName}>{data.sessionName.split(" ")[0]}</span>, </>}{greeting.charAt(0).toLocaleLowerCase("pt-BR") + greeting.slice(1)}.</p>
+        <p className={styles.greeting}>{authenticated && data.sessionName && <><span className={styles.greetingName}>{data.sessionName.split(" ")[0]}</span>, </>}{greeting}.</p>
         <h1 id="luxury-home-title">Descubra o que acontece<br />perto de você.</h1>
         <p className={styles.heroDescription}>Encontre eventos, conheça novos lugares e escolha como aproveitar a cidade.</p>
+        <HeroSearch events={publicUpcoming} period={period} searchValue={searchValue} categoryValue={categoryValue} onSearch={onQuickSearch} />
         <div className={styles.actions}><a href="#luxury-events" onClick={navigate} className={styles.primaryAction}>Encontrar um evento <ArrowUpRight size={18} aria-hidden="true" /></a><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar no mapa <MapPin size={17} aria-hidden="true" /></a></div>
         <nav className={styles.quickPeriods} aria-label="Buscar eventos por período">{periodLinks.map(link => <a key={link.value} href={link.href} onClick={navigate} aria-current={period === link.value ? "true" : undefined}>{link.label}</a>)}</nav>
       </div>
-      <div className={styles.heroShowcase} data-count={loading ? 1 : heroSuggestions.length} aria-busy={loading}>
-        {loading ? <div className={styles.heroPlaceholder} role="status"><span className="sr-only">Carregando eventos em destaque…</span></div> : heroSuggestions.map(({ event }, index) => {
-          const date = dateParts(event);
-          return <div key={event.id} className={styles.heroPosterWrap} data-scroll-poster><Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.heroPoster} aria-label={`Conhecer ${event.nome}, ${date.full}`}>
-            <div className={styles.heroPosterImage}>
-              <HomeEventImage banner={event.banner} category={event.category} index={index} priority={index === 0} sizes="(max-width: 639px) 82vw, (max-width: 1099px) 370px, 30vw" className={styles.banner} />
-              <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
-              {index > 0 && <span className={styles.heroPosterTitle} aria-hidden="true">{event.nome}</span>}
-            </div>
-            <div className={styles.heroPosterBody}>
-              <p>{date.full}{event.startTime && `, ${event.startTime}`}</p>
-              <h2>{event.nome}</h2>
-              <span className={styles.heroPosterLocation}><MapPin size={14} aria-hidden="true" />{event.endereco || "Local a confirmar"}</span>
-              <span className={styles.heroPosterAction}>Conhecer o evento <ArrowUpRight size={17} aria-hidden="true" /></span>
-            </div>
-          </Link></div>;
-        })}
-        {!loading && !suggestions.length && <div className={styles.heroPlaceholder}><Ticket size={36} aria-hidden="true" /><p>{loadError ? "Consulte os eventos disponíveis no mapa." : "Os destaques da agenda aparecem aqui."}</p><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar agenda <ArrowUpRight size={17} aria-hidden="true" /></a></div>}
+      <div className={styles.heroShowcase} aria-busy={loading}>
+        <HeroCarousel events={heroSuggestions.map(({ event }) => event)} loading={loading} loadError={loadError} onExplore={navigate} />
       </div>
       <div className={styles.heroBottom}><a href="#luxury-events" onClick={navigate} className={styles.scrollCue}><ArrowDown size={16} aria-hidden="true" />Descubra o que vem a seguir</a></div>
       </div>

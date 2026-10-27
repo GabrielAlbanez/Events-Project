@@ -52,7 +52,7 @@ export default function Home() {
       const requested = query.get("periodo");
       setPeriod(requested === "hoje" || requested === "fim-de-semana" || requested === "mes" ? requested : "todos");
       const price = query.get("preco") || "";
-      setDiscovery({ ...emptyDiscoveryFilter, category: (query.get("categoria") || "").slice(0, 50), free: query.get("gratis") === "1",
+      setDiscovery({ ...emptyDiscoveryFilter, category: (query.get("categoria") || "").slice(0, 80), free: query.get("gratis") === "1",
         maxPrice: /^\d{1,6}(?:\.\d{1,2})?$/.test(price) ? price : "" });
       setUrlReady(true);
     };
@@ -102,6 +102,26 @@ export default function Home() {
 
   const hasActiveFilters = Boolean(search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
 
+  const handleQuickSearch = ({ location, period: selectedPeriod, category }: { location: string; period: Period; category: string }) => {
+    const query = location.trim().slice(0, 100);
+    const selectedCategory = category.slice(0, 80);
+    setSearch(query);
+    setPeriod(selectedPeriod);
+    setDiscovery(current => ({ ...current, category: selectedCategory }));
+    if (window.matchMedia("(max-width: 767px)").matches) setSheetExpanded(true);
+    const url = new URL(window.location.href);
+    const entries = { q: query, periodo: selectedPeriod === "todos" ? "" : selectedPeriod, categoria: selectedCategory };
+    Object.entries(entries).forEach(([key, value]) => { if (value) url.searchParams.set(key, value); else url.searchParams.delete(key); });
+    url.hash = "home-discovery";
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    const container = homeScrollContainer.current;
+    const target = document.getElementById("home-discovery");
+    if (!container || !target || !container.contains(target)) return;
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
+    container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    target.focus({ preventScroll: true });
+  };
+
   return (
     <div className={`${styles.shell} flex min-h-0 flex-col bg-background text-foreground`}>
       <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7">
@@ -113,14 +133,13 @@ export default function Home() {
         </div>
         <nav aria-label="Navegação principal" className="hidden items-center gap-1 rounded-full border border-border bg-muted p-1 text-sm xl:flex">
           <Link href="/" aria-current="page" className="inline-flex min-h-11 items-center rounded-full bg-card px-4 py-2 font-semibold text-primary shadow-sm">Descobrir</Link>
-          <Link href="/EventsCreated" className="inline-flex min-h-11 items-center rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Agenda</Link>
           {canManageEvents && <Link href="/myEvents" className="inline-flex min-h-11 items-center rounded-full px-4 py-2 text-muted-foreground transition hover:text-primary">Meus eventos</Link>}
         </nav>
         <Link href="/EventsCreated" className="flex items-center gap-2 min-h-11 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="h-4 w-4" /><span className="hidden sm:inline">Explorar agenda</span><span className="sm:hidden">Agenda</span></Link>
       </header>
 
       <div ref={homeScrollContainer} className={styles.scroller}>
-      <LuxuryHomePresentation key={session?.user?.id ?? "visitor"} events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} period={period} periodLinks={periodLinks} onPeriodChange={setPeriod} />
+      <LuxuryHomePresentation key={session?.user?.id ?? "visitor"} events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} period={period} periodLinks={periodLinks} onPeriodChange={setPeriod} onQuickSearch={handleQuickSearch} searchValue={search} categoryValue={discovery.category} />
       <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet transition-[height] duration-300 md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
