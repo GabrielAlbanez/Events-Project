@@ -5,7 +5,14 @@ function source(file){return fs.readFileSync(file,'utf8');}
 const printer=ts.createPrinter({removeComments:true});
 function calls(text,names){const file=ts.createSourceFile('x.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),values=[];function visit(n){if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&names.includes(n.expression.text))values.push(printer.printNode(ts.EmitHint.Unspecified,n,file));ts.forEachChild(n,visit);}visit(file);return values;}
 const agenda=path+'LoggedHomeAgenda.tsx';assert.deepEqual(calls(source(agenda),['useEffect','useMemo','fetch']),calls(previous(agenda),['useEffect','useMemo','fetch']),'Agenda data, authentication, registration requests and effects preserved');
-for(const file of ['app/page.tsx',path+'useLoggedHomeData.ts',path+'HomePresentation.tsx','app/globals.css','tailwind.config.ts','lib/personalAgenda.ts','lib/eventRecommendations.ts','components/MyComponents/CheckInPass.tsx'])assert.equal(source(file).replace(/\r\n/g,'\n'),previous(file).replace(/\r\n/g,'\n'),file+' preserved');
+for(const file of ['app/page.tsx',path+'useLoggedHomeData.ts','app/globals.css','tailwind.config.ts','lib/personalAgenda.ts','lib/eventRecommendations.ts','components/MyComponents/CheckInPass.tsx'])assert.equal(source(file).replace(/\r\n/g,'\n'),previous(file).replace(/\r\n/g,'\n'),file+' preserved');
+// The visitor home was subsequently approved in 2ffaa8d (before the monorepo merge).
+// Keep exact source checks against that approved version, independently of logged-home guards.
+for(const name of ['HomePresentation.tsx','HomeScrollScene.tsx','HomeScroll.module.css','HomeEventImage.tsx']){
+ const file=path+name;
+ const approved=cp.execFileSync('git',['show','2ffaa8d:'+file],{encoding:'utf8'});
+ assert.equal(source(file).replace(/\r\n/g,'\n'),approved.replace(/\r\n/g,'\n'),file+' matches approved visitor home');
+}
 function lights(css){const result=[];postcss.parse(css).walkRules(rule=>{if(/\.(beams|sparks|floor|orb|orbSecondary|bob)\b|\.hero::before/.test(rule.selector))result.push({selector:rule.selector,values:rule.nodes.map(n=>n.toString())});});return result;}
 assert.deepEqual(lights(source(path+'LoggedHomeScroll.module.css')),lights(previous(path+'LoggedHomeScroll.module.css')),'All hero lighting and bob rules preserved');
 const current=source(agenda);assert.ok(current.includes('upcoming.filter(event => values[event.id] === "CONFIRMED")'),'Check-in remains confirmed-only');

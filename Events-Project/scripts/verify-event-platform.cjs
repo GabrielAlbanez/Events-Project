@@ -22,6 +22,10 @@ function load(relative){
    }};
   }
   if(name.startsWith("@/"))return load(name.slice(2)+".ts");
+  if(name.startsWith(".")){
+   const relative=path.resolve(path.dirname(filename),name);
+   return load(fs.existsSync(relative)?relative:relative+".ts");
+  }
   return nativeRequire(name);
  };
  new Function("require","module","exports","__filename","__dirname",source)(requireLocal,module,module.exports,filename,path.dirname(filename));
