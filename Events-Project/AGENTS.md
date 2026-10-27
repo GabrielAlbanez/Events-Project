@@ -52,3 +52,33 @@ EventMap é uma aplicação para descobrir, cadastrar e administrar eventos, com
 5. **Resumir:** explique o que mudou, quais verificações passaram ou falharam e qualquer limitação pendente.
 
 Os scripts atuais são `dev`, `dev:socket`, `prisma:generate`, `build`, `start` e `lint`. Consulte `package.json` antes de executá-los, pois eles podem mudar.
+
+# REGRA PERMANENTE: CHECKPOINT E RETOMADA AUTOMÁTICA
+Antes de começar, grave esta regra no `AGENTS.md` na raiz (crie ou acrescente ao final, sem apagar o que já existe) e siga-a durante toda esta tarefa e nas futuras.
+
+Objetivo: nunca perder trabalho nem contexto quando meu limite de uso ou a janela de contexto estiver acabando, e continuar sozinho quando o limite voltar.
+
+Gatilhos (qualquer um):
+- Aviso da ferramenta sobre limite de uso ou contexto próximo do fim
+- Erro de rate limit / "usage limit reached"
+- Conversa muito longa (mais de ~80% do contexto)
+
+Estados do `.codex/HANDOFF.md` (linha `Status:` no topo):
+- `Status: EM ANDAMENTO`: trabalhando normalmente.
+- `Status: PENDENTE`: parei por limite; o vigia deve me retomar.
+- `Status: CONCLUÍDO`: tudo pronto; o vigia encerra.
+
+Checkpoint preventivo: ao concluir cada etapa relevante, atualize o HANDOFF (Status: EM ANDAMENTO) com 3 a 5 linhas: o que foi feito e o próximo passo. Isso também serve para o vigia saber que a sessão está viva.
+
+Protocolo de parada ao detectar um gatilho:
+1. Termine só a unidade atômica em andamento. Não deixe arquivo pela metade nem o projeto quebrado sem registrar.
+2. Não inicie nenhuma etapa nova.
+3. Sobrescreva `.codex/HANDOFF.md` com `Status: PENDENTE` e as seções: Tarefa original, Critério de pronto, Concluído (arquivo e o que mudou), Estado atual (onde parei: arquivo/função/linha/passo; build ok|quebrado|não testado; testes passando|falhando|não rodados), Próximos passos em ordem, Decisões e motivos, Arquivos relevantes, Como rodar e testar, Pendências e dúvidas.
+4. Se houver git: commit `wip: checkpoint <tarefa>` na branch atual, sem force e sem apagar nada.
+5. Avise em até 3 linhas: o que foi feito, onde parou e que o checkpoint está salvo.
+
+Retomada (início de toda sessão, inclusive as disparadas pelo vigia): se existir `.codex/HANDOFF.md` que não esteja CONCLUÍDO, leia-o antes de qualquer ação. Confira o estado real (git status, build, testes) contra o HANDOFF; se divergir, o código vence e o HANDOFF é corrigido. Anuncie em 1 linha o que vai continuar e siga, sem pedir contexto de novo, voltando para `Status: EM ANDAMENTO`. Ao terminar tudo, troque para `Status: CONCLUÍDO` e copie o arquivo para `.codex/handoff-archive/<data>.md`.
+
+Segurança: se a mesma etapa falhar 2 vezes seguidas, pare, registre no HANDOFF e pergunte. Nunca declare algo concluído sem verificar com build/testes. Nunca invente progresso que não esteja no código.
+
+
