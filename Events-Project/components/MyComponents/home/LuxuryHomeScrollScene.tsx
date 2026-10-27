@@ -30,10 +30,7 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
     const track = root.querySelector<HTMLElement>("[data-scroll-track]");
     const viewport = track?.parentElement;
     const cards = track ? Array.from(track.children).filter((node): node is HTMLElement => node instanceof HTMLElement && node.hasAttribute("data-scroll-card")) : [];
-    const map = root.querySelector<HTMLElement>("[data-scroll-map]");
-    const plane = root.querySelector<HTMLElement>("[data-scroll-map-plane]");
     const headings = Array.from(root.querySelectorAll<HTMLElement>("[data-scroll-heading]"));
-    const closing = root.querySelector<HTMLElement>("[data-scroll-closing]");
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const desktop = window.matchMedia("(min-width: 1100px) and (min-height: 700px) and (hover: hover) and (pointer: fine)");
     const originals = new Map<HTMLElement, { transform: string; opacity: string; willChange: string }>();
@@ -45,8 +42,6 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
     let viewportHeight = 1;
     let heroGeometry: SectionGeometry | null = null;
     let galleryGeometry: SectionGeometry | null = null;
-    let mapGeometry: SectionGeometry | null = null;
-    let closingGeometry: SectionGeometry | null = null;
     let headingGeometry: { node: HTMLElement; top: number; height: number }[] = [];
     const posterFocusX = new Map<HTMLElement, number>();
     let cardGeometry: CardGeometry[] = [];
@@ -100,8 +95,6 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
       viewportHeight = container!.clientHeight;
       heroGeometry = sectionGeometry(hero, heroPin);
       galleryGeometry = sectionGeometry(gallery, galleryPin);
-      mapGeometry = sectionGeometry(map);
-      closingGeometry = sectionGeometry(closing);
       const containerTop = container!.getBoundingClientRect().top;
       headingGeometry = headings.map(node => ({ node, top: node.getBoundingClientRect().top - containerTop + container!.scrollTop, height: node.offsetHeight }));
       posters.forEach(poster => {
@@ -135,8 +128,6 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
       const inlineScroll = mode === "touch" ? track?.scrollLeft ?? 0 : viewport?.scrollLeft ?? 0;
       const heroProgress = mode === "depth" ? pinnedProgress(heroGeometry, scroll) : crossingProgress(heroGeometry, scroll);
       const galleryProgress = pinnedProgress(galleryGeometry, scroll);
-      const mapProgress = crossingProgress(mapGeometry, scroll);
-      const closingProgress = crossingProgress(closingGeometry, scroll);
       const isDepth = mode === "depth";
       const focusedElement = document.activeElement;
       focusedCard = cards.find(card => focusedElement instanceof Node && card.contains(focusedElement)) ?? null;
@@ -189,12 +180,10 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
       });
 
       if (isDepth) {
-        write(plane, `perspective(1200px) translate3d(0,${fixed((.5 - mapProgress) * 46)}px,0) rotateX(${fixed((1 - mapProgress) * 38)}deg) rotateZ(${fixed((1 - mapProgress) * -5)}deg) scale(${fixed(.88 + mapProgress * .17)})`);
         headingGeometry.forEach(heading => {
           const progress = clamp((scroll + viewportHeight * .9 - heading.top) / Math.max(1, viewportHeight * .35));
           write(heading.node, `translate3d(0,${fixed((1 - progress) * Math.min(24, heading.height * .4))}px,0)`, .72 + progress * .28);
         });
-        write(closing, `translate3d(0,${fixed((.5 - closingProgress) * 24)}px,0)`);
       }
 
       if (active.size) {
@@ -221,7 +210,7 @@ export default function LuxuryHomeScrollScene({ scrollContainer, sectionRef, con
     }
 
     const sizes = new ResizeObserver(resize);
-    [container, root, hero, heroPin, gallery, galleryPin, track, viewport, map, plane, ...cards].forEach(node => { if (node) sizes.observe(node); });
+    [container, root, hero, heroPin, gallery, galleryPin, track, viewport, ...cards].forEach(node => { if (node) sizes.observe(node); });
     container.addEventListener("scroll", schedule, { passive: true });
     viewport?.addEventListener("scroll", schedule, { passive: true });
     track?.addEventListener("scroll", schedule, { passive: true });

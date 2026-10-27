@@ -185,15 +185,8 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
 
     {authenticated && <LoggedHomeAgenda events={data.saved} loading={data.agendaLoading} error={data.agendaError} onRetry={data.retryAgenda} stackRef={ticketStack} />}
 
-    <section className={styles.mapIntro} aria-labelledby="luxury-map-title" data-scroll-map>
-      <div className={styles.mapCopy}><MapPin size={26} aria-hidden="true" /><h2 id="luxury-map-title" data-scroll-heading>Seu lugar no<br />próximo encontro.</h2><p>Explore os locais no mapa, filtre a programação e encontre o evento que combina com você.</p><a href="#home-discovery" onClick={navigate} className={styles.primaryAction}>Explorar o mapa <ArrowDown size={18} aria-hidden="true" /></a></div>
-      <div className={styles.mapStage}>
-        <div className={styles.mapPlane} data-scroll-map-plane>
-          <svg viewBox="0 0 800 480" fill="none" aria-hidden="true" preserveAspectRatio="none"><path className={styles.mapWater} d="M0 380C160 300 220 460 400 360S640 310 800 350V480H0Z"/><g className={styles.mapBlocks}><rect x="83" y="64" width="135" height="77" rx="10"/><rect x="280" y="62" width="138" height="98" rx="10"/><rect x="502" y="62" width="108" height="100" rx="10"/><rect x="650" y="75" width="120" height="82" rx="10"/><rect x="100" y="214" width="126" height="82" rx="10"/><rect x="295" y="225" width="115" height="70" rx="10"/><rect x="486" y="226" width="128" height="77" rx="10"/></g><g className={styles.mapStreets}><path d="M0 181H800M0 321H800M58 0V480M252 0V480M454 0V480M638 0V480"/><path d="M0 446 800 94"/></g></svg>
-          {suggestions.slice(0, 3).map(({ event }, index) => <Link key={event.id} href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.mapPin} style={{ left: `${[28, 65, 47][index]}%`, top: `${[35, 52, 74][index]}%` }}><MapPin size={27} aria-hidden="true" /><span>{event.nome}</span></Link>)}
-          <span className={styles.mapCaption}>Prévia ilustrativa · explore os locais no mapa abaixo</span>
-        </div>
-      </div>
+    <section className={styles.mapIntro} aria-labelledby="luxury-map-title">
+      <div><h2 id="luxury-map-title">Encontre seu lugar na cidade.</h2><p>Veja os locais e filtre a programação no mapa.</p><a href="#home-discovery" onClick={navigate} className={styles.primaryAction}>Explorar no mapa <ArrowDown size={18} aria-hidden="true" /></a></div>
     </section>
   </div>;
 }
