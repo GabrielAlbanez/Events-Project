@@ -51,7 +51,7 @@
 .eventCard { min-width:0; border:1px solid hsl(var(--foreground)/.1); border-radius:22px; background:linear-gradient(145deg,hsl(var(--foreground)/.055),hsl(var(--foreground)/.015)); box-shadow:0 18px 48px rgb(0 0 0/.2); transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)); transition:transform .22s ease-out; }
 .cardLink { display:flex; flex-direction:column; height:100%; border-radius:22px; overflow:hidden; }
 .eventImage { position:relative; aspect-ratio:1.43; background:hsl(var(--muted)); overflow:hidden; }
-.banner { object-fit:contain; }
+.banner { object-fit:cover; object-position:center; }
 .eventImage::after { content:""; position:absolute; inset:45% 0 0; background:linear-gradient(transparent,rgb(0 0 0/.55)); pointer-events:none; }
 .dateBadge { position:absolute; top:16px; left:16px; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:52px; min-height:58px; padding:7px 10px; border-radius:13px; border:1px solid hsl(var(--foreground)/.25); background:hsl(var(--background)/.78); backdrop-filter:blur(12px); }
 .dateBadge strong { font-size:23px; font-weight:550; line-height:1.1; }

@@ -53,7 +53,7 @@ function EventCard({ event, index, count }: { event: Evento; index: number; coun
   return <article className={styles.eventCard} onPointerMove={tilt} onPointerLeave={reset} onPointerCancel={reset}>
     <Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.cardLink}>
       <div className={styles.eventImage}>
-        <HomeEventImage banner={event.banner} index={index} sizes={count === 1 ? "(max-width: 767px) calc(100vw - 40px), 46vw" : count === 2 ? "(max-width: 639px) calc(100vw - 40px), 46vw" : "(max-width: 639px) calc(100vw - 40px), (max-width: 1099px) 44vw, 30vw"} className={styles.banner} />
+        <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={count === 1 ? "(max-width: 767px) calc(100vw - 40px), 46vw" : count === 2 ? "(max-width: 639px) calc(100vw - 40px), 46vw" : "(max-width: 639px) calc(100vw - 40px), (max-width: 1099px) 44vw, 30vw"} className={styles.banner} />
         <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
         {event.category && <span className={styles.category}>{event.category}</span>}
       </div>
@@ -150,7 +150,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
           const date = dateParts(event);
           return <div key={event.id} className={styles.heroPosterWrap} data-scroll-poster><Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.heroPoster} aria-label={`Conhecer ${event.nome}, ${date.full}`}>
             <div className={styles.heroPosterImage}>
-              <HomeEventImage banner={event.banner} index={index} priority={index === 0} sizes="(max-width: 639px) 82vw, (max-width: 1099px) 370px, 30vw" className={styles.banner} />
+              <HomeEventImage banner={event.banner} category={event.category} index={index} priority={index === 0} sizes="(max-width: 639px) 82vw, (max-width: 1099px) 370px, 30vw" className={styles.banner} />
               <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
             </div>
             <div className={styles.heroPosterBody}>
