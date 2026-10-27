@@ -43,6 +43,11 @@ export default function LuxuryHomeInertia({ scrollContainer, sectionRef, paused 
     }
     function wheel(event: WheelEvent) {
       if (!container || !section || !media.matches || event.ctrlKey || event.metaKey || event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const magnitude = Math.abs(event.deltaY);
+      // Discrete wheel notches use line/page units or common integral pixel steps.
+      // Fractional and continuous trackpad deltas keep the browser's native inertia.
+      const mouseWheel = event.deltaMode !== 0 || (magnitude >= 50 && Number.isInteger(magnitude) && (magnitude % 50 === 0 || magnitude % 120 === 0));
+      if (!mouseWheel) { stop(); return; }
       const element = event.target instanceof Element ? event.target : null;
       if (!element || !section.contains(element) || element.closest("input, textarea, select, [contenteditable], [data-native-scroll]")) return;
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? container.clientHeight : 1);
