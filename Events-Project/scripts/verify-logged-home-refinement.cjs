@@ -5,7 +5,14 @@ function source(file){return fs.readFileSync(file,'utf8');}
 const printer=ts.createPrinter({removeComments:true});
 function calls(text,names){const file=ts.createSourceFile('x.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),values=[];function visit(n){if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&names.includes(n.expression.text))values.push(printer.printNode(ts.EmitHint.Unspecified,n,file));ts.forEachChild(n,visit);}visit(file);return values;}
 const agenda=path+'LoggedHomeAgenda.tsx';assert.deepEqual(calls(source(agenda),['useEffect','useMemo','fetch']),calls(previous(agenda),['useEffect','useMemo','fetch']),'Agenda data, authentication, registration requests and effects preserved');
-for(const file of ['app/page.tsx',path+'useLoggedHomeData.ts','app/globals.css','tailwind.config.ts','lib/personalAgenda.ts','lib/eventRecommendations.ts','components/MyComponents/CheckInPass.tsx'])assert.equal(source(file).replace(/\r\n/g,'\n'),previous(file).replace(/\r\n/g,'\n'),file+' preserved');
+for(const file of [path+'useLoggedHomeData.ts','app/globals.css','tailwind.config.ts','lib/personalAgenda.ts','lib/eventRecommendations.ts','components/MyComponents/CheckInPass.tsx'])assert.equal(source(file).replace(/\r\n/g,'\n'),previous(file).replace(/\r\n/g,'\n'),file+' preserved');
+// The presentation was replaced with the approved event-led home. Protect the real map
+// and data subscriptions separately rather than freezing the obsolete presentation.
+const page=source('app/page.tsx'),oldPage=previous('app/page.tsx');
+assert.deepEqual(calls(page,['useEffect','useMemo','fetch','useSession','useSocket']),calls(oldPage,['useEffect','useMemo','fetch','useSession','useSocket']),'Home data and authentication preserved');
+const discovery=text=>text.slice(text.indexOf('<main id="home-discovery"')).replace(/\r\n/g,'\n');
+assert.ok(page.includes('<main id="home-discovery"'));
+assert.equal(discovery(page),discovery(oldPage),'Real map, filters, list and event handlers preserved');
 // The visitor home was subsequently approved in 2ffaa8d (before the monorepo merge).
 // Keep exact source checks against that approved version, independently of logged-home guards.
 for(const name of ['HomePresentation.tsx','HomeScrollScene.tsx','HomeScroll.module.css','HomeEventImage.tsx']){
