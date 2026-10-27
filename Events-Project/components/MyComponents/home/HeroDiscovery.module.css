@@ -10,8 +10,8 @@
 .searchButton:hover { transform:translateY(-2px); filter:brightness(1.08); }
 .searchButton:focus-visible,.carousel button:focus-visible,.cardLink:focus-visible,.placeholder a:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
 .carousel { position:relative; width:min(100%,440px); margin-inline:auto; }
-.card { overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:0 24px 65px hsl(var(--foreground)/.14),0 0 60px hsl(var(--primary)/.12); transition:transform .25s,box-shadow .25s; }
-.card:hover { transform:translateY(-4px); box-shadow:0 30px 70px hsl(var(--foreground)/.18),0 0 70px hsl(var(--primary)/.16); }
+.card { overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:0 24px 65px hsl(var(--foreground)/.14),0 0 60px hsl(var(--primary)/.12); transition:box-shadow .25s; }
+.card:hover { box-shadow:0 30px 70px hsl(var(--foreground)/.18),0 0 70px hsl(var(--primary)/.16); }
 .card:focus-within { outline:2px solid hsl(var(--ring)); outline-offset:4px; }
 .cardLink { display:block; color:hsl(var(--foreground)); text-decoration:none; }
 .artwork { position:relative; width:100%; aspect-ratio:1.45; overflow:hidden; background:hsl(var(--muted)); animation:hero-artwork-in .3s ease-out; }
