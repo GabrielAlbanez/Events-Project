@@ -1,4 +1,5 @@
 .shell {
+  position: relative;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -9,13 +10,13 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: clip;
-  scroll-padding-top: 16px;
+  scroll-padding-top: 72px;
 }
 
 .main {
   height: calc(100dvh - 72px);
   flex: none;
-  scroll-margin-top: 16px;
+  scroll-margin-top: 72px;
   --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }
@@ -74,4 +75,25 @@
   .mapExpanded {
     transition: none;
   }
+}
+
+.homeHeader {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+.homeHeader.heroHeader {
+  --foreground: 240 12% 96%;
+  --card: 240 17% 5%;
+  --muted: 240 12% 10%;
+  --muted-foreground: 240 9% 75%;
+  --border: 244 17% 22%;
+  --primary: 255 92% 76%;
+  --ring: 255 92% 76%;
+  --background: 240 25% 1.6%;
+  color: hsl(var(--foreground));
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
+  color-scheme: dark;
 }

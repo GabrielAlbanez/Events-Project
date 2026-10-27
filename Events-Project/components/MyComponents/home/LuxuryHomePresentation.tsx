@@ -142,7 +142,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
       onPeriodChange(requestedPeriod);
       url.searchParams.set("periodo", requestedPeriod);
     }
-    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 72;
     container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${event.currentTarget.hash}`);
     target.focus({ preventScroll: true });
