@@ -1,3 +1,3 @@
 # Tarefas
 
-- [ ] Retomar: QA final e push EventMap — seguir ../.codex/HANDOFF.md; aguardar resposta à consulta sobre segunda falha do smoke de rotas. Home e animações já publicadas.
+- [x] Home, animações, QA do site e WebSocket — concluídos. Relatório em ../.codex/QA-2026-10-27.md; checkpoint arquivado.

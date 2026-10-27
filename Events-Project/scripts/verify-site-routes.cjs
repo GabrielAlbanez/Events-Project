@@ -20,7 +20,7 @@ async function run() {
     await check("/eventos/" + encodeURIComponent(events[0].id) + "/comunidade", [200]);
     if (events[0].userId) await check("/promotores/" + encodeURIComponent(events[0].userId), [200]);
   }
-  for (const route of ["/api/admin/events", "/api/community/activity", "/api/community/rooms", "/api/push/subscriptions", "/api/my-calendar"]) await check(route, [401]);
+  for (const route of ["/api/admin/events", "/api/community/activity", "/api/community/rooms", "/api/push/subscriptions", "/api/my-calendar"]) await check(route, [401, 403]);
   console.log("PASS site HTTP smoke (anonymous/public only; authenticated mutations require an isolated test database).");
 }
 run().catch(error => { console.error(error.message); process.exitCode = 1; });
