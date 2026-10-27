@@ -152,6 +152,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
             <div className={styles.heroPosterImage}>
               <HomeEventImage banner={event.banner} category={event.category} index={index} priority={index === 0} sizes="(max-width: 639px) 82vw, (max-width: 1099px) 370px, 30vw" className={styles.banner} />
               <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
+              {index > 0 && <span className={styles.heroPosterTitle} aria-hidden="true">{event.nome}</span>}
             </div>
             <div className={styles.heroPosterBody}>
               <p>{date.full}{event.startTime && `, ${event.startTime}`}</p>
