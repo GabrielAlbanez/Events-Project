@@ -14,6 +14,7 @@ import LoggedHomeAgenda from "./LoggedHomeAgenda";
 import styles from "./LuxuryHome.module.css";
 
 const LuxuryHomeInertia = dynamic(() => import("./LuxuryHomeInertia"), { ssr: false });
+const LuxuryHomeScrollScene = dynamic(() => import("./LuxuryHomeScrollScene"), { ssr: false });
 
 function dateParts(event: Evento) {
   const date = eventInstant(event.dataInicio, event.startTime, event.timezone);
@@ -118,6 +119,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
     categories: new Set(publicUpcoming.map(event => event.category?.trim()).filter(Boolean)).size,
   }), [publicUpcoming]);
   const suggestions = data.suggestions.slice(0, 6);
+  const contentKey = `${loading}:${suggestions.map(({ event }) => event.id).join(":")}`;
   const navigate = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const container = scrollContainer.current, target = document.getElementById(event.currentTarget.hash.slice(1));
@@ -130,8 +132,10 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
   };
   return <div ref={sectionRef} className={styles.presentation} data-luxury-home>
     <LuxuryHomeInertia scrollContainer={scrollContainer} sectionRef={sectionRef} />
-    <section className={styles.hero} aria-labelledby="luxury-home-title">
-      <div className={styles.heroCopy}>
+    <LuxuryHomeScrollScene scrollContainer={scrollContainer} sectionRef={sectionRef} contentKey={contentKey} />
+    <section className={styles.hero} aria-labelledby="luxury-home-title" data-scroll-hero>
+      <div className={styles.heroPin} data-scroll-hero-pin>
+      <div className={styles.heroCopy} data-scroll-copy>
         <p className={styles.greeting}>{authenticated && data.sessionName ? `${data.sessionName.split(" ")[0]}, ` : ""}{greeting.charAt(0).toLocaleLowerCase("pt-BR") + greeting.slice(1)}.</p>
         <h1 id="luxury-home-title">A cidade pulsa.<br />Você faz parte.</h1>
         <p className={styles.heroDescription}>A energia de um show. O encontro que surpreende. Encontre eventos e viva a cidade do seu jeito.</p>
@@ -140,7 +144,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
       <div className={styles.heroShowcase} data-count={loading ? 1 : Math.min(3, suggestions.length)} aria-busy={loading}>
         {loading ? <div className={styles.heroPlaceholder} role="status"><span className="sr-only">Carregando eventos em destaque…</span></div> : suggestions.slice(0, 3).map(({ event }, index) => {
           const date = dateParts(event);
-          return <Link key={event.id} href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.heroPoster}>
+          return <div key={event.id} className={styles.heroPosterWrap} data-scroll-poster><Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.heroPoster} aria-label={`Conhecer ${event.nome}, ${date.full}`}>
             <div className={styles.heroPosterImage}>
               <HomeEventImage banner={event.banner} index={index} priority={index === 0} sizes="(max-width: 639px) 82vw, (max-width: 1099px) 370px, 30vw" className={styles.banner} />
               <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
@@ -151,27 +155,41 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
               <span className={styles.heroPosterLocation}><MapPin size={14} aria-hidden="true" />{event.endereco || "Local a confirmar"}</span>
               <span className={styles.heroPosterAction}>Conhecer o evento <ArrowUpRight size={17} aria-hidden="true" /></span>
             </div>
-          </Link>;
+          </Link></div>;
         })}
         {!loading && !suggestions.length && <div className={styles.heroPlaceholder}><Ticket size={36} aria-hidden="true" /><p>{loadError ? "Consulte os eventos disponíveis no mapa." : "Os próximos eventos em destaque aparecem aqui."}</p><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar agenda <ArrowUpRight size={17} aria-hidden="true" /></a></div>}
       </div>
       <div className={styles.heroBottom}><a href="#luxury-events" onClick={navigate} className={styles.scrollCue}><ArrowDown size={16} aria-hidden="true" />Descubra o que vem a seguir</a></div>
+      </div>
     </section>
 
-    <section id="luxury-events" tabIndex={-1} className={styles.events} aria-labelledby="luxury-events-title">
-      <div className={styles.sectionHeader}><div><p className={styles.sectionContext}>{authenticated ? "Escolhidos para você" : "O que vem por aí"}</p><h2 id="luxury-events-title">Seu próximo<br />“eu estava lá”.</h2><p>Eventos reais, novas histórias. Escolha onde quer estar.</p></div><Link href="/EventsCreated" className={styles.secondaryAction}>Explorar toda a agenda <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
+    <section id="luxury-events" tabIndex={-1} className={styles.events} aria-labelledby="luxury-events-title" data-scroll-gallery>
+      <div className={styles.galleryPin} data-scroll-gallery-pin>
+      <div className={styles.sectionHeader}><div><p className={styles.sectionContext}>{authenticated ? "Escolhidos para você" : "O que vem por aí"}</p><h2 id="luxury-events-title" data-scroll-heading>Seu próximo<br />“eu estava lá”.</h2><p>Eventos reais, novas histórias. Escolha onde quer estar.</p></div><Link href="/EventsCreated" className={styles.secondaryAction}>Explorar toda a agenda <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
       {(loadError || (authenticated && data.recommendationsError)) && <div className={styles.notice} role="status"><p>{suggestions.length ? "Não foi possível atualizar todas as sugestões. Você ainda pode explorar os eventos disponíveis." : "Não foi possível carregar as sugestões agora."}</p>{authenticated && data.recommendationsError ? <button type="button" onClick={data.retryRecommendations}>Tentar novamente</button> : <a href="#home-discovery" onClick={navigate}>Tentar novamente no mapa <ArrowDown size={15} aria-hidden="true" /></a>}</div>}
-      <div className={styles.eventGrid} data-count={loading ? 3 : suggestions.length} aria-busy={loading}>
-        {loading ? [0,1,2].map(index => <div key={index} className={styles.skeleton} aria-hidden="true"><div /><span /><span /><span /></div>) : suggestions.map(({ event }, index) => <EventCard key={event.id} event={event} index={index} count={suggestions.length} />)}
+      <div className={styles.galleryStage} data-scroll-viewport>
+      <div className={styles.eventGrid} data-count={loading ? 3 : suggestions.length} aria-busy={loading} data-scroll-track>
+        {loading ? [0,1,2].map(index => <div key={index} className={styles.skeleton} aria-hidden="true"><div /><span /><span /><span /></div>) : suggestions.map(({ event }, index) => <div key={event.id} className={styles.scrollCard} data-scroll-card><EventCard event={event} index={index} count={suggestions.length} /></div>)}
         {!loading && suggestions.length === 0 && <div className={styles.empty}><Ticket size={30} aria-hidden="true" /><h3>Novos encontros estão por vir.</h3><p>Os próximos eventos publicados aparecerão aqui. Explore o mapa para consultar a agenda disponível.</p><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Abrir mapa <ArrowDown size={16} aria-hidden="true" /></a></div>}
       </div>
+      </div>
       {loading && <span className="sr-only" role="status">Carregando eventos…</span>}
+      </div>
     </section>
 
     <section className={styles.highlights} aria-labelledby="luxury-highlights-title"><div className={styles.highlightHeading}><h2 id="luxury-highlights-title">Uma cidade.<br />Muitas possibilidades.</h2><p>Explore o que está publicado na agenda agora.</p></div><div className={styles.stats} aria-busy={loading}>{loadError ? <p className={styles.statsUnavailable}>Os destaques serão atualizados quando a agenda estiver disponível.</p> : <><Stat value={stats.events} label="eventos por vir" description="Publicados na agenda" loading={loading} /><Stat value={stats.places} label="lugares para descobrir" description="Endereços dos próximos eventos" loading={loading} /><Stat value={stats.categories} label="jeitos de viver a cidade" description="Categorias na programação" loading={loading} /></>}</div></section>
 
     {authenticated && <LoggedHomeAgenda events={data.saved} loading={data.agendaLoading} error={data.agendaError} onRetry={data.retryAgenda} stackRef={ticketStack} />}
 
-    <section className={styles.mapIntro} aria-labelledby="luxury-map-title"><MapPin size={26} aria-hidden="true" /><h2 id="luxury-map-title">Seu lugar no próximo encontro.</h2><p>Explore os locais no mapa, filtre a programação e encontre o evento que combina com você.</p><a href="#home-discovery" onClick={navigate} className={styles.primaryAction}>Explorar o mapa <ArrowDown size={18} aria-hidden="true" /></a></section>
+    <section className={styles.mapIntro} aria-labelledby="luxury-map-title" data-scroll-map>
+      <div className={styles.mapCopy}><MapPin size={26} aria-hidden="true" /><h2 id="luxury-map-title" data-scroll-heading>Seu lugar no<br />próximo encontro.</h2><p>Explore os locais no mapa, filtre a programação e encontre o evento que combina com você.</p><a href="#home-discovery" onClick={navigate} className={styles.primaryAction}>Explorar o mapa <ArrowDown size={18} aria-hidden="true" /></a></div>
+      <div className={styles.mapStage}>
+        <div className={styles.mapPlane} data-scroll-map-plane>
+          <svg viewBox="0 0 800 480" fill="none" aria-hidden="true" preserveAspectRatio="none"><path className={styles.mapWater} d="M0 380C160 300 220 460 400 360S640 310 800 350V480H0Z"/><g className={styles.mapBlocks}><rect x="83" y="64" width="135" height="77" rx="10"/><rect x="280" y="62" width="138" height="98" rx="10"/><rect x="502" y="62" width="108" height="100" rx="10"/><rect x="650" y="75" width="120" height="82" rx="10"/><rect x="100" y="214" width="126" height="82" rx="10"/><rect x="295" y="225" width="115" height="70" rx="10"/><rect x="486" y="226" width="128" height="77" rx="10"/></g><g className={styles.mapStreets}><path d="M0 181H800M0 321H800M58 0V480M252 0V480M454 0V480M638 0V480"/><path d="M0 446 800 94"/></g></svg>
+          {suggestions.slice(0, 3).map(({ event }, index) => <Link key={event.id} href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.mapPin} style={{ left: `${[28, 65, 47][index]}%`, top: `${[35, 52, 74][index]}%` }}><MapPin size={27} aria-hidden="true" /><span>{event.nome}</span></Link>)}
+          <span className={styles.mapCaption}>Prévia ilustrativa · explore os locais no mapa abaixo</span>
+        </div>
+      </div>
+    </section>
   </div>;
 }
