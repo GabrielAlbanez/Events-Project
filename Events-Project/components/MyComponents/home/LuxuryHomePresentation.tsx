@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { ArrowDown, ArrowUpRight, CalendarDays, MapPin, Ticket } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { Evento } from "@/types";
 import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
@@ -13,9 +12,6 @@ import { HomeEventImage } from "./HomeEventImage";
 import { useLoggedHomeData } from "./useLoggedHomeData";
 import LoggedHomeAgenda from "./LoggedHomeAgenda";
 import styles from "./LuxuryHome.module.css";
-
-const LuxuryHomeInertia = dynamic(() => import("./LuxuryHomeInertia"), { ssr: false });
-const LuxuryHomeScrollScene = dynamic(() => import("./LuxuryHomeScrollScene"), { ssr: false });
 
 function dateParts(event: Evento) {
   const date = eventInstant(event.dataInicio, event.startTime, event.timezone);
@@ -36,22 +32,10 @@ function eventPrice(event: Evento) {
   return "Consulte ingressos";
 }
 
-/** Pointer feedback lives on the card; its link keeps native navigation and keyboard behavior. */
+/** Event links retain native navigation and keyboard behavior. */
 function EventCard({ event, index, count }: { event: Evento; index: number; count: number }) {
-  const tilt = (pointer: PointerEvent<HTMLElement>) => {
-    if (pointer.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)").matches) return;
-    const node = pointer.currentTarget, rect = node.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (pointer.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (pointer.clientY - rect.top) / rect.height));
-    node.style.setProperty("--tilt-x", `${((.5 - y) * 10).toFixed(2)}deg`);
-    node.style.setProperty("--tilt-y", `${((x - .5) * 14).toFixed(2)}deg`);
-  };
-  const reset = (pointer: PointerEvent<HTMLElement>) => {
-    pointer.currentTarget.style.removeProperty("--tilt-x");
-    pointer.currentTarget.style.removeProperty("--tilt-y");
-  };
   const date = dateParts(event);
-  return <article className={styles.eventCard} onPointerMove={tilt} onPointerLeave={reset} onPointerCancel={reset}>
+  return <article className={styles.eventCard}>
     <Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.cardLink}>
       <div className={styles.eventImage}>
         <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={count === 1 ? "(max-width: 767px) calc(100vw - 40px), 46vw" : count === 2 ? "(max-width: 639px) calc(100vw - 40px), 46vw" : "(max-width: 639px) calc(100vw - 40px), (max-width: 1099px) 44vw, 30vw"} className={styles.banner} />
@@ -130,7 +114,6 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
   const heroEventIds = new Set(heroSuggestions.map(({ event }) => event.id));
   const remainingSuggestions = suggestions.filter(({ event }) => !heroEventIds.has(event.id));
   const gallerySuggestions = remainingSuggestions.length >= 2 ? remainingSuggestions : suggestions;
-  const contentKey = `${loading}:${gallerySuggestions.map(({ event }) => event.id).join(":")}`;
   const navigate = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const container = scrollContainer.current, target = document.getElementById(event.currentTarget.hash.slice(1));
@@ -142,20 +125,18 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
       onPeriodChange(requestedPeriod);
       url.searchParams.set("periodo", requestedPeriod);
     }
-    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 72;
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
     container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${event.currentTarget.hash}`);
     target.focus({ preventScroll: true });
   };
   return <div ref={sectionRef} className={styles.presentation} data-luxury-home>
-    <LuxuryHomeInertia scrollContainer={scrollContainer} sectionRef={sectionRef} />
-    <LuxuryHomeScrollScene scrollContainer={scrollContainer} sectionRef={sectionRef} contentKey={contentKey} />
     <section className={styles.hero} aria-labelledby="luxury-home-title" data-scroll-hero>
       <div className={styles.heroPin} data-scroll-hero-pin>
       <div className={styles.heroCopy} data-scroll-copy>
         <p className={styles.greeting}>{authenticated && data.sessionName && <><span className={styles.greetingName}>{data.sessionName.split(" ")[0]}</span>, </>}{greeting.charAt(0).toLocaleLowerCase("pt-BR") + greeting.slice(1)}.</p>
-        <h1 id="luxury-home-title">A cidade pulsa.<br />Você faz parte.</h1>
-        <p className={styles.heroDescription}>A energia de um show. O encontro que surpreende. Encontre eventos e viva a cidade do seu jeito.</p>
+        <h1 id="luxury-home-title">Descubra o que acontece<br />perto de você.</h1>
+        <p className={styles.heroDescription}>Encontre eventos, conheça novos lugares e escolha como aproveitar a cidade.</p>
         <div className={styles.actions}><a href="#luxury-events" onClick={navigate} className={styles.primaryAction}>Encontrar um evento <ArrowUpRight size={18} aria-hidden="true" /></a><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar no mapa <MapPin size={17} aria-hidden="true" /></a></div>
         <nav className={styles.quickPeriods} aria-label="Buscar eventos por período">{periodLinks.map(link => <a key={link.value} href={link.href} onClick={navigate} aria-current={period === link.value ? "true" : undefined}>{link.label}</a>)}</nav>
       </div>
@@ -184,7 +165,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
 
     <section id="luxury-events" tabIndex={-1} className={styles.events} aria-labelledby="luxury-events-title" data-scroll-gallery>
       <div className={styles.galleryPin} data-scroll-gallery-pin>
-      <div className={styles.sectionHeader}><div><p className={styles.sectionContext}>{authenticated ? "Escolhidos para você" : "O que vem por aí"}</p><h2 id="luxury-events-title" data-scroll-heading>Sua nova história:<br />“eu estava lá”.</h2><p>Eventos reais, novas histórias. Escolha onde quer estar.</p></div><Link href="/EventsCreated" className={styles.secondaryAction}>Explorar toda a agenda <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
+      <div className={styles.sectionHeader}><div><p className={styles.sectionContext}>{authenticated ? "Escolhidos para você" : "O que vem por aí"}</p><h2 id="luxury-events-title" data-scroll-heading>Eventos para descobrir</h2><p>Uma seleção de eventos publicados para você explorar.</p></div><Link href="/EventsCreated" className={styles.secondaryAction}>Explorar toda a agenda <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
       {(loadError || (authenticated && data.recommendationsError)) && <div className={styles.notice} role="status"><p>{suggestions.length ? "Não foi possível atualizar todas as sugestões. Você ainda pode explorar os eventos disponíveis." : "Não foi possível carregar as sugestões agora."}</p>{authenticated && data.recommendationsError ? <button type="button" onClick={data.retryRecommendations}>Tentar novamente</button> : <a href="#home-discovery" onClick={navigate}>Tentar novamente no mapa <ArrowDown size={15} aria-hidden="true" /></a>}</div>}
       <div className={styles.galleryStage} data-scroll-viewport>
       <div className={styles.eventGrid} data-count={loading ? 3 : gallerySuggestions.length} aria-busy={loading} data-scroll-track>

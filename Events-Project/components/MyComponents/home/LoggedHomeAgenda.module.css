@@ -52,3 +52,7 @@
 
 /* Keep ticket title links comfortable to tap without changing their destinations. */
 .main h3 a { display:block; min-height:44px; }
+
+/* Keep saved events readable as a simple list on every screen. */
+.stack { perspective:none; }
+@media(min-width:1100px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) { .stack:not([data-ticket-count="0"]) { min-height:0; padding:0; gap:16px; transform-style:flat; }.ticket + .ticket { margin-top:0; }.main { padding-bottom:22px; } }

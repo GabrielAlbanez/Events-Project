@@ -45,19 +45,6 @@ export default function Home() {
   const touchStart = useRef<number | null>(null);
   const [retry, setRetry] = useState(0);
   const [urlReady, setUrlReady] = useState(false);
-  const [heroVisible, setHeroVisible] = useState(true);
-
-  useEffect(() => {
-    const container = homeScrollContainer.current;
-    const hero = container?.querySelector<HTMLElement>("[data-scroll-hero]");
-    if (!container || !hero) return;
-    const observer = new IntersectionObserver(([entry]) => setHeroVisible(entry.isIntersecting && entry.intersectionRatio > 0), {
-      root: container, rootMargin: "-72px 0px 0px 0px", threshold: [0, .001],
-    });
-    observer.observe(hero);
-    return () => observer.disconnect();
-  }, [session?.user?.id]);
-
   useEffect(() => {
     const restore = () => {
       const query = new URLSearchParams(window.location.search);
@@ -117,7 +104,7 @@ export default function Home() {
 
   return (
     <div className={`${styles.shell} flex min-h-0 flex-col bg-background text-foreground`}>
-      <header className={`${styles.homeHeader} ${heroVisible ? styles.heroHeader : ""} z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7`}>
+      <header className="z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-xl md:px-7">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="h-11 w-11 rounded-xl border border-border" />
           <Link href="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
