@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { ArrowDown, ArrowUpRight, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import type { Evento } from "@/types";
+import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
 import type { HomePresentationProps } from "./HomePresentation";
 import { HomeEventImage } from "./HomeEventImage";
@@ -95,7 +96,13 @@ function Stat({ value, label, description, loading }: { value: number; label: st
   </div>;
 }
 
-export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer }: HomePresentationProps) {
+type LuxuryHomePresentationProps = HomePresentationProps & {
+  period: DiscoveryPeriod;
+  periodLinks: { label: string; value: DiscoveryPeriod; href: string }[];
+  onPeriodChange: (period: DiscoveryPeriod) => void;
+};
+
+export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer, period, periodLinks, onPeriodChange }: LuxuryHomePresentationProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const ticketStack = useRef<HTMLDivElement>(null);
   const { status } = useSession();
@@ -129,9 +136,15 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
     const container = scrollContainer.current, target = document.getElementById(event.currentTarget.hash.slice(1));
     if (!container || !target || !container.contains(target)) return;
     event.preventDefault();
+    const requestedPeriod = new URL(event.currentTarget.href).searchParams.get("periodo");
+    const url = new URL(window.location.href);
+    if (requestedPeriod === "hoje" || requestedPeriod === "fim-de-semana" || requestedPeriod === "mes") {
+      onPeriodChange(requestedPeriod);
+      url.searchParams.set("periodo", requestedPeriod);
+    }
     const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
     container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${event.currentTarget.hash}`);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${event.currentTarget.hash}`);
     target.focus({ preventScroll: true });
   };
   return <div ref={sectionRef} className={styles.presentation} data-luxury-home>
@@ -144,6 +157,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
         <h1 id="luxury-home-title">A cidade pulsa.<br />Você faz parte.</h1>
         <p className={styles.heroDescription}>A energia de um show. O encontro que surpreende. Encontre eventos e viva a cidade do seu jeito.</p>
         <div className={styles.actions}><a href="#luxury-events" onClick={navigate} className={styles.primaryAction}>Encontrar meu próximo evento <ArrowUpRight size={18} aria-hidden="true" /></a><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar no mapa <MapPin size={17} aria-hidden="true" /></a></div>
+        <nav className={styles.quickPeriods} aria-label="Buscar eventos por período">{periodLinks.map(link => <a key={link.value} href={link.href} onClick={navigate} aria-current={period === link.value ? "true" : undefined}>{link.label}</a>)}</nav>
       </div>
       <div className={styles.heroShowcase} data-count={loading ? 1 : heroSuggestions.length} aria-busy={loading}>
         {loading ? <div className={styles.heroPlaceholder} role="status"><span className="sr-only">Carregando eventos em destaque…</span></div> : heroSuggestions.map(({ event }, index) => {
