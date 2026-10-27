@@ -12,7 +12,7 @@ function load(relative){
  const module={exports:{}};cache.set(filename,module);
  const source=ts.transpileModule(fs.readFileSync(filename,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText;
  const requireLocal=name=>{
-  if(name==="@/lib/prisma")return {__esModule:true,default:db};
+  if(name==="@/lib/prisma")return {__esModule:true,default:new Proxy({},{get(_,key){const value=db?.[key];return typeof value==="function"?value.bind(db):value;}})};
   if(name==="@/lib/adminAuth")return {getAuthenticatedUser:async()=>activeUser,getAuthenticatedAdminId:async()=>activeUser?.role==="ADMIN"?activeUser.id:null};
   if(name==="@/lib/eventNotifications"){
    const real=load("lib/eventNotifications.ts");
@@ -50,6 +50,12 @@ async function run(){
  assert.equal(canAccessPath("GUEST","/eventos/test/conexoes"),false);
  assert.equal(canAccessPath("BASIC","/admin/conexoes-denuncias"),false);
  assert.equal(canAccessPath("ADMIN","/admin/conexoes-denuncias"),true);
+ for(const route of ["/admin/reports","/admin/auditoria","/admin/future-page"]){
+  for(const role of ["GUEST","BASIC","PROMOTER"])assert.equal(canAccessPath(role,route),false);
+  assert.equal(canAccessPath("ADMIN",route),true);
+ }
+ for(const role of ["GUEST","BASIC"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),false);
+ for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
  assert.equal(isPublicPath("/eventos/test/editar"),false);
  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");

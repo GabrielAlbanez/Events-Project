@@ -1,3 +1,3 @@
 # Tarefas
 
-- [ ] Retomar: validação final da hero do EventMap — seguir [HANDOFF.md](HANDOFF.md). Estado: pendente; reconferir mobile/tablet e reduced-motion antes de concluir. TaskUpdate indisponível neste ambiente.
+- [ ] Retomar: QA final e push EventMap — seguir ../.codex/HANDOFF.md; aguardar resposta à consulta sobre segunda falha do smoke de rotas. Home e animações já publicadas.

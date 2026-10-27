@@ -17,6 +17,7 @@
     "push:configure": "node scripts/configure-web-push.cjs",
     "start:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=production node dist/server.mjs",
     "test:features": "node scripts/verify-event-platform.cjs",
+    "test:realtime": "node scripts/verify-home-realtime.cjs && node scripts/verify-realtime-transport.cjs",
     "test:features:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-event-platform.cjs",
     "test:features:http": "node scripts/smoke-event-platform.cjs",
     "test:event-extras:http": "node scripts/smoke-event-extras.cjs",

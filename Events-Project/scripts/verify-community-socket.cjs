@@ -139,7 +139,7 @@ async function main() {
   const { registerCommunitySubscriptions, dispatchCommunitySignal } = load("communityGateway");
   function fakeSocket(userId, expiresAt) {
     const handlers = new Map(), messages = [], joined = new Set();
-    return { data: { userId, expiresAt }, connected: true, handlers, messages, joined,
+    return { data: { userId, expiresAt, effectiveRole: roles[userId] }, connected: true, handlers, messages, joined,
       on: (event, listener) => handlers.set(event, listener),
       emit: (event, payload) => messages.push({ event, payload }),
       join: async room => joined.add(room), leave: async room => joined.delete(room),
