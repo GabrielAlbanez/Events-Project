@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import { useCommunityResource } from "@/components/MyComponents/CommunityResource";
 import type { PartySavedProfile } from "@/types/partyConnections";
 
 export function useGlobalConnectionsProfile() {
   const resource = useCommunityResource<{ profile: PartySavedProfile | null; needsReview: boolean }>("/api/party-profile");
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
   const locked = useRef(false);
   const active = useRef(true);
   const controller = useRef<AbortController | null>(null);
   const currentIdentity = useRef(resource.identity);
   currentIdentity.current = resource.identity;
-  useEffect(() => { active.current = true; setSaving(false); setSaveMessage(""); return () => { active.current = false; controller.current?.abort(); }; }, [resource.identity]);
+  useEffect(() => { active.current = true; setSaving(false); setSaveError(""); return () => { active.current = false; controller.current?.abort(); }; }, [resource.identity]);
   const save = async (payload: Record<string, unknown>): Promise<boolean> => {
     if (!active.current || currentIdentity.current !== resource.identity || locked.current || !resource.authenticated || !resource.online) return false;
     const identity = resource.identity;
-    locked.current = true; setSaving(true); setSaveMessage("");
+    locked.current = true; setSaving(true); setSaveError("");
     const request = new AbortController(); controller.current = request;
     const timeout = setTimeout(() => request.abort(), 30000);
     try {
@@ -26,16 +27,17 @@ export function useGlobalConnectionsProfile() {
       const result: { message?: string } = await response.json();
       if (!response.ok) throw new Error(result.message || "Não foi possível salvar o perfil.");
       if (!active.current || currentIdentity.current !== identity || request.signal.aborted) return false;
-      setSaveMessage("Perfil único salvo. A participação em cada evento continua sob seu controle.");
       await resource.refresh();
-      return active.current && currentIdentity.current === identity && !request.signal.aborted;
+      if (!active.current || currentIdentity.current !== identity || request.signal.aborted) return false;
+      toast.success("Perfil atualizado.", { role: "status" });
+      return true;
     } catch (cause) {
-      if (active.current && currentIdentity.current === identity && !request.signal.aborted) setSaveMessage(cause instanceof Error && !(cause instanceof TypeError || cause instanceof SyntaxError) ? cause.message : "Não foi possível confirmar o envio. Atualize para conferir antes de tentar novamente.");
+      if (active.current && currentIdentity.current === identity && !request.signal.aborted) setSaveError(cause instanceof Error && !(cause instanceof TypeError || cause instanceof SyntaxError) ? cause.message : "Não foi possível confirmar o envio. Atualize para conferir antes de tentar novamente.");
       return false;
     } finally {
       clearTimeout(timeout); locked.current = false;
-      if (active.current && currentIdentity.current === identity) { setSaving(false); if (request.signal.aborted) setSaveMessage("O envio foi interrompido. Atualize para conferir se o perfil foi salvo antes de tentar novamente."); }
+      if (active.current && currentIdentity.current === identity) { setSaving(false); if (request.signal.aborted) setSaveError("O envio foi interrompido. Atualize para conferir se o perfil foi salvo antes de tentar novamente."); }
     }
   };
-  return { ...resource, busy: resource.busy || saving, save, saveMessage };
+  return { ...resource, busy: resource.busy || saving, save, saveError };
 }

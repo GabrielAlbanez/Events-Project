@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { cookies } from "next/headers";
 import ClientProviders from "@/components/Providers/ClientProviders";
-import { ToastContainer } from "react-toastify";
+import { AppToaster } from "@/components/ui/AppToaster";
 import "react-toastify/dist/ReactToastify.css";
 import { RouteTransition } from "@/components/animations/RouteTransition";
 
@@ -40,7 +40,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body>
         <ClientProviders defaultOpen={defaultOpen}>
-          <ToastContainer  position="top-right" autoClose={3000} />
+          <AppToaster />
           <RouteTransition>{children}</RouteTransition>
         </ClientProviders>
       </body>
