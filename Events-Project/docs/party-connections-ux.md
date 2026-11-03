@@ -2,7 +2,11 @@
 
 ## Fluxo
 
-Na página do evento, abra **Conexões da festa**. Participantes CONFIRMED ou CHECKED_IN podem criar um perfil opcional exclusivo daquele evento. As etapas são foto, dados básicos, interesses e revisão. Somente **Criar perfil/Salvar perfil** envia o cadastro; avançar etapas, digitar ou recarregar não cria perfil.
+Em **Minha conta → Perfil de conexões**, prepare um único perfil com foto, dados básicos, interesses e revisão, mesmo sem inscrição. O mesmo editor fica em **Meu perfil** dentro das conexões de um evento. Somente **Criar perfil/Salvar perfil** envia os dados; avançar etapas, digitar ou recarregar não salva nem ativa participação.
+
+Na página do evento, abra **Conexões da festa** e escolha **Participar das conexões**. Essa ação separada exige inscrição CONFIRMED ou CHECKED_IN e perfil único revisado. Você só aparece nos eventos em que escolher participar. Sair de um evento mantém o perfil salvo e não remove sua participação nos demais. Editar o perfil único atualiza seus dados nos eventos existentes, preservando cada ativação.
+
+Na atualização do modelo, o perfil mais recente de cada usuário foi aproveitado como base privada, marcada para revisão. Participações e matches antigos não são alterados pela importação. Revise e salve essa base antes de entrar nas conexões de outro evento. Veja [modelo e contratos do perfil único](party-global-profile.md).
 
 A foto aceita JPG, PNG, WebP ou AVIF de até 5 MB. O navegador mostra uma prévia; o arquivo é enviado somente ao confirmar o perfil. O upload das conexões usa `/api/upload?purpose=party` e não substitui a foto da conta. O perfil da conta continua usando `/api/upload`, com confirmação, loading e retry.
 
@@ -12,7 +16,7 @@ A foto aceita JPG, PNG, WebP ou AVIF de até 5 MB. O navegador mostra uma prévi
 
 O endereço público `/uploads/<uuid>.<extensão>` é servido dinamicamente pelo handler `/api/media/[filename]`, incluindo arquivos criados depois do build. O handler limita tamanho, rejeita nomes arbitrários e symlinks. Os arquivos permanecem em `public/uploads`; o host precisa preservar esse diretório entre reinícios/deploys. Nenhum storage externo ou dependência foi adicionado.
 
-Histórico e deduplicação continuam em PartyMessage. Metadados de digitação e recibos usam CommunityEntry com o tipo privado `party.receipt`; não são incluídos nas respostas da comunidade. **Não é necessária uma migração nova.** As tabelas de chat/conexões previamente existentes precisam estar disponíveis.
+Histórico e deduplicação continuam em PartyMessage. Metadados de digitação e recibos usam CommunityEntry com o tipo privado `party.receipt`; não são incluídos nas respostas da comunidade. O perfil único exige a migração aditiva `20261031150000_party_user_profile`, além das tabelas de chat/conexões previamente existentes.
 
 O servidor valida ambos os participantes antes de consultar e atualizar recibos. Administradores não ganham acesso às conversas privadas. Digitando expira em cinco segundos; atualizações ativas são limitadas. Recibos avançam sem retroceder: enviada significa persistida, entregue significa recebida pela interface, lida significa exibida na conversa visível. Contadores excluem mensagens próprias. Reconexão recupera o histórico existente.
 

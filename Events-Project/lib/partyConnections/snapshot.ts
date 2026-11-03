@@ -3,6 +3,7 @@ import { Prisma, PartyProfile } from "@prisma/client";
 import { Actor, CommunityError } from "@/lib/community/common";
 import { PartyConnectionsSnapshot, PartyIntent, PartyPublicProfile } from "@/types/partyConnections";
 import { compatible, partyParticipant } from "./access";
+import { savedProfile } from "./profile";
 import { receiptData, receiptKey } from "./receipts";
 
 export function publicProfile(profile: PartyProfile, liked = false): PartyPublicProfile {
@@ -15,10 +16,11 @@ export async function connectionsSnapshot(eventId: string, actor: Actor, after?:
     if (!["PUBLISHED", "ENDED"].includes(event.status)) throw new CommunityError(404, "Evento indisponível.");
     if (!await tx.user.findUnique({ where: { id: actor.id }, select: { id: true } })) throw new CommunityError(401, "Entre novamente.");
     const own = await tx.partyProfile.findUnique({ where: { eventId_userId: { eventId, userId: actor.id } } });
+    const global = await tx.partyUserProfile.findUnique({ where: { userId: actor.id } });
     const eligible = await partyParticipant(tx, eventId, actor.id);
     const blockRows = await tx.partyBlock.findMany({ where: { fromId: actor.id }, take: 200 });
     const blocks = blockRows.map(row => ({ userId: row.toId, displayName: "Pessoa bloqueada" }));
-    const result: PartyConnectionsSnapshot = { event: { id: event.id, name: event.nome }, eligible, mine: own ? { displayName: own.displayName, photoUrl: own.photoUrl, bio: own.bio, interests: own.interests, intent: own.intent as PartyIntent, adultDeclared: own.adultDeclared, active: own.active } : null, profiles: [], matches: [], nextAfter: null, blocks };
+    const result: PartyConnectionsSnapshot = { savedProfile: global ? savedProfile({ ...global, intent: global.intent as PartyIntent }) : null, profileNeedsReview: global?.needsReview ?? false, event: { id: event.id, name: event.nome }, eligible, mine: own ? { displayName: own.displayName, photoUrl: own.photoUrl, bio: own.bio, interests: own.interests, intent: own.intent as PartyIntent, adultDeclared: own.adultDeclared, active: own.active } : null, profiles: [], matches: [], nextAfter: null, blocks };
     if (!eligible || !own?.active) return result;
     const [candidates, matches] = await Promise.all([
       tx.partyProfile.findMany({ where: { eventId, active: true, userId: { not: actor.id, ...(after ? { gt: after } : {}) } }, orderBy: { userId: "asc" }, take: 41 }),

@@ -22,7 +22,8 @@ function matches(row, where = {}) {
 }
 async function run() {
   const a = randomUUID(), b = randomUUID(), outsider = randomUUID(), eventId = randomUUID();
-  const store = {}, queries = {};
+  const store = {}, queries = {}, mediaOwnershipQueries = [];
+  const ownedMedia = new Map();
   function table(name, rows = []) {
     store[name] = rows; queries[name] = 0;
     const list = args => {
@@ -34,6 +35,7 @@ async function run() {
       findUnique: async args => { const row = list(args)[0] || null; return row && args.include?.match ? { ...row, match: store.partyMatch.find(m => m.id === row.matchId) } : row; },
       findFirst: async args => list(args)[0] || null, findMany: async args => list(args), count: async args => list(args).length,
       create: async args => { const row = { id: name === "partyMessage" ? store[name].length + 1 : randomUUID(), createdAt: new Date(), active: true, ...(name === "partyReport" ? { status: "PENDING" } : {}), ...args.data }; store[name].push(row); return row; },
+      createMany: async args => { for (const data of args.data) store[name].push({ id: randomUUID(), createdAt: new Date(), ...data }); return { count: args.data.length }; },
       upsert: async args => { let row = list({ where: args.where })[0]; if (row) Object.assign(row, args.update); else { row = { id: randomUUID(), createdAt: new Date(), active: true, ...args.create }; store[name].push(row); } return row; },
       groupBy: async args => { const items = list(args); const groups = new Map(); for (const row of items) { const group = groups.get(row.matchId) || { count: 0, id: null }; group.count++; group.id = Math.max(group.id ?? 0, row.id); groups.set(row.matchId, group); } return Array.from(groups, ([matchId, group]) => ({ matchId, _count: { _all: group.count }, _max: { id: group.id } })); },
       updateMany: async args => { const rows = list(args); rows.forEach(row => Object.assign(row, args.data)); return { count: rows.length }; },
@@ -42,14 +44,43 @@ async function run() {
     };
   }
   db = { $transaction: async work => { const original = structuredClone(store); try { return await work(db); } catch (error) { Object.assign(store, original); throw error; } }, $executeRaw: async () => 1 };
+  db.$queryRaw = async (sql, ...values) => {
+    const query = sql.join("?");
+    assert.match(query, /SELECT id FROM "MobileEventMedia"/);
+    assert.match(query, /WHERE id = \? AND "ownerId" = \? LIMIT 1/);
+    assert.ok(!query.includes("content"), "Ownership cannot read image bytes");
+    mediaOwnershipQueries.push(values);
+    return ownedMedia.get(values[0]) === values[1] ? [{ id: values[0] }] : [];
+  };
   db.user = table("user", [a, b, outsider].map(id => ({ id, role: id === outsider ? "ADMIN" : "BASIC" })));
   db.events = table("events", [{ id: eventId, nome: "Festa", status: "PUBLISHED" }]);
   db.eventRegistration = table("eventRegistration", [a, b].map(userId => ({ eventId, userId, status: "CONFIRMED" })));
-  for (const name of ["partyProfile", "partyLike", "partyMatch", "partyBlock", "partyMessage", "partyReport", "notification", "communitySignal", "communityEntry"]) db[name] = table(name);
+  for (const name of ["partyUserProfile", "partyProfile", "partyLike", "partyMatch", "partyBlock", "partyMessage", "partyReport", "notification", "communitySignal", "communityEntry"]) db[name] = table(name);
   const { privateControl } = load("lib/partyConnections/receipts.ts");
   const { connectionsAction } = load("lib/partyConnections/actions.ts"), { connectionsSnapshot } = load("lib/partyConnections/snapshot.ts"), { privateHistory, privateSend } = load("lib/partyConnections/messages.ts"), { partyReports, reviewPartyReport } = load("lib/partyConnections/reports.ts"), { compatible } = load("lib/partyConnections/access.ts"), { partyActionSchema } = load("schemas/partyConnections.ts");
   const actorA = { id: a, role: "BASIC" }, actorB = { id: b, role: "BASIC" }, admin = { id: outsider, role: "ADMIN" };
   const profile = { action: "profile.save", displayName: "Pessoa", photoUrl: "", bio: "Oi", interests: ["Música"], intent: "FRIENDSHIP", adultDeclared: false };
+  const { updatePartyProfile, partyProfileSnapshot } = load("lib/partyConnections/profile.ts");
+  await updatePartyProfile(actorA, profile);
+  assert.equal(store.partyProfile.length, 0, "Global save never opts into an event");
+  assert.equal((await partyProfileSnapshot(actorA)).profile.displayName, profile.displayName);
+  await assert.rejects(updatePartyProfile(actorA, { ...profile, photoUrl: `/api/party-profile-media/${randomUUID()}` }), e => e.status === 403);
+  const freshOwnedAsset = randomUUID(); ownedMedia.set(freshOwnedAsset, a);
+  await updatePartyProfile(actorA, { ...profile, photoUrl: `/api/party-profile-media/${freshOwnedAsset}` });
+  assert.equal((await partyProfileSnapshot(actorA)).profile.photoUrl, `/api/party-profile-media/${freshOwnedAsset}`);
+  assert.deepEqual(mediaOwnershipQueries.at(-1), [freshOwnedAsset, a]);
+  await assert.rejects(updatePartyProfile(actorB, { ...profile, photoUrl: `/api/party-profile-media/${freshOwnedAsset}` }), e => e.status === 403);
+  assert.equal(store.partyUserProfile.some(row => row.userId === b), false, "Foreign media denial cannot persist a draft");
+  const ownReadCount = mediaOwnershipQueries.length;
+  await updatePartyProfile(actorA, { ...profile, photoUrl: `/v1/media/events/${freshOwnedAsset}` });
+  assert.equal(mediaOwnershipQueries.length, ownReadCount, "Existing owned global references round trip without asset lookup");
+  await updatePartyProfile(actorA, profile);
+  await assert.rejects(connectionsAction(eventId, actorB, { action: "profile.join" }), e => e.status === 409);
+  store.partyUserProfile.find(row => row.userId === a).needsReview = true;
+  await assert.rejects(connectionsAction(eventId, actorA, { action: "profile.join" }), e => e.status === 409);
+  await updatePartyProfile(actorA, profile);
+  await connectionsAction(eventId, actorA, { action: "profile.join" });
+  assert.equal(store.partyProfile.find(row => row.userId === a).active, true);
   assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl: `/uploads/${randomUUID()}.webp` }).success, true);
   for (const photoUrl of ["/uploads/../.env", "/uploads/------------------------------------.jpg", "/uploads/photo.svg"]) assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl }).success, false);
   for (const photoUrl of ["http://example.com/a", "https://user:password@example.com/a", "https://127.0.0.1/a", "https://localhost/a", "https://example.local/a"]) assert.equal(partyActionSchema.safeParse({ ...profile, photoUrl }).success, false);
@@ -139,6 +170,17 @@ async function run() {
   const reconnect = await privateHistory(eventId, matchId, actorB, { after: 10 }); assert.equal(reconnect.messages[0].id, 11); assert.equal(reconnect.messages.at(-1).id, 60); assert.equal(reconnect.hasMore, true);
   for (let i = 0; i < 10; i++) await privateSend(eventId, matchId, actorA, { clientId: randomUUID(), text: `Agora ${i}` });
   await assert.rejects(privateSend(eventId, matchId, actorA, { clientId: randomUUID(), text: "Limite" }), e => e.status === 429);
+  const secondEvent = randomUUID();
+  store.events.push({ id: secondEvent, nome: "Other party", status: "PUBLISHED" });
+  store.eventRegistration.push({ eventId: secondEvent, userId: a, status: "CONFIRMED" });
+  await connectionsAction(secondEvent, actorA, { action: "profile.join" });
+  await connectionsAction(secondEvent, actorA, { action: "profile.leave" });
+  await updatePartyProfile(actorA, { ...profile, bio: "Global edit" });
+  assert.ok(store.partyProfile.filter(row => row.userId === a).every(row => row.bio === "Global edit"));
+  assert.equal(store.partyProfile.find(row => row.eventId === secondEvent).active, false, "Save retains each opt-in");
+  assert.equal(store.partyProfile.find(row => row.eventId === eventId && row.userId === a).active, true);
+  assert.equal((await connectionsSnapshot(secondEvent, actorA)).matches.length, 0);
+  assert.equal((await connectionsSnapshot(secondEvent, actorA)).savedProfile.bio, "Global edit");
   store.events[0].status = "DRAFT"; await assert.rejects(connectionsSnapshot(eventId, actorA), e => e.status === 404);
   console.log("PASS party connections: opt-in, participant-only/admin exclusion, private likes, mutual match idempotency, explicit adult declaration, blocking/unblocking, opt-out after revocation, cross-event DM denial, deduplicated send, evidence-only/admin review and bounded bulk snapshot (mock persistence)");
 }

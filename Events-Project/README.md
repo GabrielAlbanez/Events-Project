@@ -193,3 +193,5 @@ descoberta opcional, matches privados, moderação e configuração do banco.
 `npm run test:security` executa testes isolados de perfil, cadastro, verificação de e-mail, login direto e filas de lembretes, sem usar banco ou SMTP.
 
 Os links de confirmação de e-mail expiram após 24 horas e são consumidos uma única vez. Contas sem confirmação não entram pelo login de senha. Uma configuração inválida de Web Push desativa somente esse envio; a central interna continua disponível. Conexões autenticadas de Socket.IO são encerradas ao expirar o JWT e o cliente tenta atualizar a sessão antes de reconectar.
+
+O [perfil único de conexões](docs/party-global-profile.md), em `/perfil-conexoes`, é separado do perfil público e reutilizado entre eventos. Salvar não ativa participação: a entrada nas conexões é opcional e exige confirmação em cada evento.

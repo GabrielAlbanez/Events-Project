@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Camera, CheckCircle2, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
@@ -231,6 +232,7 @@ export default function Profile() {
           </Card>
 
           <div className="min-w-0 space-y-6">
+            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil de conexões</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Um perfil para conhecer pessoas nos eventos. Edite suas informações e escolha separadamente onde participar.</p><Button asChild className="mt-4 min-h-11"><Link href="/perfil-conexoes">Editar perfil de conexões</Link></Button></CardContent></Card>
             {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
             <Card className="rounded-2xl shadow-surface">
               <CardContent className="p-5 sm:p-7">

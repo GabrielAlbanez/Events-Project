@@ -1,9 +1,11 @@
 import { Actor, CommunityError, signal, transact } from "@/lib/community/common";
 import { PartyAction } from "@/schemas/partyConnections";
 import { pairAccess, partyParticipant } from "./access";
+import { lockPartyUser, savedProfile, savePartyProfile } from "./profile";
 
 export async function connectionsAction(eventId: string, actor: Actor, input: PartyAction): Promise<void> {
   await transact(async tx => {
+    await lockPartyUser(tx, actor.id);
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`party:${eventId}`}, 0))`;
     if (!await tx.user.findUnique({ where: { id: actor.id }, select: { id: true } })) throw new CommunityError(401, "Entre novamente.");
     if (input.action === "profile.leave") {
@@ -37,9 +39,15 @@ export async function connectionsAction(eventId: string, actor: Actor, input: Pa
       await tx.partyReport.create({ data: { eventId, reporterId: actor.id, targetId: input.userId, reason: input.reason, evidence } });
     } else {
       if (!await partyParticipant(tx, eventId, actor.id)) throw new CommunityError(403, "Confirme sua inscrição para participar.");
-      if (input.action === "profile.save") {
-        if (input.intent === "DATING" && !input.adultDeclared) throw new CommunityError(403, "Paquera exige declaração de maioridade.");
-        const { action: _action, ...profile } = input;
+      if (input.action === "profile.save" || input.action === "profile.join") {
+        // Legacy profile.save remains an explicit save-and-join operation.
+        if (input.action === "profile.save") {
+          const { action: _action, ...profile } = input;
+          await savePartyProfile(tx, actor, profile);
+        }
+        const global = await tx.partyUserProfile.findUnique({ where: { userId: actor.id } });
+        if (!global || global.needsReview) throw new CommunityError(409, "Salve e revise seu perfil de conexões antes de participar.");
+        const profile = savedProfile({ ...global, intent: global.intent as "FRIENDSHIP" | "COMPANY" | "DATING" });
         await tx.partyProfile.upsert({ where: { eventId_userId: { eventId, userId: actor.id } }, create: { eventId, userId: actor.id, ...profile }, update: { ...profile, active: true } });
         const matches = await tx.partyMatch.findMany({ where: { eventId, OR: [{ userAId: actor.id }, { userBId: actor.id }] }, select: { id: true } });
         for (const match of matches) await signal(tx, `match:${match.id}`);
@@ -64,5 +72,5 @@ export async function connectionsAction(eventId: string, actor: Actor, input: Pa
     }
     if (input.action !== "like" && input.action !== "report") await signal(tx, `party:${eventId}`);
     await signal(tx, `user:${actor.id}`);
-  });
+  }, { maxWait: 10000, timeout: 15000 });
 }

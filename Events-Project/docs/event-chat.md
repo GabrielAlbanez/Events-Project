@@ -30,7 +30,7 @@ Testes automatizados com mocks verificam regras e comportamento do código, mas 
 
 ## Conexões da festa
 
-`/eventos/[id]/conexoes` é uma descoberta opcional e separada do perfil público. Cada participante escolhe nome, foto, bio curta, interesses e intenção. Somente participantes confirmados do mesmo evento que optaram por participar podem descobrir e curtir perfis.
+`/eventos/[id]/conexoes` é uma descoberta opcional e separada do perfil público. Cada usuário prepara nome, foto, bio curta, interesses e intenção uma única vez em `/perfil-conexoes`, e escolhe participar separadamente em cada evento. Salvar o perfil não ativa participação. Somente participantes confirmados do mesmo evento que optaram por participar podem descobrir e curtir perfis. Matches e conversas continuam limitados ao evento. Consulte [perfil único](party-global-profile.md).
 
 As intenções de amizade e companhia são compatíveis entre si. Paquera exige que ambas as contas escolham essa intenção e declarem ser maiores de 18 anos. A declaração permanece privada e não equivale a verificação documental de identidade. Perfis de paquera não são mostrados a quem escolheu amizade ou companhia.
 

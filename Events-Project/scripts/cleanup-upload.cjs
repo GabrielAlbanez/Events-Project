@@ -6,12 +6,13 @@ require("@next/env").loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
 const apply = process.argv.includes("--apply");
 async function referenced(url) {
-  const [user, event, profile] = await Promise.all([
+  const [user, event, profile, savedProfile] = await Promise.all([
     prisma.user.findFirst({ where: { image: url }, select: { id: true } }),
     prisma.events.findFirst({ where: { OR: [{ banner: url }, { carrossel: { has: url } }] }, select: { id: true } }),
+    prisma.partyUserProfile.findFirst({ where: { photoUrl: url }, select: { userId: true } }),
     prisma.partyProfile.findFirst({ where: { photoUrl: url }, select: { userId: true } }),
   ]);
-  return Boolean(user || event || profile);
+  return Boolean(user || event || profile || savedProfile);
 }
 async function main() {
   const directory = path.resolve(process.cwd(), "public/uploads");

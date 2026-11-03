@@ -45,6 +45,7 @@ model User {
   friendsOwned FriendsRoom[]
   friendsSuggested FriendsSuggestion[]
   eventChatMessages EventChatMessage[]
+  partyUserProfile  PartyUserProfile?
   partyProfiles     PartyProfile[]
   partyLikesFrom PartyLike[] @relation("PartyLikeFrom")
   partyLikesTo PartyLike[] @relation("PartyLikeTo")
@@ -477,6 +478,19 @@ model EventChatMessage {
   @@unique([eventId, authorId, clientId])
   @@index([eventId, id])
   @@index([authorId, createdAt])
+}
+
+model PartyUserProfile {
+  userId String @id
+  displayName String
+  photoUrl String @default("")
+  bio String @default("")
+  interests String[]
+  intent String
+  adultDeclared Boolean @default(false)
+  needsReview Boolean @default(false)
+  updatedAt DateTime @default(now()) @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PartyProfile {

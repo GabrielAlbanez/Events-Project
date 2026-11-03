@@ -17,12 +17,15 @@ export async function GET(request: NextRequest, { params }: { params: { assetId:
     const actor = await getAuthenticatedUser(request);
     if (!actor) return new NextResponse(null, { status: 401, headers });
     const reference = "/v1/media/events/" + params.assetId;
+    const privateReference = "/api/party-profile-media/" + params.assetId;
     const media = await prisma.$transaction(async tx => {
       const references = await tx.$queryRaw<Reference[]>`
         SELECT p."eventId", p."userId" FROM "PartyProfile" p
-        WHERE RIGHT(p."photoUrl", LENGTH(${reference})) = ${reference} LIMIT 100
+        WHERE RIGHT(p."photoUrl", LENGTH(${reference})) = ${reference}
+           OR p."photoUrl" = ${privateReference} LIMIT 100
       `;
-      let allowed = false;
+      const ownGlobal = await tx.partyUserProfile.findUnique({ where: { userId: actor.id }, select: { photoUrl: true } });
+      let allowed = !!ownGlobal && (ownGlobal.photoUrl.endsWith(reference) || ownGlobal.photoUrl === privateReference);
       for (const profile of references) {
         if (profile.userId === actor.id) { allowed = true; break; }
         try { await pairAccess(tx, profile.eventId, actor.id, profile.userId); allowed = true; break; }

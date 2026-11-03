@@ -42,6 +42,9 @@ async function run(){
  assert.equal(canAccessPath("GUEST","/atividade"),false);
  assert.equal(canAccessPath("BASIC","/atividade/private"),false);
  assert.equal(isPublicPath("/atividade"),false);
+ assert.equal(isPublicPath("/perfil-conexoes"),false);
+ assert.equal(canAccessPath("GUEST","/perfil-conexoes"),false);
+ for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/perfil-conexoes"),true);
  for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/eventos/test/chat"),true);
  assert.equal(canAccessPath("GUEST","/eventos/test/chat"),false);
  assert.equal(isPublicPath("/eventos/test/chat"),false);

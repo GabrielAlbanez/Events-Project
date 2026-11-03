@@ -7,6 +7,7 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 let state;
 class CommunityError extends Error { constructor(status, message) { super(message); this.status = status; } }
 const tx = {
+  partyUserProfile: { findUnique: async args => { assert.deepEqual(args.where, { userId: state.actor.id }); return state.globalProfile ?? null; } },
   $queryRaw: async (sql, ...values) => {
     const query = sql.join('?');
     state.queries.push({ query, values });
@@ -71,7 +72,7 @@ function noByteQuery() { assert.ok(state.queries.every(({ query }) => !query.inc
   assert.deepEqual(Buffer.from(await own.arrayBuffer()), png);
   assert.equal(state.accessCalls.length, 0); assert.equal(state.queries.length, 2);
   assert.match(state.queries[0].query, /RIGHT\(p\."photoUrl", LENGTH\(\?\)\) = \?/);
-  assert.deepEqual(state.queries[0].values, ['/v1/media/events/' + asset, '/v1/media/events/' + asset]);
+  assert.deepEqual(state.queries[0].values, ['/v1/media/events/' + asset, '/v1/media/events/' + asset, '/api/party-profile-media/' + asset]);
   assert.match(state.queries[1].query, /m\.id = \? AND m\.size > 0 AND m\.size <= \?/);
   assert.deepEqual(state.queries[1].values, [asset, 5 * 1024 * 1024]);
 
@@ -83,6 +84,9 @@ function noByteQuery() { assert.ok(state.queries.every(({ query }) => !query.inc
     reset({ references: [{ eventId: 'event', userId: 'owner' }], accessError: new CommunityError(403, reason) });
     await read(404); assert.equal(state.accessCalls.length, 1); noByteQuery();
   }
+  reset({ references: [], globalProfile: { photoUrl: '/api/party-profile-media/' + asset } }); await read(200);
+  assert.equal(state.accessCalls.length, 0, 'Global owner needs no event opt-in');
+  reset({ references: [], globalProfile: { photoUrl: '/api/party-profile-media/' + 'other' } }); await read(404); noByteQuery();
   reset({ references: [] }); await read(404); assert.equal(state.accessCalls.length, 0); noByteQuery();
   reset({ media: [] }); await read(404);
 
