@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Server, Socket } from "socket.io";
 import { credentialSessionValid } from "../lib/auth/sessionCredential.js";
-import { validateSocketIdentity } from "./socketIdentity.mjs";
+import { socketCredentialSecret, validateSocketIdentity } from "./socketIdentity.mjs";
 import { expireImpersonationSessions } from "../lib/auth/impersonation.js";
 
 /** Identity is assigned from the verified session, never from client payloads. */
@@ -51,7 +51,7 @@ export function createAccountRevocationPoller(prisma: PrismaClient, io: Server) 
             if (socket.data.impersonationId) await validateSocketIdentity(prisma, socket);
             else disconnectRemovedAccount(socket);
           }
-          else if (socket.connected && !socket.data.impersonationId && passwords.has(socket.data.userId) && !credentialSessionValid(socket.data.provider, socket.data.credentialStamp, passwords.get(socket.data.userId))) {
+          else if (socket.connected && !socket.data.impersonationId && passwords.has(socket.data.userId) && !credentialSessionValid(socket.data.provider, socket.data.credentialStamp, passwords.get(socket.data.userId), socketCredentialSecret())) {
             socket.emit("session-expired"); socket.disconnect(true);
           }
         }

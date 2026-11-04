@@ -6,13 +6,17 @@ import { credentialSessionValid } from "../lib/auth/sessionCredential.js";
 import { endImpersonation, resolveImpersonationIdentity } from "../lib/auth/impersonation.js";
 
 export type IdentityFailure = "ACCOUNT_SUSPENDED" | "ACCOUNT_REMOVED" | "SESSION_REVOKED" | "ACCOUNT_IMPERSONATED" | "IMPERSONATION_CHANGED";
+export function socketCredentialSecret(): string | undefined {
+  return process.env.SOCKET_ONLY === "true" ? process.env.SOCKET_TICKET_SECRET : undefined;
+}
+
 export async function resolveSocketIdentity(prisma: PrismaClient, token: JWT): Promise<{ id: string; role: string } | IdentityFailure> {
   if (typeof token.id !== "string" || !token.id) return "SESSION_REVOKED";
   const original = await prisma.user.findUnique({ where: { id: token.id }, select: { id: true, password: true, suspendedAt: true, suspendedUntil: true, sessionVersion: true } });
   if (!original) { await endImpersonation(prisma, token); return "ACCOUNT_REMOVED"; }
   if (isAccountSuspended(original)) { await endImpersonation(prisma, token); return "ACCOUNT_SUSPENDED"; }
   if (!accountSessionValid(token.sessionVersion, original.sessionVersion)) return "SESSION_REVOKED";
-  const secret = process.env.SOCKET_ONLY === "true" ? process.env.SOCKET_TICKET_SECRET : undefined;
+  const secret = socketCredentialSecret();
   if (!credentialSessionValid(token.provider, token.credentialStamp, original.password, secret)) {
     await endImpersonation(prisma, token); return "SESSION_REVOKED";
   }
