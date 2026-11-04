@@ -16,7 +16,7 @@ export async function resolveSocketIdentity(prisma: PrismaClient, token: JWT): P
   if (!credentialSessionValid(token.provider, token.credentialStamp, original.password, secret)) {
     await endImpersonation(prisma, token); return "SESSION_REVOKED";
   }
-  const identity = await resolveImpersonationIdentity(prisma, token);
+  const identity = await resolveImpersonationIdentity(prisma, token, secret);
   if (identity.blocked) return "ACCOUNT_IMPERSONATED";
   if (!identity.user) return "IMPERSONATION_CHANGED";
   if ("restoreRequired" in identity && identity.restoreRequired) return "IMPERSONATION_CHANGED";
