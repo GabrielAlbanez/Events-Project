@@ -1,3 +1,5 @@
+import { publicCatalogUrl } from "./catalog";
+export { publicCatalogUrl } from "./catalog";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
@@ -203,19 +205,6 @@ export function parseOfficialEvent(body: string, sourceUrl: string, requestedCit
   return { sourceUrl: canonical, sourceHash: createHash("sha256").update(JSON.stringify(event)).digest("hex"), name, startDate: start.toISOString(), address: addressText, event };
 }
 
-const PUBLIC_CATALOGS: Record<string, string> = {
-  saopaulo: "sao-paulo-sp", campinas: "campinas-sp", riodejaneiro: "rio-de-janeiro-rj",
-  belohorizonte: "belo-horizonte-mg", brasilia: "brasilia-df", salvador: "salvador-ba",
-  portoalegre: "porto-alegre-rs", curitiba: "curitiba-pr", fortaleza: "fortaleza-ce",
-  recife: "recife-pe", goiania: "goiania-go", florianopolis: "florianopolis-sc",
-};
-
-export function publicCatalogUrl(city: string): string {
-  const slug = PUBLIC_CATALOGS[normalized(city)];
-  if (!slug) throw new Error("Esta cidade ainda não possui catálogo automático. Envie o link oficial de um evento para verificação.");
-  return "https://www.sympla.com.br/eventos/" + slug;
-}
-
 /** Links are data only. Never execute the publisher's scripts, including Next hydration. */
 export function publicEventLinks(body: string, catalogUrl: string): string[] {
   if (Buffer.byteLength(body, "utf8") > MAX_SOURCE_BYTES) throw new Error(SOURCE_ERROR);
@@ -281,16 +270,37 @@ export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
   return {
     // Compatibility with the existing API. Public catalogs require no credentials.
     aiConfigured: () => true,
-    async discoverEventSources(city: string, max: number): Promise<string[]> {
-      const limit = Math.min(5, Math.max(1, Math.floor(max))), catalog = publicCatalogUrl(city);
-      const document = await readSource(catalog);
-      const links = publicEventLinks(document.body, document.url), verified: string[] = [];
-      for (const url of links) {
-        try { await inspect(url, city); verified.push(url); } catch { /* Incomplete, paid-without-price, expired or unavailable sources are not proposals. */ }
-        if (verified.length >= limit) break;
+    async discoverEventSources(city: string, max: number, alreadyKnown?: (url: string) => Promise<boolean>): Promise<string[]> {
+      const limit = Math.min(5, Math.max(1, Math.floor(max)));
+      const catalog = publicCatalogUrl(city);
+      const verified = new Set<string>();
+      const visited = new Set<string>();
+      const deadline = Date.now() + 45_000;
+      let inspected = 0;
+      for (let page = 1; page <= 4 && Date.now() < deadline; page++) {
+        const pageUrl = page === 1 ? catalog : catalog + "?page=" + page;
+        let document: SourceDocument;
+        try { document = await readSource(pageUrl); }
+        catch (error) {
+          if (page === 1) throw error;
+          break;
+        }
+        const links = publicEventLinks(document.body, document.url).filter(url => !visited.has(url));
+        if (!links.length) break;
+        for (const url of links) {
+          if (inspected >= 32 || Date.now() >= deadline) return Array.from(verified);
+          visited.add(url);
+          if (await alreadyKnown?.(url)) continue;
+          inspected++;
+          let event: VerifiedEventImport;
+          try { event = await inspect(url, city); }
+          catch { continue; }
+          if (!(await alreadyKnown?.(event.sourceUrl))) verified.add(event.sourceUrl);
+          if (verified.size >= limit) return Array.from(verified);
+        }
       }
-      if (!links.length) throw new Error("O catálogo público não forneceu links de eventos verificáveis. Tente novamente mais tarde ou envie uma fonte oficial.");
-      return verified;
+      if (!visited.size) throw new Error("O catálogo público não forneceu links de eventos verificáveis.");
+      return Array.from(verified);
     },
     inspectEventSource: inspect,
   };

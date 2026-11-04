@@ -40,6 +40,17 @@ async function run() {
   });
   assert.equal(provider.aiConfigured(), true);
   assert.deepEqual(await provider.discoverEventSources("São Paulo", 3), [url]);
+  const known = "https://www.sympla.com.br/evento/conhecido/456";
+  const paged = createAiEventProvider({
+    now: () => now,
+    readSource: async source => {
+      if (source === known) throw new Error("Duplicate must be skipped before verification");
+      if (source === catalog) return { url: source, body: known };
+      if (source === catalog + "?page=2") return { url: source, body: known + " " + url };
+      return { url: source, body: html() };
+    },
+  });
+  assert.deepEqual(await paged.discoverEventSources("São Paulo", 1, async source => source === known), [url]);
   console.log("PASS public event catalog, explicit ticket price, ambiguous price rejection and free admission.");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

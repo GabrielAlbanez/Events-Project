@@ -5,7 +5,7 @@ import { notifyEventAudience } from "../eventNotifications";
 import { eventInstant } from "../eventTime";
 import { parseEventInput } from "../../schemas/eventInput";
 import type { AiEventAction } from "../../schemas/aiEvents";
-import { aiConfigured, canonicalSourceUrl, discoverEventSources, inspectEventSource, type VerifiedEventImport } from "./provider";
+import { aiConfigured, canonicalSourceUrl, discoverEventSources, inspectEventSource, publicCatalogUrl, type VerifiedEventImport } from "./provider";
 
 export interface AiEventsDependencies {
   configured: typeof aiConfigured;
@@ -72,6 +72,11 @@ export async function aiEventsSnapshot(db: PrismaClient, actorId: string, deps: 
 
 export async function aiEventsAction(db: PrismaClient, actorId: string, input: AiEventAction, deps: AiEventsDependencies = defaults): Promise<void> {
   await admin(db, actorId);
+  const city = input.action === "settings" || input.action === "run" ? input.city : undefined;
+  if (city) {
+    try { publicCatalogUrl(city); }
+    catch { throw new AiEventsError(400, "Selecione uma cidade com catálogo disponível."); }
+  }
   if (input.action === "approve") return approve(db, actorId, input.id, deps);
   await transaction(db, async tx => {
     await lock(tx); await admin(tx, actorId);
@@ -90,7 +95,7 @@ export async function aiEventsAction(db: PrismaClient, actorId: string, input: A
       const config = await tx.aiEventAutomation.upsert({ where: { id: CONFIG_ID }, create: { id: CONFIG_ID }, update: {} });
       if (await tx.aiEventRun.count({ where: { status: { in: ["QUEUED", "RUNNING"] } } }) >= 3) throw new AiEventsError(429, "Aguarde a fila atual antes de solicitar outra busca.");
       if (await tx.aiEventRun.count({ where: { requestedBy: actorId, createdAt: { gte: new Date(deps.now().getTime() - HOUR) } } }) >= 10) throw new AiEventsError(429, "Limite de buscas por hora atingido.");
-      await tx.aiEventRun.create({ data: { automationId: config.id, requestedBy: actorId, trigger: input.action === "inspect" ? "SOURCE" : "MANUAL", sourceUrl: input.action === "inspect" ? input.url : null, city: config.city, maxPerRun: config.maxPerRun } });
+      await tx.aiEventRun.create({ data: { automationId: config.id, requestedBy: actorId, trigger: input.action === "inspect" ? "SOURCE" : "MANUAL", sourceUrl: input.action === "inspect" ? input.url : null, city: input.action === "run" ? input.city ?? config.city : config.city, maxPerRun: input.action === "run" ? input.maxPerRun ?? config.maxPerRun : config.maxPerRun } });
     }
     await signalAdmins(tx);
   });
@@ -148,10 +153,12 @@ export async function pollAiEvents(db: PrismaClient, deps: AiEventsDependencies 
   let createdCount = 0, skipped = 0;
   try {
     await admin(db, claimed.requestedBy);
-    const urls = claimed.trigger === "SOURCE" && claimed.sourceUrl ? [claimed.sourceUrl] : await deps.discover(claimed.city, claimed.maxPerRun);
+    const urls = claimed.trigger === "SOURCE" && claimed.sourceUrl ? [claimed.sourceUrl] : await deps.discover(claimed.city, claimed.maxPerRun, async sourceUrl => Boolean(
+      await db.aiEventCandidate.findUnique({ where: { sourceUrl }, select: { id: true } }),
+    ));
     for (const url of Array.from(new Set(urls)).slice(0, claimed.maxPerRun)) {
       try {
-        const verified = await deps.inspect(url, claimed.city), data = validatedEvent(verified, deps.now());
+        const verified = await deps.inspect(url, claimed.trigger === "SOURCE" ? undefined : claimed.city), data = validatedEvent(verified, deps.now());
         const created = await transaction(db, async tx => {
           await lock(tx); await admin(tx, claimed.requestedBy);
           const lease = await tx.aiEventAutomation.findUnique({ where: { id: CONFIG_ID } });

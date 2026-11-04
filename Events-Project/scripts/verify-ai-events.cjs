@@ -53,6 +53,14 @@ async function run(){
   m.store.aiEventAutomation[0].nextRunAt=now;m.store.user[0].role="BASIC";await pollAiEvents(db,deps);assert.equal(m.store.aiEventAutomation[0].enabled,false);
   const revoked=memory();await aiEventsAction(revoked.db,actor,{action:"inspect",url},deps);revoked.store.user[0].suspendedAt=now;await pollAiEvents(revoked.db,deps);assert.equal(revoked.store.aiEventCandidate.length,0);assert.equal(revoked.store.aiEventRun[0].status,"FAILED");
   const rejected=memory();await aiEventsAction(rejected.db,actor,{action:"inspect",url},deps);await pollAiEvents(rejected.db,deps);id=rejected.store.aiEventCandidate[0].id;await aiEventsAction(rejected.db,actor,{action:"reject",id},deps);await assert.rejects(()=>aiEventsAction(rejected.db,actor,{action:"approve",id},deps),e=>e.status===409);
+  const manual = memory();
+  await aiEventsAction(manual.db, actor, {action:"settings",city:"São Paulo",maxPerRun:2,enabled:false,authorize:false}, deps);
+  await aiEventsAction(manual.db, actor, {action:"run",city:"Campinas",maxPerRun:4}, deps);
+  assert.equal(manual.store.aiEventRun[0].city, "Campinas");
+  assert.equal(manual.store.aiEventRun[0].maxPerRun, 4);
+  assert.equal(manual.store.aiEventAutomation[0].city, "São Paulo");
+  assert.equal(manual.store.aiEventAutomation[0].maxPerRun, 2);
+  assert.equal(aiEventActionSchema.safeParse({action:"run",city:"Campinas"}).success,false);
   console.log("PASS AI service: ADMIN authorization, consent, missing key, queue, no worker publication, source changes, duplicate approval, provenance, dedup, private signals, hourly scheduling and revocation (in-memory transaction fixtures).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

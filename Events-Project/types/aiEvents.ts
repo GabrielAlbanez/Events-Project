@@ -38,7 +38,7 @@ export interface AiEventsSnapshot {
 
 export type AiEventsAction =
   | { action: "settings"; city: string; maxPerRun: number; enabled: boolean; authorize: boolean }
-  | { action: "run" }
+  | { action: "run"; city?: string; maxPerRun?: number }
   | { action: "inspect"; url: string }
   | { action: "approve"; id: string }
   | { action: "reject"; id: string };
