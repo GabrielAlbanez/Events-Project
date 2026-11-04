@@ -25,3 +25,19 @@ components/MyComponents/AdminAiEvents.tsx, components/ui/app-sidebar.tsx, lib/ai
 npm run test:ai-events; npm run test:realtime; npm run test:features:http com FEATURE_HTTP_URL=http://127.0.0.1:3100; npm run test:ai-events:db apenas no banco de testes; npm run lint; npx tsc --noEmit --incremental false; npx tsc --project tsconfig.server.json; npm run build.
 ## Problemas em aberto / dúvidas
 Sem hospedagem conectada para a prévia. Smoke autenticado, QA mobile, publicação e gravação pendentes.
+
+## Atualização da retomada — 2026-11-04
+- Smoke HTTP autenticado, aprovação no PostgreSQL com rollback, lint e TypeScript passaram. Sidebar alternou os dois temas a 390 px sem overflow horizontal.
+- GitHub confirmou main em 54d5c18.
+- Destino escolhido para a prévia: Vercel. A aba está na tela de login do GitHub, aguardando o usuário. Depois, importar o repositório e configurar um banco separado para a prévia. Adaptação do Socket.IO, agendamento e gravação seguem pendentes.
+
+## Deploy Vercel — 2026-11-04
+- Projeto events-project, banco isolado eventmap-preview-db, DATABASE_URL sensível e NEXTAUTH_SECRET próprio.
+- Deploy da main 54d5c18 ficou Ready. Migrações passaram e home e tela de login abriram em https://events-project-lake.vercel.app.
+- Código e banco locais preservados. Pendentes: eventos na prévia, login completo, Maps, Socket.IO, agendamento e gravação.
+
+## Validação pública — 2026-11-04
+- A home exibe 0 eventos e informa ausência da chave Maps. A página /demonstracao abre com três eventos fictícios próprios, sem gravar dados no banco.
+- /api/auth/providers lista credenciais e Google. A tentativa pelo botão Google não chegou ao domínio do Google, e o login completo permanece pendente.
+- /socket.io retorna 404 no deploy Next.js. Os workers iniciam em server.mts. Vercel Hobby aceita Cron apenas diário.
+- Retomar com configuração Google (cliente OAuth e chave Maps para o domínio público), conta de demonstração no banco isolado e destino para o Node persistente ou adaptação do transporte e agendamento. Validar com duas contas e gravar após a prévia completa.
