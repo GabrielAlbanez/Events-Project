@@ -22,7 +22,7 @@ export function BrandLogo({ className, priority = false }: BrandLogoProps) {
         />
       </span>
       <span className={cn(styles.wordmark, "whitespace-nowrap text-base sm:text-lg")} aria-hidden="true">
-        EventMap
+        Event<span className={styles.accent}>Map</span>
       </span>
     </span>
   );
