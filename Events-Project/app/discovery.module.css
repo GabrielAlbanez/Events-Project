@@ -1,7 +1,7 @@
 .shell {
   position: relative;
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh - var(--site-header-height, 76px));
+  height: calc(100dvh - var(--site-header-height, 76px));
   overflow: hidden;
 }
 
@@ -15,7 +15,7 @@
 }
 
 .main {
-  height: calc(100dvh - 72px);
+  height: calc(100dvh - var(--site-header-height, 76px));
   flex: none;
   scroll-margin-top: 16px;
   --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));

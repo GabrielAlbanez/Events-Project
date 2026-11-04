@@ -6,7 +6,6 @@ import { LazyMotion, useReducedMotion } from "framer-motion";
 import { loadAnimationFeatures } from "@/components/animations/config";
 import { useSession } from "next-auth/react";
 import { ArrowDown, ArrowLeft, ChevronUp, Loader2, ShieldCheck, X } from "lucide-react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useEventChat } from "@/hooks/useEventChat";
 import { useEventChatRealtime } from "@/hooks/useEventChatRealtime";
 import { ChatHeader } from "./chat/ChatHeader";
@@ -187,7 +186,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
 
   return <LazyMotion features={loadAnimationFeatures} strict><main className={styles.page}>
 
-    <div className={styles.toolbar}><SidebarTrigger /><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Conexões da festa" : "Voltar ao evento"}</Link></div>
+    <div className={styles.toolbar}><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Conexões da festa" : "Voltar ao evento"}</Link></div>
 
     <section className={`${styles.shell} ${conversationOpen ? styles.conversationOpen : styles.listOpen}`} aria-label="Chat">
 

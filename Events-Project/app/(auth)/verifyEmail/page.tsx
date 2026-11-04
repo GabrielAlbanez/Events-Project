@@ -73,7 +73,7 @@ export default function VerifyEmailPage() {
     <main className="flex min-h-[80vh] w-full items-center justify-center px-4 py-10 sm:px-6">
       <section className="w-full max-w-lg rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-10" aria-busy={loading}>
         <div role={loading || success ? "status" : "alert"} aria-live="polite">
-          <FadeInView stationary><span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <FadeInView stationary><span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-brand">
             {loading ? <LoaderCircle className="h-7 w-7 motion-safe:animate-spin" aria-hidden="true" /> : success ? <CheckCircle className="h-7 w-7" aria-hidden="true" /> : <XCircle className="h-7 w-7" aria-hidden="true" />}
           </span></FadeInView>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
@@ -82,8 +82,8 @@ export default function VerifyEmailPage() {
         {!loading && <div className="mt-7 flex flex-col gap-3">
           {state === "unavailable" && <Button size="lg" className="min-h-11 rounded-xl" onClick={() => setAttempt((value) => value + 1)}>Tentar novamente</Button>}
           <Button asChild size="lg" variant={state === "unavailable" ? "outline" : "default"} className="min-h-11 rounded-xl"><Link href="/login">Ir para o login</Link></Button>
-          {!success && <Link href="/confirmar-email" className="rounded-lg py-2 text-sm font-semibold text-primary underline underline-offset-4">Reenviar confirmação de e-mail</Link>}
-          {!success && <Link href="/" className="rounded-lg py-2 text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Voltar ao início</Link>}
+          {!success && <Link href="/confirmar-email" className="rounded-lg py-2 text-sm font-semibold text-brand underline underline-offset-4">Reenviar confirmação de e-mail</Link>}
+          {!success && <Link href="/" className="rounded-lg py-2 text-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Voltar ao início</Link>}
         </div>}
       </section>
     </main>

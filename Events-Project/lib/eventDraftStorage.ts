@@ -5,7 +5,7 @@ const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 });
 export const eventDraftSchema = z.object({
-  values: z.object({ nome: text, descricao: text, LinkParaCompraIngresso: text, endereco: text, category: text, price: text, capacity: text, isFree: z.boolean(), startTime: text, endTime: text }).strict(),
+  values: z.object({ nome: text, descricao: text, ageRating: z.string().max(80).default(""), accessibilityInfo: z.string().max(2000).default(""), participationInfo: z.string().max(2000).default(""), LinkParaCompraIngresso: text, endereco: text, category: text, price: text, capacity: text, isFree: z.boolean(), startTime: text, endTime: text }).strict(),
   dates: z.tuple([calendarDate, calendarDate]).nullable(),
   coordinates: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).strict().nullable(),
   recurrence: z.enum(["none", "WEEKLY", "MONTHLY"]), repeatEvery: z.number().int().min(1).max(4), occurrences: z.number().int().min(2).max(52),

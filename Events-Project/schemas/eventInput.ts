@@ -3,9 +3,11 @@ const optionalUrl = z.string().max(2048).refine(value => {
   if (!value) return true;
   try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
 }, "Use um link http ou https válido.");
+const optionalInformation = (limit: number) => z.string().trim().max(limit, `Use no máximo ${limit} caracteres nas informações práticas.`).nullish().transform(value => value || null);
 const date = z.string().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value, "Data inválida.");
 export const eventInputSchema = z.object({
   nome: z.string().trim().max(160), descricao: z.string().trim().max(10000),
+  ageRating: optionalInformation(80), accessibilityInfo: optionalInformation(2000), participationInfo: optionalInformation(2000),
   endereco: z.string().trim().max(500), linkParaCompra: optionalUrl,
   dataInicio: date, dataFim: date, category: z.string().trim().min(1).max(80),
   priceCents: z.number().int().min(0).max(100000000), isFree: z.boolean(),
@@ -26,6 +28,7 @@ export function parseEventInput(form: FormData, submit: boolean) {
   const coordinate = (key: string) => text(key) ? Number(text(key)) : null;
   const result = eventInputSchema.safeParse({
     nome: text("nome"), descricao: text("descricao"), endereco: text("endereco"),
+    ageRating: text("ageRating"), accessibilityInfo: text("accessibilityInfo"), participationInfo: text("participationInfo"),
     linkParaCompra: text("LinkParaCompraIngresso") || text("linkParaCompra"),
     dataInicio: text("dataInicio"), dataFim: text("dataFim"), category: text("category") || "Outros",
     priceCents: Number(text("priceCents") || 0), isFree: text("isFree") !== "false",

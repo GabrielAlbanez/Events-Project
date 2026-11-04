@@ -21,10 +21,14 @@ export type User = {
 };
 
 export type Evento = {
+  aiImport?: { sourceUrl: string; sourceVerifiedAt: Date | string } | null;
   nome: string;
   banner: string; // Banner principal
   carrossel: string[]; // Lista de URLs para imagens do carrossel
   descricao: string;
+  ageRating?: string | null;
+  accessibilityInfo?: string | null;
+  participationInfo?: string | null;
   dataInicio: string; // 🔹 Alterado para data de início
   dataFim: string;
   user: PublicPerson | null;

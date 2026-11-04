@@ -43,12 +43,12 @@ export default function CheckInPass({ eventId }: { eventId: string }) {
 
   const expired = Boolean(expiresAt && now >= expiresAt);
   return <div className="space-y-3">
-    <button type="button" disabled={loading} onClick={() => open ? setOpen(false) : void loadPass()} className="min-h-11 rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-50">{loading ? "Gerando..." : open ? "Ocultar entrada" : "Mostrar QR Code para entrada"}</button>
+    <button type="button" disabled={loading} onClick={() => open ? setOpen(false) : void loadPass()} className="min-h-11 rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-brand hover:bg-primary/10 disabled:opacity-50">{loading ? "Gerando..." : open ? "Ocultar entrada" : "Mostrar QR Code para entrada"}</button>
     {open && <div className="max-w-xs rounded-2xl border bg-card p-4 text-center shadow-sm">
       <p className="font-semibold">Sua entrada</p>
       <p className="mt-1 text-xs text-muted-foreground">Mostre este QR Code ao organizador. Ele expira em cinco minutos.</p>
       {image && !expired ? <img src={image} alt="QR Code temporário para o check-in neste evento" className="mx-auto mt-4 h-56 w-56 rounded-lg bg-white p-2" /> : <p role="status" className="mt-4 rounded-lg bg-muted p-4 text-sm">Código expirado. Gere outro para entrar.</p>}
-      {!expired && <details className="mt-3 text-left text-xs"><summary className="cursor-pointer font-medium text-primary">Usar código manual</summary><p className="mt-2 break-all rounded-lg bg-muted p-2 font-mono select-all">{token}</p></details>}
+      {!expired && <details className="mt-3 text-left text-xs"><summary className="cursor-pointer font-medium text-brand">Usar código manual</summary><p className="mt-2 break-all rounded-lg bg-muted p-2 font-mono select-all">{token}</p></details>}
       <button type="button" disabled={loading} onClick={() => void loadPass()} className="mt-4 min-h-11 rounded-xl border px-4 text-sm font-medium hover:bg-muted">Gerar novo código</button>
     </div>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

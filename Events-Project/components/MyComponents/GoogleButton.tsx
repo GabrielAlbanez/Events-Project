@@ -1,15 +1,15 @@
 "use client";
 import { signIn, getSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { safeReturnPath } from "@/lib/authReturn";
 
 type propsGoogleButton = {
   textBody: string;
+  callbackUrl?: string;
 };
 
-export function GoogleButton({ textBody }: propsGoogleButton) {
-  const router = useRouter();
+export function GoogleButton({ textBody, callbackUrl }: propsGoogleButton) {
 
   const handleGoogleLogin = async () => {
     try {
@@ -21,7 +21,7 @@ export function GoogleButton({ textBody }: propsGoogleButton) {
       }
 
       await signIn("google", {
-        callbackUrl: "/",
+        callbackUrl: safeReturnPath(callbackUrl),
         redirect: true,
       });
     } catch (error) {

@@ -1,6 +1,8 @@
 import { RegisterForm } from "@/components/register-form";
-import { AuthPageShell } from "@/components/MyComponents/AuthPageShell";
+import { LoginPageShell } from "@/components/MyComponents/LoginPageShell";
+import { redirectAuthenticatedAccount } from "@/lib/auth/authPage";
 
-export default function RegisterPage() {
-  return <AuthPageShell mode="register"><RegisterForm /></AuthPageShell>;
+export default async function RegisterPage({ searchParams }: { searchParams?: { callbackUrl?: string | string[] } }) {
+  await redirectAuthenticatedAccount(searchParams?.callbackUrl);
+  return <LoginPageShell mode="register"><RegisterForm /></LoginPageShell>;
 }

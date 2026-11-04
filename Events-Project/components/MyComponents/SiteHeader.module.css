@@ -1,0 +1,24 @@
+.shell { --site-header-height:76px; height:100dvh; min-width:0; flex:1; overflow-y:auto; background:hsl(var(--background)); color:hsl(var(--foreground)); }
+.content { min-height:calc(100dvh - var(--site-header-height)); }
+.header { position:sticky; top:0; z-index:40; height:var(--site-header-height,76px); flex-shrink:0; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--background)/.97); }
+.inner { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:24px; height:100%; max-width:1440px; margin-inline:auto; padding-inline:clamp(20px,4vw,64px); }
+.brandGroup,.actions { display:flex; align-items:center; gap:8px; min-width:0; }
+.actions { justify-content:flex-end; }
+.brand { display:inline-flex; align-items:center; min-height:44px; border-radius:10px; }
+.menu,.search { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; flex-shrink:0; border-radius:12px; color:hsl(var(--foreground)); }
+.menu:hover,.search:hover { background:hsl(var(--muted)); }
+.navigation { display:flex; align-items:center; gap:8px; }
+.navigation a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 18px; border-radius:999px; color:hsl(var(--muted-foreground)); font-size:14px; font-weight:550; transition:background-color .16s,color .16s; }
+.navigation a:hover { color:hsl(var(--foreground)); background:hsl(var(--muted)/.6); }
+.navigation a[aria-current] { color:hsl(var(--foreground)); background:hsl(var(--muted)); font-weight:650; }
+.login,.account,.signup { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 12px; border-radius:12px; font-size:14px; font-weight:600; white-space:nowrap; }
+.login,.account { color:hsl(var(--foreground)); }
+.login:hover,.account:hover { background:hsl(var(--muted)); }
+.login svg { display:none; }
+.signup { padding-inline:17px; color:hsl(var(--primary-foreground)); background:hsl(var(--primary)); transition:background-color .16s; }
+.signup:hover { background:hsl(var(--primary)/.9); }
+.accountLoading { display:block; height:44px; width:100px; border-radius:12px; background:hsl(var(--muted)); }
+.header a:focus-visible,.header button:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+@media(max-width:1099px) { .inner { grid-template-columns:minmax(0,1fr) auto; gap:12px; padding-inline:20px; }.navigation { display:none; } }
+@media(max-width:639px) { .inner { padding-inline:12px; gap:8px; }.brandGroup,.actions { gap:2px; }.signup { display:none; }.login svg { display:block; }.login span,.account span { display:none; }.login,.account { width:44px; padding:0; }.accountLoading { width:44px; }.brandGroup { min-width:0; } }
+@media(prefers-reduced-motion:reduce) { .navigation a,.signup { transition:none; } }

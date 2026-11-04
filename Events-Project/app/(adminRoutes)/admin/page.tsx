@@ -7,7 +7,6 @@ import { useSession } from "next-auth/react";
 import { UsersRound } from "lucide-react";
 import { FilterBar } from "@/components/MyComponents/FilterBar";
 import { UserTable } from "@/components/MyComponents/UserTable";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useSocket, useSocketStatus } from "@/context/SocketContext";
 import { User as UserType } from "@/types";
@@ -108,7 +107,8 @@ export default function AdminPage() {
   return (
     <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-7xl">
-        <header className="relative isolate mb-8 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-6 lg:grid-cols-[auto_minmax(0,1fr)_auto]"><SidebarTrigger className="mt-1 shrink-0" /><FadeInView className="min-w-0 flex-1"><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Administração</p><h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl"><UsersRound className="h-8 w-8 text-primary" aria-hidden="true" /> Usuários</h1><p className="mt-2 text-muted-foreground">Encontre contas, consulte eventos e gerencie permissões.</p></FadeInView><Link href="/admin/reports" className="col-start-2 inline-flex min-h-11 max-w-full items-center justify-self-start rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-primary hover:bg-primary/10 lg:col-start-3 lg:row-start-1">Analisar denúncias →</Link><ParallaxCard className="pointer-events-none absolute -top-6 right-1/4 -z-10 hidden h-28 w-28 lg:block" pointerHost="parent" decorationClassName="absolute inset-0 rounded-full border border-primary/20 bg-primary/5 blur-[1px]" secondaryDecoration={<span />} secondaryClassName="absolute inset-5 rounded-full border border-primary/25 bg-primary/10"><span /></ParallaxCard></header>
+        <header className="relative isolate mb-8 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-6 lg:grid-cols-[auto_minmax(0,1fr)_auto]"><FadeInView className="min-w-0 flex-1"><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-brand">Administração</p><h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl"><UsersRound className="h-8 w-8 text-brand" aria-hidden="true" /> Usuários</h1><p className="mt-2 text-muted-foreground">Encontre contas, consulte eventos e gerencie permissões.</p></FadeInView><Link href="/admin/reports" className="col-start-2 inline-flex min-h-11 max-w-full items-center justify-self-start rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-brand hover:bg-primary/10 lg:col-start-3 lg:row-start-1">Analisar denúncias →</Link><ParallaxCard className="pointer-events-none absolute -top-6 right-1/4 -z-10 hidden h-28 w-28 lg:block" pointerHost="parent" decorationClassName="absolute inset-0 rounded-full border border-primary/20 bg-primary/5 blur-[1px]" secondaryDecoration={<span />} secondaryClassName="absolute inset-5 rounded-full border border-primary/25 bg-primary/10"><span /></ParallaxCard></header>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Busque eventos reais e revise cada proposta antes de publicar.</p><Button asChild variant="outline"><Link href="/admin/eventos-ia">Importar eventos →</Link></Button></div>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3" aria-label="Resumo de usuários">
           <FadeInView delay={0.04} stationary><SummaryCard label="Usuários cadastrados" value={counts.total} /></FadeInView>
@@ -129,5 +129,5 @@ export default function AdminPage() {
 }
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-2xl border border-border bg-card p-5 shadow-surface"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-primary">{value}</p></div>;
+  return <div className="rounded-2xl border border-border bg-card p-5 shadow-surface"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-brand">{value}</p></div>;
 }

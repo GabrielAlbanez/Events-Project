@@ -7,7 +7,6 @@ import { Evento } from "@/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import CardEvents from "@/components/MyComponents/CardEvents";
 import { useSocket } from "@/context/SocketContext";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getRecentEventHistory } from "@/app/(actions)/eventHistory/action";
 import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/types/features";
 import { FadeInView } from "@/components/animations/FadeInView";
@@ -144,11 +143,11 @@ export default function MyEvents() {
             <span className="absolute -right-24 top-2 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
           </ParallaxCard>
           <div className="relative z-10 flex min-w-0 items-start gap-4">
-            <SidebarTrigger className="mt-1 shrink-0" />
-            <FadeInView>
-              <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Painel de eventos</p>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meus eventos</h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
+            
+            <FadeInView className="min-w-0">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">Painel de eventos</p>
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meus eventos</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
             </FadeInView>
           </div>
           <Link href="/CriarEvento" className="relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
@@ -166,11 +165,11 @@ export default function MyEvents() {
 
         <section aria-labelledby="event-history-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 id="event-history-title" className="text-xl font-semibold">Atividade recente</h2><p className="mt-1 text-sm text-muted-foreground">Um registro das últimas mudanças, inclusive de eventos excluídos.</p></div></div>
-          {historyLoading ? <p role="status" className="py-5 text-sm text-muted-foreground">Carregando atividade...</p> : historyError ? <div role="alert" className="py-3 text-sm"><p>{historyError}</p><button type="button" onClick={() => { setHistoryLoading(true); setHistoryRetry((count) => count + 1); }} className="mt-2 font-semibold text-primary underline underline-offset-4">Tentar novamente</button></div> : history.length === 0 ? <p className="py-5 text-sm text-muted-foreground">As mudanças dos seus eventos aparecerão aqui.</p> : <ol className="divide-y divide-border">{history.slice(0, 6).map((entry) => {
+          {historyLoading ? <p role="status" className="py-5 text-sm text-muted-foreground">Carregando atividade...</p> : historyError ? <div role="alert" className="py-3 text-sm"><p>{historyError}</p><button type="button" onClick={() => { setHistoryLoading(true); setHistoryRetry((count) => count + 1); }} className="mt-2 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div> : history.length === 0 ? <p className="py-5 text-sm text-muted-foreground">Quando você criar ou atualizar um evento, as mudanças aparecerão aqui.</p> : <ol className="divide-y divide-border">{history.slice(0, 6).map((entry) => {
             const Icon = entry.action === "VALIDATED" ? CheckCircle2 : entry.action === "DELETED" ? Trash2 : Clock3;
             const actionLabel = historyLabels[entry.action];
             const date = new Date(entry.createdAt);
-            return <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium">{actionLabel}: {entry.eventName}</p>{entry.note && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.note}</p>}<p className="mt-1 text-xs text-muted-foreground">{entry.actorName ? `Por ${entry.actorName} · ` : ""}{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></div></li>;
+            return <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0"><span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><Icon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium">{actionLabel}: {entry.eventName}</p>{entry.note && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.note}</p>}<p className="mt-1 text-xs text-muted-foreground">{entry.actorName ? `Por ${entry.actorName} · ` : ""}{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></div></li>;
           })}</ol>}
         </section>
 
@@ -183,7 +182,7 @@ export default function MyEvents() {
             </div>
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
               {filters.map((filter) => (
-                <button key={filter.value} type="button" aria-pressed={filterStatus === filter.value} onClick={() => setFilterStatus(filter.value)} className={`min-h-10 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${filterStatus === filter.value ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
+                <button key={filter.value} type="button" aria-pressed={filterStatus === filter.value} onClick={() => setFilterStatus(filter.value)} className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${filterStatus === filter.value ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
                   {filter.label}
                 </button>
               ))}
@@ -194,19 +193,19 @@ export default function MyEvents() {
         {isLoading ? (
           <div role="status" className="rounded-2xl border bg-card p-10 text-center text-muted-foreground">Carregando seus eventos...</div>
         ) : error ? (
-          <div role="alert" className="rounded-2xl border bg-card p-10 text-center"><p>{error}</p><button type="button" onClick={() => { setIsLoading(true); setRetryCount((count) => count + 1); }} className="mt-4 font-semibold text-primary underline underline-offset-4">Tentar novamente</button></div>
+          <div role="alert" className="rounded-2xl border bg-card p-10 text-center"><p>{error}</p><button type="button" onClick={() => { setIsLoading(true); setRetryCount((count) => count + 1); }} className="mt-4 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div>
         ) : events.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-card p-8 text-center sm:p-12">
-            <CalendarDays className="mx-auto size-10 text-primary" aria-hidden="true" />
+            <CalendarDays className="mx-auto size-10 text-brand" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">Seu primeiro evento começa aqui</h2>
-            <p className="mx-auto mt-2 max-w-md text-muted-foreground">Crie um evento para compartilhar informações, imagens e localização com o público.</p>
-            <Link href="/CriarEvento" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Criar meu primeiro evento</Link>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Crie um evento para compartilhar informações, imagens e localização com o público.</p>
+            <Link href="/CriarEvento" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Criar meu primeiro evento</Link>
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
             <h2 className="text-lg font-semibold">Nenhum evento corresponde aos filtros</h2>
             <p className="mt-2 text-muted-foreground">Tente outro termo ou veja todos os eventos.</p>
-            <button type="button" onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} className="mt-4 font-semibold text-primary underline underline-offset-4">Limpar filtros</button>
+            <button type="button" onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} className="mt-4 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Limpar filtros</button>
           </div>
         ) : (
           <section aria-label="Lista dos meus eventos">

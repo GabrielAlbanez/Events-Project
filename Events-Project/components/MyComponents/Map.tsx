@@ -33,37 +33,42 @@ const CustomLoading = () => (
 );
 
 const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1c1a25" }] },
+  { elementType: "geometry", stylers: [{ color: "#141820" }] },
   { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#a1a1aa" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1c1a25" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#141820" }] },
   { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#3f3f46" }] },
-  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#24212e" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#191722" }] },
-  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2a2734" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#111018" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1A202B" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#151F21" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#242D3C" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0B111C" }] },
 ];
 
-const USER_MARKER_ICON = { url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png" };
-const EVENT_MARKER_ICON = { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" };
+const USER_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#C7F34A" stroke="#0B0D12" stroke-width="2"/><circle cx="13" cy="13" r="3" fill="#0B0D12"/></svg>') };
+const createEventMarkerIcon = (fill: string, ink: string) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
+const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
+const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
 
 const EventMarkers = memo(function EventMarkers({
   events,
   onSelect,
+  selectedId,
   highlightedId,
 }: {
   events: Evento[];
   onSelect: (event: Evento) => void;
+  selectedId: string | null;
   highlightedId: string | null;
 }) {
   return events.map((event) => (
     <Marker
       key={event.id}
       position={{ lat: event.lat!, lng: event.lng! }}
-      icon={EVENT_MARKER_ICON}
-      zIndex={event.id === highlightedId ? 1000 : undefined}
-      opacity={highlightedId && event.id !== highlightedId ? 0.6 : 1}
+      title={event.id === selectedId ? event.nome + " — evento selecionado" : event.nome}
+      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
+      zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : undefined}
+      opacity={highlightedId && event.id !== highlightedId && event.id !== selectedId ? 0.6 : 1}
       onClick={() => onSelect(event)}
     />
   ));
@@ -281,11 +286,13 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     () => visibleEvents.find((event) => event.id === selectedId) ?? null,
     [visibleEvents, selectedId]
   );
+  const selectedLat = selectedEvent?.lat;
+  const selectedLng = selectedEvent?.lng;
   useEffect(() => {
-    if (selectedEvent?.lat != null && selectedEvent?.lng != null) {
-      mapRef.current?.panTo({ lat: selectedEvent.lat, lng: selectedEvent.lng });
+    if (selectedId && selectedLat != null && selectedLng != null) {
+      mapRef.current?.panTo({ lat: selectedLat, lng: selectedLng });
     }
-  }, [selectedEvent]);
+  }, [selectedId, selectedLat, selectedLng]);
   const changeZoom = useCallback((delta: number) => {
     const map = mapRef.current;
     if (!map) return;
@@ -306,7 +313,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             >
               {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} />}
 
-              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} highlightedId={highlightedId} />
+              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} />
 
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
@@ -319,9 +326,9 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
                   <p className="text-xs text-muted-foreground">{userLocation ? "Origem definida. Selecione outro local para alterar." : "Selecione a partida nas sugestões ou permita sua localização ao traçar."}</p>
                   <PlaceAutocomplete ariaLabel="Destino da rota" className="w-full rounded-xl border border-border" placeholder="Destino" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setDestination({ lat, lng }); }} />
                   {destination && <p className="text-xs text-muted-foreground">Destino definido. Selecione outro local para alterar.</p>}
-                  <button type="button" disabled={isRouteTracing} className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60" onClick={() => destination ? void calculateRoute(destination) : toast.error("Selecione um destino nas sugestões.")}>{isRouteTracing ? "Calculando rota…" : "Traçar rota"}</button>
-                  {routeError && <div role="alert" className="space-y-2 text-xs text-muted-foreground"><p>{routeError}</p>{externalRouteUrl && <a href={externalRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-primary underline underline-offset-4">Abrir rota no Google Maps</a>}</div>}
-                  {directions && <button type="button" className="w-full text-xs text-muted-foreground hover:text-primary" onClick={clearRoute}>Limpar rota</button>}
+                  <button type="button" disabled={isRouteTracing} className="min-h-11 w-full rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-cta-foreground hover:bg-cta/90 disabled:cursor-wait disabled:opacity-60" onClick={() => destination ? void calculateRoute(destination) : toast.error("Selecione um destino nas sugestões.")}>{isRouteTracing ? "Calculando rota…" : "Traçar rota"}</button>
+                  {routeError && <div role="alert" className="space-y-2 text-xs text-muted-foreground"><p>{routeError}</p>{externalRouteUrl && <a href={externalRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-brand underline underline-offset-4">Abrir rota no Google Maps</a>}</div>}
+                  {directions && <button type="button" className="w-full text-xs text-muted-foreground hover:text-brand" onClick={clearRoute}>Limpar rota</button>}
                 </div>
               </div>
             )}
@@ -329,21 +336,21 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             {selectedEvent && !showDirections && (
               <div className="absolute left-3 right-[72px] top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-border bg-card/95 p-3 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5">
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-primary">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-primary" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-brand" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
                 <button type="button" aria-label="Fechar evento" className="self-start text-muted-foreground" onClick={() => onSelectEvent(null)}>×</button>
               </div>
             )}
 
             {!showDirections && !selectedEvent && <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-2 md:bottom-auto md:right-5 md:top-5">
-              <button type="button" className="grid h-10 w-10 place-items-center rounded-2xl border border-border bg-card/95 text-primary shadow-surface backdrop-blur hover:bg-muted" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota"><Route className="h-4 w-4" /></button>
+              <button type="button" className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 text-brand shadow-surface backdrop-blur hover:bg-muted" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota"><Route className="h-4 w-4" /></button>
             </div>}
             <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 md:bottom-20 md:right-5">
               <div className="hidden overflow-hidden rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur md:block">
-                <button type="button" className="grid h-10 w-10 place-items-center text-muted-foreground transition hover:bg-muted hover:text-primary" onClick={() => changeZoom(1)} title="Aumentar zoom" aria-label="Aumentar zoom">
+                <button type="button" className="grid h-11 w-11 place-items-center text-muted-foreground transition hover:bg-muted hover:text-brand" onClick={() => changeZoom(1)} title="Aumentar zoom" aria-label="Aumentar zoom">
                   <ZoomIn className="h-4 w-4" />
                 </button>
                 <div className="mx-2 h-px bg-border" />
-                <button type="button" className="grid h-10 w-10 place-items-center text-muted-foreground transition hover:bg-muted hover:text-primary" onClick={() => changeZoom(-1)} title="Diminuir zoom" aria-label="Diminuir zoom">
+                <button type="button" className="grid h-11 w-11 place-items-center text-muted-foreground transition hover:bg-muted hover:text-brand" onClick={() => changeZoom(-1)} title="Diminuir zoom" aria-label="Diminuir zoom">
                   <ZoomOut className="h-4 w-4" />
                 </button>
               </div>
@@ -354,13 +361,13 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
                 title="Minha localização"
                 aria-label="Recentralizar na minha localização"
               >
-                <Crosshair className="h-5 w-5 text-primary" />
+                <Crosshair className="h-5 w-5 text-brand" />
               </button>
             </div>
 
             <div className="absolute bottom-5 left-5 z-10 hidden items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-medium text-muted-foreground shadow-surface backdrop-blur md:flex">
               <span className="h-2 w-2 rounded-full bg-primary" />
-              {visibleEvents.length} eventos no mapa
+              {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} no mapa
             </div>
           </div>
           {eventoAtivo && (
@@ -393,7 +400,7 @@ export default function Mapa(props: MapProps) {
   return (
     <section className="flex h-full min-h-[520px] items-center justify-center bg-muted p-8">
       <div className="max-w-sm rounded-3xl border border-border bg-card/95 p-6 text-center shadow-surface backdrop-blur">
-        <MapPin className="mx-auto mb-3 h-7 w-7 text-primary" />
+        <MapPin className="mx-auto mb-3 h-7 w-7 text-brand" />
         <h2 className="text-lg font-semibold">Mapa indisponível</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{error || "Você ainda pode explorar e filtrar os eventos na lista."}</p>
       </div>

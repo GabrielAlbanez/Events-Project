@@ -6,25 +6,26 @@
 .field input::placeholder { color:hsl(var(--muted-foreground)); opacity:1; }
 .field select { cursor:pointer; }
 .field:focus-within { border-radius:10px; box-shadow:inset 0 0 0 2px hsl(var(--ring)); }
-.searchButton { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:0 18px; border-radius:12px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:14px; font-weight:650; white-space:nowrap; transition:transform .2s,filter .2s; }
+.searchButton { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:0 18px; border-radius:12px; background:hsl(var(--cta)); color:hsl(var(--cta-foreground)); font-size:14px; font-weight:650; white-space:nowrap; transition:transform .2s,filter .2s; }
 .searchButton:hover { transform:translateY(-2px); filter:brightness(1.08); }
 .searchButton:focus-visible,.carousel button:focus-visible,.cardLink:focus-visible,.placeholder a:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
-.carousel { position:relative; width:min(100%,440px); margin-inline:auto; }
-.card { overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:0 24px 65px hsl(var(--foreground)/.14),0 0 60px hsl(var(--primary)/.12); transition:box-shadow .25s; }
-.card:hover { box-shadow:0 30px 70px hsl(var(--foreground)/.18),0 0 70px hsl(var(--primary)/.16); }
+.carousel { position:relative; isolation:isolate; width:min(100%,540px); margin-inline:auto; }
+.carousel::before { content:""; position:absolute; z-index:-1; top:-14px; right:-12px; width:66%; height:44%; border-radius:24px; background:hsl(var(--primary)); pointer-events:none; }
+.card { overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:var(--shadow-surface); transition:box-shadow .25s; }
+.card:hover { border-color:hsl(var(--primary)/.55); box-shadow:var(--shadow-surface); }
 .card:focus-within { outline:2px solid hsl(var(--ring)); outline-offset:4px; }
 .cardLink { display:block; color:hsl(var(--foreground)); text-decoration:none; }
 .artwork { position:relative; width:100%; aspect-ratio:1.45; overflow:hidden; background:hsl(var(--muted)); animation:hero-artwork-in .3s ease-out; }
 @keyframes hero-artwork-in { from { opacity:.65; } to { opacity:1; } }
 .image { object-fit:cover; object-position:center; }
-.badge { position:absolute; left:18px; top:18px; max-width:calc(100% - 36px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:7px 11px; border-radius:999px; background:rgb(10 9 16/.82); color:#fff; font-size:12px; font-weight:600; }
-.cardBody { display:flex; flex-direction:column; min-height:236px; padding:21px 24px; }
-.date { color:hsl(var(--primary)); font-size:14px; font-weight:700; line-height:1.5; }
+.badge { position:absolute; left:18px; top:18px; max-width:calc(100% - 36px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:7px 11px; border-radius:999px; background:rgb(11 13 18/.85); color:#fff; font-size:12px; font-weight:600; }
+.cardBody { display:flex; flex-direction:column; min-height:196px; padding:21px 24px; }
+.date { color:hsl(var(--brand)); font-size:14px; font-weight:700; line-height:1.5; }
 .cardBody h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:8px 0 10px; font-size:clamp(22px,2vw,28px); line-height:1.15; font-weight:650; letter-spacing:-.035em; overflow-wrap:anywhere; }
 .location { display:flex; align-items:flex-start; gap:8px; color:hsl(var(--muted-foreground)); font-size:14px; line-height:1.5; }
 .location svg { flex:none; margin-top:2px; }
 .location span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.cardAction { display:flex; justify-content:space-between; align-items:center; min-height:44px; margin-top:auto; padding-top:12px; border-top:1px solid hsl(var(--border)); color:hsl(var(--primary)); font-size:14px; font-weight:650; }
+.cardAction { display:flex; justify-content:space-between; align-items:center; min-height:44px; margin-top:auto; padding-top:12px; border-top:1px solid hsl(var(--border)); color:hsl(var(--brand)); font-size:14px; font-weight:650; }
 .controls { display:flex; justify-content:center; align-items:center; gap:8px; margin-top:12px; }
 .controls button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; color:hsl(var(--foreground)); }
 .controls button:hover { background:hsl(var(--muted)); }

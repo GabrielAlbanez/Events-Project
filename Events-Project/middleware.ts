@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { canAccessPath, getSessionRole, isPublicPath } from "@/lib/authPolicy";
+import { authPathWithReturn } from "@/lib/authReturn";
 
 export async function middleware(request: NextRequest) {
-  const token = await getToken({ req: request });
   const pathname = request.nextUrl.pathname;
+  // A JWT can outlive its account/session. Auth pages validate it on the server.
+  if (pathname === "/login" || pathname === "/register") return NextResponse.next();
+  const token = await getToken({ req: request });
   const role = getSessionRole(token ? { id: token.impersonationId ? token.effectiveUserId : token.id, role: token.impersonationId ? token.effectiveRole : token.role, provider: token.provider } : null);
 
   if (isPublicPath(pathname)) return NextResponse.next();
 
-  if (pathname === "/login" || pathname === "/register") {
-    return role === "GUEST"
-      ? NextResponse.next()
-      : NextResponse.redirect(new URL("/", request.url));
-  }
-
   if (role === "GUEST") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL(authPathWithReturn("/login", pathname + request.nextUrl.search), request.url));
   }
 
   return canAccessPath(role, pathname)

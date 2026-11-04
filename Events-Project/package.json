@@ -16,6 +16,8 @@
     "lint": "next lint",
     "push:configure": "node scripts/configure-web-push.cjs",
     "start:socket": "tsc --project tsconfig.server.json && cross-env NODE_ENV=production node dist/server.mjs",
+    "test:ai-events": "node scripts/verify-ai-event-sources.cjs && node scripts/verify-ai-events.cjs && node scripts/verify-ai-events-api.cjs && node scripts/verify-ai-events-realtime.cjs",
+    "test:ai-events:db": "cross-env AI_EVENTS_TEST_DATABASE=true node scripts/verify-ai-events-db.cjs",
     "test:features": "node scripts/verify-event-platform.cjs",
     "test:realtime": "node scripts/verify-home-realtime.cjs && node scripts/verify-realtime-transport.cjs",
     "test:features:db": "cross-env FEATURE_TEST_DATABASE=true node scripts/verify-event-platform.cjs",

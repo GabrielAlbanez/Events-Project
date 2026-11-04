@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSocket } from "@/context/SocketContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
@@ -194,15 +193,15 @@ export default function Profile() {
     return <main className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></main>;
   }
   if (!account) {
-    return <main className="flex flex-1 items-center justify-center p-6"><p className="text-muted-foreground">Entre na sua conta para ver o perfil.</p></main>;
+    return <main className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center"><h1 className="text-2xl font-semibold tracking-tight">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></main>;
   }
 
   return (
     <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-start gap-4">
-          <SidebarTrigger className="mt-1 shrink-0" />
-          <FadeInView><div><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">Minha conta</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-2 text-muted-foreground">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
+          
+          <FadeInView className="min-w-0"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">Minha conta</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
@@ -236,22 +235,22 @@ export default function Profile() {
             {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
             <Card className="rounded-2xl shadow-surface">
               <CardContent className="p-5 sm:p-7">
-                <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>
+                <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-brand" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>
                 <Form {...form}>
                   <form id="profile-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                     <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Nome de exibição</FormLabel><FormControl><Input autoComplete="name" placeholder="Como você quer ser chamado" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
                     <div><label htmlFor="profile-email" className="mb-2 block text-sm font-medium">Email</label><div className="relative"><Mail aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input id="profile-email" type="email" value={account.email || ""} readOnly aria-describedby="profile-email-help" className="pl-10 text-muted-foreground" /></div><p id="profile-email-help" className="mt-2 text-xs text-muted-foreground">O email não pode ser alterado nesta página.</p></div>
-                    {canChangePassword && <div className="border-t border-border pt-6"><div className="mb-5 flex items-start gap-3"><LockKeyhole className="mt-0.5 h-5 w-5 text-primary" /><div><h3 className="font-semibold">Alterar senha</h3><p className="mt-1 text-sm text-muted-foreground">Preencha os dois campos apenas se quiser trocar a senha.</p></div></div><div className="grid gap-5 sm:grid-cols-2">
+                    {canChangePassword && <div className="border-t border-border pt-6"><div className="mb-5 flex items-start gap-3"><LockKeyhole className="mt-0.5 h-5 w-5 text-brand" /><div><h3 className="font-semibold">Alterar senha</h3><p className="mt-1 text-sm text-muted-foreground">Preencha os dois campos apenas se quiser trocar a senha.</p></div></div><div className="grid gap-5 sm:grid-cols-2">
                       <FormField control={form.control} name="password" render={({ field }) => <FormItem><FormLabel>Senha atual</FormLabel><FormControl><Input type="password" autoComplete="current-password" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
                       <FormField control={form.control} name="newPassword" render={({ field }) => <FormItem><FormLabel>Nova senha</FormLabel><FormControl><Input type="password" autoComplete="new-password" disabled={isPending} {...field} /></FormControl><FormMessage /></FormItem>} />
                     </div></div>}
-                    <Button type="submit" disabled={isPending || !hasChanges} className="w-full sm:w-auto">{isPending ? "Salvando..." : "Salvar alterações"}</Button>
+                    <Button type="submit" variant="cta" disabled={isPending || !hasChanges} className="w-full sm:w-auto">{isPending ? "Salvando..." : "Salvar alterações"}</Button>
                   </form>
                 </Form>
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-primary" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
+            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-brand" /><div><h2 className="text-xl font-semibold">Informações da conta</h2><p className="mt-1 text-sm text-muted-foreground">Esses dados são definidos pelo seu acesso.</p></div></div><dl className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo de conta</dt><dd className="mt-2 font-medium">{roleLabels[account.role || ""] || account.role || "Não informado"}</dd></div><div className="rounded-xl bg-muted/60 p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Acesso</dt><dd className="mt-2 font-medium">{account.provider === "google" ? "Google" : "Email e senha"}</dd></div><div className="rounded-xl bg-muted/60 p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email verificado</dt><dd className="mt-2 flex items-center gap-2 font-medium">{account.provider === "google" || account.emailVerified ? <><CheckCircle2 className="h-4 w-4 text-brand" /> Sim</> : "Ainda não verificado"}</dd></div></dl></CardContent></Card>
           </div>
         </div>
       </div>

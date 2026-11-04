@@ -1,0 +1,96 @@
+.page {
+  min-height: calc(100svh - var(--site-header-height, 76px));
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  --login-secondary: hsl(var(--foreground) / .78);
+  --login-placeholder: hsl(var(--foreground) / .62);
+}
+
+.backRow { display: flex; align-items: center; min-height: 60px; padding: 8px clamp(20px, 3.3vw, 56px); }
+.backLink { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; border-radius: 8px; color: var(--login-secondary); font-size: 14px; transition: color .18s ease; }
+.backLink:hover { color: hsl(var(--brand)); }
+.backLink:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+
+.layout { display: grid; min-height: calc(100svh - var(--site-header-height, 76px) - 60px); }
+.presentation { display: none; }
+.formPanel { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 36px 24px 28px; }
+.formContent { width: 100%; max-width: 420px; margin-inline: auto; }
+.footnote { max-width: 360px; margin: 28px auto 0; color: var(--login-secondary); font-size: 13px; line-height: 1.6; text-align: center; text-wrap: balance; }
+
+.form { display: flex; flex-direction: column; gap: 28px; }
+.formHeading { display: grid; gap: 12px; }
+.formHeading h1 { max-width: 18ch; font-family: var(--font-geist-sans), sans-serif; font-size: clamp(30px, 2.4vw, 38px); font-weight: 650; letter-spacing: -.04em; line-height: 1.12; text-wrap: balance; }
+.formHeading p { color: var(--login-secondary); font-size: 15px; line-height: 1.6; }
+.fields { display: grid; gap: 20px; }
+.field { display: grid; gap: 10px; }
+.field label { font-size: 14px; font-weight: 550; }
+.passwordLabel { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.form .field input { height: 52px; min-height: 52px; border: 1px solid hsl(var(--foreground) / .38); border-radius: 10px; background: hsl(var(--card)); padding-inline: 16px; color: hsl(var(--foreground)); font-size: 16px; box-shadow: none; transition: border-color .18s ease, background-color .18s ease; }
+.form .field input::placeholder { color: var(--login-placeholder); opacity: 1; }
+.form .field input:hover { border-color: hsl(var(--foreground) / .6); }
+.form .field input:focus-visible { border-color: hsl(var(--primary)); outline: 2px solid hsl(var(--primary)); outline-offset: 3px; box-shadow: none; }
+.form .field input[aria-invalid="true"] { border-color: hsl(var(--destructive)); }
+.form .field input[aria-invalid="true"]:focus-visible { outline-color: hsl(var(--destructive)); }
+.form .field input[name="password"] { padding-right: 52px; }
+.fieldError { color: hsl(var(--destructive)); font-size: 14px; line-height: 1.5; }
+.passwordToggle { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 7px; color: var(--login-secondary); transition: color .18s ease, background-color .18s ease; }
+.passwordToggle:hover { color: hsl(var(--foreground)); background: hsl(var(--foreground) / .06); }
+.passwordToggle:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
+.passwordToggle svg { width: 18px; height: 18px; }
+.recoveryLink, .confirmationLink, .registerLink { display: inline-flex; align-items: center; min-height: 44px; border-radius: 4px; font-size: 14px; line-height: 1.5; text-underline-offset: 4px; }
+.recoveryLink { color: var(--login-secondary); }
+.recoveryLink:hover { color: hsl(var(--foreground)); text-decoration: underline; }
+.confirmationLink, .registerLink { color: hsl(var(--brand)); font-weight: 600; }
+.confirmationLink:hover, .registerLink:hover { text-decoration: underline; }
+.recoveryLink:focus-visible, .confirmationLink:focus-visible, .registerLink:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.form .submit { width: 100%; height: 52px; min-height: 52px; border-radius: 10px; background: hsl(var(--cta)); color: hsl(var(--cta-foreground)); font-size: 15px; font-weight: 650; box-shadow: inset 0 1px 0 hsl(0 0% 100% / .2), 0 8px 24px -16px hsl(var(--cta) / .22); transition: transform .18s ease, filter .18s ease, box-shadow .18s ease; }
+.form .submit:not(:disabled):hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: inset 0 1px 0 hsl(0 0% 100% / .25), 0 10px 24px -14px hsl(var(--cta) / .22); }
+.form .submit:not(:disabled):active { transform: translateY(0) scale(.99); }
+.form .submit:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; box-shadow: none; }
+.form .submit:disabled { opacity: .6; box-shadow: none; transform: none; filter: none; cursor: wait; }
+.divider { display: flex; align-items: center; gap: 16px; color: var(--login-secondary); font-size: 13px; line-height: 1.5; }
+.divider span { height: 1px; flex: 1; background: hsl(var(--foreground) / .14); }
+.googleButton button { width: 100%; height: 52px; min-height: 52px; border-color: hsl(var(--foreground) / .38); border-radius: 10px; background: transparent; color: hsl(var(--foreground)); font-size: 15px; font-weight: 550; box-shadow: none; transition: background-color .18s ease, border-color .18s ease; }
+.googleButton button:hover { border-color: hsl(var(--foreground) / .6); background: hsl(var(--foreground) / .05); }
+.googleButton button:active { background: hsl(var(--foreground) / .09); }
+.googleButton button:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; box-shadow: none; }
+.googleButton svg { width: 20px; height: 20px; }
+.formFooter { display: grid; justify-items: center; gap: 12px; color: var(--login-secondary); font-size: 14px; line-height: 1.6; text-align: center; }
+.registerPrompt { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: 5px; }
+
+.registerPage .formPanel { padding-block: 24px; }
+.registerPage .footnote { margin-top: 16px; }
+.registerPage .photoCopy h2 { font-size: clamp(44px, 3.6vw, 64px); }
+.registerForm { gap: 20px; }
+.registerForm .formHeading { gap: 8px; }
+.registerForm .fields { gap: 16px; }
+.registerForm .field { gap: 8px; }
+.passwordHelp { color: var(--login-secondary); font-size: 13px; line-height: 1.5; }
+
+@media (min-width: 640px) {
+  .formPanel { padding: 52px 40px 36px; }
+}
+
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr); }
+  .presentation { position: relative; isolation: isolate; display: flex; align-items: flex-end; min-width: 0; min-height: 680px; overflow: hidden; padding: clamp(40px, 4.5vw, 80px); background: hsl(0 0% 5%); color: hsl(0 0% 100%); }
+  .photo { z-index: -2; object-fit: cover; object-position: 50% 45%; animation: photoEnter .9s ease-out both; }
+  .photoScrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, hsl(0 0% 0% / .32) 0%, hsl(0 0% 0% / .12) 32%, hsl(0 0% 0% / .78) 68%, hsl(0 0% 0% / .94) 100%); }
+  .photoChips { position: absolute; inset: 40px clamp(32px, 3vw, 56px) auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  .photoChip { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; border-radius: 100px; padding: 10px 14px; background: hsl(0 0% 0% / .62); color: hsl(0 0% 100% / .94); font-size: 13px; font-weight: 500; backdrop-filter: blur(12px); }
+  .photoChip svg { color: hsl(var(--brand)); }
+  .photoCopy { position: relative; max-width: 620px; animation: copyEnter .65s ease-out both; }
+  .photoSignature { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; font-size: 14px; font-weight: 550; line-height: 1.5; color: hsl(0 0% 100% / .9); }
+  .photoSignature svg { color: hsl(var(--brand)); }
+  .photoCopy h2 { font-family: var(--font-geist-sans), sans-serif; font-size: clamp(48px, 4.4vw, 74px); font-weight: 600; line-height: 1.04; letter-spacing: -.045em; text-wrap: balance; }
+  .photoDescription { max-width: 38ch; margin-top: 24px; font-size: 17px; line-height: 1.6; color: hsl(0 0% 100% / .86); }
+  .formPanel { padding: 48px clamp(40px, 5vw, 88px) 36px; }
+}
+
+@keyframes photoEnter { from { opacity: .5; transform: scale(1.035); } to { opacity: 1; transform: scale(1); } }
+@keyframes copyEnter { from { opacity: .6; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .page *, .page *::before, .page *::after { animation: none !important; transition: none !important; }
+  .page .submit:not(:disabled):hover, .page .submit:not(:disabled):active { transform: none; }
+}

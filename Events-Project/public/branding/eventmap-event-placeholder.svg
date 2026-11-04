@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-label="Imagem ilustrativa de evento">
+  <rect width="1200" height="750" fill="#0B0D12"/>
+  <path d="m360 200 160-60 160 60 160-60v370l-160 60-160-60-160 60z" fill="#2455FF"/>
+  <path d="m520 140 160 60v370l-160-60z" fill="#4E75FF"/>
+  <circle cx="677" cy="305" r="56" fill="#C7F34A"/>
+  <path d="m677 379-43-59h86z" fill="#C7F34A"/>
+  <text x="600" y="660" text-anchor="middle" fill="#FAFAFA" font-family="Arial, sans-serif" font-size="24">Imagem ilustrativa • Consulte a fonte oficial</text>
+</svg>

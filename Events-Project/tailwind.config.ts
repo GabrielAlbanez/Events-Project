@@ -35,6 +35,11 @@ const config: Config = {
   				DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
   				foreground: 'hsl(var(--primary-foreground) / <alpha-value>)'
   			},
+      brand: 'hsl(var(--brand) / <alpha-value>)',
+      cta: {
+        DEFAULT: 'hsl(var(--cta) / <alpha-value>)',
+        foreground: 'hsl(var(--cta-foreground) / <alpha-value>)',
+      },
   			secondary: {
   				DEFAULT: 'hsl(var(--secondary) / <alpha-value>)',
   				foreground: 'hsl(var(--secondary-foreground) / <alpha-value>)'

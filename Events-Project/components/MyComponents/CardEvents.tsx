@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, TriangleAlert } from "lucide-react";
 import { Image, Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/react";
 import { Evento } from "@/types";
 import { getEventHistory } from "@/app/(actions)/eventHistory/action";
@@ -109,10 +109,10 @@ export default function CardEvents({ events }: CardEventsProps) {
     <>
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {events.map((event) => (
-          <article key={event.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+          <article key={event.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm em-motion-card hover:shadow-md">
             <div className="relative h-48 overflow-hidden bg-muted">
               {event.banner ? (
-                <Image src={event.banner} alt={`Capa do evento ${event.nome}`} removeWrapper className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none" />
+                <Image src={event.banner} alt={`Capa do evento ${event.nome}`} removeWrapper className="h-full w-full object-cover em-motion-cover" />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground"><CalendarDays className="size-12" aria-hidden="true" /></div>
               )}
@@ -125,14 +125,14 @@ export default function CardEvents({ events }: CardEventsProps) {
               <h2 className="line-clamp-2 text-lg font-semibold tracking-tight">{event.nome}</h2>
               <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{event.descricao || "Sem descrição."}</p>
               <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-                <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />{formatDate(event.dataInicio)}</p>
-                {event.endereco && <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /><span className="line-clamp-1">{event.endereco}</span></p>}
+                <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" />{formatDate(event.dataInicio)}</p>
+                {event.endereco && <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" /><span className="line-clamp-1">{event.endereco}</span></p>}
               </div>
-              <button type="button" onClick={() => setSelectedEvent(event)} className="mt-5 inline-flex min-h-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <button type="button" onClick={() => setSelectedEvent(event)} className="mt-5 inline-flex min-h-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-brand transition-colors hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 Ver detalhes
               </button>
-              <Link href={`/eventos/${event.id}/comunidade`} className="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Comunidade e equipe</Link>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-lg border px-3 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-lg border border-primary/30 bg-primary/5 px-3 font-medium text-primary hover:bg-primary/10">Check-in</Link>}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-lg border px-3 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-lg border border-destructive/30 px-3 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
+              <Link href={`/eventos/${event.id}/comunidade`} className="em-motion-waypoint mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Comunidade e equipe <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-lg border px-3 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-lg border border-primary/30 bg-primary/5 px-3 font-medium text-brand hover:bg-primary/10">Check-in</Link>}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-lg border px-3 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-lg border border-destructive/30 px-3 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
             </div>
           </article>
         ))}
@@ -202,7 +202,7 @@ export default function CardEvents({ events }: CardEventsProps) {
                   {selectedEvent.endereco && <div><p className="font-semibold">Onde</p><p className="mt-1 text-muted-foreground">{selectedEvent.endereco}</p></div>}
                   {selectedEvent.reviewNote && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"><p className="font-semibold">Correção solicitada</p><p className="mt-1 whitespace-pre-wrap">{selectedEvent.reviewNote}</p></div>}
                   {selectedEvent.validate && selectedEvent.validator?.name && <p className="rounded-xl border bg-muted/50 p-3 text-muted-foreground">Validado por {selectedEvent.validator.name}</p>}
-                  <section aria-label="Histórico deste evento" className="rounded-xl border bg-muted/30 p-4"><h3 className="font-semibold">Histórico deste evento</h3>{historyLoading ? <p role="status" className="mt-3 text-muted-foreground">Carregando histórico...</p> : historyError ? <div role="alert" className="mt-3"><p>{historyError}</p><button type="button" className="mt-2 font-semibold text-primary underline underline-offset-4" onClick={() => setHistoryRetry((count) => count + 1)}>Tentar novamente</button></div> : history.length === 0 ? <p className="mt-3 text-muted-foreground">Nenhuma mudança registrada ainda.</p> : <ol className="mt-3 space-y-3">{history.slice(0, 5).map((entry) => { const date = new Date(entry.createdAt); return <li key={entry.id} className="border-l-2 border-primary/30 pl-3"><p className="font-medium">{historyLabels[entry.action]}{entry.actorName ? ` por ${entry.actorName}` : ""}</p>{entry.note && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{entry.note}</p>}<p className="text-xs text-muted-foreground">{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></li>; })}</ol>}</section>
+                  <section aria-label="Histórico deste evento" className="rounded-xl border bg-muted/30 p-4"><h3 className="font-semibold">Histórico deste evento</h3>{historyLoading ? <p role="status" className="mt-3 text-muted-foreground">Carregando histórico...</p> : historyError ? <div role="alert" className="mt-3"><p>{historyError}</p><button type="button" className="mt-2 font-semibold text-brand underline underline-offset-4" onClick={() => setHistoryRetry((count) => count + 1)}>Tentar novamente</button></div> : history.length === 0 ? <p className="mt-3 text-muted-foreground">Nenhuma mudança registrada ainda.</p> : <ol className="mt-3 space-y-3">{history.slice(0, 5).map((entry) => { const date = new Date(entry.createdAt); return <li key={entry.id} className="border-l-2 border-primary/30 pl-3"><p className="font-medium">{historyLabels[entry.action]}{entry.actorName ? ` por ${entry.actorName}` : ""}</p>{entry.note && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{entry.note}</p>}<p className="text-xs text-muted-foreground">{Number.isNaN(date.getTime()) ? "Data indisponível" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date)}</p></li>; })}</ol>}</section>
                 </div>
               </ModalBody>
             </>

@@ -8,8 +8,9 @@ export const publicEventSelect = {
   dataInicio: true, dataFim: true, linkParaCompra: true, endereco: true,
   userId: true, validate: true, status: true, category: true, priceCents: true,
   isFree: true, lat: true, lng: true, startTime: true, endTime: true, timezone: true,
-  capacity: true,
+  capacity: true, ageRating: true, accessibilityInfo: true, participationInfo: true,
   validatedAt: true,
+  aiImport: { select: { sourceUrl: true, sourceVerifiedAt: true } },
   user: { select: { id: true, name: true, image: true } },
   validator: { select: { id: true, name: true, image: true } },
 } satisfies Prisma.EventsSelect;

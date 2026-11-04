@@ -16,6 +16,7 @@ import { configuredPublicOrigin } from "./lib/publicUrl.js";
 import { createDatabasePresence } from "./server/databasePresence.mjs";
 import { registerChatSignals } from "./server/chatSignals.mjs";
 import { startProfileImageRealtime } from "./server/profileImageRealtime.mjs";
+import { startAiEventsWorker } from "./server/aiEventsWorker.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -79,6 +80,8 @@ app.prepare().then(async () => {
   httpServer.on("close", stopNotifications);
   const stopCommunity = startCommunityWorker(prisma, (room) => dispatchCommunitySignal(prisma, io!, room));
   httpServer.on("close", stopCommunity);
+  const stopAiEvents = startAiEventsWorker(prisma);
+  httpServer.on("close", stopAiEvents);
   const stopAccountRevocation = startAccountRevocationWorker(prisma, io);
   httpServer.on("close", stopAccountRevocation);
 

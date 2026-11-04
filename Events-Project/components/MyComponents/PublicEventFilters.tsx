@@ -108,7 +108,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  return (
   <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group rounded-2xl border border-border bg-card p-4">
    <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground marker:hidden focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-    <span aria-hidden="true" className="text-primary transition-transform group-open:rotate-90">▸</span>
+    <span aria-hidden="true" className="text-brand transition-transform group-open:rotate-90">▸</span>
     <span>Mais filtros</span>
     <span className="ml-auto text-xs font-normal text-muted-foreground">Categoria, preço e localização</span>
    </summary>
@@ -127,7 +127,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
      <input className={input} type="number" min="0" value={value.maxPrice} placeholder="Sem limite" onChange={event => changeOtherFilter({ ...value, maxPrice: event.target.value })} />
     </label>
 
-    <label className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground sm:col-span-2">
+    <label className={"flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm font-medium sm:col-span-2 " + (value.free ? "border-cta-foreground/15 bg-cta text-cta-foreground" : "border-border bg-card text-foreground")}>
      <input className="h-4 w-4 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" type="checkbox" checked={value.free} onChange={event => changeOtherFilter({ ...value, free: event.target.checked })} />
      Somente gratuitos
     </label>
@@ -167,13 +167,13 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
           <option value="">Sem filtro de tempo</option><option value="15">Até 15 minutos</option><option value="30">Até 30 minutos</option><option value="60">Até 1 hora</option>
         </select>
       </label>
-      <button type="button" disabled={travelLoading} onClick={() => void calculateTravel()} className="min-h-11 w-full rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">{travelLoading ? "Calculando trajetos..." : travelChoice ? "Aplicar tempo de viagem" : "Remover filtro de tempo"}</button>
+      <button type="button" disabled={travelLoading} onClick={() => void calculateTravel()} className="min-h-11 w-full rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-semibold text-brand hover:bg-primary/15 disabled:opacity-50">{travelLoading ? "Calculando trajetos..." : travelChoice ? "Aplicar tempo de viagem" : "Remover filtro de tempo"}</button>
       <p className="text-xs leading-relaxed text-muted-foreground">Calculamos a viagem de carro somente quando você pedir. Até 25 eventos próximos são considerados por vez.</p>
       {travelMessage && <p role="status" className="text-xs text-foreground">{travelMessage}</p>}
     </div>
    </div>
    {locationMessage && <p role="status" className="mt-3 text-xs text-muted-foreground">{locationMessage}</p>}
-   <button className="mt-4 rounded-md text-sm font-semibold text-primary underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" type="button" onClick={() => { generation.current++; setTravelLoading(false); onChange(emptyDiscoveryFilter); setLocationMessage(""); setTravelChoice(""); setTravelMessage(""); }}>Limpar filtros</button>
+   <button className="mt-4 rounded-md text-sm font-semibold text-brand underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" type="button" onClick={() => { generation.current++; setTravelLoading(false); onChange(emptyDiscoveryFilter); setLocationMessage(""); setTravelChoice(""); setTravelMessage(""); }}>Limpar filtros</button>
   </details>
  );
 }

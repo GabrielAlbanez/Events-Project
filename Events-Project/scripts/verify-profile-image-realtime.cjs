@@ -86,6 +86,7 @@ async function main() {
   assert.deepEqual(client.statements, [
     "LISTEN eventmap_profile_image_updated",
     "LISTEN eventmap_user_role_updated",
+    "LISTEN eventmap_events_updated",
   ]);
   client.emit("notification", { channel: "unrelated", payload: "user-1" });
   client.emit("notification", { channel: "eventmap_profile_image_updated", payload: "bad/user" });

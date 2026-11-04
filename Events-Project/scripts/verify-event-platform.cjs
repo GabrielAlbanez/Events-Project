@@ -73,6 +73,13 @@ async function run(){
  const fields={nome:"Evento de teste",descricao:"Descrição detalhada do evento.",endereco:"Local de teste",dataInicio:"2027-01-02",dataFim:"2027-01-02",startTime:"10:00",endTime:"11:00",isFree:"true",category:"Cultura"};
  const form=overrides=>{const data=new FormData();for(const [key,value] of Object.entries({...fields,...overrides}))data.set(key,value);return data;};
  assert.equal(parseEventInput(form(),true).success,true);
+ const practical={ageRating:"Livre",accessibilityInfo:"Entrada sem degraus",participationInfo:"Levar documento"};
+ assert.deepEqual(Object.fromEntries(Object.keys(practical).map(key=>[key,parseEventInput(form(practical),true).data[key]])),practical);
+ assert.equal(parseEventInput(form({accessibilityInfo:" ",ageRating:" "}),true).data.ageRating,null);
+ for(const [key,limit] of [["ageRating",80],["accessibilityInfo",2000],["participationInfo",2000]]){
+  assert.equal(parseEventInput(form({[key]:"a".repeat(limit)}),true).success,true);
+  assert.equal(parseEventInput(form({[key]:"a".repeat(limit+1)}),true).success,false);
+ }
  for(const change of [{LinkParaCompraIngresso:"javascript:alert(1)"},{dataFim:"2026-02-30"},{dataFim:"2026-01-01"},{endTime:"09:00"},{startTime:"25:00"},{lat:"10"},{priceCents:"-1"}])assert.equal(parseEventInput(form(change),true).success,false);
  assert.equal(parseEventInput(new FormData(),false).success,true);
  assert.equal(parseEventInput(new FormData(),true).success,false);
@@ -100,28 +107,37 @@ async function run(){
   activeUser=basic;assert.equal((await actions.salvarRascunho(new FormData(),basic.id)).success,false);
   activeUser=promoter;
   const image=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2uoAAAAASUVORK5CYII=","base64");
-  const submitted=form();submitted.set("banner",new File([image],"test.png",{type:"image/png"}));
+  const submitted=form(practical);submitted.set("banner",new File([image],"test.png",{type:"image/png"}));
   const saved=await actions.atualizarEvento(draft.evento.id,submitted,true);assert.equal(saved.success,true);assert.equal(saved.evento.status,"PENDING");assert.equal(await queries.getPublicEvent(saved.evento.id),null);
   phase="correction privacy";activeUser=admin;
   assert.equal((await actions.solicitarCorrecao(saved.evento.id,"Corrigir as informações de acesso.")).success,true);
   activeUser=promoter;
   assert.equal((await actions.getOwnedEvent(saved.evento.id)).status,"CHANGES_REQUESTED");
-  assert.equal((await actions.atualizarEvento(saved.evento.id,form(),true)).success,true);
+  assert.equal((await actions.atualizarEvento(saved.evento.id,form(practical),true)).success,true);
   activeUser=basic;assert.equal((await engagement.toggleFollow(promoter.id)).success,true);
   assert.equal((await validation.validateEvents([saved.evento.id],basic.id)).status,"error");
   phase="publish followers and public projection";activeUser=admin;
   const approved=await validation.validateEvents([saved.evento.id],admin.id);assert.equal(approved.validatedEventIds.length,1);
   const publicEvent=await queries.getPublicEvent(saved.evento.id);assert.equal(publicEvent.status,"PUBLISHED");
+  for(const [key,value] of Object.entries(practical))assert.equal(publicEvent[key],value);
   for(const person of [publicEvent.user,publicEvent.validator])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
   activeUser=basic;const notices=await engagement.getNotifications();assert.ok(notices.some(item=>item.title==="Evento publicado"));assert.ok(notices.every(item=>!item.message.includes("Corrigir")));
   phase="favorites reminders and edits";assert.equal((await engagement.toggleFavorite(saved.evento.id)).saved,true);
   assert.equal((await engagement.setEventReminder(saved.evento.id,60)).success,true);
   assert.equal((await engagement.getFavoriteState(saved.evento.id)).reminderMinutes,60);
   assert.equal((await history.getEventHistory(saved.evento.id)).status,"error");
-  activeUser=promoter;const changed=await actions.atualizarEvento(saved.evento.id,form({nome:"Evento revisado"}),true);assert.equal(changed.evento.status,"PENDING");assert.equal(await queries.getPublicEvent(saved.evento.id),null);
+  activeUser=promoter;const changed=await actions.atualizarEvento(saved.evento.id,form({...practical,nome:"Evento revisado"}),true);assert.equal(changed.evento.status,"PENDING");assert.equal(await queries.getPublicEvent(saved.evento.id),null);
   activeUser=admin;await validation.validateEvents([saved.evento.id],admin.id);
   phase="duplicate and cancellation";activeUser=promoter;
   const duplicate=await actions.duplicarEvento(saved.evento.id);assert.equal(duplicate.success,true);createdEvents.add(duplicate.evento.id);assert.equal(duplicate.evento.status,"DRAFT");assert.equal(duplicate.evento.validate,false);
+  for(const [key,value] of Object.entries(practical))assert.equal(duplicate.evento[key],value);
+  phase="practical information recurrence";
+  assert.equal((await actions.atualizarEvento(duplicate.evento.id,form(practical),false)).success,true);
+  const recurrence=load("app/(actions)/eventos/recurrence.ts");
+  const series=await recurrence.criarSerieRecorrente(duplicate.evento.id,{frequency:"WEEKLY",interval:1,count:2});
+  assert.equal(series.success,true);assert.equal(series.eventIds.length,2);
+  for(const id of series.eventIds){createdEvents.add(id);const occurrence=await db.events.findUniqueOrThrow({where:{id}});for(const [key,value] of Object.entries(practical))assert.equal(occurrence[key],value);}
+  phase="cancellation";
   assert.equal((await actions.cancelarEvento(saved.evento.id)).success,true);assert.equal((await queries.getPublicEvent(saved.evento.id)).status,"CANCELLED");
   activeUser=basic;assert.ok((await engagement.getSavedEvents()).some(event=>event.status==="CANCELLED"));
   assert.ok((await engagement.getNotifications()).some(notice=>notice.title==="Evento cancelado"));

@@ -9,7 +9,6 @@ import {
   Button,
 } from "@heroui/react";
 import { SearchIcon, ChevronDownIcon } from "@/components/icons";
-import { SidebarTrigger } from "../ui/sidebar";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 // Atualizar o tipo de onStatusChange
@@ -37,12 +36,6 @@ export const FilterBarEvents: React.FC<FilterBarProps> = ({
 
   return (
     <div className="flex rounded-xl flex-wrap justify-between items-center gap-4 px-4 py-4 border-default-200 border-[1px] mb-4">
-      {/* Botão de Sidebar */}
-      <SidebarTrigger>
-        <button className="text-foreground hover:text-foreground mr-3">
-          ☰
-        </button>
-      </SidebarTrigger>
 
       {/* Campo de Busca */}
       <Input

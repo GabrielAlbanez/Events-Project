@@ -107,6 +107,9 @@ model Events {
   banner             String
   carrossel          String[]
   descricao          String
+  ageRating          String?
+  accessibilityInfo  String?
+  participationInfo  String?
   dataInicio         String // 🔹 Alterado para data de início
   dataFim            String // 🔹 Nova data de término
   linkParaCompra     String
@@ -147,6 +150,7 @@ model Events {
   partyMatches       PartyMatch[]
   partyLikes PartyLike[]
   partyReports PartyReport[]
+  aiImport AiEventCandidate?
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
   @@map("events")
@@ -177,6 +181,60 @@ enum RegistrationStatus {
   WAITLISTED
   CANCELLED
   CHECKED_IN
+}
+
+model AiEventAutomation {
+  id String @id
+  city String @default("São Paulo")
+  enabled Boolean @default(false)
+  maxPerRun Int @default(3)
+  authorizedBy String?
+  authorizedAt DateTime?
+  nextRunAt DateTime?
+  leaseToken String?
+  leaseUntil DateTime?
+  updatedAt DateTime @default(now()) @updatedAt
+  runs AiEventRun[]
+}
+
+model AiEventRun {
+  id String @id @default(uuid())
+  automationId String
+  automation AiEventAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  requestedBy String
+  trigger String
+  sourceUrl String?
+  city String
+  maxPerRun Int
+  status String @default("QUEUED")
+  createdCount Int @default(0)
+  message String?
+  startedAt DateTime?
+  finishedAt DateTime?
+  createdAt DateTime @default(now())
+  candidates AiEventCandidate[]
+  @@index([status, createdAt])
+}
+
+model AiEventCandidate {
+  id String @id @default(uuid())
+  runId String
+  run AiEventRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceUrl String @unique
+  sourceHash String
+  sourceVerifiedAt DateTime
+  name String
+  startDate DateTime
+  address String
+  data Json
+  status String @default("PENDING")
+  eventId String? @unique
+  event Events? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  approvedBy String?
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  @@index([status, createdAt])
 }
 
 model EventRegistration {

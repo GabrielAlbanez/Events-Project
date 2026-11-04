@@ -25,6 +25,9 @@ import { PlaceAutocomplete } from "./PlaceAutocomplete";
 type EventoFormData = {
   nome: string;
   descricao: string;
+  ageRating: string;
+  accessibilityInfo: string;
+  participationInfo: string;
   LinkParaCompraIngresso: string;
   endereco: string;
   category: string;
@@ -50,7 +53,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
   });
   const { data } = useCurrentUser();
   const router = useRouter();
@@ -162,6 +165,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         const payload = new FormData();
         payload.append("nome", values.nome.trim());
         payload.append("descricao", values.descricao.trim());
+        payload.append("ageRating", values.ageRating.trim());
+        payload.append("accessibilityInfo", values.accessibilityInfo.trim());
+        payload.append("participationInfo", values.participationInfo.trim());
         payload.append("dataInicio", dateRange?.start.toString() ?? "");
         payload.append("dataFim", dateRange?.end.toString() ?? "");
         payload.append("LinkParaCompraIngresso", values.LinkParaCompraIngresso.trim());
@@ -244,7 +250,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   <FormLabel>Descrição <Required /></FormLabel>
                   <FormControl><Textarea placeholder="Conte o que o público vai encontrar, para quem é o evento e informações importantes de acesso." className="min-h-32 resize-y" maxLength={3000} {...field} /></FormControl>
                   <FormDescription>Inclua atrações, programação e orientações de entrada. {field.value.length}/3000 caracteres.</FormDescription>
-                  {!field.value.trim() && <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => field.onChange(descriptionOutline)}>
+                  {!field.value.trim() && <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => field.onChange(descriptionOutline)}>
                     Usar roteiro para a descrição
                   </button>}
                   <FormMessage />
@@ -314,15 +320,31 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                         <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} onChange={(event) => { field.onChange(event); setCoordinates(null); }} />
                       )}
                       {mapsLoaded && (
-                        <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
+                        <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
                           {addressMode === "search" ? "Não encontrou? Digite o endereço" : "Buscar endereço no mapa"}
                         </button>
                       )}
                     </div>
-                  {field.value && <p className="flex items-center gap-1 text-sm text-primary"><MapPin className="h-4 w-4" /> {field.value}</p>}
+                  {field.value && <p className="flex items-center gap-1 text-sm text-brand"><MapPin className="h-4 w-4" /> {field.value}</p>}
                   <FormDescription>Confira número e cidade. Você também pode digitar o endereço se a busca não estiver disponível.</FormDescription>
                   <FormMessage />
                 </FormItem>
+              )} />
+            </div>
+          </section>
+
+          <section className={sectionClass} aria-labelledby="event-practical-title">
+            <h2 id="event-practical-title" className="text-xl font-semibold tracking-tight">Antes de participar</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Informações opcionais para o público planejar a visita. Preencha apenas o que foi confirmado pela organização.</p>
+            <div className="mt-6 space-y-5">
+              <FormField name="ageRating" rules={{ maxLength: { value: 80, message: "Use até 80 caracteres." } }} render={({ field }) => (
+                <FormItem><FormLabel>Classificação etária</FormLabel><FormControl><Input placeholder="Ex.: Livre ou 18 anos" maxLength={80} {...field} /></FormControl><FormDescription>Informe restrições de idade e, se aplicável, a necessidade de acompanhante.</FormDescription><FormMessage /></FormItem>
+              )} />
+              <FormField name="accessibilityInfo" rules={{ maxLength: { value: 2000, message: "Use até 2000 caracteres." } }} render={({ field }) => (
+                <FormItem><FormLabel>Recursos de acessibilidade</FormLabel><FormControl><Textarea placeholder="Descreva os recursos disponíveis e como solicitar apoio." maxLength={2000} className="min-h-24 resize-y" {...field} /></FormControl><FormDescription>Detalhe recursos confirmados, limitações do espaço e contato para dúvidas. Evite prometer acessibilidade sem verificar.</FormDescription><FormMessage /></FormItem>
+              )} />
+              <FormField name="participationInfo" rules={{ maxLength: { value: 2000, message: "Use até 2000 caracteres." } }} render={({ field }) => (
+                <FormItem><FormLabel>Condições de participação</FormLabel><FormControl><Textarea placeholder="Ex.: documento obrigatório, inscrição prévia ou itens permitidos." maxLength={2000} className="min-h-24 resize-y" {...field} /></FormControl><FormDescription>Explique os requisitos de entrada e orientações que o público precisa conhecer.</FormDescription><FormMessage /></FormItem>
               )} />
             </div>
           </section>
@@ -372,14 +394,14 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           </section>
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
-            <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>
-            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para análise"}</Button></div>
+            <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>
+            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para análise"}</Button></div>
           </div>
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start" aria-label="Ajuda para criar evento">
           <div className="rounded-2xl border border-border bg-card p-5 shadow-surface">
-            <div className="flex items-center gap-2 text-primary"><Sparkles className="h-5 w-5" /><h2 className="font-semibold">Seu evento, passo a passo</h2></div>
+            <div className="flex items-center gap-2 text-brand"><Sparkles className="h-5 w-5" /><h2 className="font-semibold">Seu evento, passo a passo</h2></div>
             <p className="mt-2 text-sm text-muted-foreground">Acompanhe o que falta para enviar.</p>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={completeCount} aria-valuemin={0} aria-valuemax={3} aria-label="Etapas preenchidas"><div className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none" style={{ width: `${(completeCount / 3) * 100}%` }} /></div>
             <p className="mt-2 text-xs text-muted-foreground">{completeCount} de 3 etapas preenchidas</p>
@@ -388,7 +410,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           <div className="mt-4 rounded-2xl border border-accent bg-accent/40 p-5"><div className="flex items-center gap-2 font-semibold text-accent-foreground"><ImagePlus className="h-5 w-5" /> Dica de divulgação</div><p className="mt-2 text-sm text-foreground">Um título claro, uma descrição objetiva e um banner legível ajudam o público a reconhecer seu evento.</p></div>
           {(nome.trim() || endereco.trim() || bannerUrl) && <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card shadow-surface" aria-label="Prévia das informações do evento">
             {bannerUrl && <img src={bannerUrl} alt="" className="aspect-[16/9] w-full object-cover" />}
-            <div className="p-4"><p className="text-xs font-semibold uppercase tracking-wide text-primary">Prévia do evento</p><h3 className="mt-2 break-words font-semibold">{nome.trim() || "Nome do evento"}</h3><p className="mt-1 break-words text-sm text-muted-foreground">{endereco.trim() || "O endereço aparecerá aqui"}</p></div>
+            <div className="p-4"><p className="text-xs font-semibold uppercase tracking-wide text-brand">Prévia do evento</p><h3 className="mt-2 break-words font-semibold">{nome.trim() || "Nome do evento"}</h3><p className="mt-1 break-words text-sm text-muted-foreground">{endereco.trim() || "O endereço aparecerá aqui"}</p></div>
           </div>}
         </aside>
       </form>
@@ -399,5 +421,5 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
 function Required() { return <span aria-label="obrigatório" className="text-destructive">*</span>; }
 
 function SectionHeading({ number, title, description, id }: { number: string; title: string; description: string; id: string }) {
-  return <div className="mb-6 flex items-start gap-3"><span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">{number}</span><div><h2 id={id} className="text-xl font-semibold tracking-tight">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{description}</p></div></div>;
+  return <div className="mb-6 flex items-start gap-3"><span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-brand">{number}</span><div><h2 id={id} className="text-xl font-semibold tracking-tight">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{description}</p></div></div>;
 }

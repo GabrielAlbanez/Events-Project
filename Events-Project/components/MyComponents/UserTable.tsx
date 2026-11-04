@@ -227,6 +227,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               radius: "lg",
               src: undefined,
               showFallback: true,
+              classNames: { fallback: "h-full w-full" },
               fallback: <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
               imgProps: { referrerPolicy: "no-referrer" },
             }}
@@ -406,7 +407,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                       <h3 className="flex items-center gap-2 p-4 text-base font-semibold">
                         {event.nome}
                         {event.validate ? (
-                          <CheckCircleIcon aria-label="Validado" className="h-5 w-5 shrink-0 text-primary" />
+                          <CheckCircleIcon aria-label="Validado" className="h-5 w-5 shrink-0 text-brand" />
                         ) : (
                           <XCircleIcon aria-label="Pendente de validação" className="h-5 w-5 shrink-0 text-muted-foreground" />
                         )}

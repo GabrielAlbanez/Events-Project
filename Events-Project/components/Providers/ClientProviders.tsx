@@ -9,6 +9,8 @@ import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import NotificationBell from "@/components/MyComponents/NotificationBell";
 import ImpersonationGuard from "@/components/MyComponents/ImpersonationGuard";
+import { SiteHeader } from "@/components/MyComponents/SiteHeader";
+import siteStyles from "@/components/MyComponents/SiteHeader.module.css";
 
 export default function ClientProviders({
   children,
@@ -28,9 +30,10 @@ export default function ClientProviders({
                 <AppSidebar />
                 <NotificationBell />
                 {/* Conteúdo Principal */}
-                <main className="relative z-10 min-w-0 flex-1 overflow-auto bg-background/70 text-foreground backdrop-blur-[2px]">
+                <main className={`${siteStyles.shell} relative z-10`}>
+                  <SiteHeader />
                   {/* Carregamento global do Google Maps */}
-                  <GoogleMapsLoader>{children}</GoogleMapsLoader>
+                  <div className={siteStyles.content}><GoogleMapsLoader>{children}</GoogleMapsLoader></div>
                 </main>
               </div>
             </SidebarProvider>

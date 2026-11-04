@@ -56,7 +56,7 @@ export function CommunityEmpty({ children }: { children: ReactNode }) {
 }
 
 export function CommunityBadge({ children }: { children: ReactNode }) {
-  return <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{children}</span>;
+  return <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-brand">{children}</span>;
 }
 
 export function CommunityAction({ children, busy, onClick }: { children: ReactNode; busy: boolean; onClick: () => void }) {

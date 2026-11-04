@@ -28,6 +28,11 @@ function signal(socket,event){return new Promise((resolve,reject)=>{const timer=
  const published=await db.events.create({data:{...common,status:"PUBLISHED",validate:true,validatedBy:admin.id,validatedAt:new Date()}});eventIds.push(published.id);
  for(const status of ["DRAFT","PENDING"])eventIds.push((await db.events.create({data:{...common,status,validate:false}})).id);
  phase="sessions and permissions";
+ const protectedPage=await fetch(base+"/salvos?origem=portfolio",{redirect:"manual"});
+ assert.equal(protectedPage.status,307);
+ const loginTarget=new URL(protectedPage.headers.get("location"),base);
+ assert.equal(loginTarget.pathname,"/login");assert.equal(loginTarget.searchParams.get("callbackUrl"),"/salvos?origem=portfolio");
+ assert.equal((await fetch(base+"/demonstracao")).status,200);
  assert.ok(!(await(await fetch(base+"/api/auth/session")).json())?.user);
  assert.equal(await signIn("dev-admin"),undefined);
  const adminCookie=await signIn("credentials",{email:admin.email,password}),basicCookie=await signIn("credentials",{email:basic.email,password});

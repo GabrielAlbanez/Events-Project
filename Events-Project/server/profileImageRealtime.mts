@@ -2,6 +2,7 @@ import { Client } from "pg";
 import type { Server, Socket } from "socket.io";
 
 const profileImageChannel = "eventmap_profile_image_updated";
+const eventsChannel = "eventmap_events_updated";
 const userRoleChannel = "eventmap_user_role_updated";
 const validUserId = /^[A-Za-z0-9_-]{1,128}$/;
 const validRoles = new Set(["BASIC", "PROMOTER", "ADMIN"]);
@@ -37,6 +38,11 @@ export function startProfileImageRealtime(
     const client = new Client({ connectionString, connectionTimeoutMillis: 5_000 });
     current = client;
     client.on("notification", (notice) => {
+      if (notice.channel === eventsChannel && notice.payload === "published") {
+        try { getSocketServer().emit("update-events"); }
+        catch { console.error("Unable to deliver an event update."); }
+        return;
+      }
       if (notice.channel === profileImageChannel && notice.payload && validUserId.test(notice.payload)) {
         try {
           getSocketServer().to(`user:${notice.payload}`).emit("profile-image-updated", { userId: notice.payload });
@@ -77,6 +83,7 @@ export function startProfileImageRealtime(
       }
       await client.query(`LISTEN ${profileImageChannel}`);
       await client.query(`LISTEN ${userRoleChannel}`);
+      await client.query(`LISTEN ${eventsChannel}`);
       if (!stopped && current === client) console.info("Listening for shared account updates.");
     } catch {
       console.error("Unable to start the profile image PostgreSQL listener; retrying.");

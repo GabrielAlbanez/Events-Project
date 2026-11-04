@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
+import styles from "./MyComponents/LoginPage.module.css";
+import { authPathWithReturn, safeReturnPath } from "@/lib/authReturn";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
@@ -37,6 +39,7 @@ export function LoginForm({
   const { update } = useSession();
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams()
+  const callbackUrl = safeReturnPath(searchParams.get("callbackUrl"));
 
   useEffect(() => {
     const error = searchParams.get("error"); // Captura o erro da URL
@@ -61,6 +64,7 @@ export function LoginForm({
         email: data.email,
         password: data.password,
         redirect: false,
+        callbackUrl,
       });
 
       if (signInResponse?.ok) {
@@ -73,7 +77,7 @@ export function LoginForm({
         setTimeout(() => {
           router.refresh(); // Atualiza o estado antes do redirecionamento
           setTimeout(() => {
-            router.push("/"); // Redireciona para a página inicial após o refresh
+            router.replace(callbackUrl); // Retoma a página que iniciou o login.
           }, 500); // Pequeno atraso para garantir o estado atualizado
         }, 500);
       } else {
@@ -90,7 +94,7 @@ export function LoginForm({
 
   return (
     <form
-      className={cn("flex flex-col gap-6 [&_input]:h-12 [&_input]:rounded-xl [&_input]:bg-background [&_input]:shadow-none [&_input]:focus-visible:ring-2 [&_button]:min-h-11", className)}
+      className={cn(styles.form, className)}
       aria-busy={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
       {...props}
@@ -103,14 +107,14 @@ export function LoginForm({
         </div>
       )}
       {searchParams.get("notice") === "credentials-changed" && <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm font-semibold">Sessão encerrada por segurança</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Sua sessão anterior deixou de ser válida. Entre novamente para continuar.</p></div>}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Bom ter você de volta</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className={styles.formHeading}>
+        <h1>Bom ter você de volta</h1>
+        <p>
           Entre para acompanhar seus eventos e conexões.
         </p>
       </div>
-      <div className="grid gap-6">
-        <div className="grid gap-2">
+      <div className={styles.fields}>
+        <div className={styles.field}>
           <Label htmlFor="email">E-mail</Label>
           <Input
             id="email"
@@ -124,39 +128,41 @@ export function LoginForm({
             {...register("email")}
           />
           {errors.email && (
-            <p id="email-error" role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>
+            <p id="email-error" role="alert" className={styles.fieldError}>{errors.email.message}</p>
           )}
         </div>
-        <div className="grid gap-2">
-          <div className="flex items-center">
+        <div className={styles.field}>
+          <div className={styles.passwordLabel}>
             <Label htmlFor="password">Senha</Label>
             <a
               href="/recuperar-senha"
-              className="ml-auto rounded-sm text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={styles.recoveryLink}
             >
               Esqueceu sua senha?
             </a>
           </div>
           <div className="relative">
             <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Sua senha" className="pr-12" aria-invalid={!!errors.password} aria-describedby={errors.password ? "password-error" : undefined} {...register("password")} />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}</button>
+            <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} className={styles.passwordToggle}>{showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}</button>
           </div>
           {errors.password && (
-            <p id="password-error" role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.password.message}</p>
+            <p id="password-error" role="alert" className={styles.fieldError}>{errors.password.message}</p>
           )}
         </div>
-        <Button type="submit" className="h-12 w-full rounded-xl text-sm font-semibold" disabled={isSubmitting}>
+        <Button type="submit" variant="cta" className={styles.submit} disabled={isSubmitting}>
           {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Entrando...</> : <>Entrar na minha conta<ArrowRight className="h-4 w-4" aria-hidden="true" /></>}
         </Button>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" aria-hidden="true" />ou continue com<span className="h-px flex-1 bg-border" aria-hidden="true" /></div>
-        <div className="[&_button]:h-12 [&_button]:rounded-xl"><GoogleButton textBody="Continuar com Google" /></div>
+        <div className={styles.divider}><span aria-hidden="true" />ou continue com<span aria-hidden="true" /></div>
+        <div className={styles.googleButton}><GoogleButton textBody="Continuar com Google" callbackUrl={callbackUrl} /></div>
       </div>
-      <div className="text-center text-sm">
-        <Link href="/confirmar-email" className="mb-3 block text-sm font-medium text-primary hover:underline">Reenviar confirmação de e-mail</Link>
+      <div className={styles.formFooter}>
+        <Link href="/confirmar-email" className={styles.confirmationLink}>Reenviar confirmação de e-mail</Link>
+        <p className={styles.registerPrompt}>
         Ainda não tem uma conta?{" "}
-        <Link href="/register" className="rounded-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href={authPathWithReturn("/register", callbackUrl)} className={styles.registerLink}>
           Criar uma conta
         </Link>
+        </p>
       </div>
     </form>
   );

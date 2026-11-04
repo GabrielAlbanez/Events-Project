@@ -21,7 +21,7 @@ export function ThemeSwitcher() {
     <Button
       type="button"
       variant="ghost"
-      className="h-11 rounded-xl px-3 text-violet-700 hover:bg-violet-100 focus-visible:ring-2 dark:text-violet-300 dark:hover:bg-violet-400/10"
+      className="h-11 rounded-xl px-3 text-brand hover:bg-muted focus-visible:ring-2"
       disabled={!ready}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={ready ? label : "Carregando tema"}
