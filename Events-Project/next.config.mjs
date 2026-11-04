@@ -11,6 +11,9 @@ const nextConfig = {
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   experimental: {
     optimizePackageImports: ["@heroui/react"],
+    outputFileTracingIncludes: {
+      "/api/media/**": ["./public/uploads/*"],
+    },
   },
   async rewrites() {
     return { beforeFiles: [{ source: "/uploads/:filename", destination: "/api/media/:filename" }] };
