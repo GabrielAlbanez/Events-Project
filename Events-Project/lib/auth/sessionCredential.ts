@@ -6,9 +6,9 @@ export function credentialStamp(passwordHash: string | null | undefined, secret 
   return createHmac("sha256", secret).update("eventmap-credential-session-v1\0").update(passwordHash).digest("hex");
 }
 
-export function credentialSessionValid(provider: unknown, stamp: unknown, passwordHash: string | null | undefined): boolean {
+export function credentialSessionValid(provider: unknown, stamp: unknown, passwordHash: string | null | undefined, secret?: string): boolean {
   if (provider !== "credentials") return true;
-  const current = credentialStamp(passwordHash);
+  const current = credentialStamp(passwordHash, secret);
   if (!current || typeof stamp !== "string" || !/^[a-f0-9]{64}$/.test(stamp)) return false;
   return timingSafeEqual(Buffer.from(current, "hex"), Buffer.from(stamp, "hex"));
 }

@@ -12,7 +12,8 @@ export async function resolveSocketIdentity(prisma: PrismaClient, token: JWT): P
   if (!original) { await endImpersonation(prisma, token); return "ACCOUNT_REMOVED"; }
   if (isAccountSuspended(original)) { await endImpersonation(prisma, token); return "ACCOUNT_SUSPENDED"; }
   if (!accountSessionValid(token.sessionVersion, original.sessionVersion)) return "SESSION_REVOKED";
-  if (!credentialSessionValid(token.provider, token.credentialStamp, original.password)) {
+  const secret = process.env.SOCKET_ONLY === "true" ? process.env.SOCKET_TICKET_SECRET : undefined;
+  if (!credentialSessionValid(token.provider, token.credentialStamp, original.password, secret)) {
     await endImpersonation(prisma, token); return "SESSION_REVOKED";
   }
   const identity = await resolveImpersonationIdentity(prisma, token);
