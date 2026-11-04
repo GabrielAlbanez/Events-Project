@@ -16,11 +16,11 @@ const nextConfig = {
     return { beforeFiles: [{ source: "/uploads/:filename", destination: "/api/media/:filename" }] };
   },
   images: {
-    domains: [
-      "lh3.googleusercontent.com",
-      "cdnb.artstation.com",
-      "pbs.twimg.com",
-    ], // Adicione o domínio do Google para imagens externas
+    remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
+      { protocol: "https", hostname: "cdnb.artstation.com", pathname: "/**" },
+      { protocol: "https", hostname: "pbs.twimg.com", pathname: "/**" },
+    ],
   },
   // Removido polling do webpack para evitar rebuilds constantes em dev
 };
