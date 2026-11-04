@@ -61,7 +61,16 @@ function AiEventsContent() {
   const saveSettings = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setLocalError("");
     if (enabled && !authorize) { setLocalError("Confirme a autorização administrativa antes de salvar a configuração."); return; }
-    setConfirmation({ payload: { action: "settings", city: city.trim(), maxPerRun, enabled, authorize }, title: enabled ? "Autorizar busca a cada hora?" : "Salvar configuração?", description: enabled ? "A busca acontecerá de hora em hora. Cada evento ficará aguardando sua autorização antes de aparecer na agenda pública. Você pode pausar a busca neste painel." : "A automação ficará pausada. A busca não será executada de hora em hora até você ativá-la novamente." });
+    const activating = enabled && !snapshot?.config?.enabled;
+    setConfirmation({
+      payload: { action: "settings", city: city.trim(), maxPerRun, enabled, authorize },
+      title: activating ? "Ativar busca automática?" : "Salvar configuração?",
+      description: activating
+        ? "A primeira busca entra na fila ao salvar. Depois, as buscas seguem de hora em hora. Cada proposta requer aprovação individual."
+        : enabled
+          ? "Os parâmetros salvos serão usados nas próximas buscas. Cada proposta requer aprovação individual."
+          : "A automação deixará de agendar buscas. As propostas encontradas continuam disponíveis para revisão.",
+    });
   };
   const inspectSource = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setLocalError("");
@@ -120,7 +129,7 @@ function AiEventsContent() {
                 <p className="text-sm leading-6 text-muted-foreground">
                   {snapshot.config?.enabled
                     ? `Ativa em ${snapshot.config.city}, com até ${snapshot.config.maxPerRun} propostas por busca.`
-                    : "Pausada. Ative e salve para usar os parâmetros acima a cada hora."}
+                    : "Pausada. Ao ativar e salvar, a primeira busca entra na fila. As seguintes rodam de hora em hora."}
                 </p>
                 <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 text-sm font-medium">
                   <input type="checkbox" className="size-4 shrink-0 accent-primary" checked={enabled} disabled={!snapshot.configured && !enabled}

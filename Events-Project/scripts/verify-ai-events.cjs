@@ -49,7 +49,7 @@ async function run(){
   await aiEventsAction(db,actor,{action:"inspect",url},deps);await pollAiEvents(db,deps);assert.equal(m.store.aiEventCandidate.length,1);
   const snapshot=await aiEventsSnapshot(db,actor,deps);assert.equal("data" in snapshot.candidates[0],false);assert.equal(snapshot.config.approvalMode,"REVIEW");
   configured=true;await aiEventsAction(db,actor,{action:"settings",city:"São Paulo",maxPerRun:2,enabled:true,authorize:true},deps);
-  m.store.aiEventAutomation[0].nextRunAt=now;await pollAiEvents(db,deps);assert.ok(m.store.aiEventRun.some(r=>r.trigger==="HOURLY"));assert.equal(m.store.events.length,1);
+  assert.equal(m.store.aiEventAutomation[0].nextRunAt.getTime(),now.getTime());await pollAiEvents(db,deps);assert.ok(m.store.aiEventRun.some(r=>r.trigger==="HOURLY"));assert.equal(m.store.events.length,1);
   m.store.aiEventAutomation[0].nextRunAt=now;m.store.user[0].role="BASIC";await pollAiEvents(db,deps);assert.equal(m.store.aiEventAutomation[0].enabled,false);
   const revoked=memory();await aiEventsAction(revoked.db,actor,{action:"inspect",url},deps);revoked.store.user[0].suspendedAt=now;await pollAiEvents(revoked.db,deps);assert.equal(revoked.store.aiEventCandidate.length,0);assert.equal(revoked.store.aiEventRun[0].status,"FAILED");
   const rejected=memory();await aiEventsAction(rejected.db,actor,{action:"inspect",url},deps);await pollAiEvents(rejected.db,deps);id=rejected.store.aiEventCandidate[0].id;await aiEventsAction(rejected.db,actor,{action:"reject",id},deps);await assert.rejects(()=>aiEventsAction(rejected.db,actor,{action:"approve",id},deps),e=>e.status===409);

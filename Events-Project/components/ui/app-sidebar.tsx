@@ -96,7 +96,7 @@ export function AppSidebar() {
             const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
-                <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-primary data-[active=true]:font-semibold ">
+                <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-cta/15 hover:text-sidebar-foreground data-[active=true]:bg-cta data-[active=true]:text-cta-foreground data-[active=true]:font-semibold data-[active=true]:hover:bg-cta data-[active=true]:hover:text-cta-foreground">
                   <Link href={href} onClick={event => openNavigation(event, href)}>
                     <Icon className="h-5 w-5" />
                     <span>{label}</span>
@@ -110,7 +110,7 @@ export function AppSidebar() {
 
       {(role === "ADMIN" || role === "PROMOTER") && (
         <div className="hidden shrink-0 px-4 pb-3 md:block">
-          <Button asChild variant="outline" className="h-11 w-full rounded-xl border-border text-sidebar-foreground hover:border-primary/30 hover:bg-muted">
+          <Button asChild variant="cta" className="h-11 w-full rounded-xl">
             <Link href="/CriarEvento" onClick={closeNavigation}><Plus className="h-4 w-4" /> Novo evento</Link>
           </Button>
         </div>

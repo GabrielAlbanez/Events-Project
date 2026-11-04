@@ -83,7 +83,10 @@ export async function aiEventsAction(db: PrismaClient, actorId: string, input: A
     if (input.action === "settings") {
       if (input.enabled && !input.authorize) throw new AiEventsError(400, "Autorize expressamente a busca automática.");
       if (input.enabled && !deps.configured()) throw new AiEventsError(503, "As fontes públicas estão temporariamente indisponíveis.");
-      const data = { city: input.city, maxPerRun: input.maxPerRun, enabled: input.enabled, authorizedBy: actorId, authorizedAt: input.enabled ? deps.now() : null, nextRunAt: input.enabled ? new Date(deps.now().getTime() + HOUR) : null };
+      const previous = await tx.aiEventAutomation.findUnique({ where: { id: CONFIG_ID } });
+      const now = deps.now();
+      const nextRunAt = input.enabled ? (previous?.enabled ? previous.nextRunAt ?? now : now) : null;
+      const data = { city: input.city, maxPerRun: input.maxPerRun, enabled: input.enabled, authorizedBy: actorId, authorizedAt: input.enabled ? now : null, nextRunAt };
       await tx.aiEventAutomation.upsert({ where: { id: CONFIG_ID }, create: { id: CONFIG_ID, ...data }, update: data });
     } else if (input.action === "reject") {
       if (!(await tx.aiEventCandidate.updateMany({ where: { id: input.id, status: "PENDING" }, data: { status: "REJECTED" } })).count) throw new AiEventsError(409, "A proposta já foi analisada ou não existe.");
@@ -136,11 +139,12 @@ export async function pollAiEvents(db: PrismaClient, deps: AiEventsDependencies 
     const now = deps.now(), config = await tx.aiEventAutomation.findUnique({ where: { id: CONFIG_ID } });
     if (!config || config.leaseUntil && config.leaseUntil > now) return null;
     await tx.aiEventRun.updateMany({ where: { status: "RUNNING" }, data: { status: "FAILED", finishedAt: now, message: "Busca interrompida. Solicite novamente se necessário." } });
-    if (config.enabled && config.nextRunAt && config.nextRunAt <= now) {
+    if (config.enabled && config.nextRunAt && config.nextRunAt <= now && deps.configured() &&
+        !await tx.aiEventRun.count({ where: { status: { in: ["QUEUED", "RUNNING"] } } })) {
       try { if (!config.authorizedBy) throw new Error(); await admin(tx, config.authorizedBy); }
       catch { await tx.aiEventAutomation.update({ where: { id: CONFIG_ID }, data: { enabled: false, nextRunAt: null } }); await signalAdmins(tx); return null; }
       await tx.aiEventAutomation.update({ where: { id: CONFIG_ID }, data: { nextRunAt: new Date(now.getTime() + HOUR) } });
-      if (deps.configured() && !await tx.aiEventRun.count({ where: { status: { in: ["QUEUED", "RUNNING"] } } })) await tx.aiEventRun.create({ data: { automationId: config.id, requestedBy: config.authorizedBy!, trigger: "HOURLY", city: config.city, maxPerRun: config.maxPerRun } });
+      await tx.aiEventRun.create({ data: { automationId: config.id, requestedBy: config.authorizedBy!, trigger: "HOURLY", city: config.city, maxPerRun: config.maxPerRun } });
     }
     const run = await tx.aiEventRun.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" } });
     if (!run) return null;
