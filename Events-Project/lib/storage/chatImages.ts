@@ -2,9 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { imageExtension, maximumImageBytes, UploadError } from "./profileImages";
+import { maximumUploadImageBytes } from "../uploadLimits";
 const directory = () => path.resolve(process.cwd(), ".private-uploads", "chat");
 export async function saveChatImage(file: File) {
-  if (!file.size || file.size > maximumImageBytes) throw new UploadError(413, "Escolha uma imagem de até 5 MB.");
+  if (!file.size || file.size > maximumUploadImageBytes) throw new UploadError(413, "Escolha uma imagem de até 4 MB.");
   const bytes = Buffer.from(await file.arrayBuffer());
   const extension = imageExtension(bytes, file.type);
   const id = randomUUID(), filename = id + extension;

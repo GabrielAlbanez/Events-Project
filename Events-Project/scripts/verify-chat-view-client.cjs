@@ -37,6 +37,7 @@ function harness() {
       if (!cache.has(path)) { const child = { exports: {} }; new Function('require', 'module', 'exports', compile(path))(requireComponent, child, child.exports); cache.set(path, child.exports); }
       return cache.get(path);
     }
+    if (name === '@/lib/uploadLimits') return require('../lib/uploadLimits.ts');
     throw new Error('Unexpected dependency: ' + name);
   };
   new Function('require', 'module', 'exports', source)(requireComponent, module, module.exports);

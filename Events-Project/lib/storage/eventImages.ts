@@ -2,11 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { imageExtension } from "./profileImages";
+import { maximumUploadImageBytes } from "../uploadLimits";
 export async function saveEventImage(file: File) {
     const extensions: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
     const extension = extensions[file.type];
-    if (!extension || file.size > 5 * 1024 * 1024)
-        throw new Error("Use imagens JPG, PNG ou WebP de até 5 MB.");
+    if (!extension || file.size > maximumUploadImageBytes)
+        throw new Error("Use imagens JPG, PNG ou WebP de até 4 MB.");
     const bytes = Buffer.from(await file.arrayBuffer());
     imageExtension(bytes, file.type);
     const name = randomUUID() + extension;

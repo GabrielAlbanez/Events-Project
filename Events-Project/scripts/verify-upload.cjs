@@ -8,13 +8,16 @@ function load(file, dependencies) {
 }
 (async () => {
   let written = 0, removed = 0;
-  const storage = load("lib/storage/profileImages.ts", { "node:fs/promises": { __esModule: true, default: {
+  const limits = load("lib/uploadLimits.ts", {});
+  const storage = load("lib/storage/profileImages.ts", { "../uploadLimits": limits, "node:fs/promises": { __esModule: true, default: {
     mkdir: async () => {}, writeFile: async (target, bytes, options) => { assert.equal(options.flag, "wx"); assert.match(target, /[a-f0-9-]{36}\.jpg$/); written++; }, unlink: async () => { removed++; },
   } } });
   assert.equal(storage.imageExtension(Buffer.from([255,216,255,224]), "image/jpeg"), ".jpg");
   assert.throws(() => storage.imageExtension(Buffer.from("<script>bad</script>"), "image/png"));
   await assert.rejects(storage.saveProfileImage({ size: 0 }));
-  await assert.rejects(storage.saveProfileImage({ size: storage.maximumImageBytes + 1 }));
+  assert.equal(limits.maximumUploadImageBytes, 4 * 1024 * 1024);
+  assert.ok(storage.maximumMultipartBytes > limits.maximumUploadImageBytes && storage.maximumMultipartBytes < 4_500_000);
+  await assert.rejects(storage.saveProfileImage({ size: limits.maximumUploadImageBytes + 1 }), error => error.status === 413 && /4 MB/.test(error.message));
   const file = { size: 4, type: "image/jpeg", arrayBuffer: async () => Buffer.from([255,216,255,224]) };
   const saved = await storage.saveProfileImage(file); await saved.remove(); assert.equal(written, 1); assert.equal(removed, 1);
   const huge = new Request("http://localhost", { method: "POST", headers: { "content-type": "multipart/form-data; boundary=x" }, body: new Uint8Array(storage.maximumMultipartBytes + 1) });

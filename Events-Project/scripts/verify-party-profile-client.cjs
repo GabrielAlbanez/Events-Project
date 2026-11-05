@@ -25,6 +25,7 @@ function harness() {
     if (name.endsWith('PartyActions')) return { partyButton: '', partyInput: '' };
     if (name.endsWith('PartyAvatar')) return { default: 'avatar' };
     if (name.endsWith('animations/config')) return { loadAnimationFeatures() {} };
+    if (name === '@/lib/uploadLimits') return require('../lib/uploadLimits.ts');
     throw new Error('Unexpected dependency: ' + name);
   };
   new Function('require', 'module', 'exports', source)(requireComponent, module, module.exports);
