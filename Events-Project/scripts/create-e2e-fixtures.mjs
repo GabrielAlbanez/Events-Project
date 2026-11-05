@@ -99,13 +99,14 @@ try {
         await tx.partyMatch.count({ where: whereEvent }) + await tx.partyProfile.count({ where: whereEvent }) +
         await tx.communityEntry.count({ where: whereEvent }) + await tx.session.count({ where: { userId: { in: ids } } });
       if (remaining) throw new Error("Limpeza incompleta.");
-    });
+    }, { timeout: 30000, maxWait: 10000 });
     // Remove passwords from the receipt after database sessions and accounts are removed.
     await writeFile(fixtureFile, JSON.stringify({ ...fixture, state: "removed", users: fixture.users.map(({ password, ...user }) => user), summary }), { mode: 0o600 });
     console.log("TEARDOWN", JSON.stringify({ ...summary, remaining: 0 }));
   }
 } catch (error) {
-  console.error("Fixtures não concluídas:", error instanceof Error ? error.name : "Error", "Detalhes privados omitidos.");
+  const code = typeof error?.code === "string" && /^P\d{4}$/.test(error.code) ? error.code : undefined;
+  console.error("Fixtures não concluídas:", error instanceof Error ? error.name : "Error", code, "Detalhes privados omitidos.");
   process.exitCode = 1;
 } finally {
   await db.$disconnect();
