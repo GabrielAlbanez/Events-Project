@@ -232,3 +232,54 @@ Lint e as oito suítes solicitadas passaram. Os simuladores de chat e perfil for
 - O Render confirmou Live no deploy dep-dbm0j3psrm7s73emn940 e commit 45df3ad. Os logs registraram servidor iniciado e listener PostgreSQL ativo. O WebSocket conectou em 700 ms. A janela de 20 minutos sem tráfego de terceiros ou de abas abertas não foi comprovada, então esse tempo não é de partida a frio.
 - Pendente do responsável: criar Blob privado vinculado a Production, configurar Gmail e as nove variáveis E2E da tabela anterior. Sem BLOB_READ_WRITE_TOKEN, a migração e o teste de upload após redeploy foram interrompidos. A notificação de produção em até 60 s sem duplicação aguarda conta de teste.
 - Web Push: configurar os três valores WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY e WEB_PUSH_SUBJECT tanto na Vercel, onde a rota de inscrição os exige, quanto no Render, onde o worker envia. A chave de check-in deve ser compartilhada pela Vercel e API mobile.
+
+## Continuação audit-followup — 05/11/2026
+
+Esta seção substitui as pendências operacionais da audit-fix quando há evidência nova abaixo. PR de trabalho: https://github.com/GabrielAlbanez/Events-Project/pull/9.
+
+| Item | Estado atual | Evidência |
+|---|---|---|
+| Blob privado | Corrigido e verificado em produção | Store eventmap-media-private, iad1, privado, conectado apenas a Production. Nenhum upgrade solicitado. BLOB_READ_WRITE_TOKEN configurado. Nove imagens copiadas após dry-run, oito comparadas sem sobrescrita e avatar recuperado acrescentado. Arquivos de origem preservados. |
+| Avatar novo persistente | Corrigido e verificado em produção | Upload autenticado, recarga de /Profile e leitura HTTP 200. Novo redeploy 2Gp638AVpZ8M5mMnsJUHzEeZAfY3 ficou Ready; avatar e imagem privada continuaram acessíveis. |
+| Privacidade de imagem do chat | Corrigido e verificado em produção | Dois participantes leram a imagem. Anônimo e admin externo ao match foram negados. Fixture e mídia removidas depois do teste de persistência. |
+| Referências legadas sem arquivo | Pendente do responsável | Cinco referências ausentes em onze referências locais auditadas. IDs e tipos abaixo. O fallback de iniciais já existente é a apresentação segura. Não foram apagadas referências reais. Recuperar arquivo ou reenviar a imagem pelo perfil correspondente. |
+| Multipart agregado | Corrigido e verificado localmente | Galeria/banner compartilham contador conservador de bytes com texto UTF-8, nomes, cabeçalhos e reserva de 64 KiB. Cliente bloqueia antes de enviar, serviço antes de parser/arquivos/DB; Server Actions limitadas a 4.450.000 bytes. Chat, perfil e conexões enviam um arquivo e mantêm leitura streaming limitada no servidor. Regressões automatizadas passaram. |
+| Sitemap ampliado | Corrigido e verificado em produção | Inclui comunidades dos eventos PUBLISHED e perfis públicos de ADMIN/PROMOTER com eventos publicados. Deduplica organizadores e exclui perfil sem papel de promotor. Robots e sitemap HTTP 200, nove URLs canônicas públicas, todas abriram HTTP 200 após a limpeza das fixtures. Teste de regressão passou. |
+| SMTP | Pendente de mim | EMAIL_USER e EMAIL_PASS ausentes em Production. Senha de app do Gmail depende do titular. Roteiro de teste abaixo. |
+| VAPID / Web Push | Corrigido e verificado na inicialização | Chaves geradas em memória, mesmos WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY e WEB_PUSH_SUBJECT na Vercel e no Render. Nenhuma chave privada exibida ou adicionada ao Git. Render dep-dbma03d9el5s7395ckag Live; log External push enabled. em 05/11/2026 12:28:35 America/Sao_Paulo. Entrega push no dispositivo depende da permissão e inscrição do navegador. |
+| QR web/mobile | Pendente de decisão do responsável | Mobile usa API própria em EXPO_PUBLIC_API_URL. server/independent/src/server.ts:112 assina usando CHECKIN_SIGNING_SECRET ou MOBILE_AUTH_SECRET, e o app solicita/valida pelo backend. Web usa CHECKIN_SIGNING_SECRET ou NEXTAUTH_SECRET. Nenhum segredo alterado. Para interoperabilidade, configurar o mesmo CHECKIN_SIGNING_SECRET apenas nos dois backends em mudança coordenada, considerando QR ativos. Nunca no bundle Expo. |
+| E2E autenticado | Corrigido e verificado em produção | scripts/e2e-producao.mjs passou com três sessões independentes, painel /admin, catálogo, inscrição, check-in, chat entre sessões, rascunho e limpeza. Credenciais existiram só no manifesto ignorado e no processo. |
+| Worker / reconexão | Corrigido e verificado em produção | Uma notificação criada para a conta temporária gerou um único sinal em 3.304 ms; sem repetição nas duas consultas seguintes (11 s). Reconexão com novo ticket passou. |
+| CSP | Verificado na amostra autenticada | Home, login/retorno autenticado, mapa em #home-discovery, agenda, evento, chat, perfil e admin abriram; origens reportadas pelo listener de violações: []. Mantido Report-Only. Recomenda-se validar OAuth completo, dispositivo push e fluxos SMTP antes de considerar bloqueio. |
+| Hibernação real | Não testável com a evidência disponível | A CLI não devolveu logs HTTP de requisições. Conforme documentação Render, logs HTTP públicos exigem workspace Pro ou superior: https://render.com/docs/logging. Ausência de linhas no Hobby não prova inatividade. Não foi contratado plano nem declarado um tempo de cold start sem evidência. Para executar essa prova no plano atual, é necessária uma execução com instrumentação sanitizada de tráfego na aplicação ou logs HTTP disponíveis. Não se deve interpretar logs vazios do Hobby como ausência de tráfego. |
+| Limpeza | Corrigido e verificado em produção | Teardown removeu 3 contas, 1 evento publicado, 2 inscrições, 1 mensagem privada, 1 match, 2 perfis de participação, 1 anexo de comunidade, 1 cota e 1 histórico. O E2E base já havia removido 1 mensagem de evento, 1 rascunho e 1 inscrição; o complementar removeu 1 notificação no finally. Duas imagens de teste removidas do Blob. Segunda execução de teardown confirmou zero resíduos, inclusive sessões. Credenciais eliminadas do manifesto após limpeza. |
+
+### Mídia irrecuperável nesta cópia
+
+Somente identificador e tipo, sem dados pessoais:
+
+| ID | Tipo |
+|---|---|
+| 093c53c7-cbd2-4613-8f16-8dbe55e3f6d1 | User.image |
+| fa96d6cc-fc81-4276-9fd4-cb538e763755 | PartyUserProfile.photoUrl |
+| 334a6c24-ded5-4cfe-aca1-31e71d2efc34/fa96d6cc-fc81-4276-9fd4-cb538e763755 | PartyProfile.photoUrl |
+| 6984f622-5c56-48f2-b258-15162bd8454c/fa96d6cc-fc81-4276-9fd4-cb538e763755 | PartyProfile.photoUrl |
+| 5a2a394c-a3fc-4d70-8b07-8b85896dbf58/fa96d6cc-fc81-4276-9fd4-cb538e763755 | PartyProfile.photoUrl |
+
+### Roteiro SMTP após configuração do titular
+
+1. Ativar verificação em duas etapas do Gmail, gerar senha de app e cadastrar EMAIL_USER/EMAIL_PASS como segredos em Production. Fazer redeploy.
+2. Cadastrar uma conta de teste com caixa controlada, confirmar recebimento e domínio canônico do link. Confirmar uma vez e verificar que a reutilização é negada.
+3. Solicitar reenvio antes da confirmação, conferir resposta genérica e entrega na caixa. Conferir limites de repetição com um único fluxo manual, sem força bruta.
+4. Solicitar recuperação, usar o link uma vez, conferir expiração e revogação das sessões antigas. Fazer login com a senha nova e limpar somente a conta criada para esse teste.
+
+### Verificação local e execução
+
+Lint, build com 37 páginas estáticas, TypeScript do app/servidor e oito suítes exigidas passaram, além de scripts/verify-audit-followup.cjs e testes de multipart agregado. O primeiro teste de transporte local sofreu timeout no sandbox e passou com loopback autorizado. A instalação temporária de Playwright no projeto falhou por conflito de peers preexistente e ECONNRESET; o lock foi preservado, node_modules restaurado e bcrypt recuperado da cópia local da mesma versão, com hash/compare verificados. Playwright foi instalado isolado em .e2e-auditoria/tooling, sem dependência ou lock novo versionado.
+
+Fixtures: scripts/create-e2e-fixtures.mjs exige E2E_DATABASE_URL no processo e exatamente um modo --dry-run, --apply ou --teardown. O manifesto .e2e-auditoria/fixtures.json é ignorado pelo Git. O teardown valida IDs, domínio .invalid e propriedade, recusa dados externos, usa transação com timeout limitado e consulta resíduos. Segredos nunca devem ser copiados para comandos, relatórios ou logs.
+
+Para galerias acima do limite agregado, recomenda-se upload direto assinado com validação de autorização/tamanho e confirmação do arquivo no servidor. Não implementado nesta tarefa.
+
+
+Verificação pública final da audit-followup: Vercel GV5hyPZRLxjNjHaZSxULmYPcxPgD Ready, URL canônica preservada. Cabeçalhos aprovados, nove URLs no sitemap (todas 200), sem rotas privadas. Consulta de runtime Vercel dos últimos cinco minutos devolveu zero registros de erro; a janela de uma hora foi recusada pela retenção do Hobby. Essa consulta não comprova ausência de incidentes fora da janela. Log Render de push habilitado confirmado após repetir uma falha 503 transitória do serviço de logs.
