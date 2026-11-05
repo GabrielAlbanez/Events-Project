@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { FormProvider, useForm } from "react-hook-form";
-import { maximumUploadImageBytes } from "@/lib/uploadLimits";
+import { maximumUploadImageBytes, uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { DateRangePicker } from "@heroui/react";
@@ -185,6 +185,11 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         }
         if (banner) payload.append("banner", banner);
         galleryFiles.forEach((file) => payload.append("carrossel", file));
+
+        if (!uploadMultipartFits(payload)) {
+          toast.error(uploadMultipartLimitMessage);
+          return;
+        }
 
         const result = initialEvent
           ? await atualizarEvento(initialEvent.id, payload, !draft)
@@ -398,7 +403,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   setGalleryUrls([...galleryUrlsRef.current]);
                   setGalleryFiles((previous) => [...previous, ...files]);
                 }} />
-                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores. Até 4 MB por foto.</p>
+                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores. Até 4 MB por foto, com limite de 4,4 MB para o envio completo.</p>
                 {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
               </div>
             </div>

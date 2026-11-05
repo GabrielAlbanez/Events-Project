@@ -35,6 +35,7 @@ const nextConfig = {
   // Evita que next build sobrescreva os arquivos servidos por next dev.
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   experimental: {
+    serverActions: { bodySizeLimit: 4_450_000 },
     optimizePackageImports: ["@heroui/react"],
     outputFileTracingIncludes: {
       "/api/media/**": ["./public/uploads/*"],
