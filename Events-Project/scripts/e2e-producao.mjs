@@ -122,8 +122,14 @@ try {
   await organizer.page.waitForURL(url => url.pathname === "/myEvents", { timeout: 30_000 });
   assert.equal(await db.events.count({ where: { nome: title, userId: organizerId, status: "DRAFT" } }), 1);
   console.log("PASS criação do rascunho de teste");
-} catch {
-  console.error("FAIL na etapa:", phase);
+} catch (error) {
+  const name = error instanceof Error && /^(Error|AssertionError|TimeoutError|TypeError|PrismaClient[A-Za-z]+Error)$/.test(error.name)
+    ? error.name : "Error";
+  const message = error instanceof Error ? error.message : "";
+  const safeMessage = /^(Sessão autenticada ausente|A inscrição de teste já existe|O evento não consta no catálogo publicado|A inscrição falhou|O código de entrada falhou|O check-in falhou|O envio de chat falhou|Sinal de chat não recebido)$/.test(message)
+    ? message
+    : name === "TimeoutError" ? "Tempo limite excedido durante a etapa." : "Detalhes omitidos para proteger credenciais e dados.";
+  console.error("FAIL na etapa", phase, name, safeMessage);
   process.exitCode = 1;
 } finally {
   for (const socket of sockets) socket.disconnect();
