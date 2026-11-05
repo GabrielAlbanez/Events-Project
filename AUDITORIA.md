@@ -223,3 +223,12 @@ Limite de infraestrutura: o upload multipart continua sujeito ao limite de corpo
 | E2E autenticado | Pendente do responsável | Nenhuma das nove variáveis E2E_* exigidas estava disponível no terminal. Não foram criados dados de produção. |
 
 Lint e as oito suítes solicitadas passaram. Os simuladores de chat e perfil foram atualizados para carregar a constante de limite compartilhada.
+
+### Resultado em produção — 05/11/2026
+
+- PR #8 integrado à main no merge d694ecf depois de build, lint e oito suítes verdes. A Vercel marcou o deploy automático 3bl3rhya3 como Ready. O deploy DKBMfc7ebdZj8e113CtdXXSdxtJh também ficou Ready e preservou o avatar legado no pacote de produção. O avatar respondeu HTTP 200. O arquivo permanece fora do Git.
+- Corrigido e verificado em produção: HEAD da home devolveu nosniff, DENY, Referrer-Policy, Permissions-Policy e CSP Report-Only com HTTPS e WSS do Render. Robots e sitemap responderam 200. O sitemap teve cinco URLs canônicas, sendo home, agenda e três eventos publicados.
+- No navegador foram visitados mapa, agenda, detalhe, chat e perfil. A sessão ativa redirecionou login à home. O mapa exibiu os três eventos. Não foram observadas violações de CSP nessa amostra. A cobertura não inclui novo OAuth, mensagem enviada no chat ou upload autenticado.
+- O Render confirmou Live no deploy dep-dbm0j3psrm7s73emn940 e commit 45df3ad. Os logs registraram servidor iniciado e listener PostgreSQL ativo. O WebSocket conectou em 700 ms. A janela de 20 minutos sem tráfego de terceiros ou de abas abertas não foi comprovada, então esse tempo não é de partida a frio.
+- Pendente do responsável: criar Blob privado vinculado a Production, configurar Gmail e as nove variáveis E2E da tabela anterior. Sem BLOB_READ_WRITE_TOKEN, a migração e o teste de upload após redeploy foram interrompidos. A notificação de produção em até 60 s sem duplicação aguarda conta de teste.
+- Web Push: configurar os três valores WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY e WEB_PUSH_SUBJECT tanto na Vercel, onde a rota de inscrição os exige, quanto no Render, onde o worker envia. A chave de check-in deve ser compartilhada pela Vercel e API mobile.
