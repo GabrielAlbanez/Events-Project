@@ -8,6 +8,11 @@ export async function saveChatImage(file: File) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const extension = imageExtension(bytes, file.type);
   const id = randomUUID(), filename = id + extension;
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const { storeMedia } = await import("./blobMedia");
+    const saved = await storeMedia("private/chat/" + filename, bytes, file.type);
+    return { id, filename, mime: file.type, remove: saved.remove };
+  }
   await fs.mkdir(directory(), { recursive: true });
   const target = path.join(directory(), filename);
   await fs.writeFile(target, bytes, { flag: "wx" });
@@ -15,6 +20,11 @@ export async function saveChatImage(file: File) {
 }
 export async function readChatImage(filename: string): Promise<Buffer> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|avif)$/.test(filename)) throw new UploadError(404, "Imagem indisponível.");
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const { readMedia } = await import("./blobMedia");
+    const bytes = await readMedia("private/chat/" + filename, maximumImageBytes);
+    if (bytes && bytes.length <= maximumImageBytes) return bytes;
+  }
   const target = path.join(directory(), filename);
   const info = await fs.lstat(target);
   if (!info.isFile() || info.isSymbolicLink() || info.size > maximumImageBytes) throw new UploadError(404, "Imagem indisponível.");

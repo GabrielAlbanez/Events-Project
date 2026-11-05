@@ -36,9 +36,15 @@ export async function saveProfileImage(file: File): Promise<{ url: string; remov
   if (file.size > maximumImageBytes) throw new UploadError(413, "Use imagens de até 5 MB.");
   const bytes = Buffer.from(await file.arrayBuffer());
   const extension = imageExtension(bytes, file.type);
+  const name = randomUUID() + extension;
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const { storeMedia } = await import("./blobMedia");
+    const saved = await storeMedia("uploads/" + name, bytes, file.type);
+    return { url: "/uploads/" + name, remove: saved.remove };
+  }
   const directory = path.resolve(process.cwd(), "public/uploads");
   await fs.mkdir(directory, { recursive: true });
-  const name = randomUUID() + extension; const target = path.join(directory, name);
+  const target = path.join(directory, name);
   await fs.writeFile(target, bytes, { flag: "wx" });
   return { url: `/uploads/${name}`, remove: async () => { await fs.unlink(target); } };
 }
