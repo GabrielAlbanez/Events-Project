@@ -209,3 +209,17 @@ Para concluir, deixe abertas sessões separadas de duas contas de teste, uma org
 5. Instale Playwright sem gravar no manifesto (npm install --no-save --package-lock=false playwright) e execute npx playwright install chromium. Configure E2E_ORGANIZER_EMAIL, E2E_ORGANIZER_PASSWORD, E2E_ATTENDEE_EMAIL, E2E_ATTENDEE_PASSWORD, E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_EVENT_ID e E2E_DATABASE_URL no terminal autorizado. Use apenas contas de teste e um evento TESTE-AUDITORIA de propriedade do organizador, publicado, com janela de check-in aberta e sem inscrição anterior do participante. Execute com E2E_ALLOW_WRITES=true. O roteiro limpa a mensagem, a inscrição e o rascunho que cria; verifique também avisos e trilhas de auditoria gerados pelo teste no evento de teste.
 
 Limite de infraestrutura: o upload multipart continua sujeito ao limite de corpo da Vercel Functions. Imagens próximas do máximo de 5 MB da aplicação podem precisar de upload direto assinado para não passar pelo limite de 4,5 MB da plataforma.
+
+### Finalização da audit-fix — 05/11/2026
+
+| Item | Estado | Evidência ou dependência |
+|---|---|---|
+| Diagnóstico E2E | Corrigido e verificado localmente | Nome do erro e mensagem segura. Textos dinâmicos de terceiros são omitidos. A limpeza permanece no finally. |
+| Uploads novos | Corrigido e verificado localmente | Limite por imagem de 4 MiB e multipart de 4.450.000 bytes. Arquivos antigos de até 5 MiB continuam legíveis. Upload direto assinado permanece como melhoria futura, sobretudo para galerias com múltiplos arquivos em uma requisição. |
+| Robots e sitemap | Corrigido no código | URL canônica, home, agenda e eventos PUBLISHED. Aguardando verificação no deploy. |
+| CSP | Corrigido no código | Report-Only com https e wss calculados a partir de NEXT_PUBLIC_SOCKET_URL. Configuração ausente ou inválida mantém apenas as origens padrão. |
+| Variáveis e Blob | Pendente do responsável | BLOB_READ_WRITE_TOKEN não apareceu no ambiente Production. Migração e teste de persistência aguardam store privado vinculado. |
+| Worker e Render | Verificação de produção pendente | A regressão de transação tardia passou localmente. Falta medir entrega sem duplicação com conta de teste. A hibernação exige uma janela sem tráfego observável. |
+| E2E autenticado | Pendente do responsável | Nenhuma das nove variáveis E2E_* exigidas estava disponível no terminal. Não foram criados dados de produção. |
+
+Lint e as oito suítes solicitadas passaram. Os simuladores de chat e perfil foram atualizados para carregar a constante de limite compartilhada.
