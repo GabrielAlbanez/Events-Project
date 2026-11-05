@@ -5,13 +5,23 @@ const withBundleAnalyzer = bundleAnalyzer({
   openAnalyzer: false,
 });
 
+function socketSources() {
+  try {
+    const socket = new URL(process.env.NEXT_PUBLIC_SOCKET_URL || "");
+    if (!["https:", "wss:"].includes(socket.protocol) || socket.username || socket.password) return "";
+    return " https://" + socket.host + " wss://" + socket.host;
+  } catch {
+    return "";
+  }
+}
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://lh3.googleusercontent.com https://cdnb.artstation.com https://pbs.twimg.com",
-  "connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.google.com https://eventmap-socket.onrender.com wss://eventmap-socket.onrender.com",
+  "connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.google.com" + socketSources(),
   "frame-src 'self' https://accounts.google.com https://www.google.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
