@@ -22,6 +22,29 @@ const SocketStatusContext = createContext(false);
 
 type EventValidatedNotice = { eventId: string; eventName: string; validatedAt: string };
 
+function RealtimeConnectionNotice({ waiting }: { waiting: boolean }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!waiting) {
+      setVisible(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setVisible(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [waiting]);
+
+  return (
+    <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed inset-x-4 top-[calc(var(--site-header-height,76px)+0.5rem)] z-40 flex justify-center">
+      {waiting && visible && (
+        <p className="max-w-sm rounded-xl border bg-card px-4 py-2 text-center text-sm text-card-foreground shadow-md">
+          Restabelecendo as atualizações em tempo real. Isso pode levar alguns instantes.
+        </p>
+      )}
+    </div>
+  );
+}
+
 
 
 export function SocketProvider({ children }: { children: ReactNode }) {
@@ -351,6 +374,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     <SocketContext.Provider value={socket}>
 
       <SocketStatusContext.Provider value={isConnected}>
+
+        <RealtimeConnectionNotice waiting={status !== "loading" && !sessionError && !removalPending && !isConnected} />
 
         {removalPending ? <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/95 p-6" role="alertdialog" aria-modal="true" aria-labelledby="account-removed-title" aria-describedby="account-removed-description"><div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-6 shadow-xl"><h2 id="account-removed-title" tabIndex={-1} ref={node => node?.focus()} className="text-xl font-semibold outline-none">{revokedReason === "account-suspended" ? "Sua conta foi suspensa" : revokedReason === "account-removed" ? "Sua conta foi banida do site" : "Sessão encerrada por segurança"}</h2><p id="account-removed-description" className="mt-3 text-sm leading-relaxed text-muted-foreground">{revokedReason === "account-suspended" ? "O acesso foi suspenso pelo administrador. Estamos encerrando sua sessão com segurança." : revokedReason === "account-removed" ? "O administrador removeu sua conta. Estamos encerrando sua sessão com segurança." : "Estamos encerrando esta sessão. Entre novamente para continuar."}</p><p role="status" className="mt-5 text-sm font-medium text-primary">Desconectando...</p></div></div> : children}
 

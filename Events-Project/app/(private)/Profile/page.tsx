@@ -1,5 +1,6 @@
 "use client";
 
+import { maximumUploadImageBytes } from "@/lib/uploadLimits";
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -137,8 +138,8 @@ export default function Profile() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
-      toast.error("Escolha uma imagem de até 5 MB.");
+    if (!["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type) || !file.size || file.size > maximumUploadImageBytes) {
+      toast.error("Escolha uma imagem de até 4 MB.");
       event.target.value = "";
       return;
     }
@@ -225,7 +226,7 @@ export default function Profile() {
               <div className="mt-5">
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" aria-label="Selecionar foto do perfil" onChange={handleImageUpload} />
                 <Button type="button" variant="outline" className="w-full" disabled={isImagePending} onClick={() => fileInputRef.current?.click()}><Camera className="h-4 w-4" /> Alterar foto</Button>
-                <p className="mt-2 text-xs text-muted-foreground">JPG, PNG, WebP ou AVIF de até 5 MB.</p>
+                <p className="mt-2 text-xs text-muted-foreground">JPG, PNG, WebP ou AVIF de até 4 MB.</p>
               </div>
             </CardContent>
           </Card>

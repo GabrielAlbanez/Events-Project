@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { maximumUploadImageBytes } from "@/lib/uploadLimits";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { DateRangePicker } from "@heroui/react";
@@ -368,26 +369,36 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <Input id="event-banner" ref={bannerInputRef} type="file" accept="image/*" aria-describedby="event-banner-help" onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (!file) return;
+                  if (file.size > maximumUploadImageBytes) {
+                    event.currentTarget.value = "";
+                    toast.error("Escolha um banner de até 4 MB.");
+                    return;
+                  }
                   if (bannerUrlRef.current) URL.revokeObjectURL(bannerUrlRef.current);
                   const url = URL.createObjectURL(file);
                   bannerUrlRef.current = url;
                   setBannerUrl(url);
                   setBanner(file);
                 }} />
-                <p id="event-banner-help" className="mt-2 text-sm text-muted-foreground">Escolha uma imagem horizontal, nítida e com o assunto principal visível.</p>
+                <p id="event-banner-help" className="mt-2 text-sm text-muted-foreground">Escolha uma imagem horizontal e nítida de até 4 MB.</p>
                 {(bannerUrl || initialEvent?.banner) && <div className="relative mt-3 overflow-hidden rounded-xl border border-border"><img src={bannerUrl || initialEvent?.banner} alt="Prévia do banner selecionado" className="aspect-[16/9] w-full object-cover" />{bannerUrl && <button type="button" onClick={removeBanner} aria-label="Remover banner" className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button>}</div>}
               </div>
               <div>
                 <label htmlFor="event-gallery" className="mb-2 block text-sm font-medium">Mais fotos <span className="font-normal text-muted-foreground">(opcional)</span></label>
                 <Input id="event-gallery" ref={galleryInputRef} type="file" accept="image/*" multiple aria-describedby="event-gallery-help" onChange={(event) => {
-                  const files = Array.from(event.target.files ?? []);
+                  const selected = Array.from(event.target.files ?? []);
+                  const files = selected.filter(file => file.size <= maximumUploadImageBytes);
+                  event.currentTarget.value = "";
+                  if (files.length < selected.length) {
+                    toast.error("As fotos acima de 4 MB não foram adicionadas.");
+                  }
+                  if (!files.length) return;
                   const urls = files.map(URL.createObjectURL);
                   galleryUrlsRef.current = [...galleryUrlsRef.current, ...urls];
                   setGalleryUrls([...galleryUrlsRef.current]);
                   setGalleryFiles((previous) => [...previous, ...files]);
-                  event.target.value = "";
                 }} />
-                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores.</p>
+                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores. Até 4 MB por foto.</p>
                 {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
               </div>
             </div>

@@ -4,6 +4,8 @@ import { eventInstant } from "../lib/eventTime.js";
 
 export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string,event:string)=>void, eventsChanged:()=>void) {
  let stopped=false, polling=false, running=false, lastCheck=new Date(), lastError=false;
+ const overlapMs = 60_000;
+ const sent = new Map<string, number>();
  const publicKey=process.env.WEB_PUSH_PUBLIC_KEY, privateKey=process.env.WEB_PUSH_PRIVATE_KEY, subject=process.env.WEB_PUSH_SUBJECT;
  let pushEnabled=false;
  if(publicKey&&privateKey&&subject){
@@ -14,9 +16,15 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
   if(stopped||polling)return;polling=true;
   try{
    const until=new Date();
-   const entries=await prisma.notification.findMany({where:{createdAt:{gte:lastCheck,lte:until}},select:{userId:true}});
+   // PostgreSQL now() reflects transaction start. A notice can become visible
+   // after the cursor passed its timestamp, so revisit a bounded window.
+   const since = new Date(lastCheck.getTime() - overlapMs);
+   const entries=await prisma.notification.findMany({where:{createdAt:{gte:since,lte:until}},select:{id:true,userId:true,createdAt:true}});
+   const fresh = entries.filter(entry => !sent.has(entry.id));
+   new Set(fresh.map(item=>item.userId)).forEach(id=>emit(id,"notification-updated"));
+   for(const entry of fresh) sent.set(entry.id, entry.createdAt.getTime());
+   sent.forEach((createdAt,id)=>{if(createdAt < since.getTime()) sent.delete(id);});
    lastCheck=until;
-   for(const id of Array.from(new Set(entries.map(item=>item.userId))))emit(id,"notification-updated");
    lastError=false;
   }catch{if(!lastError)console.error("Notification delivery temporarily unavailable.");lastError=true;}
   finally{polling=false;}

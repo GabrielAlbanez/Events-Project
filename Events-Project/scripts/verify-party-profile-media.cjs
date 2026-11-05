@@ -39,6 +39,7 @@ function load(file) {
       return {};
     } };
     if (name === '@/lib/storage/profileImages') return load('lib/storage/profileImages.ts');
+    if (name === '../uploadLimits') return load('lib/uploadLimits.ts');
     return require(name);
   }, module, module.exports);
   return module.exports;
