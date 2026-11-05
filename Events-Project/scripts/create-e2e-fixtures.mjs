@@ -80,17 +80,24 @@ try {
       if (outsiders) throw new Error("Dados externos às fixtures encontrados; limpeza recusada.");
       summary.registrations = await tx.eventRegistration.count({ where: whereEvent });
       summary.messages = await tx.eventChatMessage.count({ where: whereEvent });
+      summary.partyMessages = await tx.partyMessage.count({ where: { authorId: { in: ids } } });
+      summary.partyMatches = await tx.partyMatch.count({ where: whereEvent });
+      summary.partyProfiles = await tx.partyProfile.count({ where: whereEvent });
+      summary.communityEntries = await tx.communityEntry.count({ where: whereEvent });
       summary.notifications = await tx.notification.count({ where: { userId: { in: ids } } });
       summary.sessions = (await tx.session.deleteMany({ where: { userId: { in: ids } } })).count;
       const quotaIds = ids.map(id => "profile-upload-rate:" + createHash("sha256").update(id).digest("hex"));
       summary.uploadQuotas = (await tx.verificationToken.deleteMany({ where: { identifier: { in: quotaIds } } })).count;
-      summary.history = (await tx.eventHistory.deleteMany({ where: { eventId: { in: eventIds }, actorId: { in: [...ids, "system"] } } })).count;
+      summary.history = (await tx.eventHistory.deleteMany({ where: { eventName: { startsWith: "TESTE-AUDITORIA" }, OR: [{ actorId: { in: ids } }, { eventId: { in: eventIds }, actorId: "system" }] } })).count;
       summary.events = (await tx.events.deleteMany({ where: { id: { in: eventIds } } })).count;
       summary.users = (await tx.user.deleteMany({ where: { id: { in: ids } } })).count;
       const remaining = await tx.user.count({ where: { id: { in: ids } } }) +
         await tx.events.count({ where: { id: { in: eventIds } } }) +
         await tx.notification.count({ where: { userId: { in: ids } } }) +
-        await tx.eventRegistration.count({ where: whereEvent }) + await tx.eventChatMessage.count({ where: whereEvent });
+        await tx.eventRegistration.count({ where: whereEvent }) + await tx.eventChatMessage.count({ where: whereEvent }) +
+        await tx.partyMessage.count({ where: { authorId: { in: ids } } }) +
+        await tx.partyMatch.count({ where: whereEvent }) + await tx.partyProfile.count({ where: whereEvent }) +
+        await tx.communityEntry.count({ where: whereEvent }) + await tx.session.count({ where: { userId: { in: ids } } });
       if (remaining) throw new Error("Limpeza incompleta.");
     });
     // Remove passwords from the receipt after database sessions and accounts are removed.

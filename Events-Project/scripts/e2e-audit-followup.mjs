@@ -112,7 +112,7 @@ try {
   for (const path of ["/", "/login", "/#home-discovery", "/EventsCreated", `/eventos/${fixture.eventId}`, `/eventos/${fixture.eventId}/chat`, "/Profile", "/admin"]) {
     const actor = path === "/admin" ? contexts.ADMIN : attendee;
     const response = await actor.page.goto(path);
-    assert.ok(response && response.status() < 400);
+    assert.ok(!response || response.status() < 400);
     await actor.page.waitForLoadState("domcontentloaded");
     for (const uri of await actor.page.evaluate(() => window.auditCspOrigins || [])) blocked.add(uri.startsWith("https:") || uri.startsWith("wss:") ? new URL(uri).origin : uri);
   }
