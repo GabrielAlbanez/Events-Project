@@ -8,9 +8,9 @@ export const IMPERSONATION_BLOCK_MESSAGE = "Um administrador está acessando sua
 const identitySelect = { id: true, role: true, name: true, email: true, image: true, emailVerified: true, password: true, suspendedAt: true, suspendedUntil: true, sessionVersion: true } as const;
 
 /** Always verify the original credential; a target password never authenticates an admin. */
-export async function resolveImpersonationIdentity(db: PrismaClient, token: JWT) {
+export async function resolveImpersonationIdentity(db: PrismaClient, token: JWT, credentialSecret?: string) {
   const original = typeof token.id === "string" && token.id ? await db.user.findUnique({ where: { id: token.id }, select: identitySelect }) : null;
-  if (!original || token.provider === "dev-admin" || !credentialSessionValid(token.provider, token.credentialStamp, original.password) || isAccountSuspended(original) || !accountSessionValid(token.sessionVersion, original.sessionVersion)) {
+  if (!original || token.provider === "dev-admin" || !credentialSessionValid(token.provider, token.credentialStamp, original.password, credentialSecret) || isAccountSuspended(original) || !accountSessionValid(token.sessionVersion, original.sessionVersion)) {
     await endImpersonation(db, token);
     return { user: null, blocked: false, impersonation: null };
   }

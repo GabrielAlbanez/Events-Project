@@ -3,7 +3,7 @@ import next from "next";
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 import nextEnv from "@next/env";
-import { getToken } from "next-auth/jwt";
+import { decode, getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server.js";
 import type { Socket } from "socket.io";
 import { enforceSocketExpiration, enforceSocketCredentials } from "./server/socketSession.mjs";
@@ -42,11 +42,20 @@ export const getIoServer = () => {
   return io;
 };
 
-const app = next({ dev, hostname, port });
-const handle = app.getRequestHandler();
+const socketOnly = process.env.SOCKET_ONLY === "true";
+const ticketSecret = process.env.SOCKET_TICKET_SECRET;
 
-app.prepare().then(async () => {
+async function start() {
+  if (socketOnly && !ticketSecret) throw new Error("SOCKET_TICKET_SECRET is required");
+  const app = socketOnly ? null : next({ dev, hostname, port });
+  await app?.prepare();
+  const handle = app?.getRequestHandler();
   const httpServer = createServer((request, response) => {
+    if (!handle) {
+      const healthy = request.method === "GET" && request.url === "/healthz";
+      response.writeHead(healthy ? 200 : 404).end();
+      return;
+    }
     request.headers["x-eventmap-client-ip"] = request.socket.remoteAddress ?? "";
     return handle(request, response);
   });
@@ -101,14 +110,21 @@ app.prepare().then(async () => {
   // may receive public event updates, but never acquire a user identity.
   io.use(async (socket, next) => {
     try {
-      const token = await getToken({
+      const ticket = socket.handshake.auth.ticket;
+      const token = socketOnly
+        ? typeof ticket === "string" && ticket && ticketSecret
+          ? await decode({ token: ticket, secret: ticketSecret })
+          : null
+        : await getToken({
         req: new NextRequest("http://localhost", {
           headers: { cookie: socket.request.headers.cookie ?? "" },
         }),
         secret: process.env.NEXTAUTH_SECRET,
       });
+      if (socketOnly && ticket !== undefined && !token) return next(new Error("Invalid socket ticket"));
       if (typeof token?.id !== "string" || !token.id) return next();
-      if (typeof token.exp !== "number" || token.exp * 1000 <= Date.now()) return next();
+      const expiresAt = socketOnly ? token.socketSessionExp : token.exp;
+      if (typeof expiresAt !== "number" || expiresAt * 1000 <= Date.now()) return next();
       if (token.provider === "dev-admin") return next();
       const identity = await resolveSocketIdentity(prisma, token);
       if (typeof identity !== "string") {
@@ -116,7 +132,7 @@ app.prepare().then(async () => {
         socket.data.authUserId = token.id;
         socket.data.impersonationId = token.impersonationId;
         socket.data.effectiveRole = identity.role;
-        socket.data.expiresAt = token.exp * 1000;
+        socket.data.expiresAt = expiresAt * 1000;
         socket.data.provider = token.provider;
         socket.data.credentialStamp = token.credentialStamp;
         socket.data.sessionVersion = token.sessionVersion;
@@ -298,7 +314,9 @@ app.prepare().then(async () => {
     console.error("Erro ao iniciar o servidor HTTP/Socket.IO:", error);
     process.exit(1);
   });
-}).catch((error) => {
+}
+
+start().catch((error) => {
   console.error("Erro ao preparar o Next.js:", error);
   process.exit(1);
 });
