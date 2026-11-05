@@ -7,6 +7,7 @@ import { publicEventSelect } from "@/lib/eventQueries";
 import { parseEventInput } from "@/schemas/eventInput";
 import { Prisma, EventHistoryAction } from "@prisma/client";
 import { saveEventImage, removeEventImages } from "@/lib/storage/eventImages";
+import { uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 async function actor(resolveCurrentUser: ResolveCurrentUser) {
     const user = await resolveCurrentUser();
     if (!user || (user.role !== "ADMIN" && user.role !== "PROMOTER"))
@@ -29,6 +30,8 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const user = await actor(resolveCurrentUser);
         if (!user || (userId && user.id !== userId))
             return { success: false, message: "Acesso negado." };
+        if (!uploadMultipartFits(formData))
+            return { success: false, message: uploadMultipartLimitMessage };
         const existing = eventId ? await prisma.events.findUnique({ where: { id: eventId } }) : null;
         if (eventId && (!existing || (existing.userId !== user.id && user.role !== "ADMIN")))
             return { success: false, message: "Evento não encontrado ou acesso negado." };

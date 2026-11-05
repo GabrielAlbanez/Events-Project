@@ -9,6 +9,34 @@ function load(file, dependencies) {
 (async () => {
   let written = 0, removed = 0;
   const limits = load("lib/uploadLimits.ts", {});
+  const gallery = new FormData();
+  gallery.append("banner", new File([new Uint8Array(2_200_000)], "capa.jpg", { type: "image/jpeg" }));
+  gallery.append("carrossel", new File([new Uint8Array(2_200_000)], "galeria.jpg", { type: "image/jpeg" }));
+  assert.ok(Array.from(gallery.values()).every(file => file.size < limits.maximumUploadImageBytes));
+  assert.equal(limits.uploadMultipartFits(gallery), false, "The aggregate must include every file and multipart overhead");
+  const accepted = new FormData();
+  accepted.append("banner", new File([new Uint8Array(limits.maximumUploadImageBytes)], "capa.jpg", { type: "image/jpeg" }));
+  accepted.append("descricao", "Informações do evento\n".repeat(100));
+  assert.equal(limits.uploadMultipartFits(accepted), true);
+  assert.ok((await new Response(accepted).arrayBuffer()).byteLength < limits.maximumUploadMultipartBytes);
+  const largeText = new FormData();
+  largeText.append("descricao", "ç".repeat(limits.maximumUploadMultipartBytes / 2));
+  assert.equal(limits.uploadMultipartFits(largeText), false, "Text must count UTF-8 bytes");
+  const longFilename = new FormData();
+  longFilename.append("banner", new File([new Uint8Array(limits.maximumUploadImageBytes)], "é".repeat(100_000) + ".jpg"));
+  assert.equal(limits.uploadMultipartFits(longFilename), false, "Encoded filenames must count toward the body");
+  let eventWrites = 0;
+  const events = load("lib/services/events.ts", {
+    "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async () => ({ id: "test", role: "PROMOTER" }) }, $transaction: async () => { eventWrites++; } } },
+    "@/lib/eventScheduleChanges": {}, "@/lib/eventNotifications": {}, "@/lib/eventQueries": {},
+    "@/schemas/eventInput": { parseEventInput: () => { throw new Error("Oversized requests must stop before parsing or writes"); } },
+    "@/lib/storage/eventImages": { saveEventImage: async () => { eventWrites++; }, removeEventImages: async () => {} },
+    "@/lib/uploadLimits": limits,
+  });
+  const rejected = await events.salvarRascunho(gallery, "test", async () => ({ id: "test", role: "PROMOTER" }));
+  assert.equal(rejected.success, false);
+  assert.equal(rejected.message, limits.uploadMultipartLimitMessage);
+  assert.equal(eventWrites, 0, "Reject aggregate before storage or database writes");
   const storage = load("lib/storage/profileImages.ts", { "../uploadLimits": limits, "node:fs/promises": { __esModule: true, default: {
     mkdir: async () => {}, writeFile: async (target, bytes, options) => { assert.equal(options.flag, "wx"); assert.match(target, /[a-f0-9-]{36}\.jpg$/); written++; }, unlink: async () => { removed++; },
   } } });
