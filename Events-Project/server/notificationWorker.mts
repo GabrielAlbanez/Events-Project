@@ -9,7 +9,7 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
  const publicKey=process.env.WEB_PUSH_PUBLIC_KEY, privateKey=process.env.WEB_PUSH_PRIVATE_KEY, subject=process.env.WEB_PUSH_SUBJECT;
  let pushEnabled=false;
  if(publicKey&&privateKey&&subject){
-  try{webpush.setVapidDetails(subject,publicKey,privateKey);pushEnabled=true;}
+  try{webpush.setVapidDetails(subject,publicKey,privateKey);pushEnabled=true;console.info("External push enabled.");}
   catch{console.error("External push disabled: invalid configuration.");}
  }
  async function poll(){
