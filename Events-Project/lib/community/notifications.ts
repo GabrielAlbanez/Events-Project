@@ -1,9 +1,11 @@
+import { createNotification } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { Prisma } from "@prisma/client";
 import { signal } from "./common";
 
 export async function notifyCommunityUser(tx: Prisma.TransactionClient, eventId: string, userId: string | null, title: string, message: string): Promise<void> {
   if (!userId || !await tx.user.findUnique({ where: { id: userId }, select: { id: true } })) return;
-  await tx.notification.create({ data: { userId, title, message, href: `/eventos/${eventId}/comunidade` } });
+  await createNotification(tx, notificationCopy({ ...{ userId, title, message, href: `/eventos/${eventId}/comunidade` }, type: "COMMUNITY" }));
   await signal(tx, `user:${userId}`);
 }
 export async function notifyQuestionAnswer(tx: Prisma.TransactionClient, eventId: string, authorId: string, previous: string, answer: string): Promise<void> {

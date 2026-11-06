@@ -28,12 +28,12 @@ export async function getNotifications(): Promise<NotificationDTO[]> {
   return notifications.getNotifications(getAuthenticatedUser);
 }
 
-export async function getNotificationPage(input: { before?: string; unread?: boolean } = {}) {
+export async function getNotificationPage(input: notifications.NotificationPageInput = {}) {
   return notifications.getNotificationPage(getAuthenticatedUser, input);
 }
 
 export async function markNotificationRead(id:string|null) {
-  return notifications.markNotificationRead(id, getAuthenticatedUser);
+  return notifications.markNotificationRead(id, () => getAuthenticatedUser(undefined, { allowImpersonation: false }));
 }
 
 export async function getPromoterProfile(id:string) {
@@ -59,3 +59,8 @@ export async function getPromoterStats() {
 export async function getRecommendedEvents() {
   return recommendations.getRecommendedEvents(getAuthenticatedUser);
 }
+
+export async function getUnreadCount() { return notifications.getUnreadCount(getAuthenticatedUser); }
+export async function getNotificationCounts() { return notifications.getNotificationCounts(getAuthenticatedUser); }
+export async function getRecentNotifications(input: { since: string }) { return notifications.getRecentNotifications(getAuthenticatedUser, input); }
+export async function undoNotificationRead(id: string, readAt: string) { return notifications.undoNotificationRead(id, readAt, () => getAuthenticatedUser(undefined, { allowImpersonation: false })); }

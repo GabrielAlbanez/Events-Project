@@ -1,3 +1,5 @@
+import { createNotification } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, RegistrationStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -52,12 +54,12 @@ async function promoteWaiting(tx: Prisma.TransactionClient, eventId: string, fre
   });
   for (const registration of next) {
     await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CONFIRMED" } });
-    await tx.notification.create({ data: {
+    await createNotification(tx, notificationCopy({ ...{
       userId: registration.userId,
       href: `/eventos/${eventId}`,
       title: "Sua presença foi confirmada",
       message: "Uma vaga abriu no evento. Sua inscrição foi confirmada.",
-    } });
+    }, type: "CHECKIN" }));
   }
   return next.length;
 }
@@ -127,7 +129,7 @@ export async function cancelRegistration(eventId: string, userId: string) {
         const next = await tx.eventRegistration.findFirst({ where: { eventId, status: "WAITLISTED" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
         if (next) {
           await tx.eventRegistration.update({ where: { id: next.id }, data: { status: "CONFIRMED" } });
-          await tx.notification.create({ data: { userId: next.userId, href: `/eventos/${eventId}`, title: "Sua presença foi confirmada", message: "Uma vaga abriu no evento. Sua inscrição foi confirmada." } });
+          await createNotification(tx, notificationCopy({ ...{ userId: next.userId, href: `/eventos/${eventId}`, title: "Sua presença foi confirmada", message: "Uma vaga abriu no evento. Sua inscrição foi confirmada." }, type: "CHECKIN" }));
           promotedUserId = next.userId;
         }
       }

@@ -1,3 +1,5 @@
+import { createNotification } from "../lib/notifications/create.js";
+import { notificationCopy } from "../lib/notifications/catalog.js";
 import type { PrismaClient } from "@prisma/client";
 import webpush from "web-push";
 import { eventInstant } from "../lib/eventTime.js";
@@ -42,7 +44,7 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
     if(!start||start<=now||start.getTime()-(favorite.reminderMinutes??0)*60000>now.getTime())continue;
     await prisma.$transaction(async tx=>{
      const claimed=await tx.favorite.updateMany({where:{userId:favorite.userId,eventId:favorite.eventId,reminderSentAt:null,reminderMinutes:favorite.reminderMinutes},data:{reminderSentAt:now}});
-     if(claimed.count)await tx.notification.create({data:{userId:favorite.userId,title:"Seu evento está chegando",message:favorite.event.nome+" começa em breve. Confira data e local.",href:"/eventos/"+favorite.eventId}});
+     if(claimed.count)await createNotification(tx, notificationCopy({ ...{userId:favorite.userId,title:"Seu evento está chegando",message:favorite.event.nome+" começa em breve. Confira data e local.",href:"/eventos/"+favorite.eventId}, type: "EVENT_REMINDER" }));
     });
    }
    const lastFavorite=favorites[favorites.length-1];

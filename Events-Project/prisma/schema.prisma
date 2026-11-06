@@ -341,6 +341,9 @@ model Follow {
 }
 
 model Notification {
+  type      String    @default("SYSTEM")
+  priority  String    @default("normal")
+  groupKey  String?
   id        String    @id @default(uuid())
   userId    String
   title     String
@@ -352,6 +355,7 @@ model Notification {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
   @@index([pushedAt])
 }
 

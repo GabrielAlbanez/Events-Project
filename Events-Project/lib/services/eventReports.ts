@@ -1,3 +1,5 @@
+import { createNotifications } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { Prisma, ReportStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
@@ -18,7 +20,7 @@ export async function reportEvent(eventId: string, reporterId: string, input: { 
     return await prisma.$transaction(async (tx) => {
       const report = await tx.eventReport.create({ data: { eventId, reporterId, reason: input.reason, details: input.details.trim() }, select: { id: true, status: true } });
       const admins = await tx.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
-      if (admins.length) await tx.notification.createMany({ data: admins.map(admin => ({ userId: admin.id, title: "Nova denúncia de evento", message: `O evento ${event.nome} recebeu uma denúncia.`, href: "/admin/reports" })) });
+      if (admins.length) await createNotifications(tx, admins.map(admin => ({ userId: admin.id, title: "Nova denúncia de evento", message: `O evento ${event.nome} recebeu uma denúncia.`, href: "/admin/reports" })).map(item => notificationCopy({ ...item, type: "ADMIN" as const })));
       return report;
     });
   } catch (error) {
