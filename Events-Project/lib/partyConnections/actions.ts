@@ -1,3 +1,5 @@
+import { createNotification } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { Actor, CommunityError, signal, transact } from "@/lib/community/common";
 import { PartyAction } from "@/schemas/partyConnections";
 import { pairAccess, partyParticipant } from "./access";
@@ -63,7 +65,7 @@ export async function connectionsAction(eventId: string, actor: Actor, input: Pa
           if (!match?.active) {
             await tx.partyMatch.upsert({ where: { eventId_userAId_userBId: { eventId, userAId, userBId } }, create: { eventId, userAId, userBId }, update: { active: true } });
             for (const userId of [actor.id, input.userId]) {
-              await tx.notification.create({ data: { userId, title: "Nova conexão na festa", message: "O interesse foi mútuo. Abra suas conexões para conversar.", href: `/eventos/${eventId}/conexoes` } });
+              await createNotification(tx, notificationCopy({ ...{ userId, title: "Nova conexão na festa", message: "O interesse foi mútuo. Abra suas conexões para conversar.", href: `/eventos/${eventId}/conexoes` }, type: "CONNECTION" }));
               await signal(tx, `user:${userId}`);
             }
           }

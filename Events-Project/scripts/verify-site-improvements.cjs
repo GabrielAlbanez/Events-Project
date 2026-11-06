@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const ts = require("typescript");
 function load(file, dependencies) {
   const module = { exports: {} };
-  new Function("require", "module", "exports", ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText)(name => Object.hasOwn(dependencies, name) ? dependencies[name] : require(name), module, module.exports);
+  new Function("require", "module", "exports", ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText)(name => Object.hasOwn(dependencies, name) ? dependencies[name] : (name.includes("notifications/") ? require("./load-notification-module.cjs")(name) : require(name)), module, module.exports);
   return module.exports;
 }
 (async () => {

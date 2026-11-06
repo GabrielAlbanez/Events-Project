@@ -5,7 +5,7 @@ function load(filename) {
   filename = path.resolve(filename); if (cache.has(filename)) return cache.get(filename).exports;
   const module = { exports: {} }; cache.set(filename, module);
   const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
-  const req = name => name === "@/lib/prisma" ? { __esModule: true, get default() { return db; } } : name.startsWith("@/") ? load(name.slice(2) + ".ts") : name.startsWith(".") ? load(path.resolve(path.dirname(filename), name) + ".ts") : require(name);
+  const req = name => name === "@/lib/prisma" ? { __esModule: true, get default() { return db; } } : name.startsWith("@/") ? load(name.slice(2) + ".ts") : name.startsWith(".") ? load(path.resolve(path.dirname(filename), name) + ".ts") : (name.includes("notifications/") ? require("./load-notification-module.cjs")(name) : require(name));
   new Function("require", "module", "exports", output)(req, module, module.exports); return module.exports;
 }
 function matches(row, where = {}) {

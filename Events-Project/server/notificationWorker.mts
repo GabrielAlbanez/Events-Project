@@ -1,3 +1,6 @@
+import { notificationPushPayload } from "../lib/notifications/push.js";
+import { createNotification } from "../lib/notifications/create.js";
+import { notificationCopy } from "../lib/notifications/catalog.js";
 import type { PrismaClient } from "@prisma/client";
 import webpush from "web-push";
 import { eventInstant } from "../lib/eventTime.js";
@@ -42,7 +45,7 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
     if(!start||start<=now||start.getTime()-(favorite.reminderMinutes??0)*60000>now.getTime())continue;
     await prisma.$transaction(async tx=>{
      const claimed=await tx.favorite.updateMany({where:{userId:favorite.userId,eventId:favorite.eventId,reminderSentAt:null,reminderMinutes:favorite.reminderMinutes},data:{reminderSentAt:now}});
-     if(claimed.count)await tx.notification.create({data:{userId:favorite.userId,title:"Seu evento está chegando",message:favorite.event.nome+" começa em breve. Confira data e local.",href:"/eventos/"+favorite.eventId}});
+     if(claimed.count)await createNotification(tx, notificationCopy({ ...{userId:favorite.userId,title:"Seu evento está chegando",message:favorite.event.nome+" começa em breve. Confira data e local.",href:"/eventos/"+favorite.eventId}, type: "EVENT_REMINDER" }));
     });
    }
    const lastFavorite=favorites[favorites.length-1];
@@ -71,7 +74,7 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
      let retry=false;
      for(const subscription of notice.user.subscriptions){
       try{
-       await webpush.sendNotification({endpoint:subscription.endpoint,keys:{p256dh:subscription.p256dh,auth:subscription.auth}},JSON.stringify({id:notice.id,userId:notice.userId,title:notice.title,message:notice.message,href:notice.href}),{TTL:3600,timeout:5000});
+       await webpush.sendNotification({endpoint:subscription.endpoint,keys:{p256dh:subscription.p256dh,auth:subscription.auth}},JSON.stringify(notificationPushPayload(notice)),{TTL:3600,timeout:5000});
       }catch(error){
        const status=typeof error==="object"&&error!==null&&"statusCode" in error?Number(error.statusCode):0;
        if(status===404||status===410)await prisma.pushSubscription.deleteMany({where:{id:subscription.id}});else retry=true;
