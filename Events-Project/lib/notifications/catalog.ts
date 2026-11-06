@@ -25,5 +25,5 @@ export function notificationText(value: string, max: number): string {
   return text.length > max ? text.slice(0, max - 1).trimEnd() + "…" : text;
 }
 export function notificationCopy<T extends { title: string; message: string }>(input: T): T {
-  return { ...input, title: notificationText(input.title, 80), message: notificationText(input.message, 160) };
+  return { ...input, title: notificationText(input.title, 80) || "Novidade no EventMap", message: notificationText(input.message, 160) || "Confira os detalhes na sua central de notificações." };
 }

@@ -25,7 +25,7 @@ export async function getNotificationPage(resolveCurrentUser: ResolveCurrentUser
     const limit = Math.min(50, Math.max(1, Number.isFinite(input.limit) ? Math.floor(input.limit!) : 50));
     const types = input.category ? Object.keys(notificationCatalog).filter(type => notificationCatalog[getNotificationType(type)].category === input.category) : undefined;
     const rows = await prisma.notification.findMany({
-        where: { userId: user.id, ...(input.unread ? { readAt: null } : {}), ...(types ? { type: { in: types } } : {}),
+        where: { userId: user.id, ...(input.unread ? { readAt: null } : {}), ...(types ? { type: input.category === "Sistema" ? { notIn: Object.keys(notificationCatalog).filter(type => notificationCatalog[getNotificationType(type)].category !== "Sistema") } : { in: types } } : {}),
             ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.date) } }, { createdAt: new Date(cursor.date), id: { lt: cursor.id } }] } : {}) },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit + 1, select,
     });

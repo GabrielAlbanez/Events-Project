@@ -14,6 +14,16 @@ const id = '00000000-0000-4000-8000-000000000001';
   assert.throws(() => creator.validateNotification({...input,title:'x'.repeat(81)}));
   assert.throws(() => creator.validateNotification({...input,message:'x'.repeat(161)}));
   assert.throws(() => creator.validateNotification({...input,type:'INVALID'}));
+  const files = ['lib/eventNotifications.ts','lib/community/events.ts','lib/community/notifications.ts','lib/community/rooms.ts','lib/services/attendance.ts','lib/services/eventReports.ts','lib/partyConnections/actions.ts','server/notificationWorker.mts'];
+  let creatorSites=0;
+  for(const file of files){const source=fs.readFileSync(file,'utf8');creatorSites+=(source.match(/await createNotifications?\(/g)||[]).length;
+    for(const title of ['Evento '+ 'x'.repeat(200),''])for(const message of ['x'.repeat(240),'']){
+      const prepared=catalog.notificationCopy({...input,title,message});
+      assert.doesNotThrow(()=>creator.validateNotification(prepared),file+' copy must not reject long/empty content');
+      assert.ok(prepared.title.length<=80&&prepared.message.length<=160);
+    }
+  }
+  assert.equal(creatorSites,10,'all ten creation sites must use shared normalization');
   const calls = [];
   const db = { notification: { create: async data => calls.push(data), createMany: async data => calls.push(data) } };
   await creator.createNotification(db,input);
@@ -36,6 +46,7 @@ const id = '00000000-0000-4000-8000-000000000001';
   assert.equal(await service.getUnreadCount(owner),125);assert.deepEqual(query.where,{userId:'owner',readAt:null});
   const rows=await service.getNotifications(owner);assert.equal(rows[0].type,'SYSTEM');assert.equal(rows[0].priority,'normal');
   const page=await service.getNotificationPage(owner,{category:'Conexões',limit:10});assert.equal(query.take,11);assert.deepEqual(query.where.type.in,['CONNECTION']);assert.equal(page.items.length,1);
+  await service.getNotificationPage(owner,{category:'Sistema'});assert.ok(query.where.type.notIn.includes('CONNECTION'));assert.ok(!query.where.type.notIn.includes('SYSTEM'));
   assert.deepEqual(await service.getNotificationCounts(owner),{total:6,Eventos:4,Comunidade:0,Conexões:0,Sistema:2});
   await service.getRecentNotifications(owner,{since:new Date().toISOString()});assert.equal(query.take,20);assert.equal(query.where.userId,'owner');
   assert.deepEqual(await service.markNotificationRead(id,async()=>null),{success:false});
