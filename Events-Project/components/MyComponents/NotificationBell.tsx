@@ -78,11 +78,12 @@ function AccountNotifications({ userId }: { userId: string }) {
     const deliver = () => schedule(true);
     const update = () => schedule(false);
     const reconnect = () => schedule(true);
+    const invalidatePanel = () => { panelRevision.current++; };
     void refresh();
     socket.on("notification-updated", deliver); socket.on("connect", reconnect);
     window.addEventListener("eventmap-notifications-read", update);
     return () => {
-      active = false; mounted.current = false; panelRevision.current++; clearTimeout(timer);
+      active = false; mounted.current = false; invalidatePanel(); clearTimeout(timer);
       socket.off("notification-updated", deliver); socket.off("connect", reconnect);
       window.removeEventListener("eventmap-notifications-read", update);
     };
@@ -130,3 +131,4 @@ export default function NotificationBell() {
   if (status !== "authenticated" || !session?.user?.id) return null;
   return <AccountNotifications key={session.user.id} userId={session.user.id} />;
 }
+

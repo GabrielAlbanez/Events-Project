@@ -155,3 +155,10 @@ Sem hospedagem conectada para a prévia. Smoke autenticado, QA mobile, publicaç
 - Banco concluído e verificado. Normalização agora fornece texto seguro quando vazio; filtro Sistema inclui tipos desconhecidos via notIn. Teste compartilhado long/vazio cobre dez pontos de criação reais encontrados (anexo mencionava onze). Ainda precisa testar ações principais completas contra rollback, não confundir teste do normalizador com integração.
 - Lint passa com warning Bell linha85. Push/SW/test endpoint, UI harness, capturas, Lighthouse e suítes completas pendentes. Sem deploy/merge.
 
+
+## Revisão e push — 06/11/2026
+- Commit 0a0e9c3 publicado em origin/notificacoes-premium com normalização, filtro Sistema, testes e HANDOFF. Consulta independente confirmou migration aplicada/ativa em _prisma_migrations da main do projeto Events (produção), três colunas e índice; não reaplicada.
+- Fase3 em andamento: lib/notifications/push.ts payload genérico seguro; worker usa payload; sw.js inclui atualização imediata sem cache de rotas, icon/badge, tag, ações, navegação e sessão seguras. POST /api/push/test implementado para usuário próprio, origem, assinatura existente e limite1/min com lock transacional. Silent true: sem vibração/som.
+- test:notifications/test:security e tipos servidor passaram antes do endpoint; tipos app e lint/build em execução. Warning cleanup Bell ajustado.
+- NÃO concluído: regressão dos serviços completos (inscrição, check-in, edição, denúncia, conexão, convite); testes específicos SW/push/endpoint; harness UI antigo, capturas e Lighthouse; suítes completas. Normalizador não prova ausência de rollback nas ações. Nenhum PR/merge/deploy preparado.
+- Resultado desta unidade: build, tipos app/servidor, lint sem avisos, test:notifications e test:security verdes. Fase3 ainda sem regressões específicas nem validação visual; tarefas pendentes acima permanecem obrigatórias antes do PR.
