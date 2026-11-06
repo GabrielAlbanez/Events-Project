@@ -283,3 +283,12 @@ Para galerias acima do limite agregado, recomenda-se upload direto assinado com 
 
 
 Verificação pública final da audit-followup: Vercel GV5hyPZRLxjNjHaZSxULmYPcxPgD Ready, URL canônica preservada. Cabeçalhos aprovados, nove URLs no sitemap (todas 200), sem rotas privadas. Consulta de runtime Vercel dos últimos cinco minutos devolveu zero registros de erro; a janela de uma hora foi recusada pela retenção do Hobby. Essa consulta não comprova ausência de incidentes fora da janela. Log Render de push habilitado confirmado após repetir uma falha 503 transitória do serviço de logs.
+
+## Notificações premium
+
+- Fase 1: código e regressões isoladas verificados; migração aditiva já confirmada na produção. Nenhuma migração adicional nesta rodada.
+- Fase 2: componentes reais capturados localmente com sessão/ações fictícias em 390/1440 px e ambos os temas; painel, lista, vazio e Desfazer. Evidências e limitações em Events-Project/docs/notificacoes-premium/README.md. Console de produção, CSP, colisões na home e banner entregue por socket permanecem sem verificação nesta rodada.
+- Fase 3: políticas de payload e SW verificadas em testes isolados; entrega nativa/CDP sem verificação.
+- Fase 4: preferências adiada até estabilizar e validar fases anteriores.
+- Regressão dos seis serviços reais passou com persistência transacional em memória e nomes legados longos/vazios. Não é teste de transações PostgreSQL reais. Inscrição/check-in não geram aviso por si mesmos; os demais cenários persistem avisos limitados e não vazios.
+- Sem merge ou deploy nesta rodada. Lighthouse, entrega por socket no navegador e push em dispositivo ainda pendentes.
