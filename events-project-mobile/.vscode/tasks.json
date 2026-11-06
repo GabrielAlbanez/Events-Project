@@ -94,7 +94,7 @@
         "--lan"
       ],
       "options": {
-        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile",
+        "cwd": "${workspaceFolder}",
         "env": {}
       },
       "problemMatcher": [],
@@ -122,7 +122,7 @@
         "backend"
       ],
       "options": {
-        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile"
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
       "presentation": {
@@ -139,7 +139,7 @@
         "start:dev"
       ],
       "options": {
-        "cwd": "C:/Users/gabri/EventsApp/events-project-mobile"
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
       "presentation": {
