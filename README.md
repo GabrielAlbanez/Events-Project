@@ -140,3 +140,5 @@ Os scripts de integração com sufixos `:db` e `:http` podem criar registros tem
 [Arquitetura detalhada](Events-Project/docs/architecture.md) · [Comunidade](Events-Project/docs/community.md) · [Chat e conexões](Events-Project/docs/event-chat.md) · [Configuração de e-mail](Events-Project/docs/deploy-email.md)
 
 Desenvolvido por [Gabriel Albanez](https://github.com/GabrielAlbanez).
+
+[Verificações automáticas do site (CI)](Events-Project/docs/ci.md): tipos, lint, regressões e build em ambiente isolado.

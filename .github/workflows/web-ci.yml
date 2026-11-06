@@ -1,0 +1,81 @@
+name: Web CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, codex/web-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Web quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Events-Project
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Disposable runner-local database, never a production connection.
+      DATABASE_URL: postgresql://postgres@localhost:5432/eventmap_ci
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: eventmap_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Events-Project/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+      - name: Apply migrations to disposable database
+        run: npx prisma migrate deploy
+      - name: Typecheck web and socket server
+        run: |
+          npx tsc --noEmit --incremental false
+          npx tsc --project tsconfig.server.json --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Security and account regressions
+        run: |
+          npm run test:security
+          npm run test:account-removal
+          npm run test:password-sessions
+      - name: Upload and interface regressions
+        run: |
+          npm run test:site-improvements
+          node scripts/verify-portfolio-demo.cjs
+      - name: Chat, community and realtime regressions
+        run: |
+          npm run test:event-chat
+          npm run test:party-connections
+          npm run test:realtime
+          npm run test:community
+      - name: Production build
+        run: npm run build
