@@ -49,20 +49,20 @@ function buttons(node) {
   h.close(); assert.equal(listeners.size, 0, 'Listeners must be cleaned up');
   const account = { current: { data: { user: { id: 'first' } }, status: 'authenticated' } };
   const notificationCalls = [];
-  const n = harness('app/(private)/notificacoes/page.tsx', { window: { dispatchEvent() {} }, Event: class {} }, {
+  const n = harness('app/(private)/notificacoes/page.tsx', { window: { dispatchEvent() {}, addEventListener, removeEventListener }, Event: class {}, CustomEvent: class {}, setTimeout, clearTimeout }, {
     'next-auth/react': { useSession: () => account.current },
     '@/context/SocketContext': { useSocket: () => socket },
-    '@/app/(actions)/engagement/action': { getNotificationPage: input => new Promise(resolve => notificationCalls.push({ input, resolve })), markNotificationRead: async () => ({ success: true }) },
+    '@/app/(actions)/engagement/action': { getNotificationPage: input => new Promise(resolve => notificationCalls.push({ input, resolve })), getNotificationCounts: async () => ({ total: 2, Eventos: 2, Comunidade: 0, Conexões: 0, Sistema: 0 }), markNotificationRead: async () => ({ success: true }) },
   });
   const socket = { on() {}, off() {} };
   const notice = id => ({ id, title: 'Notice ' + id, message: 'Content', href: '/eventos/event', readAt: null, createdAt: '2026-10-04T00:00:00Z' });
   const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); return n.render('default'); };
-  n.render('default'); assert.deepEqual(notificationCalls[0].input, { before: undefined, unread: false });
+  n.render('default'); assert.deepEqual(notificationCalls[0].input, { before: undefined, unread: false, category: undefined });
   notificationCalls[0].resolve({ items: [notice('one')], nextBefore: 'cursor' }); let notices = await flush();
-  buttons(notices).find(button => button.props.children === 'Carregar avisos anteriores').props.onClick();
+  buttons(notices).find(button => button.props.children === 'Carregar notificações anteriores').props.onClick();
   assert.equal(notificationCalls[1].input.before, 'cursor'); notificationCalls[1].resolve({ items: [notice('one'), notice('two')], nextBefore: 'older' }); notices = await flush();
   const printed = JSON.stringify(notices); assert.equal((printed.match(/Notice one/g) || []).length, 1); assert.match(printed, /Notice two/);
-  buttons(notices).find(button => button.props.children === 'Carregar avisos anteriores').props.onClick();
+  buttons(notices).find(button => button.props.children === 'Carregar notificações anteriores').props.onClick();
   account.current = { data: { user: { id: 'second' } }, status: 'authenticated' }; n.render('default');
   notificationCalls[2].resolve({ items: [notice('private-old-account')], nextBefore: null }); await flush();
   notificationCalls[3].resolve({ items: [notice('new-account')], nextBefore: null }); notices = await flush();
