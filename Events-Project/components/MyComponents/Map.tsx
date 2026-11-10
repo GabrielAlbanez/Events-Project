@@ -51,6 +51,7 @@ const createEventMarkerIcon = (fill: string, ink: string) => ({ url: "data:image
 const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
 const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
+const locationNoticeKey = "eventmap:location-notice-accepted";
 
 const EventMarkers = memo(function EventMarkers({
   events,
@@ -99,6 +100,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const [routeError, setRouteError] = useState<string | null>(null);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const locationNoticeAcceptedRef = useRef(false);
   const routeRequestRef = useRef(0);
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
   const { resolvedTheme } = useTheme();
@@ -108,14 +110,17 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const router = useRouter();
 
   const locationRequestRef = useRef(0);
+  const locationInFlightRef = useRef(false);
   const mapRef = useRef<google.maps.Map | null>(null);
   const handleMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; }, []);
   const handleMapUnmount = useCallback(() => { mapRef.current = null; }, []);
 
   // Captura a localização atual
   const getCurrentLocation = useCallback(() => {
+    if (locationInFlightRef.current) return;
     const requestId = ++locationRequestRef.current;
     if (navigator.geolocation) {
+      locationInFlightRef.current = true;
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -123,17 +128,46 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
+          locationInFlightRef.current = false;
           setIsLocating(false);
           setShowLocationPrompt(false);
           router.replace("/");
         },
-        () => { if (requestId === locationRequestRef.current) { setIsLocating(false); toast.error("Não foi possível acessar sua localização. Você pode explorar o mapa ou selecionar um endereço."); } },
+        (error) => {
+          if (requestId !== locationRequestRef.current) return;
+          locationInFlightRef.current = false;
+          setIsLocating(false);
+          toast.error(error.code === error.PERMISSION_DENIED
+            ? "A localização está bloqueada no navegador. Para usá-la, permita o acesso nas configurações deste site. Você também pode selecionar um endereço."
+            : error.code === error.TIMEOUT
+              ? "A localização demorou para responder. Tente novamente ou selecione um endereço."
+              : "Não foi possível acessar sua localização. Você pode explorar o mapa ou selecionar um endereço.");
+        },
         { enableHighAccuracy: false, maximumAge: 60000, timeout: 7000 }
       );
     } else {
       toast.error("Geolocalização não suportada pelo navegador.");
     }
   }, [router]);
+
+  // Guarda somente que a explicação foi aceita, nunca as coordenadas.
+  // A permissão de localização continua sendo controlada pelo navegador.
+  const requestCurrentLocation = useCallback(() => {
+    if (isLocating) return;
+    try {
+      locationNoticeAcceptedRef.current ||= window.sessionStorage.getItem(locationNoticeKey) === "1";
+    } catch { /* A escolha permanece em memória se o armazenamento estiver bloqueado. */ }
+    if (locationNoticeAcceptedRef.current) getCurrentLocation();
+    else setShowLocationPrompt(true);
+  }, [getCurrentLocation, isLocating]);
+
+  const acceptLocationNotice = useCallback(() => {
+    locationNoticeAcceptedRef.current = true;
+    try { window.sessionStorage.setItem(locationNoticeKey, "1"); }
+    catch { /* A escolha permanece em memória nesta visita ao mapa. */ }
+    setShowLocationPrompt(false);
+    getCurrentLocation();
+  }, [getCurrentLocation]);
 
   // A localização pode estar indisponível; nunca descarte o clique silenciosamente.
   const calculateRoute = useCallback(async (target: google.maps.LatLngLiteral) => {
@@ -306,7 +340,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
                 <div className="space-y-3">
                   <PlaceAutocomplete ariaLabel="Local de partida da rota" className="w-full rounded-xl border border-border" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setUserLocation({ lat, lng }); }} />
                   <p className="text-xs leading-5 text-muted-foreground">{userLocation ? "Origem definida. Selecione outro local para alterar." : "Selecione a partida nas sugestões ou escolha usar sua localização."} Os endereços e a localização usados no trajeto são enviados ao Google para calcular a rota.</p>
-                  <button type="button" disabled={isLocating} onClick={getCurrentLocation} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
+                  <button type="button" disabled={isLocating} onClick={requestCurrentLocation} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
                   <PlaceAutocomplete ariaLabel="Destino da rota" className="w-full rounded-xl border border-border" placeholder="Destino" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setDestination({ lat, lng }); }} />
                   {destination && <p className="text-xs text-muted-foreground">Destino definido. Selecione outro local para alterar.</p>}
                   <button type="button" disabled={isRouteTracing} className="min-h-11 w-full rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-cta-foreground hover:bg-cta/90 disabled:cursor-wait disabled:opacity-60" onClick={() => destination ? void calculateRoute(destination) : toast.error("Selecione um destino nas sugestões.")}>{isRouteTracing ? "Calculando rota…" : "Traçar rota"}</button>
@@ -339,10 +373,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
               </div>
               <button
                 type="button"
-                className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur transition hover:-translate-y-0.5 hover:bg-muted"
-                onClick={() => setShowLocationPrompt(true)}
+                className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur transition hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
+                onClick={requestCurrentLocation}
+                disabled={isLocating}
                 title="Usar minha localização"
-                aria-label="Usar minha localização"
+                aria-label={isLocating ? "Obtendo localização…" : "Usar minha localização"}
               >
                 <Crosshair className="h-5 w-5 text-brand" />
               </button>
@@ -352,8 +387,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
               <h2 className="text-base font-semibold">Usar sua localização?</h2>
               <p className="text-sm leading-6 text-muted-foreground">Sua posição será exibida no mapa do Google. Se você calcular um trajeto, origem e destino também serão enviados ao Google. Você pode continuar sem compartilhar a localização.</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={isLocating} onClick={getCurrentLocation} className="min-h-11 rounded-xl bg-cta px-4 py-2 text-sm font-semibold text-cta-foreground disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
-                <button type="button" onClick={() => { locationRequestRef.current += 1; setIsLocating(false); setShowLocationPrompt(false); }} className="min-h-11 rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Agora não</button>
+                <button type="button" disabled={isLocating} onClick={acceptLocationNotice} className="min-h-11 rounded-xl bg-cta px-4 py-2 text-sm font-semibold text-cta-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
+                <button type="button" onClick={() => { locationRequestRef.current += 1; locationInFlightRef.current = false; setIsLocating(false); setShowLocationPrompt(false); }} className="min-h-11 rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Agora não</button>
               </div>
             </section>}
 
