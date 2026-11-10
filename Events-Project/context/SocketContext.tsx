@@ -23,23 +23,40 @@ const SocketStatusContext = createContext(false);
 type EventValidatedNotice = { eventId: string; eventName: string; validatedAt: string };
 
 function RealtimeConnectionNotice({ waiting }: { waiting: boolean }) {
-  const [visible, setVisible] = useState(false);
+  const [phase, setPhase] = useState<"hidden" | "connecting" | "unavailable">("hidden");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!waiting) {
-      setVisible(false);
+      setPhase("hidden");
+      setRetryCount(0);
       return;
     }
-    const timer = window.setTimeout(() => setVisible(true), 1500);
-    return () => window.clearTimeout(timer);
-  }, [waiting]);
+    setPhase(retryCount > 0 ? "connecting" : "hidden");
+    const connectingTimer = window.setTimeout(() => setPhase("connecting"), 1500);
+    const unavailableTimer = window.setTimeout(() => setPhase("unavailable"), 45000);
+    return () => {
+      window.clearTimeout(connectingTimer);
+      window.clearTimeout(unavailableTimer);
+    };
+  }, [waiting, retryCount]);
 
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed inset-x-4 top-[calc(var(--site-header-height,76px)+0.5rem)] z-40 flex justify-center">
-      {waiting && visible && (
-        <p className="max-w-sm rounded-xl border bg-card px-4 py-2 text-center text-sm text-card-foreground shadow-md">
-          Restabelecendo as atualizações em tempo real. Isso pode levar alguns instantes.
-        </p>
+      {waiting && phase !== "hidden" && (
+        <div className="max-w-sm space-y-2 rounded-xl border bg-card px-4 py-3 text-center text-sm text-card-foreground shadow-md">
+          {phase === "connecting" ? <p>Conectando atualizações em tempo real. Você pode continuar navegando.</p> : <>
+            <p className="font-medium">Atualizações em tempo real temporariamente indisponíveis.</p>
+            <p>Você pode continuar consultando os eventos. Chat, notificações e outras mudanças ao vivo podem demorar a aparecer.</p>
+            <button type="button" onClick={() => {
+              if (socket.connected) return;
+              setPhase("connecting");
+              setRetryCount(count => count + 1);
+              socket.disconnect();
+              socket.connect();
+            }} className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Tentar reconectar</button>
+          </>}
+        </div>
       )}
     </div>
   );

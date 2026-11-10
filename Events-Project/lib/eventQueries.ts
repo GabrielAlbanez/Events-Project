@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 // Every nested account field is explicitly public.
 export const publicEventSelect = {
   id: true, nome: true, banner: true, carrossel: true, descricao: true,
+  organizerName: true,
   dataInicio: true, dataFim: true, linkParaCompra: true, endereco: true,
   userId: true, validate: true, status: true, category: true, priceCents: true,
   isFree: true, lat: true, lng: true, startTime: true, endTime: true, timezone: true,

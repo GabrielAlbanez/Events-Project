@@ -26,6 +26,7 @@ export type Evento = {
   banner: string; // Banner principal
   carrossel: string[]; // Lista de URLs para imagens do carrossel
   descricao: string;
+  organizerName?: string;
   ageRating?: string | null;
   accessibilityInfo?: string | null;
   participationInfo?: string | null;

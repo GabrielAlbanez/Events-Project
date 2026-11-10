@@ -77,6 +77,11 @@ export function RegisterForm({
           Encontre sua próxima experiência. Comece por aqui.
         </p>
       </div>
+      <p className="text-sm leading-6 text-muted-foreground">
+        Usamos nome, e-mail e dados de acesso para criar e proteger sua conta. Ao continuar com Google, recebemos os dados de perfil autorizados. Antes de continuar, consulte a{" "}
+        <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>{" "}
+        e saiba como <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">exercer seus direitos</Link>.
+      </p>
       <div className={styles.fields}>
         <div className={styles.field}>
           <Label htmlFor="name">Nome</Label>

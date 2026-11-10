@@ -7,6 +7,8 @@ import {
   LayoutDashboard,
   Map,
   Plus,
+  ShieldCheck,
+  Mail,
   Sparkles,
   UserRound,
   UsersRound,
@@ -35,6 +37,8 @@ type NavItem = { label: string; href: string; icon: typeof Compass; roles?: stri
 
 const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
+  { label: "Privacidade e preferências", href: "/privacidade", icon: ShieldCheck },
+  { label: "Seus dados e direitos", href: "/privacidade/solicitacoes", icon: Mail },
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarCheck },
   { label: "Mapa de eventos", href: "/#home-discovery", icon: Map },
   { label: "Minha agenda", href: "/salvos", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
@@ -72,6 +76,7 @@ export function AppSidebar() {
     { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/Profile"] },
     { label: "Organizar", paths: ["/CriarEvento", "/myEvents", "/resultados"] },
     { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/conexoes-denuncias", "/admin/auditoria"] },
+    { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },
   ];
   const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
 
@@ -93,7 +98,7 @@ export function AppSidebar() {
           return <section key={group.label} className="mb-3 shrink-0 md:mb-5" aria-label={group.label}><p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
         <SidebarMenu className="gap-1 md:gap-1.5">
           {items.map(({ label, href, icon: Icon }) => {
-            const active = href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
+            const active = href === "/" || href === "/admin" || href === "/privacidade" ? pathname === href : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-cta/15 hover:text-sidebar-foreground data-[active=true]:bg-cta data-[active=true]:text-cta-foreground data-[active=true]:font-semibold data-[active=true]:hover:bg-cta data-[active=true]:hover:text-cta-foreground">

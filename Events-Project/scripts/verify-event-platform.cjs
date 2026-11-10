@@ -60,6 +60,9 @@ async function run(){
  for(const role of ["GUEST","BASIC"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),false);
  for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
+ assert.equal(isPublicPath("/privacidade"),true);
+ assert.equal(isPublicPath("/privacidade/solicitacoes"),true);
+ assert.equal(isPublicPath("/privacidade/admin"),false);
  assert.equal(isPublicPath("/eventos/test/editar"),false);
  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");
  console.log("PASS: route access policy and retired development identity isolation");
@@ -73,15 +76,16 @@ async function run(){
  const fields={nome:"Evento de teste",descricao:"Descrição detalhada do evento.",endereco:"Local de teste",dataInicio:"2027-01-02",dataFim:"2027-01-02",startTime:"10:00",endTime:"11:00",isFree:"true",category:"Cultura"};
  const form=overrides=>{const data=new FormData();for(const [key,value] of Object.entries({...fields,...overrides}))data.set(key,value);return data;};
  assert.equal(parseEventInput(form(),true).success,true);
- const practical={ageRating:"Livre",accessibilityInfo:"Entrada sem degraus",participationInfo:"Levar documento"};
+ const practical={organizerName:"Organizacao de teste",ageRating:"Livre",accessibilityInfo:"Entrada sem degraus",participationInfo:"Levar documento"};
  assert.deepEqual(Object.fromEntries(Object.keys(practical).map(key=>[key,parseEventInput(form(practical),true).data[key]])),practical);
  assert.equal(parseEventInput(form({accessibilityInfo:" ",ageRating:" "}),true).data.ageRating,null);
- for(const [key,limit] of [["ageRating",80],["accessibilityInfo",2000],["participationInfo",2000]]){
+ for(const [key,limit] of [["organizerName",160],["ageRating",80],["accessibilityInfo",2000],["participationInfo",2000]]){
   assert.equal(parseEventInput(form({[key]:"a".repeat(limit)}),true).success,true);
   assert.equal(parseEventInput(form({[key]:"a".repeat(limit+1)}),true).success,false);
  }
  for(const change of [{LinkParaCompraIngresso:"javascript:alert(1)"},{dataFim:"2026-02-30"},{dataFim:"2026-01-01"},{endTime:"09:00"},{startTime:"25:00"},{lat:"10"},{priceCents:"-1"}])assert.equal(parseEventInput(form(change),true).success,false);
  assert.equal(parseEventInput(new FormData(),false).success,true);
+ assert.equal(parseEventInput(new FormData(),false).data.organizerName,"");
  assert.equal(parseEventInput(new FormData(),true).success,false);
  assert.equal(eventInstant("2027-01-02","10:00","America/Sao_Paulo").toISOString(),"2027-01-02T13:00:00.000Z");
  assert.equal(eventInstant("2027-01-02","10:00","Invalid/Timezone"),null);
@@ -156,4 +160,4 @@ async function run(){
   await db.$disconnect();
  }
 }
-run().catch(()=>{process.exitCode=1;});
+run().catch(error=>{console.error(error.message);process.exitCode=1;});

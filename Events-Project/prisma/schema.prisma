@@ -107,6 +107,7 @@ model Events {
   banner             String
   carrossel          String[]
   descricao          String
+  organizerName      String                @default("")
   ageRating          String?
   accessibilityInfo  String?
   participationInfo  String?
