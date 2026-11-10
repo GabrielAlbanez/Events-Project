@@ -39,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body>
-        <ClientProviders defaultOpen={defaultOpen}>
+        <ClientProviders defaultOpen={defaultOpen} realtimeEnabled={process.env.EVENTMAP_SOCKET_SERVER === "true"}>
           <ToastContainer  position="top-right" autoClose={3000} />
           <RouteTransition>{children}</RouteTransition>
         </ClientProviders>

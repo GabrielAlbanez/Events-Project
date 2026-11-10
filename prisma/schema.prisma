@@ -110,6 +110,10 @@ model Events {
   dataFim            String // 🔹 Nova data de término
   linkParaCompra     String
   endereco           String
+  organizerName      String                @default("")
+  ageRating          String                @default("")
+  accessibilityInfo  String                @default("")
+  participationInfo  String                @default("")
   userId             String?
   user               User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   validate           Boolean?              @default(false)

@@ -21,6 +21,8 @@ import { useTheme } from "next-themes";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { GoogleMapsPreference } from "./GoogleMapsPreference";
+import Link from "next/link";
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
@@ -90,6 +92,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const [showDirections, setShowDirections] = useState(false);
   const [isRouteTracing, setIsRouteTracing] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
   const routeRequestRef = useRef(0);
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>(null);
   const { resolvedTheme } = useTheme();
@@ -107,16 +111,19 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const getCurrentLocation = useCallback(() => {
     const requestId = ++locationRequestRef.current;
     if (navigator.geolocation) {
+      setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (requestId !== locationRequestRef.current) return;
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
-
+          setIsLocating(false);
+          setShowLocationPrompt(false);
           router.replace("/");
         },
-        () => { if (requestId === locationRequestRef.current) toast.error("Não foi possível acessar sua localização."); }
+        () => { if (requestId === locationRequestRef.current) { setIsLocating(false); toast.error("Não foi possível acessar sua localização. Você pode explorar o mapa ou selecionar um endereço."); } },
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 7000 }
       );
     } else {
       toast.error("Geolocalização não suportada pelo navegador.");
@@ -133,19 +140,9 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     setRouteError(null);
     setDirections(null);
     setIsRouteTracing(true);
-    let origin = userLocation;
+    const origin = userLocation;
     try {
-      if (!origin) {
-        if (!navigator.geolocation) throw new Error("LOCATION_UNAVAILABLE");
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: false, maximumAge: 300000, timeout: 7000,
-          });
-        }).catch(() => { throw new Error("LOCATION_UNAVAILABLE"); });
-        if (requestId !== routeRequestRef.current) return;
-        origin = { lat: position.coords.latitude, lng: position.coords.longitude };
-        setUserLocation(origin);
-      }
+      if (!origin) throw new Error("LOCATION_UNAVAILABLE");
       const result = await new google.maps.DirectionsService().route({
         origin, destination: target, travelMode: google.maps.TravelMode.DRIVING,
       });
@@ -156,7 +153,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
       if (requestId !== routeRequestRef.current) return;
       const code = error instanceof Error ? error.message : String(error);
       const message = code.includes("LOCATION_UNAVAILABLE")
-        ? "Selecione um local de partida ou permita o acesso à sua localização."
+        ? "Selecione um local de partida ou escolha Usar minha localização antes de traçar."
         : code.includes("REQUEST_DENIED")
           ? "O cálculo de rotas não está autorizado no mapa. Você pode abrir a rota no Google Maps."
           : code.includes("ZERO_RESULTS")
@@ -203,8 +200,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     if (cached) return cached;
     const geocoder = new window.google.maps.Geocoder();
     const request = new Promise<google.maps.LatLngLiteral>((resolve, reject) => {
-      geocoder.geocode({ address: endereco }, (results: any, status) => {
-        if (status === "OK" && results[0]) {
+      geocoder.geocode({ address: endereco }, (results, status) => {
+        if (status === "OK" && results?.[0]) {
           const location = results[0].geometry.location;
           resolve({ lat: location.lat(), lng: location.lng() });
         } else {
@@ -217,22 +214,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     return request;
   }, []);
 
-  useEffect(() => {
-    const requestId = ++locationRequestRef.current;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (requestId !== locationRequestRef.current) return;
-          const { latitude, longitude } = pos.coords;
-          setCurrentLocation({ lat: latitude, lng: longitude });
-          setUserLocation({ lat: latitude, lng: longitude });
-        },
-        () => undefined,
-        { enableHighAccuracy: false, maximumAge: 300000, timeout: 7000 }
-      );
-    }
-    return () => { locationRequestRef.current += 1; };
-  }, []);
+  useEffect(() => () => { locationRequestRef.current += 1; }, []);
 
   useEffect(() => {
     if (!enderecoParam) return;
@@ -316,7 +298,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
                 <button type="button" onClick={() => setShowDirections(false)} className="mb-3 flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" /> Planejar rota</button>
                 <div className="space-y-3">
                   <PlaceAutocomplete ariaLabel="Local de partida da rota" className="w-full rounded-xl border border-border" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setUserLocation({ lat, lng }); }} />
-                  <p className="text-xs text-muted-foreground">{userLocation ? "Origem definida. Selecione outro local para alterar." : "Selecione a partida nas sugestões ou permita sua localização ao traçar."}</p>
+                  <p className="text-xs leading-5 text-muted-foreground">{userLocation ? "Origem definida. Selecione outro local para alterar." : "Selecione a partida nas sugestões ou escolha usar sua localização."} Os endereços e a localização usados no trajeto são enviados ao Google para calcular a rota.</p>
+                  <button type="button" disabled={isLocating} onClick={getCurrentLocation} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
                   <PlaceAutocomplete ariaLabel="Destino da rota" className="w-full rounded-xl border border-border" placeholder="Destino" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setDestination({ lat, lng }); }} />
                   {destination && <p className="text-xs text-muted-foreground">Destino definido. Selecione outro local para alterar.</p>}
                   <button type="button" disabled={isRouteTracing} className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60" onClick={() => destination ? void calculateRoute(destination) : toast.error("Selecione um destino nas sugestões.")}>{isRouteTracing ? "Calculando rota…" : "Traçar rota"}</button>
@@ -350,13 +333,24 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
               <button
                 type="button"
                 className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur transition hover:-translate-y-0.5 hover:bg-muted"
-                onClick={getCurrentLocation}
-                title="Minha localização"
-                aria-label="Recentralizar na minha localização"
+                onClick={() => setShowLocationPrompt(true)}
+                title="Usar minha localização"
+                aria-label="Usar minha localização"
               >
                 <Crosshair className="h-5 w-5 text-primary" />
               </button>
             </div>
+
+            {showLocationPrompt && <section aria-label="Usar sua localização no mapa" className="absolute inset-x-3 top-3 z-20 max-w-sm space-y-3 rounded-2xl bg-card p-5 shadow-surface md:left-5 md:right-auto">
+              <h2 className="text-base font-semibold">Usar sua localização?</h2>
+              <p className="text-sm leading-6 text-muted-foreground">Sua posição será exibida no mapa do Google. Se você calcular um trajeto, origem e destino também serão enviados ao Google. Você pode continuar sem compartilhar a localização.</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={isLocating} onClick={getCurrentLocation} className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">{isLocating ? "Obtendo localização…" : "Usar minha localização"}</button>
+                <button type="button" onClick={() => { locationRequestRef.current += 1; setIsLocating(false); setShowLocationPrompt(false); }} className="min-h-11 rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Agora não</button>
+              </div>
+            </section>}
+
+            {!showDirections && !selectedEvent && !showLocationPrompt && <Link href="/privacidade#preferencias" className="absolute left-3 top-3 z-10 inline-flex min-h-11 items-center rounded-xl bg-card px-3 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:left-5 md:top-5">Privacidade do mapa</Link>}
 
             <div className="absolute bottom-5 left-5 z-10 hidden items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-medium text-muted-foreground shadow-surface backdrop-blur md:flex">
               <span className="h-2 w-2 rounded-full bg-primary" />
@@ -386,9 +380,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
 };
 
 export default function Mapa(props: MapProps) {
-  const { isLoaded, isLoading, error } = useGoogleMaps();
+  const { isLoaded, isLoading, error, enabled, configured } = useGoogleMaps();
   if (isLoaded) return <MapaGoogle {...props} />;
   if (isLoading) return <CustomLoading />;
+
+  if (!enabled && configured) return <section aria-label="Ativar mapa opcional" className="flex h-full min-h-[420px] items-center justify-center bg-muted p-6"><div className="max-w-md space-y-4 rounded-2xl bg-card p-6"><h2 className="text-xl font-semibold">Explore também pelo mapa</h2><GoogleMapsPreference /><p className="text-sm text-muted-foreground">Você pode continuar buscando e filtrando os eventos pela lista sem ativar o mapa.</p></div></section>;
 
   return (
     <section className="flex h-full min-h-[520px] items-center justify-center bg-muted p-8">

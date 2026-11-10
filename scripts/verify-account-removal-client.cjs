@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const ts = require("typescript");
 const slots = [], effects = [], handlers = new Map(), notices = [], redirects = [], outs = [];
-let cursor = 0, connects = 0, disconnects = 0;
+let cursor = 0, connects = 0, disconnects = 0, enabled = true;
 let recover;
 const update = () => new Promise(resolve => { recover = resolve; });
 let session = { status: "authenticated", data: { user: { id: "one", role: "BASIC" } }, update };
@@ -33,7 +33,7 @@ new Function("require", "module", "exports", "window", source)(name => {
   if (name === "react-toastify") return { toast: { error: text => notices.push(text), success() {} } };
   return { socket };
 }, moduleValue, moduleValue.exports, { location: { assign: path => redirects.push(path) } });
-function render() { cursor = 0; moduleValue.exports.SocketProvider({ children: null }); while (effects.length) effects.shift()(); }
+function render() { cursor = 0; moduleValue.exports.SocketProvider({ children: null, enabled }); while (effects.length) effects.shift()(); }
 function emit(name, payload) { for (const handler of handlers.get(name) ?? []) handler(payload); }
 async function flush() { for (let i = 0; i < 10; i++) await Promise.resolve(); }
 async function run() {
@@ -91,6 +91,15 @@ async function run() {
     assert.equal(socket.connected, false);
     outs[5].resolve(); await flush();
   } finally { Date.now = originalNow; }
-  console.log("PASS account removal frontend: current identity, duplicate guard, session signals, failed logout, recovery and stale responses.");
+  enabled = false;
+  session = { ...session, data: { user: { id: "serverless", role: "BASIC" } } }; render();
+  const beforeDisabled = connects;
+  assert.equal(socket.connected, false, "plain Next deployment does not connect to absent listener");
+  emit("session-expired");
+  assert.equal(connects, beforeDisabled, "disabled realtime never reconnects during session recovery");
+  session = { ...session, data: { error: "SessionRevoked", user: { id: "", role: null } } }; render();
+  assert.equal(outs.length, 7, "JWT revocation remains enforced without a socket server");
+  outs[6].resolve(); await flush();
+  console.log("PASS account removal frontend: current identity, duplicate guard, session signals, failed logout, recovery, serverless mode and stale responses.");
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

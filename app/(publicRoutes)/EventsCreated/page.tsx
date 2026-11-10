@@ -73,7 +73,7 @@ export default function EventsCreated() {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col items-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <FadeInView className="mb-8 w-full"><header><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Explore o EventMap</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{user?.role === "ADMIN" ? "Revisar eventos" : "Agenda de eventos"}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">{user?.role === "ADMIN" ? "Acompanhe e revise os eventos recebidos." : "Encontre experiências e organize seus próximos dias."}</p></header></FadeInView>
-      {!socketConnected && <p role="status" className="mb-4 w-full rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">Atualizações em tempo real indisponíveis. Você ainda pode consultar os eventos.</p>}
+      {!socketConnected && <div className="mb-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><p role="status">Atualizações automáticas indisponíveis. Atualize a lista para ver mudanças.</p><Button type="button" variant="outline" disabled={isLoading} onClick={() => void fetchEvents()}>Atualizar lista</Button></div>}
       {isLoading ? (
         <div role="status" aria-live="polite" aria-busy="true" className="w-full space-y-5">
           <span className="sr-only">Carregando eventos...</span>

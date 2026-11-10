@@ -24,7 +24,7 @@ type EventValidatedNotice = { eventId: string; eventName: string; validatedAt: s
 
 
 
-export function SocketProvider({ children }: { children: ReactNode }) {
+export function SocketProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
 
   const { data: session, status, update } = useSession();
 
@@ -218,7 +218,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
         if (refreshed?.error === "AccountImpersonated") return;
 
-        if (active && currentIdentity.current === identity && !removalFlight.current && removedIdentity.current !== identity) socket.connect();
+        if (enabled && active && currentIdentity.current === identity && !removalFlight.current && removedIdentity.current !== identity) socket.connect();
 
       }).catch(() => {
 
@@ -250,7 +250,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     else if (sessionError === "SessionUnavailable" || sessionError === "AccountImpersonated" || removalFlight.current) socket.disconnect();
 
-    else if (removedIdentity.current !== identity) socket.connect();
+    else if (enabled && removedIdentity.current !== identity) socket.connect();
+    else socket.disconnect();
 
     setIsConnected(socket.connected);
 
@@ -276,7 +277,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     };
 
-  }, [status, userId, provider, role, expires, update, identity, sessionError]);
+  }, [status, userId, provider, role, expires, update, identity, sessionError, enabled]);
 
 
 

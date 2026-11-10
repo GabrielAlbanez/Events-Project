@@ -9,6 +9,7 @@ export const publicEventSelect = {
   userId: true, validate: true, status: true, category: true, priceCents: true,
   isFree: true, lat: true, lng: true, startTime: true, endTime: true, timezone: true,
   capacity: true,
+  organizerName: true, ageRating: true, accessibilityInfo: true, participationInfo: true,
   validatedAt: true,
   user: { select: { id: true, name: true, image: true } },
   validator: { select: { id: true, name: true, image: true } },

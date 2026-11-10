@@ -7,6 +7,10 @@ const date = z.string().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(val
 export const eventInputSchema = z.object({
   nome: z.string().trim().max(160), descricao: z.string().trim().max(10000),
   endereco: z.string().trim().max(500), linkParaCompra: optionalUrl,
+  organizerName: z.string().trim().max(160).default(""),
+  ageRating: z.string().trim().max(120).default(""),
+  accessibilityInfo: z.string().trim().max(2000).default(""),
+  participationInfo: z.string().trim().max(2000).default(""),
   dataInicio: date, dataFim: date, category: z.string().trim().min(1).max(80),
   priceCents: z.number().int().min(0).max(100000000), isFree: z.boolean(),
   capacity: z.number().int().min(1).max(1000000).nullable(),
@@ -26,6 +30,10 @@ export function parseEventInput(form: FormData, submit: boolean) {
   const coordinate = (key: string) => text(key) ? Number(text(key)) : null;
   const result = eventInputSchema.safeParse({
     nome: text("nome"), descricao: text("descricao"), endereco: text("endereco"),
+    organizerName: form.has("organizerName") ? text("organizerName") : undefined,
+    ageRating: form.has("ageRating") ? text("ageRating") : undefined,
+    accessibilityInfo: form.has("accessibilityInfo") ? text("accessibilityInfo") : undefined,
+    participationInfo: form.has("participationInfo") ? text("participationInfo") : undefined,
     linkParaCompra: text("LinkParaCompraIngresso") || text("linkParaCompra"),
     dataInicio: text("dataInicio"), dataFim: text("dataFim"), category: text("category") || "Outros",
     priceCents: Number(text("priceCents") || 0), isFree: text("isFree") !== "false",

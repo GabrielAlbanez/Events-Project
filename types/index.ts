@@ -31,6 +31,10 @@ export type Evento = {
   linkParaCompra: string;
   id: string;
   endereco: string;
+  organizerName?: string;
+  ageRating?: string;
+  accessibilityInfo?: string;
+  participationInfo?: string;
   lat?: number | null;
   lng?: number | null;
   validate: boolean;

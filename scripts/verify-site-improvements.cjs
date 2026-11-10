@@ -49,33 +49,43 @@ function load(file, dependencies) {
   assert.equal(period.matchesPeriod({ dataInicio: "invalid" }, "hoje", sunday), false);
 
   const state = [], refs = []; let stateIndex = 0, refIndex = 0, tree;
-  const changes = [], locations = [];
+  const changes = [], locations = []; let mapsAllowed = true;
   const jsx = (type, props) => ({ type, props });
   const filters = load("components/MyComponents/PublicEventFilters.tsx", {
     react: { useEffect: () => {}, useRef: value => refs[refIndex++] ??= { current: value }, useState: value => { const index = stateIndex++; state[index] ??= value; return [state[index], next => { state[index] = next; }]; } },
-    "react/jsx-runtime": { jsx, jsxs: jsx }, "./GoogleMapsLoader": { useGoogleMaps: () => ({ isLoaded: true }) },
+    "react/jsx-runtime": { jsx, jsxs: jsx }, "./GoogleMapsLoader": { useGoogleMaps: () => ({ isLoaded: mapsAllowed, enabled: mapsAllowed }) },
+    "./GoogleMapsPreference": { GoogleMapsPreference: "GoogleMapsPreference" },
   });
-  const props = { events: [], value: { ...filters.emptyDiscoveryFilter }, onChange: value => changes.push(value) };
+  const props = { events: [], value: { ...filters.emptyDiscoveryFilter }, onChange: value => { changes.push(value); props.value = value; } };
   function render() { stateIndex = 0; refIndex = 0; tree = filters.default(props); }
   function find(node, predicate) { if (!node || typeof node !== "object") return null; if (predicate(node)) return node; const children = node.props?.children; for (const child of Array.isArray(children) ? children : [children]) { const found = find(child, predicate); if (found) return found; } return null; }
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: { geolocation: { getCurrentPosition: success => locations.push(success) } } });
   render();
-  const radius = find(tree, node => node.type === "select" && node.props.children?.[0]?.props?.children === "Qualquer distância");
-  radius.props.onChange({ target: { value: "5" } });
+  assert.equal(locations.length, 0, "Rendering filters must not request geolocation");
+  const radius = () => find(tree, node => node.type === "select" && node.props.children?.[0]?.props?.children === "Qualquer distância");
+  radius().props.onChange({ target: { value: "5" } }); render();
+  assert.equal(locations.length, 0, "Choosing a radius must wait for explicit location use");
+  assert.equal(props.value.origin, null);
+  find(tree, node => node.type === "button" && node.props.children === "Usar minha localização").props.onClick();
+  assert.equal(locations.length, 1, "Only the location action may request geolocation");
   find(tree, node => node.type === "button" && node.props.children === "Limpar filtros").props.onClick();
   const countAfterClear = changes.length;
   locations[0]({ coords: { latitude: 1, longitude: 2 } });
   assert.equal(changes.length, countAfterClear); assert.deepEqual(changes.at(-1), filters.emptyDiscoveryFilter);
-  render(); radius.props.onChange({ target: { value: "10" } });
+  render(); radius().props.onChange({ target: { value: "10" } }); render();
+  assert.equal(locations.length, 1);
+  find(tree, node => node.type === "button" && node.props.children === "Usar minha localização").props.onClick();
   props.value = { ...filters.emptyDiscoveryFilter, category: "Music" }; render();
-  locations[1]({ coords: { latitude: 1, longitude: 2 } }); assert.equal(changes.length, countAfterClear);
+  const beforeChangedCategoryResponse = changes.length;
+  locations[1]({ coords: { latitude: 1, longitude: 2 } }); assert.equal(changes.length, beforeChangedCategoryResponse);
   let resolveMatrix;
   const matrixPending = new Promise(resolve => { resolveMatrix = resolve; });
   globalThis.window = { google: { maps: {} } };
   globalThis.google = { maps: { importLibrary: async () => ({ RouteMatrix: { computeRouteMatrix: () => matrixPending } }) } };
   props.events = [{ id: "e1", lat: 1, lng: 2, category: "Music", isFree: true }]; render();
   find(tree, node => node.type === "select" && node.props.id === "travel-time-filter").props.onChange({ target: { value: "15" } }); render();
-  find(tree, node => node.type === "button" && node.props.children === "Aplicar tempo de viagem").props.onClick();
+  assert.equal(locations.length, 2, "Choosing travel time must not request geolocation");
+  find(tree, node => node.type === "button" && node.props.children === "Usar minha localização e calcular viagem").props.onClick();
   locations[2]({ coords: { latitude: 1, longitude: 2 } });
   await new Promise(resolve => setImmediate(resolve));
   find(tree, node => node.type === "select" && node.props.id === "travel-time-filter").props.onChange({ target: { value: "30" } }); render();
@@ -86,7 +96,7 @@ function load(file, dependencies) {
   let rejectMatrix;
   const failedMatrix = new Promise((_, reject) => { rejectMatrix = reject; });
   globalThis.google.maps.importLibrary = async () => ({ RouteMatrix: { computeRouteMatrix: () => failedMatrix } });
-  find(tree, node => node.type === "button" && node.props.children === "Aplicar tempo de viagem").props.onClick();
+  find(tree, node => node.type === "button" && node.props.children === "Usar minha localização e calcular viagem").props.onClick();
   locations[3]({ coords: { latitude: 1, longitude: 2 } });
   await new Promise(resolve => setImmediate(resolve));
   find(tree, node => node.type === "button" && node.props.children === "Limpar filtros").props.onClick(); render();
@@ -94,5 +104,13 @@ function load(file, dependencies) {
   rejectMatrix(Error("network failed"));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(changes.length, afterSecondClear); assert.equal(state[3], ""); assert.equal(state[2], false);
-  console.log("PASS: bounded authorized admin pagination, demand-loaded events, isolated stable notification cursors, Sunday and multi-day periods, late geolocation/matrix success/failure ignored after clear or newer filters");
+  mapsAllowed = false; render();
+  find(tree, node => node.type === "select" && node.props.id === "travel-time-filter").props.onChange({ target: { value: "15" } }); render();
+  const blockedTravel = find(tree, node => node.type === "button" && node.props.children === "Usar minha localização e calcular viagem");
+  assert.equal(blockedTravel.props.disabled, true, "Travel requests must be disabled until Google Maps is activated");
+  const beforeBlockedTravel = locations.length;
+  await blockedTravel.props.onClick();
+  assert.equal(locations.length, beforeBlockedTravel, "Unavailable Maps must not trigger a location request even if the handler is invoked");
+  assert.match(state[3], /mapa está indisponível/);
+  console.log("PASS: bounded authorized admin pagination, demand-loaded events, isolated stable notification cursors, Sunday and multi-day periods, explicit geolocation, optional Maps gating, late geolocation/matrix success/failure ignored after clear or newer filters");
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -21,6 +21,7 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { GoogleMapsPreference } from "./GoogleMapsPreference";
 
 type EventoFormData = {
   nome: string;
@@ -33,6 +34,10 @@ type EventoFormData = {
   isFree: boolean;
   startTime: string;
   endTime: string;
+  organizerName: string;
+  ageRating: string;
+  accessibilityInfo: string;
+  participationInfo: string;
 };
 
 type EventDate = ReturnType<typeof parseDate>;
@@ -50,7 +55,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "" },
   });
   const { data } = useCurrentUser();
   const router = useRouter();
@@ -172,6 +177,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         payload.append("capacity", values.capacity.trim());
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
+        payload.append("organizerName", values.organizerName.trim());
+        payload.append("ageRating", values.ageRating.trim());
+        payload.append("accessibilityInfo", values.accessibilityInfo.trim());
+        payload.append("participationInfo", values.participationInfo.trim());
         if (coordinates) {
           payload.append("lat", String(coordinates.lat));
           payload.append("lng", String(coordinates.lng));
@@ -299,6 +308,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
                 </div>}
               </fieldset>}
+              <GoogleMapsPreference compact />
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
                   <span className="block text-sm font-medium">Endereço <Required /></span>
@@ -368,6 +378,16 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores.</p>
                 {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
               </div>
+            </div>
+          </section>
+
+          <section className={sectionClass} aria-labelledby="event-participation-title">
+            <SectionHeading number="04" title="Antes de participar" description="Informe dados confirmados pela organização. Se não souber, deixe vazio: a página indicará que a informação não foi fornecida." id="event-participation-title" />
+            <div className="space-y-5">
+              <FormField name="organizerName" render={({ field }) => <FormItem><FormLabel>Organização responsável <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input maxLength={160} placeholder="Nome oficial de quem realiza o evento" {...field} /></FormControl><FormDescription>Esta informação é diferente da conta que publica o evento no EventMap. Não informe um organizador sem confirmação.</FormDescription><FormMessage /></FormItem>} />
+              <FormField name="ageRating" render={({ field }) => <FormItem><FormLabel>Classificação etária <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input maxLength={120} placeholder="Ex.: Livre ou 18 anos, conforme a organização" {...field} /></FormControl><FormDescription>Inclua exigência de acompanhante, se informada. Não presuma que o evento é livre.</FormDescription><FormMessage /></FormItem>} />
+              <FormField name="accessibilityInfo" render={({ field }) => <FormItem><FormLabel>Recursos de acessibilidade <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Textarea rows={3} maxLength={2000} placeholder="Descreva os recursos confirmados, as limitações e como obter ajuda." {...field} /></FormControl><FormDescription>Por exemplo, entrada sem degraus, banheiro adaptado ou Libras. Informe apenas o que foi confirmado.</FormDescription><FormMessage /></FormItem>} />
+              <FormField name="participationInfo" render={({ field }) => <FormItem><FormLabel>Condições de participação <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Textarea rows={3} maxLength={2000} placeholder="Documentos exigidos, retirada de ingressos e demais condições da organização." {...field} /></FormControl><FormMessage /></FormItem>} />
             </div>
           </section>
 

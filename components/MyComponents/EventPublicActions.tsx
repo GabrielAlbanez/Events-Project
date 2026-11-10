@@ -6,6 +6,7 @@ import { Bookmark, Share2, CalendarPlus, Flag, TicketCheck, Users } from "lucide
 import { getFavoriteState, toggleFavorite, setEventReminder, toggleFollow } from "@/app/(actions)/engagement/action";
 import CheckInPass from "./CheckInPass";
 import EventPeoplePreview from "./EventPeoplePreview";
+import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
 
 type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
 type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null };
@@ -27,7 +28,12 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus }: 
   const [reportMessage, setReportMessage] = useState("");
   const [pending, startTransition] = useTransition();
   useEffect(() => {
-    void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "view" }), keepalive: true }).catch(() => undefined);
+    const measure = () => {
+      if (hasMetricConsent()) void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "view" }), keepalive: true }).catch(() => undefined);
+    };
+    measure();
+    window.addEventListener(METRIC_CONSENT_EVENT, measure);
+    return () => window.removeEventListener(METRIC_CONSENT_EVENT, measure);
   }, [eventId]);
   useEffect(() => {
     let active = true;
@@ -106,7 +112,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus }: 
       {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (!result.saved) setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><Bookmark className="h-4 w-4" />{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href="/login">Entrar para salvar</Link>}
       <button type="button" onClick={() => void share()} className={button}><Share2 className="h-4 w-4" />Compartilhar</button>
       <a className={button} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" />Adicionar ao calendário</a>
-      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " bg-primary text-primary-foreground"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={() => { void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); }}>Ingressos no site do organizador ↗</a>}
+      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " bg-primary text-primary-foreground"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={() => { if (hasMetricConsent()) void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); }}>Ingressos no site do organizador ↗</a>}
     </div>
     {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); setMessage(result.message); if (result.success) setReminder(minutes); } catch { setMessage("Não foi possível configurar o lembrete."); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
     {status === "authenticated" && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>

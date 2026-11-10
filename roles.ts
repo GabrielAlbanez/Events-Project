@@ -5,4 +5,4 @@ export const roleRoutes: Record<string, string[]> = {
  PROMOTER: ["/Profile", "/", "/CriarEvento", "/myEvents", "/resultados", "/salvos", "/notificacoes"],
  GUEST: ["/", "/login", "/register"],
 };
-export const publicRoutes = ["/", "/EventsCreated"];
+export const publicRoutes = ["/", "/EventsCreated", "/privacidade", "/privacidade/solicitacoes"];

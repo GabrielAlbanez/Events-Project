@@ -52,6 +52,13 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const status = submit || existing?.status === "PUBLISHED" ? "PENDING" as const : "DRAFT" as const;
         const evento = await prisma.$transaction(async (transaction) => {
             const data = { ...parsed.data, banner, carrossel, status, validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
+            // Older clients omit these fields: preserve existing information until explicitly edited.
+            if (existing) {
+                if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
+                if (!formData.has("ageRating")) data.ageRating = existing.ageRating;
+                if (!formData.has("accessibilityInfo")) data.accessibilityInfo = existing.accessibilityInfo;
+                if (!formData.has("participationInfo")) data.participationInfo = existing.participationInfo;
+            }
             if (existing) {
                 const changed = await transaction.events.updateMany({ where: { id: existing.id, updatedAt: existing.updatedAt, status: existing.status }, data });
                 if (!changed.count)
@@ -99,6 +106,8 @@ export async function duplicarEvento(eventId: string, resolveCurrentUser: Resolv
                     dataInicio: "", dataFim: "", category: source.category, priceCents: source.priceCents,
                     isFree: source.isFree, lat: source.lat, lng: source.lng, startTime: source.startTime,
                     capacity: source.capacity,
+                    organizerName: source.organizerName, ageRating: source.ageRating,
+                    accessibilityInfo: source.accessibilityInfo, participationInfo: source.participationInfo,
                     endTime: source.endTime, userId: user.id, status: "DRAFT", validate: false,
                 } });
             await record(transaction, event, user, "DUPLICATED");

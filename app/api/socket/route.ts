@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 
 /**
  * O Socket.IO é inicializado pelo servidor customizado em `server.mts`.
@@ -7,6 +8,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   return NextResponse.json({
     service: "socket.io",
-    status: "available",
-  });
+    status: process.env.EVENTMAP_SOCKET_SERVER === "true" ? "available" : "disabled",
+    enabled: process.env.EVENTMAP_SOCKET_SERVER === "true",
+  }, { headers: { "Cache-Control": "no-store" } });
 }

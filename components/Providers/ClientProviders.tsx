@@ -13,12 +13,14 @@ import ImpersonationGuard from "@/components/MyComponents/ImpersonationGuard";
 export default function ClientProviders({
   children,
   defaultOpen,
+  realtimeEnabled = false,
 }: {
   children: React.ReactNode;
   defaultOpen: boolean;
+  realtimeEnabled?: boolean;
 }) {
   const content = (
-      <SocketProvider>
+      <SocketProvider enabled={realtimeEnabled}>
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
             <ImpersonationGuard>
@@ -41,7 +43,7 @@ export default function ClientProviders({
   );
 
   return (
-    <SessionProvider>
+    <SessionProvider refetchInterval={60} refetchOnWindowFocus>
       {content}
     </SessionProvider>
   );

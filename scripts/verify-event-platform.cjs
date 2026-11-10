@@ -22,6 +22,7 @@ function load(relative){
    }};
   }
   if(name.startsWith("@/"))return load(name.slice(2)+".ts");
+  if(name.startsWith("."))return load(path.relative(process.cwd(),path.resolve(path.dirname(filename),name+".ts")));
   return nativeRequire(name);
  };
  new Function("require","module","exports","__filename","__dirname",source)(requireLocal,module,module.exports,filename,path.dirname(filename));
@@ -47,6 +48,9 @@ async function run(){
  assert.equal(canAccessPath("BASIC","/admin/conexoes-denuncias"),false);
  assert.equal(canAccessPath("ADMIN","/admin/conexoes-denuncias"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
+ assert.equal(isPublicPath("/privacidade"),true);
+ assert.equal(isPublicPath("/privacidade/solicitacoes"),true);
+ assert.equal(isPublicPath("/privacidade/admin"),false);
  assert.equal(isPublicPath("/eventos/test/editar"),false);
  assert.equal(getSessionRole({id:"test",role:"ADMIN",provider:"dev-admin"}),"GUEST");
  console.log("PASS: route access policy and retired development identity isolation");
@@ -63,6 +67,15 @@ async function run(){
  for(const change of [{LinkParaCompraIngresso:"javascript:alert(1)"},{dataFim:"2026-02-30"},{dataFim:"2026-01-01"},{endTime:"09:00"},{startTime:"25:00"},{lat:"10"},{priceCents:"-1"}])assert.equal(parseEventInput(form(change),true).success,false);
  assert.equal(parseEventInput(new FormData(),false).success,true);
  assert.equal(parseEventInput(new FormData(),true).success,false);
+ const practical={organizerName:"  Organização de teste  ",ageRating:"Livre",accessibilityInfo:"Entrada sem degraus.",participationInfo:"Apresente a confirmação da inscrição."};
+ const practicalParsed=parseEventInput(form(practical),true);
+ assert.equal(practicalParsed.success,true);
+ assert.equal(practicalParsed.data.organizerName,"Organização de teste");
+ for(const [key,max] of [["organizerName",160],["ageRating",120],["accessibilityInfo",2000],["participationInfo",2000]]){
+  assert.equal(parseEventInput(form({[key]:"x".repeat(max)}),true).success,true);
+  assert.equal(parseEventInput(form({[key]:"x".repeat(max+1)}),true).success,false);
+  assert.equal(parseEventInput(form(),true).data[key],"");
+ }
  assert.equal(eventInstant("2027-01-02","10:00","America/Sao_Paulo").toISOString(),"2027-01-02T13:00:00.000Z");
  assert.equal(eventInstant("2027-01-02","10:00","Invalid/Timezone"),null);
  console.log("PASS: input validation, incomplete drafts, chronology, safe URLs and timezone");
@@ -87,18 +100,21 @@ async function run(){
   activeUser=basic;assert.equal((await actions.salvarRascunho(new FormData(),basic.id)).success,false);
   activeUser=promoter;
   const image=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2uoAAAAASUVORK5CYII=","base64");
-  const submitted=form();submitted.set("banner",new File([image],"test.png",{type:"image/png"}));
+  const submitted=form(practical);submitted.set("banner",new File([image],"test.png",{type:"image/png"}));
   const saved=await actions.atualizarEvento(draft.evento.id,submitted,true);assert.equal(saved.success,true);assert.equal(saved.evento.status,"PENDING");assert.equal(await queries.getPublicEvent(saved.evento.id),null);
   phase="correction privacy";activeUser=admin;
   assert.equal((await actions.solicitarCorrecao(saved.evento.id,"Corrigir as informações de acesso.")).success,true);
   activeUser=promoter;
   assert.equal((await actions.getOwnedEvent(saved.evento.id)).status,"CHANGES_REQUESTED");
   assert.equal((await actions.atualizarEvento(saved.evento.id,form(),true)).success,true);
+  const ownedPractical=await actions.getOwnedEvent(saved.evento.id);
+  for(const [key,value] of Object.entries(practicalParsed.data))if(Object.hasOwn(practical,key))assert.equal(ownedPractical[key],value,"Older forms must preserve practical information");
   activeUser=basic;assert.equal((await engagement.toggleFollow(promoter.id)).success,true);
   assert.equal((await validation.validateEvents([saved.evento.id],basic.id)).status,"error");
   phase="publish followers and public projection";activeUser=admin;
   const approved=await validation.validateEvents([saved.evento.id],admin.id);assert.equal(approved.validatedEventIds.length,1);
   const publicEvent=await queries.getPublicEvent(saved.evento.id);assert.equal(publicEvent.status,"PUBLISHED");
+  assert.equal(publicEvent.organizerName,"Organização de teste");assert.equal(publicEvent.accessibilityInfo,practical.accessibilityInfo);
   for(const person of [publicEvent.user,publicEvent.validator])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
   activeUser=basic;const notices=await engagement.getNotifications();assert.ok(notices.some(item=>item.title==="Evento publicado"));assert.ok(notices.every(item=>!item.message.includes("Corrigir")));
   phase="favorites reminders and edits";assert.equal((await engagement.toggleFavorite(saved.evento.id)).saved,true);
@@ -109,6 +125,7 @@ async function run(){
   activeUser=admin;await validation.validateEvents([saved.evento.id],admin.id);
   phase="duplicate and cancellation";activeUser=promoter;
   const duplicate=await actions.duplicarEvento(saved.evento.id);assert.equal(duplicate.success,true);createdEvents.add(duplicate.evento.id);assert.equal(duplicate.evento.status,"DRAFT");assert.equal(duplicate.evento.validate,false);
+  for(const key of Object.keys(practical))assert.equal(duplicate.evento[key],practicalParsed.data[key]);
   assert.equal((await actions.cancelarEvento(saved.evento.id)).success,true);assert.equal((await queries.getPublicEvent(saved.evento.id)).status,"CANCELLED");
   activeUser=basic;assert.ok((await engagement.getSavedEvents()).some(event=>event.status==="CANCELLED"));
   assert.ok((await engagement.getNotifications()).some(notice=>notice.title==="Evento cancelado"));
@@ -127,4 +144,4 @@ async function run(){
   await db.$disconnect();
  }
 }
-run().catch(()=>{process.exitCode=1;});
+run().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -18,6 +18,9 @@ import { registerChatSignals } from "./server/chatSignals.mjs";
 import { startProfileImageRealtime } from "./server/profileImageRealtime.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
+// Only this persistent server owns a Socket.IO listener. Plain Next/Vercel
+// deployments must not advertise a connection that they cannot serve.
+process.env.EVENTMAP_SOCKET_SERVER = "true";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
