@@ -3,6 +3,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const ts = require("typescript");
+const loadTailwindConfig = require("tailwindcss/loadConfig");
+const fastGlob = require("fast-glob");
+
+const projectRoot = path.join(__dirname, "..");
+const tailwindConfig = loadTailwindConfig(path.join(projectRoot, "tailwind.config.ts"));
+const candidateFiles = fastGlob.sync(tailwindConfig.content, { cwd: projectRoot, onlyFiles: true });
+assert(candidateFiles.some(file => file.replace(/\\/g, "/").replace(/^\.\//, "") === "context/SocketContext.tsx"),
+  "Tailwind must scan SocketContext.tsx so the notice header offset and interactive control styles ship.");
 
 const source = fs.readFileSync(path.join(__dirname, "../context/SocketContext.tsx"), "utf8");
 const start = source.indexOf("function RealtimeConnectionNotice(");
@@ -159,4 +167,4 @@ staleButton.props.onClick();
 assert.deepEqual(alreadyConnected.calls, [], "A stale retry button must not interrupt a recovered socket.");
 alreadyConnected.unmount();
 
-console.log("Realtime notice checks passed: delayed status, 45-second timeout, manual retry, accessible control, reconnect reset and timer cleanup.");
+console.log("Realtime notice checks passed: delayed status, 45-second timeout, manual retry, accessible control, reconnect reset, timer cleanup and Tailwind content coverage.");
