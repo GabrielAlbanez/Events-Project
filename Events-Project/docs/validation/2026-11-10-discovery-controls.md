@@ -14,4 +14,3 @@
 - Build final isolado aprovado, incluindo lint e verificação de tipos.
 
 A conexão Socket.IO local usa servidor externo não disponível nesse contexto; o aviso de reconexão local não foi tratado como falha desta correção. Não houve alteração de servidor, banco, autenticação ou permissões nativas.
-
