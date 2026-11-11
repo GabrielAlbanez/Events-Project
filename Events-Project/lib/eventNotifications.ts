@@ -1,5 +1,5 @@
-import { createNotifications } from "@/lib/notifications/create";
-import { notificationCopy } from "@/lib/notifications/catalog";
+import { createNotifications } from "./notifications/create";
+import { notificationCopy } from "./notifications/catalog";
 import type { Prisma } from "@prisma/client";
 type EventAudience = { id: string; nome: string; userId: string | null; status?: string };
 export async function notifyEventAudience(tx: Prisma.TransactionClient, event: EventAudience, notice: { title: string; message: string; includeFollowers?: boolean; includeAdmins?: boolean; includeFavorites?: boolean }) {

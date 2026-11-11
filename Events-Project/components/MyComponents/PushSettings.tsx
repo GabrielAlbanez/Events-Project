@@ -12,12 +12,40 @@ function applicationKey(value: string) {
   return bytes;
 }
 
+async function withDeadline<T>(operation: Promise<T>, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new PushTimeout(message)), 12000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+class PushTimeout extends Error {}
+
+function reusePending<T>(ref: { current: Promise<T> | null }, start: () => Promise<T>) {
+  if (ref.current) return ref.current;
+  const operation = start();
+  ref.current = operation;
+  const clear = () => { if (ref.current === operation) ref.current = null; };
+  void operation.then(clear, clear);
+  return operation;
+}
+
 export default function PushSettings() {
   const { data: session, status } = useSession();
   const identity = useRef(session?.user?.id);
   identity.current = status === "authenticated" ? session?.user?.id : undefined;
   const mounted = useRef(true);
   const pending = useRef(false);
+  const toggleAttempt = useRef(0);
+  const pendingPermission = useRef<Promise<NotificationPermission> | null>(null);
+  const pendingSubscription = useRef<Promise<PushSubscription> | null>(null);
   const cooldownTimer = useRef<ReturnType<typeof setTimeout>>();
   const [supported, setSupported] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,6 +57,7 @@ export default function PushSettings() {
   const [message, setMessage] = useState("");
   useEffect(() => {
     let active = true; mounted.current = true; pending.current = false;
+    toggleAttempt.current += 1;
     const available = window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     setSupported(available); setSubscribed(false); setPublicKey(null); setMessage(""); setBusy(false); setCooldown(false); setLoading(available);
     if (!available || status !== "authenticated") { setLoading(false); return; }
@@ -53,6 +82,8 @@ export default function PushSettings() {
   async function toggle() {
     if (!supported || (!publicKey && !subscribed) || pending.current || !identity.current) return;
     const requestedIdentity = identity.current;
+    const attempt = ++toggleAttempt.current;
+    const isCurrent = () => attempt === toggleAttempt.current && requestedIdentity === identity.current && mounted.current;
     pending.current = true; setBusy(true); setMessage("");
     try {
       if (subscribed) {
@@ -64,24 +95,43 @@ export default function PushSettings() {
           if (!response.ok || !result.success) throw new Error();
           await subscription.unsubscribe();
         }
-        if (requestedIdentity === identity.current && mounted.current) { setSubscribed(false); setMessage("Avisos desativados neste navegador. Sua central continua disponível."); }
+        if (isCurrent()) { setSubscribed(false); setMessage("Avisos desativados neste navegador. Sua central continua disponível."); }
       } else {
-        const granted = await Notification.requestPermission();
-        if (requestedIdentity !== identity.current || !mounted.current) return;
+        const granted = await withDeadline(
+          reusePending(pendingPermission, () => Notification.requestPermission()),
+          "O navegador ainda não respondeu. Confira o pedido de permissão e tente novamente.",
+        );
+        if (!isCurrent()) return;
         setPermission(granted);
         if (granted !== "granted") { setMessage("Você continua recebendo suas novidades nesta central."); return; }
-        const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
-        await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationKey(publicKey!) });
-        if (requestedIdentity !== identity.current || !mounted.current) { await subscription.unsubscribe(); return; }
+        if (!publicKey) return;
+        const workerTimeout = "O navegador demorou para preparar os avisos. Tente novamente.";
+        await withDeadline(navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }), workerTimeout);
+        if (!isCurrent()) return;
+        const registration = await withDeadline(navigator.serviceWorker.ready, workerTimeout);
+        if (!isCurrent()) return;
+        const existing = await withDeadline(registration.pushManager.getSubscription(), workerTimeout);
+        if (!isCurrent()) return;
+        const subscription = existing ?? await withDeadline(
+          reusePending(pendingSubscription, () => registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationKey(publicKey),
+          })),
+          "O navegador demorou para criar a inscrição. Tente novamente.",
+        );
+        if (!isCurrent()) return;
         const response = await fetch("/api/push/subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(subscription.toJSON()) });
         const result: { success: boolean; message?: string } = await response.json();
         if (!response.ok || !result.success) throw new Error();
-        if (requestedIdentity === identity.current && mounted.current) { setSubscribed(true); setMessage("Pronto. Os avisos desta conta estão ativos neste navegador."); }
+        if (isCurrent()) { setSubscribed(true); setMessage("Pronto. Os avisos desta conta estão ativos neste navegador."); }
       }
-    } catch { if (requestedIdentity === identity.current && mounted.current) setMessage("Não foi possível atualizar os avisos. Confira sua conexão e tente novamente."); }
-    finally { if (requestedIdentity === identity.current && mounted.current) { pending.current = false; setBusy(false); } }
+    } catch (error) {
+      if (isCurrent()) setMessage(error instanceof PushTimeout
+        ? error.message
+        : "Não foi possível atualizar os avisos. Confira sua conexão e tente novamente.");
+    } finally {
+      if (isCurrent()) { pending.current = false; setBusy(false); }
+    }
   }
   async function sendTest() {
     if (pending.current || cooldown || !subscribed || !identity.current) return;
