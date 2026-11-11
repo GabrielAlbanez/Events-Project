@@ -6,6 +6,10 @@ Aplicação full stack para descoberta de eventos por mapa e agenda, organizaç�
 
 [Explorar o site](https://events-project-lake.vercel.app/) · [Experimentar sem conta](https://events-project-lake.vercel.app/demonstracao) · [Código do site](Events-Project/) · [Auditoria](AUDITORIA.md)
 
+Projeto pessoal de portfólio de Gabriel Albanez. O monorepo reúne a aplicação web publicada e o aplicativo mobile, com documentação e instruções próprias para cada ambiente.
+
+[Funcionalidades](#o-que-o-projeto-resolve) · [Demonstração](#veja-em-funcionamento) · [Arquitetura](#arquitetura) · [Privacidade](#privacidade-e-controles) · [Execução local](#executar-localmente) · [Mobile](#aplicativo-mobile) · [Testes](#qualidade-e-testes)
+
 ![EventMap no desktop, com tema escuro](Events-Project/docs/portfolio/home-dark.png)
 
 ## O que o projeto resolve
@@ -61,6 +65,21 @@ As escritas passam pelas APIs/actions e pela autorização no servidor. Na comun
 O processo persistente também executa lembretes, notificações e busca de eventos. A Vercel atende o frontend e as APIs; não hospeda o servidor WebSocket. A entrega atual pressupõe uma instância Socket.IO: escalar horizontalmente exige adapter/pubsub e coordenação dos consumidores.
 
 **Stack:** Next.js 14, React 18, TypeScript, Tailwind CSS, HeroUI/Radix, Framer Motion, Prisma, PostgreSQL, NextAuth, Socket.IO e Zod.
+
+## Privacidade e controles
+
+- A descoberta por lista funciona com o Google Maps desativado. O mapa e as sugestões de endereço carregam quando a pessoa ativa a integração.
+- A localização é solicitada após ação explícita. O aviso do site é lembrado durante a sessão da aba após a aceitação, sem guardar coordenadas nessa preferência. A permissão é gerenciada pelo navegador.
+- As métricas opcionais de visualizações e cliques ficam desativadas por padrão. As preferências podem ser revistas na política de privacidade.
+- A importação administrativa registra a fonte pública de cada proposta e exige aprovação individual antes da publicação na agenda.
+
+[Política e preferências](https://events-project-lake.vercel.app/privacidade) · [Solicitações de privacidade](https://events-project-lake.vercel.app/privacidade/solicitacoes) · [Procedimento operacional](Events-Project/docs/privacy-operations.md)
+
+## Aplicativo mobile
+
+O aplicativo usa React Native, Expo Router e TypeScript. O frontend e a API mobile são independentes da aplicação web e compartilham o PostgreSQL. O link de produção no topo abre a versão web.
+
+[Configuração e execução do app](events-project-mobile/README.md) · [API mobile](events-project-mobile/server/README.md)
 
 ## Executar localmente
 
@@ -138,5 +157,11 @@ Os scripts de integração com sufixos `:db` e `:http` podem criar registros tem
 | [events-project-mobile](events-project-mobile/) | Aplicativo Expo/React Native e backend independente; fora do escopo desta apresentação web |
 
 [Arquitetura detalhada](Events-Project/docs/architecture.md) · [Comunidade](Events-Project/docs/community.md) · [Chat e conexões](Events-Project/docs/event-chat.md) · [Configuração de e-mail](Events-Project/docs/deploy-email.md)
+
+## Revisão e publicação
+
+A branch padrão é `main`. Para propor mudanças, abra um PR com o comportamento esperado, o escopo e as verificações executadas. Mudanças no banco devem explicar a migração e os efeitos sobre registros existentes. Mudanças que dependem de Google Maps, SMTP, Web Push ou Socket.IO devem identificar o que foi validado localmente e o que exige ambiente integrado.
+
+[Guia de desenvolvimento](Events-Project/docs/guia-desenvolvimento.md) · [Validação e publicação](Events-Project/docs/validacao-e-publicacao.md) · [Validações registradas](Events-Project/docs/validation/)
 
 Desenvolvido por [Gabriel Albanez](https://github.com/GabrielAlbanez).
