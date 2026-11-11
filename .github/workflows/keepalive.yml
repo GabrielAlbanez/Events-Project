@@ -1,0 +1,30 @@
+name: Render keepalive
+
+on:
+  schedule:
+    - cron: '3-59/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check Render health
+        shell: bash
+        run: |
+          http_status="$(curl \
+            --proto '=https' \
+            --fail --silent --show-error \
+            --connect-timeout 10 --max-time 90 \
+            --retry 2 --retry-delay 5 --retry-max-time 180 \
+            --output /dev/null --write-out '%{http_code}' \
+            'https://eventmap-socket.onrender.com/healthz')"
+          echo "Render health check HTTP ${http_status}"
+          test "${http_status}" = '200'

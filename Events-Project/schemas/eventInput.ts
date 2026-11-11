@@ -7,6 +7,7 @@ const optionalInformation = (limit: number) => z.string().trim().max(limit, `Use
 const date = z.string().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value, "Data inválida.");
 export const eventInputSchema = z.object({
   nome: z.string().trim().max(160), descricao: z.string().trim().max(10000),
+  organizerName: z.string().trim().max(160).default(""),
   ageRating: optionalInformation(80), accessibilityInfo: optionalInformation(2000), participationInfo: optionalInformation(2000),
   endereco: z.string().trim().max(500), linkParaCompra: optionalUrl,
   dataInicio: date, dataFim: date, category: z.string().trim().min(1).max(80),
@@ -28,6 +29,7 @@ export function parseEventInput(form: FormData, submit: boolean) {
   const coordinate = (key: string) => text(key) ? Number(text(key)) : null;
   const result = eventInputSchema.safeParse({
     nome: text("nome"), descricao: text("descricao"), endereco: text("endereco"),
+    organizerName: text("organizerName"),
     ageRating: text("ageRating"), accessibilityInfo: text("accessibilityInfo"), participationInfo: text("participationInfo"),
     linkParaCompra: text("LinkParaCompraIngresso") || text("linkParaCompra"),
     dataInicio: text("dataInicio"), dataFim: text("dataFim"), category: text("category") || "Outros",

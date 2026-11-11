@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, MapPin, Search } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Evento } from "@/types";
 import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
@@ -13,6 +14,7 @@ import styles from "./HeroDiscovery.module.css";
 export type HeroSearchValues = { location: string; period: DiscoveryPeriod; category: string };
 
 export function HeroSearch({ events, period, searchValue, categoryValue, onSearch }: { events: Evento[]; period: DiscoveryPeriod; searchValue: string; categoryValue: string; onSearch: (values: HeroSearchValues) => void }) {
+  const fieldId = useId();
   const [location, setLocation] = useState(searchValue);
   const [selectedPeriod, setSelectedPeriod] = useState<DiscoveryPeriod>(period);
   const [category, setCategory] = useState(categoryValue);
@@ -26,8 +28,8 @@ export function HeroSearch({ events, period, searchValue, categoryValue, onSearc
   };
   return <form className={styles.search} onSubmit={submit} aria-label="Buscar eventos">
     <label className={styles.field}><span>Local ou cidade</span><input value={location} onChange={event => setLocation(event.target.value)} maxLength={100} placeholder="Onde você quer ir?" /></label>
-    <label className={styles.field}><span>Quando</span><select value={selectedPeriod} onChange={event => setSelectedPeriod(event.target.value as DiscoveryPeriod)}><option value="todos">Qualquer data</option><option value="hoje">Hoje</option><option value="fim-de-semana">Fim de semana</option><option value="mes">Este mês</option></select></label>
-    <label className={styles.field}><span>Categoria</span><select value={category} onChange={event => setCategory(event.target.value)}><option value="">Todas</option>{categories.map(value => <option key={value} value={value}>{value.trim()}</option>)}</select></label>
+    <div className={styles.field}><label htmlFor={`${fieldId}-period`}>Quando</label><Select value={selectedPeriod} onValueChange={value => setSelectedPeriod(value as DiscoveryPeriod)}><SelectTrigger id={`${fieldId}-period`} className={styles.selectTrigger}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem className={styles.selectItem} value="todos">Qualquer data</SelectItem><SelectItem className={styles.selectItem} value="hoje">Hoje</SelectItem><SelectItem className={styles.selectItem} value="fim-de-semana">Fim de semana</SelectItem><SelectItem className={styles.selectItem} value="mes">Este mês</SelectItem></SelectContent></Select></div>
+    <div className={styles.field}><label htmlFor={`${fieldId}-category`}>Categoria</label><Select value={category ? `category:${category}` : "all"} onValueChange={value => setCategory(value === "all" ? "" : value.slice("category:".length))}><SelectTrigger id={`${fieldId}-category`} className={styles.selectTrigger}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem className={styles.selectItem} value="all">Todas</SelectItem>{categories.map(value => <SelectItem className={styles.selectItem} key={value} value={`category:${value}`}>{value.trim()}</SelectItem>)}</SelectContent></Select></div>
     <button type="submit" className={styles.searchButton}><Search size={18} aria-hidden="true" />Buscar eventos</button>
   </form>;
 }

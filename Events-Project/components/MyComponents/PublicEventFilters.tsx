@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Evento } from "@/types";
 import { useGoogleMaps } from "./GoogleMapsLoader";
+import { GoogleMapsPreference } from "./GoogleMapsPreference";
 
 export type DiscoveryFilter = { category: string; free: boolean; maxPrice: string; radius: string; origin: {lat:number;lng:number} | null; travelMinutes: number | null; travelDurations: Record<string, number> };
 export const emptyDiscoveryFilter: DiscoveryFilter = {category:'',free:false,maxPrice:'',radius:'',origin:null,travelMinutes:null,travelDurations:{}};
@@ -32,7 +33,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  const [travelChoice, setTravelChoice] = useState("");
  const [travelLoading, setTravelLoading] = useState(false);
  const [travelMessage, setTravelMessage] = useState("");
- const { isLoaded: mapsLoaded } = useGoogleMaps();
+ const { isLoaded: mapsLoaded, enabled: mapsEnabled } = useGoogleMaps();
  const generation = useRef(0);
  const currentValue = useRef(value);
  if (currentValue.current !== value) { currentValue.current = value; generation.current++; }
@@ -139,7 +140,19 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
        const radius = event.target.value;
        if (!radius) { changeOtherFilter({ ...value, radius: "" }); return; }
        if (value.origin) { changeOtherFilter({ ...value, radius }); return; }
-       if (!navigator.geolocation) { setLocationMessage("Este navegador não oferece localização. Use os outros filtros."); changeOtherFilter({ ...value, radius: "" }); return; }
+       changeOtherFilter({ ...value, radius });
+       setLocationMessage("Para aplicar a distância, escolha Usar minha localização.");
+      }}>
+       <option value="">Qualquer distância</option>
+       <option value="5">Até 5 km</option>
+       <option value="10">Até 10 km</option>
+       <option value="25">Até 25 km</option>
+       <option value="50">Até 50 km</option>
+      </select>
+     </label>
+     {value.radius && !value.origin && <button type="button" className="min-h-11 rounded-lg px-2 text-sm font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => {
+       const radius = value.radius;
+       if (!navigator.geolocation) { setLocationMessage("Este navegador não oferece localização. Use os outros filtros."); return; }
        setLocationMessage("Obtendo localização...");
        const request = ++generation.current;
        navigator.geolocation.getCurrentPosition(position => {
@@ -151,24 +164,18 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
         changeOtherFilter({ ...currentValue.current, radius: "" });
         setLocationMessage("Não foi possível obter a localização. Permita o acesso no navegador ou use os outros filtros.");
        }, { timeout: 10000, maximumAge: 60000 });
-      }}>
-       <option value="">Qualquer distância</option>
-       <option value="5">Até 5 km</option>
-       <option value="10">Até 10 km</option>
-       <option value="25">Até 25 km</option>
-       <option value="50">Até 50 km</option>
-      </select>
-     </label>
-     <p className="text-xs leading-relaxed text-muted-foreground">Sua localização é solicitada somente ao escolher uma distância. Eventos sem coordenadas não entram nesse filtro.</p>
+      }}>Usar minha localização</button>}
+     <p className="text-xs leading-relaxed text-muted-foreground">Sua localização é solicitada ao escolher Usar minha localização. A distância é calculada neste navegador. Eventos sem coordenadas não entram nesse filtro.</p>
     </div>
     <div className="space-y-3 border-t border-border pt-4 sm:col-span-2">
+      {!mapsEnabled && <GoogleMapsPreference compact />}
       <label htmlFor="travel-time-filter" className="grid gap-2 text-xs font-semibold text-foreground">Tempo de carro a partir de mim
         <select id="travel-time-filter" className={input} value={travelChoice} onChange={(event) => { generation.current++; setTravelLoading(false); setTravelChoice(event.target.value); }}>
           <option value="">Sem filtro de tempo</option><option value="15">Até 15 minutos</option><option value="30">Até 30 minutos</option><option value="60">Até 1 hora</option>
         </select>
       </label>
-      <button type="button" disabled={travelLoading} onClick={() => void calculateTravel()} className="min-h-11 w-full rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-semibold text-brand hover:bg-primary/15 disabled:opacity-50">{travelLoading ? "Calculando trajetos..." : travelChoice ? "Aplicar tempo de viagem" : "Remover filtro de tempo"}</button>
-      <p className="text-xs leading-relaxed text-muted-foreground">Calculamos a viagem de carro somente quando você pedir. Até 25 eventos próximos são considerados por vez.</p>
+      <button type="button" disabled={travelLoading || Boolean(travelChoice && !mapsLoaded)} onClick={() => void calculateTravel()} className="min-h-11 w-full rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-semibold text-brand hover:bg-primary/15 disabled:opacity-50">{travelLoading ? "Calculando trajetos..." : travelChoice ? "Usar minha localização e calcular viagem" : "Remover filtro de tempo"}</button>
+      <p className="text-xs leading-relaxed text-muted-foreground">Ao calcular, sua localização e os destinos são enviados ao Google. Ative o mapa para usar esse recurso. Até 25 eventos próximos são considerados por vez.</p>
       {travelMessage && <p role="status" className="text-xs text-foreground">{travelMessage}</p>}
     </div>
    </div>

@@ -22,10 +22,12 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { GoogleMapsPreference } from "./GoogleMapsPreference";
 
 type EventoFormData = {
   nome: string;
   descricao: string;
+  organizerName: string;
   ageRating: string;
   accessibilityInfo: string;
   participationInfo: string;
@@ -54,7 +56,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
   });
   const { data } = useCurrentUser();
   const router = useRouter();
@@ -166,6 +168,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         const payload = new FormData();
         payload.append("nome", values.nome.trim());
         payload.append("descricao", values.descricao.trim());
+        payload.append("organizerName", values.organizerName.trim());
         payload.append("ageRating", values.ageRating.trim());
         payload.append("accessibilityInfo", values.accessibilityInfo.trim());
         payload.append("participationInfo", values.participationInfo.trim());
@@ -311,6 +314,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
                 </div>}
               </fieldset>}
+              <GoogleMapsPreference compact />
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
                   <span className="block text-sm font-medium">Endereço <Required /></span>
@@ -343,6 +347,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             <h2 id="event-practical-title" className="text-xl font-semibold tracking-tight">Antes de participar</h2>
             <p className="mt-1 text-sm text-muted-foreground">Informações opcionais para o público planejar a visita. Preencha apenas o que foi confirmado pela organização.</p>
             <div className="mt-6 space-y-5">
+              <FormField name="organizerName" rules={{ maxLength: { value: 160, message: "Use até 160 caracteres." } }} render={({ field }) => (
+                <FormItem><FormLabel>Organização responsável <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input maxLength={160} placeholder="Nome oficial de quem realiza o evento" {...field} /></FormControl><FormDescription>Informe somente a organização confirmada. Este dado é diferente da conta que publica no EventMap.</FormDescription><FormMessage /></FormItem>
+              )} />
               <FormField name="ageRating" rules={{ maxLength: { value: 80, message: "Use até 80 caracteres." } }} render={({ field }) => (
                 <FormItem><FormLabel>Classificação etária</FormLabel><FormControl><Input placeholder="Ex.: Livre ou 18 anos" maxLength={80} {...field} /></FormControl><FormDescription>Informe restrições de idade e, se aplicável, a necessidade de acompanhante.</FormDescription><FormMessage /></FormItem>
               )} />

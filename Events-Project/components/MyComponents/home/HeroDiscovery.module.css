@@ -1,10 +1,16 @@
 .search { display:grid; grid-template-columns:1.25fr 1fr 1fr auto; gap:0; width:min(100%,760px); margin-top:26px; padding:7px; border:1px solid hsl(var(--border)); border-radius:18px; background:hsl(var(--card)); box-shadow:0 12px 30px hsl(var(--foreground)/.05); }
 .field { display:flex; flex-direction:column; min-width:0; padding:8px 12px; gap:4px; }
 .field + .field { border-left:1px solid hsl(var(--border)); }
-.field span { font-size:12px; font-weight:650; color:hsl(var(--foreground)); }
-.field input,.field select { width:100%; min-height:32px; padding:0; border:0; outline:0; font-size:14px; color:hsl(var(--foreground)); background:transparent; }
+.field > span,.field > label { font-size:12px; font-weight:650; color:hsl(var(--foreground)); }
+.field input { width:100%; min-height:32px; padding:0; border:0; outline:0; font-size:14px; color:hsl(var(--foreground)); background:transparent; }
 .field input::placeholder { color:hsl(var(--muted-foreground)); opacity:1; }
-.field select { cursor:pointer; }
+.field .selectTrigger { height:44px; min-height:44px; gap:8px; padding:0; border:0; border-radius:6px; box-shadow:none; color:hsl(var(--foreground)); font-size:14px; font-weight:500; text-align:left; cursor:pointer; }
+.selectTrigger > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.selectTrigger > svg { flex-shrink:0; color:hsl(var(--muted-foreground)); opacity:1; }
+.selectContent { max-height:min(320px,var(--radix-select-content-available-height)); max-width:calc(100vw - 32px); border-color:hsl(var(--border)); border-radius:12px; background:hsl(var(--card)); color:hsl(var(--foreground)); box-shadow:var(--shadow-surface); }
+.selectItem { min-height:44px; padding-left:12px; border-radius:8px; cursor:pointer; }
+.selectItem[data-highlighted] { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
+.selectItem[data-state="checked"] { color:hsl(var(--brand)); font-weight:650; }
 .field:focus-within { border-radius:10px; box-shadow:inset 0 0 0 2px hsl(var(--ring)); }
 .searchButton { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:0 18px; border-radius:12px; background:hsl(var(--cta)); color:hsl(var(--cta-foreground)); font-size:14px; font-weight:650; white-space:nowrap; transition:transform .2s,filter .2s; }
 .searchButton:hover { transform:translateY(-2px); filter:brightness(1.08); }
