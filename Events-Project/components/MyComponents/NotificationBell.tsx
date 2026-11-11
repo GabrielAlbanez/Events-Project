@@ -131,4 +131,3 @@ export default function NotificationBell() {
   if (status !== "authenticated" || !session?.user?.id) return null;
   return <AccountNotifications key={session.user.id} userId={session.user.id} />;
 }
-

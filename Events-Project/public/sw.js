@@ -3,7 +3,7 @@ self.addEventListener("install", event => event.waitUntil(self.skipWaiting()));
 self.addEventListener("activate", event => event.waitUntil(self.clients.claim()));
 function safeHref(value) {
  if(typeof value!=="string" || !/^\/(?![\/\\])/.test(value) || /[\\\u0000-\u0020]/.test(value))return "/notificacoes";
- try { const decoded=decodeURIComponent(value);if(decoded.startsWith("//")||/[\\\u0000-\u001f]/.test(decoded))return "/notificacoes";const url=new URL(value,self.location.origin);return url.origin===self.location.origin?url.href:"/notificacoes";}catch{return "/notificacoes";}
+ try { const decoded=decodeURIComponent(value);if(decoded.startsWith("//")||/[\\\u0000-\u001f]/.test(decoded))return "/notificacoes";const url=new URL(value,self.location.origin);return url.origin===self.location.origin&&!url.pathname.startsWith("//")?url.pathname+url.search+url.hash:"/notificacoes";}catch{return "/notificacoes";}
 }
 self.addEventListener("push", function(event){
  let data;try{data=event.data.json();}catch{return;}
@@ -12,7 +12,9 @@ self.addEventListener("push", function(event){
  let verified=false;
  try { const response=await fetch("/api/auth/session",{credentials:"same-origin",cache:"no-store"});if(response.ok){const session=await response.json();verified=session?.user?.id===data.userId;} }catch{}
  const href=verified?safeHref(data.href):"/notificacoes";
- return self.registration.showNotification(verified&&typeof data.title==="string"?data.title.slice(0,80):"EventMap",{body:verified&&typeof data.message==="string"?data.message.slice(0,160):"Você tem uma atualização",icon:"/branding/notification-icon.png",badge:"/branding/notification-badge.png",tag:verified?"eventmap:"+data.userId+":"+(data.type||"SYSTEM")+":"+href:"eventmap-generic",renotify:false,requireInteraction:verified&&data.priority==="high",actions:[{action:"open",title:"Abrir"},{action:"dismiss",title:"Dispensar"}],data:{href}});
+ // Older workers can deliver payloads without a type. Only public event notices show their copy.
+ const showDetails=verified&&(data.type==="EVENT_REMINDER"||data.type==="EVENT_CHANGE");
+ return self.registration.showNotification(showDetails&&typeof data.title==="string"?data.title.slice(0,80):"EventMap",{body:showDetails&&typeof data.message==="string"?data.message.slice(0,160):"Você tem uma atualização",icon:"/branding/notification-icon.png",badge:"/branding/notification-badge.png",tag:verified?"eventmap:"+data.userId+":"+(data.type||"SYSTEM")+":"+href:"eventmap-generic",renotify:false,requireInteraction:verified&&data.priority==="high",actions:[{action:"open",title:"Abrir"},{action:"dismiss",title:"Dispensar"}],data:{href}});
  })());
 });
 self.addEventListener("notificationclick",function(event){

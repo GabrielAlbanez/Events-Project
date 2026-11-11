@@ -133,4 +133,3 @@ export function NotificationBanners({ items, onDismiss }: { items: NotificationD
     </div>
   );
 }
-
