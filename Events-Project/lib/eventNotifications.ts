@@ -1,3 +1,5 @@
+import { createNotifications } from "./notifications/create";
+import { notificationCopy } from "./notifications/catalog";
 import type { Prisma } from "@prisma/client";
 type EventAudience = { id: string; nome: string; userId: string | null; status?: string };
 export async function notifyEventAudience(tx: Prisma.TransactionClient, event: EventAudience, notice: { title: string; message: string; includeFollowers?: boolean; includeAdmins?: boolean; includeFavorites?: boolean }) {
@@ -17,5 +19,5 @@ export async function notifyEventAudience(tx: Prisma.TransactionClient, event: E
     const admins = await tx.user.findMany({where:{role:"ADMIN"},select:{id:true}});
     for (const admin of admins) recipients.set(admin.id, "/EventsCreated");
   }
-  if (recipients.size) await tx.notification.createMany({data:Array.from(recipients,([userId,href])=>({userId,href,title:notice.title.slice(0,150),message:notice.message.slice(0,2000)}))});
+  if (recipients.size) await createNotifications(tx, Array.from(recipients,([userId,href])=>({userId,href,title:notice.title.slice(0,150),message:notice.message.slice(0,2000)})).map(item => notificationCopy({ ...item, type: "EVENT_CHANGE" as const })));
 }

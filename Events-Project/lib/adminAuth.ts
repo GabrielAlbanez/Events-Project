@@ -7,11 +7,12 @@ import { isDevelopmentIdentityDisabled } from "@/lib/authPolicy";
 import { credentialSessionValid } from "@/lib/auth/sessionCredential";
 import { resolveImpersonationIdentity } from "@/lib/auth/impersonation";
 
-export async function getAuthenticatedUser(request?: NextRequest) {
+export async function getAuthenticatedUser(request?: NextRequest, options: { allowImpersonation?: boolean } = {}) {
   const authRequest = request ?? new NextRequest("http://localhost", { headers: headers() });
   const token = await getToken({ req: authRequest, secret: process.env.NEXTAUTH_SECRET });
 
   if (typeof token?.id !== "string" || !token.id) return null;
+  if (options.allowImpersonation === false && token.impersonationId) return null;
   if (isDevelopmentIdentityDisabled(token.provider)) {
     return null;
   }
