@@ -30,11 +30,13 @@ interface ProviderDependencies {
   readSource?: (url: string, timeoutMs?: number) => Promise<SourceDocument>;
   now?: () => Date;
 }
-export interface DiscoveredSource { url: string; platform: string }
+export interface DiscoveredSource { url: string; platform: string; verified?: VerifiedEventImport }
 export interface DiscoveryResult { sources: DiscoveredSource[]; sourceErrors: { platform: string; message: string }[]; partial: boolean }
 export interface DiscoveryOptions { alreadyKnown?: (url: string) => Promise<boolean>; deadline: number; concurrency?: number }
 /** Busca imediata: cada leitura tem 8 s, para caber no orçamento de 45 s da requisição. */
 const IMMEDIATE_TIMEOUT_MS = 8000;
+/** Limite de cada leitura: nunca passa do tempo restante da busca. */
+export const readBudget = (deadline: number): number => Math.max(1, Math.min(IMMEDIATE_TIMEOUT_MS, deadline - Date.now()));
 const TICKET360_MAX_PAGES = 20;
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
@@ -281,19 +283,21 @@ export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
       const catalog = publicCatalogUrl(city), links: string[] = [];
       for (let page = 1; page <= 4 && Date.now() < deadline; page++) {
         let document: SourceDocument;
-        try { document = await readSource(page === 1 ? catalog : catalog + "?page=" + page, IMMEDIATE_TIMEOUT_MS); }
+        try { document = await readSource(page === 1 ? catalog : catalog + "?page=" + page, readBudget(deadline)); }
         catch (error) { if (page === 1) throw error; break; }
         const found = publicEventLinks(document.body, document.url).filter(url => !links.includes(url));
-        if (!found.length) break;
+        // Página 1 respondeu sem nenhum link: o layout mudou, não é "nenhum evento novo".
+        if (!found.length) { if (page === 1) throw new Error(SOURCE_ERROR); break; }
         links.push(...found);
       }
       return links;
     } },
-    { platform: "Ticket360", links: async () => {
-      const pages = await Promise.allSettled(["https://www.ticket360.com.br/", "https://www.ticket360.com.br/explore"].map(url => readSource(url, IMMEDIATE_TIMEOUT_MS)));
+    { platform: "Ticket360", links: async (_city, deadline) => {
+      const pages = await Promise.allSettled(["https://www.ticket360.com.br/", "https://www.ticket360.com.br/explore"].map(url => readSource(url, readBudget(deadline))));
       if (pages.every(page => page.status === "rejected")) throw new Error(SOURCE_ERROR);
       const links: string[] = [];
       for (const page of pages) if (page.status === "fulfilled") for (const url of ticket360EventLinks(page.value.body)) if (!links.includes(url)) links.push(url);
+      if (!links.length) throw new Error(SOURCE_ERROR);
       // A Ticket360 não filtra por cidade: cada página aberta é conferida pelo endereço oficial.
       return links.slice(0, TICKET360_MAX_PAGES);
     } },
@@ -322,11 +326,11 @@ export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
         if (seen.has(item.url) || await options.alreadyKnown?.(item.url)) continue;
         seen.add(item.url);
         let event: VerifiedEventImport;
-        try { event = await inspect(item.url, city, IMMEDIATE_TIMEOUT_MS); } catch { continue; }
+        try { event = await inspect(item.url, city, readBudget(options.deadline)); } catch { continue; }
         const known = await options.alreadyKnown?.(event.sourceUrl);
         // Sem await entre a checagem e o push: leitores paralelos não ultrapassam o limite.
         if (known || expired() || found.length >= limit || found.some(source => source.url === event.sourceUrl)) continue;
-        found.push({ url: event.sourceUrl, platform: item.platform });
+        found.push({ url: event.sourceUrl, platform: item.platform, verified: event });
       }
     };
     if (!expired()) await Promise.all(Array.from({ length: Math.max(1, options.concurrency ?? 4) }, worker));

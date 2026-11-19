@@ -32,7 +32,7 @@ const eventPage = (url, name, locality, startDate = "2030-02-02T19:30:00-03:00")
 })}</script></html>`;
 const SYMPLA = ["https://www.sympla.com.br/evento/show-a/1001", "https://www.sympla.com.br/evento/show-b/1002"];
 const T360 = ["https://www.ticket360.com.br/evento/1/campinas-show", "https://www.ticket360.com.br/evento/2/sp-show"];
-function fakeWeb({ fail = [], delay = 0, extraSympla = [] } = {}) {
+function fakeWeb({ fail = [], delay = 0, extraSympla = [], overrides = {} } = {}) {
   const pages = {
     "https://www.sympla.com.br/eventos/campinas-sp": `<a href="${SYMPLA[0]}"></a><a href="${SYMPLA[1]}"></a>${extraSympla.map(u => `<a href="${u}"></a>`).join("")}`,
     "https://www.ticket360.com.br/": `<a href="/evento/1/campinas-show"></a><a href="/evento/2/sp-show"></a>`,
@@ -43,6 +43,7 @@ function fakeWeb({ fail = [], delay = 0, extraSympla = [] } = {}) {
     [T360[1]]: eventPage(T360[1], "Show SP", "São Paulo"),
   };
   extraSympla.forEach((u, i) => { pages[u] = eventPage(u, "Extra " + i, "Campinas"); });
+  Object.assign(pages, overrides);
   return async url => {
     if (delay) await new Promise(r => setTimeout(r, delay));
     if (fail.some(prefix => url.startsWith(prefix))) throw new Error("offline");
@@ -84,6 +85,17 @@ section("discover.max", async () => {
   const r = await providerWith(fakeWeb({ extraSympla: extra })).discoverAllSources("Campinas", 2, { deadline: Date.now() + 10_000 });
   assert.equal(r.sources.length, 2);
   assert.equal(new Set(r.sources.map(s => s.platform)).size, 2, "intercala as plataformas antes de cortar");
+});
+
+section("fix.layout-change", async () => {
+  // HTTP 200 sem nenhum link de evento: mudança de layout, não "nenhum evento novo".
+  const r = await providerWith(fakeWeb({ overrides: { "https://www.sympla.com.br/eventos/campinas-sp": "<html>novo layout</html>", "https://www.ticket360.com.br/": "<html>novo layout</html>" } }))
+    .discoverAllSources("Campinas", 5, { deadline: Date.now() + 10_000 });
+  assert.deepEqual(r.sourceErrors.map(e => e.platform).sort(), ["Sympla", "Ticket360"]);
+});
+section("fix.discovery-carries-verified", async () => {
+  const r = await providerWith(fakeWeb()).discoverAllSources("Campinas", 5, { deadline: Date.now() + 10_000 });
+  assert.ok(r.sources.every(s => s.verified && s.verified.sourceUrl === s.url), "a descoberta devolve o evento já lido");
 });
 
 // Banco em memória (mesmo modelo de scripts/verify-ai-events.cjs).
@@ -166,6 +178,24 @@ section("pipeline.race", async () => {
   const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
   assert.equal(report.items[0].outcome, "already_imported");
   assert.equal(m.store.events.length, 0, "a transação desfaz o evento");
+});
+
+section("fix.import-no-reread", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla", verified: verified(SYMPLA[0], "Show A") }], "Campinas", depsFor({}));
+  assert.equal(report.created, 1, "usa o evento lido na descoberta, sem nova leitura");
+});
+section("fix.import-deadline", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }), Date.now() - 1);
+  assert.equal(report.partial, true);
+  assert.equal(m.store.events.length, 0);
+  let timeout;
+  const deps = { ...depsFor({}), inspect: async (url, city, ms) => { timeout = ms; return verified(SYMPLA[0], "Show A"); } };
+  await importSources(memory().db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", deps, Date.now() + 3000);
+  assert.ok(timeout > 0 && timeout <= 3000, "cada leitura cabe no tempo restante");
 });
 
 const immediateDeps = (m, pages) => ({

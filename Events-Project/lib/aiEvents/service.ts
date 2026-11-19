@@ -4,7 +4,7 @@ import { isAccountSuspended } from "../auth/accountAccess";
 import { eventInstant } from "../eventTime";
 import { parseEventInput } from "../../schemas/eventInput";
 import type { AiEventAction } from "../../schemas/aiEvents";
-import { aiConfigured, canonicalSourceUrl, discoverAllSources, discoverEventSources, inspectEventSource, publicCatalogUrl, type DiscoveredSource, type VerifiedEventImport } from "./provider";
+import { aiConfigured, canonicalSourceUrl, discoverAllSources, discoverEventSources, inspectEventSource, publicCatalogUrl, readBudget, type DiscoveredSource, type VerifiedEventImport } from "./provider";
 import { platformOf } from "./sources";
 
 export interface AiEventsDependencies {
@@ -67,14 +67,17 @@ const LIVE_STATUSES = ["DRAFT", "PENDING", "CHANGES_REQUESTED", "PUBLISHED", "EN
  * Importa fontes já descobertas: cada evento oficial vira um evento PENDING na fila normal de validação,
  * vinculado ao seu AiEventCandidate. Nunca publica nem notifica o público.
  */
-export async function importSources(db: PrismaClient, actorId: string, runId: string, sources: DiscoveredSource[], city: string | undefined, deps: AiEventsDependencies): Promise<Omit<ImportReport, "sourceErrors" | "partial">> {
+export async function importSources(db: PrismaClient, actorId: string, runId: string, sources: DiscoveredSource[], city: string | undefined, deps: AiEventsDependencies, deadline?: number): Promise<Omit<ImportReport, "sourceErrors">> {
   const items: ImportItem[] = [];
+  let partial = false;
   for (const source of sources) {
+    // Sem tempo para o próximo: devolve o que já criou em vez de passar do limite da rota.
+    if (deadline !== undefined && Date.now() >= deadline) { partial = true; break; }
     const platform = source.platform || platformOf(source.url).label;
     const existing = await db.aiEventCandidate.findUnique({ where: { sourceUrl: source.url }, select: { status: true } });
     if (existing) { items.push({ url: source.url, platform, outcome: existing.status === "REJECTED" ? "previously_rejected" : "already_imported" }); continue; }
     let verified: VerifiedEventImport;
-    try { verified = await deps.inspect(source.url, city); }
+    try { verified = source.verified ?? await deps.inspect(source.url, city, deadline === undefined ? undefined : readBudget(deadline)); }
     catch { items.push({ url: source.url, platform, outcome: "failed" }); continue; }
     let data: ReturnType<typeof validatedEvent>;
     try { data = validatedEvent(verified, deps.now()); }
@@ -101,7 +104,7 @@ export async function importSources(db: PrismaClient, actorId: string, runId: st
       items.push({ url: source.url, platform, outcome: "failed", name: data.nome });
     }
   }
-  return { created: items.filter(item => item.outcome === "created").length, items };
+  return { created: items.filter(item => item.outcome === "created").length, items, partial };
 }
 
 export async function aiEventsSnapshot(db: PrismaClient, actorId: string, deps: AiEventsDependencies = defaults) {
@@ -182,11 +185,12 @@ async function importNow(db: PrismaClient, actorId: string, input: Extract<AiEve
   });
   let report: ImportReport;
   try {
+    const deadline = Date.now() + IMMEDIATE_BUDGET_MS;
     const discovery = sourceUrl
       ? { sources: [{ url: sourceUrl, platform: platformOf(sourceUrl).label }], sourceErrors: [], partial: false }
-      : await deps.discoverAll(run.city, run.maxPerRun, { deadline: Date.now() + IMMEDIATE_BUDGET_MS, alreadyKnown: async url => Boolean(await db.aiEventCandidate.findUnique({ where: { sourceUrl: url }, select: { id: true } })) });
-    const imported = await importSources(db, actorId, run.id, discovery.sources, sourceUrl ? undefined : run.city, deps);
-    report = { ...imported, sourceErrors: discovery.sourceErrors, partial: discovery.partial };
+      : await deps.discoverAll(run.city, run.maxPerRun, { deadline, alreadyKnown: async url => Boolean(await db.aiEventCandidate.findUnique({ where: { sourceUrl: url }, select: { id: true } })) });
+    const imported = await importSources(db, actorId, run.id, discovery.sources, sourceUrl ? undefined : run.city, deps, deadline);
+    report = { ...imported, sourceErrors: discovery.sourceErrors, partial: discovery.partial || imported.partial };
   } catch (error) {
     await closeRun(db, run.id, "FAILED", 0, "Não foi possível consultar as fontes agora. Tente novamente em alguns minutos.", deps);
     if (error instanceof AiEventsError) throw error;
@@ -258,11 +262,12 @@ export async function pollAiEvents(db: PrismaClient, deps: AiEventsDependencies 
   try {
     await admin(db, claimed.requestedBy);
     // Mesmo pipeline da busca imediata: os eventos nascem PENDING na fila normal de validação.
+    const deadline = Date.now() + IMMEDIATE_BUDGET_MS;
     const discovery = claimed.trigger === "SOURCE" && claimed.sourceUrl
       ? { sources: [{ url: claimed.sourceUrl, platform: platformOf(claimed.sourceUrl).label }], sourceErrors: [], partial: false }
-      : await deps.discoverAll(claimed.city, claimed.maxPerRun, { deadline: Date.now() + IMMEDIATE_BUDGET_MS, alreadyKnown: async sourceUrl => Boolean(await db.aiEventCandidate.findUnique({ where: { sourceUrl }, select: { id: true } })) });
-    const imported = await importSources(db, claimed.requestedBy, claimed.id, discovery.sources, claimed.trigger === "SOURCE" ? undefined : claimed.city, deps);
-    const report: ImportReport = { ...imported, sourceErrors: discovery.sourceErrors, partial: discovery.partial };
+      : await deps.discoverAll(claimed.city, claimed.maxPerRun, { deadline, alreadyKnown: async sourceUrl => Boolean(await db.aiEventCandidate.findUnique({ where: { sourceUrl }, select: { id: true } })) });
+    const imported = await importSources(db, claimed.requestedBy, claimed.id, discovery.sources, claimed.trigger === "SOURCE" ? undefined : claimed.city, deps, deadline);
+    const report: ImportReport = { ...imported, sourceErrors: discovery.sourceErrors, partial: discovery.partial || imported.partial };
     createdCount = report.created;
     await finish(report.sourceErrors.length && !report.items.length ? "FAILED" : report.partial ? "PARTIAL" : "SUCCEEDED", runMessage(report));
   } catch { await finish("FAILED", "Não foi possível consultar as fontes. Tente novamente mais tarde ou envie o link oficial de um evento."); }
