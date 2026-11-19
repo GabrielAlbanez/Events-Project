@@ -269,6 +269,16 @@ section("lifecycle.delete-before-cascade", async () => {
   assert.ok(reject < remove, "antes da exclusão (onDelete: SetNull)");
 });
 
+section("ui", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "components", "MyComponents", "AdminAiEvents.tsx"), "utf8");
+  for (const text of ["Buscar agora em {city}", "Buscando em Sympla e Ticket360…", "evento(s) criado(s) e aguardando validação", "Validar agora", "/EventsCreated?importados=pendentes",
+    "A busca foi interrompida pelo tempo limite; rode de novo para continuar.", "Verificar e importar agora", "Aguardando validação", "importedBadge("]) assert.ok(ui.includes(text), "falta: " + text);
+  assert.match(ui, /aria-busy=\{/);
+  assert.match(ui, /65_?000/, "limite próprio acima do orçamento de 45 s da busca");
+  assert.doesNotMatch(ui.replace(/\/\/.*$/gm, ""), /\bIA\b/, "sem 'IA' nos textos da tela");
+  assert.doesNotMatch(ui, /Aprovar e publicar/, "nada é publicado direto desta tela");
+});
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of sections) {
