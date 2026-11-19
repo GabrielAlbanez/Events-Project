@@ -389,8 +389,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
                   <div className="flex gap-3 pr-9">
                     <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-primary/10">
                       {selectedEvent.banner
-                        ? <><img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="sm" date={selectedEvent.dataInicio} className="absolute left-1.5 top-1.5" /></>
-                        : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="sm" date={selectedEvent.dataInicio} /></div>}
+                        ? <><img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="xs" date={selectedEvent.dataInicio} className="absolute left-1 top-1" /></>
+                        : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="xs" date={selectedEvent.dataInicio} /></div>}
                     </div>
                     <div className="min-w-0 flex-1 self-center">
                       <p className="line-clamp-2 text-sm font-semibold leading-5">{selectedEvent.nome}</p>
