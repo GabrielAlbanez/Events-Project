@@ -75,7 +75,7 @@ export default async function PublicEvent({ params }: Props) {
   if (!event) notFound();
   const preview = !publicEvent;
   // Similar events are optional: a failure only hides the block.
-  const [role, similar] = await Promise.all([publisherRole(event.userId), preview ? Promise.resolve([]) : getSimilarEvents(event.id, 4).catch(() => [])]);
+  const [role, similar] = await Promise.all([publisherRole(event.userId), preview ? Promise.resolve([]) : getSimilarEvents(event.id, 6).catch(() => [])]);
   const viewerId = session?.user?.id ?? null;
   // Events held by the platform account (admin imports) can be claimed by their real organizer.
   const showClaim = !preview && role === "ADMIN" && viewerId !== event.userId;

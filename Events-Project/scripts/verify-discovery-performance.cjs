@@ -225,11 +225,13 @@ function findAll(node, predicate, found = []) {
   assert.match(read("components/MyComponents/home/LuxuryHomePresentation.tsx"), /<LazyMotion features=\{loadAnimationFeatures\}>/);
 
   // 10. SimilarEvents: renders nothing without items, explicit reason and safe links otherwise.
-  const similarComponent = load("components/MyComponents/SimilarEvents.tsx", { "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" }, "next/link": "Link", "lucide-react": { CalendarDays: "CalendarDays", MapPin: "MapPin", Sparkles: "Sparkles" }, "@/lib/eventRecommendations": {}, "@/lib/eventTime": time });
+  const similarComponent = load("components/MyComponents/SimilarEvents.tsx", { "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" }, "next/link": "Link", "lucide-react": { CalendarDays: "CalendarDays", Clock: "Clock", MapPin: "MapPin", Navigation: "Navigation", Sparkles: "Sparkles", Tag: "Tag", UserRound: "UserRound", Users: "Users" }, "@/lib/eventRecommendations": {}, "@/components/MyComponents/EventDateBlock": { EventDateBlock: "EventDateBlock" } });
   assert.equal(similarComponent.SimilarEvents({ items: [] }), null);
   const tree = similarComponent.SimilarEvents({ items: [{ event: event("a b/c", { isFree: true }), reason: "Do mesmo organizador" }] });
-  const links = findAll(tree, node => node.type === "Link");
+  const links = findAll(tree, node => node.type === "Link" && String(node.props.href).startsWith("/eventos/"));
   assert.equal(links.length, 1); assert.equal(links[0].props.href, "/eventos/a%20b%2Fc");
+  assert.equal(findAll(tree, node => node.type === "Link").length, 2, "one card link per item plus the agenda link");
+  assert.ok(findAll(tree, node => node.type === "Link" && node.props.href === "/EventsCreated").length === 1);
   assert.match(flatText(tree), /Do mesmo organizador/); assert.match(flatText(tree), /Entrada gratuita/);
 
   console.log("PASS discovery/performance: image normalization, lean opt-in catalog pagination with unchanged default contract, deterministic explainable recommendations (registrations, co-saves, exclusions), similar events, map without client geocoding or URL wipe, server-rendered home data with fallback, render purity and LazyMotion home.");
