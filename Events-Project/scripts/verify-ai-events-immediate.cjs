@@ -223,6 +223,52 @@ section("immediate.route", () => {
   assert.match(route, /\{ \.\.\.\(await aiEventsSnapshot\(prisma, adminId\)\), report \}/, "POST devolve o relatório da busca");
 });
 
+// Server actions reais com dependências "@/..." substituídas; registra a ordem das chamadas ao banco.
+function loadAction(file, dependencies) {
+  const ts = require("typescript");
+  const mod = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+  new Function("require", "module", "exports", code)(name => name in dependencies ? dependencies[name] : require(name), mod, mod.exports);
+  return mod.exports;
+}
+function actionDb(calls, events) {
+  const op = (model, name, result) => async args => { calls.push({ model, name, args }); return typeof result === "function" ? result(args) : result; };
+  const tx = {
+    user: { findUnique: op("user", "findUnique", { name: "Admin" }) },
+    events: { findMany: op("events", "findMany", events), updateMany: op("events", "updateMany", { count: 1 }), deleteMany: op("events", "deleteMany", { count: events.length }), count: op("events", "count", 0) },
+    eventHistory: { create: op("eventHistory", "create", {}), createMany: op("eventHistory", "createMany", {}) },
+    notification: { updateMany: op("notification", "updateMany", { count: 0 }) },
+    aiEventCandidate: { updateMany: op("aiEventCandidate", "updateMany", { count: 1 }) },
+  };
+  return { ...tx, $transaction: async fn => fn(tx) };
+}
+const actionDeps = db => ({
+  "@/lib/prisma": { __esModule: true, default: db },
+  "@/lib/adminAuth": { getAuthenticatedAdminId: async () => ADMIN },
+  "@/lib/eventNotifications": { notifyEventAudience: async () => {} },
+  "@/lib/services/attendance": { reconcileEventWaitlist: async () => {} },
+});
+section("lifecycle.validate", async () => {
+  const calls = [];
+  const { validateEvents } = loadAction("app/(actions)/validateEvents/action.ts", actionDeps(actionDb(calls, [{ id: "e1", nome: "Show", userId: ADMIN }])));
+  await validateEvents(["e1"], ADMIN);
+  const candidate = calls.find(c => c.model === "aiEventCandidate");
+  assert.ok(candidate, "atualiza o candidato do evento validado");
+  assert.deepEqual(candidate.args.where, { eventId: { in: ["e1"] } });
+  assert.equal(candidate.args.data.status, "PUBLISHED");
+  assert.equal(candidate.args.data.approvedBy, ADMIN);
+});
+section("lifecycle.delete-before-cascade", async () => {
+  const calls = [];
+  const { deleteEvents } = loadAction("app/(actions)/deleteEvents/action.ts", actionDeps(actionDb(calls, [{ id: "e1", nome: "Show", userId: ADMIN, banner: "", carrossel: [], status: "PENDING" }])));
+  await deleteEvents(["e1"], ADMIN);
+  const reject = calls.findIndex(c => c.model === "aiEventCandidate" && c.args.data.status === "REJECTED");
+  const remove = calls.findIndex(c => c.model === "events" && c.name === "deleteMany");
+  assert.ok(reject >= 0, "marca o candidato como rejeitado");
+  assert.deepEqual(calls[reject].args.where, { eventId: { in: ["e1"] } });
+  assert.ok(reject < remove, "antes da exclusão (onDelete: SetNull)");
+});
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of sections) {

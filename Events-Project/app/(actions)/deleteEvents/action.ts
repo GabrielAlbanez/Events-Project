@@ -54,6 +54,9 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
       await notifyEventAudience(transaction, event, { title: "Evento removido", message: event.nome + " foi removido pela administração. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
       await transaction.notification.updateMany({ where: { href: "/eventos/" + event.id }, data: { href: "/EventsCreated" } });
     }
+    // Antes da exclusão: com onDelete SetNull o candidato perderia o vínculo e voltaria a parecer uma proposta nova.
+    // REJECTED impede que o mesmo link seja reimportado na próxima busca.
+    await transaction.aiEventCandidate.updateMany({ where: { eventId: { in: events.map((event) => event.id) } }, data: { status: "REJECTED" } });
     const deleted = await transaction.events.deleteMany({
       where: { id: { in: events.map((event) => event.id) } },
     });
