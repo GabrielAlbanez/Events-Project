@@ -225,6 +225,12 @@ check("footer rendered once after main; /embed renders without site chrome", () 
   assert.equal(isEmbedPath("/embedded"), false);
   assert.equal(isEmbedPath("/"), false);
   assert.equal(isEmbedPath(null), false);
+  // Full-height app views end exactly at the viewport bottom; a footer below them pushes their top under the sticky header.
+  const { showsSiteFooter } = loadModule("components/Providers/ClientProviders.tsx");
+  assert.equal(typeof showsSiteFooter, "function", "footer visibility is a pure, testable rule");
+  for (const fullHeight of ["/", "/eventos/abc/chat"]) assert.equal(showsSiteFooter(fullHeight), false, `${fullHeight} has no footer`);
+  for (const page of ["/termos", "/para-organizadores", "/eventos/abc", "/eventos/abc/comunidade", "/resultados", "/eventos/chat-promo"]) assert.equal(showsSiteFooter(page), true, `${page} keeps the footer`);
+  assert.match(providers, /showsSiteFooter\(pathname\) && <SiteFooter/);
   const usages = walk("app").concat(walk("components")).filter(file => file !== "components/Providers/ClientProviders.tsx" && file !== "components/MyComponents/SiteFooter.tsx" && /<SiteFooter/.test(read(file)));
   assert.deepEqual(usages, [], "pages must not render a second footer");
   const embedCss = read("app/embed/embed.module.css");

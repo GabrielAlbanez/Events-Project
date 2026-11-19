@@ -18,6 +18,15 @@ export function isEmbedPath(pathname: string | null): boolean {
   return Boolean(pathname && pathname.startsWith("/embed/"));
 }
 
+/**
+ * Telas de altura total (descoberta com mapa na home e chat do evento) terminam exatamente no fim da tela.
+ * Um rodapé depois delas empurraria o topo para baixo do cabeçalho fixo.
+ */
+export function showsSiteFooter(pathname: string | null): boolean {
+  if (!pathname) return true;
+  return pathname !== "/" && !/^\/eventos\/[^/]+\/chat\/?$/.test(pathname);
+}
+
 export default function ClientProviders({
   children,
   defaultOpen,
@@ -48,7 +57,7 @@ export default function ClientProviders({
                   {/* Único landmark principal; as páginas usam div/section dentro dele. */}
                   <main id="conteudo" tabIndex={-1} className={siteStyles.content}><GoogleMapsLoader>{children}</GoogleMapsLoader></main>
                   {/* Rodapé global; reserva espaço extra quando a barra fixa de ação do evento está visível no mobile. */}
-                  <SiteFooter className="bg-background pb-[calc(1.5rem+var(--event-cta-space,0px))] xl:pb-6" />
+                  {showsSiteFooter(pathname) && <SiteFooter className="bg-background pb-[calc(1.5rem+var(--event-cta-space,0px))] xl:pb-6" />}
                 </div>
               </div>
             </SidebarProvider>
