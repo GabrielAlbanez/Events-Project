@@ -29,6 +29,9 @@ export default function EventsCreated() {
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  // Atalho "Validar agora" da importação. Lido no cliente para a página não precisar de Suspense no build.
+  const [importedOnly, setImportedOnly] = useState(false);
+  useEffect(() => { setImportedOnly(new URLSearchParams(window.location.search).get("importados") === "pendentes"); }, []);
 
   const fetchEvents = useCallback(async () => {
     const requestedIdentity = `${user?.id ?? "anonymous"}:${user?.role ?? "public"}`;
@@ -67,8 +70,9 @@ export default function EventsCreated() {
     const matchesSearch = !query || [event.nome, event.descricao, event.dataInicio, event.dataFim]
       .some((value) => value?.toLocaleLowerCase("pt-BR").includes(query));
     const matchesStatus = user?.role !== "ADMIN" || filterStatus === "all" || (filterStatus === "verified" ? event.validate : !event.validate);
-    return matchesSearch && matchesStatus;
-  }), [events, searchTerm, filterStatus, discovery, user?.role]);
+    const matchesImported = user?.role !== "ADMIN" || !importedOnly || Boolean(event.status === "PENDING" && event.aiImport);
+    return matchesSearch && matchesStatus && matchesImported;
+  }), [events, searchTerm, filterStatus, discovery, user?.role, importedOnly]);
   const publicResultCount = filteredEvents.filter(event => event.validate && event.status !== "CANCELLED").length;
   const pendingCount = events.filter((event) => event.status ? event.status === "PENDING" : !event.validate).length;
 
@@ -95,6 +99,10 @@ export default function EventsCreated() {
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${pendingCount ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-primary/10 text-brand"}`}>{pendingCount ? <Clock3 className="h-5 w-5" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}</span>
             <div><p className="font-semibold">{pendingCount ? `${pendingCount} ${pendingCount === 1 ? "evento aguardando" : "eventos aguardando"} validação` : "Nenhum evento aguardando validação"}</p><p className="text-sm text-muted-foreground">{pendingCount ? "Revise os eventos pendentes na lista abaixo." : "Todos os eventos recebidos já foram analisados."}</p></div>
           </div></FadeInView>}
+          {user?.role === "ADMIN" && importedOnly && <div className="mb-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <p className="font-semibold">Importados aguardando validação <span className="font-normal text-muted-foreground">· {filteredEvents.length}</span></p>
+            <Link href="/EventsCreated" onClick={() => setImportedOnly(false)} className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline">Ver todos</Link>
+          </div>}
           {user?.role !== "ADMIN" && <div className="mb-4 w-full"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} /></div>}
           {user?.role === "ADMIN" ? <FilterBarEvents filterValue={searchTerm} onFilterChange={setSearchTerm} onStatusChange={setFilterStatus} /> : <label className="mb-6 grid w-full gap-2 text-sm font-medium">Buscar eventos<span className="relative"><Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Nome, descrição ou data" className="pl-10 font-normal" /></span></label>}
           <div className="w-full">
