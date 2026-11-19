@@ -172,6 +172,15 @@ body {
     border-color: hsl(var(--ring) / 0.55);
   }
 
+  /* Card lift uses the standalone translate property, so it composes with Framer Motion transforms. */
+  .em-motion-lift {
+    transition: translate var(--em-motion-surface) var(--em-motion-arrival), box-shadow var(--em-motion-surface) ease;
+  }
+
+  .em-motion-lift:has(:focus-visible) {
+    translate: 0 -2px;
+  }
+
   .em-motion-waypoint > svg {
     transition: translate var(--em-motion-surface) var(--em-motion-arrival);
   }
@@ -184,6 +193,10 @@ body {
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .em-motion-card:hover {
     border-color: hsl(var(--ring) / 0.55);
+  }
+
+  .em-motion-lift:hover {
+    translate: 0 -2px;
   }
 
   .em-motion-waypoint:hover > svg {

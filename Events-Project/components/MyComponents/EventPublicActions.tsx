@@ -8,6 +8,7 @@ import CheckInPass from "./CheckInPass";
 import EventPeoplePreview from "./EventPeoplePreview";
 import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
 import { RegistrationStatusBadge } from "@/components/ui/status-badge";
+import { PopIcon } from "@/components/animations/PopIcon";
 
 type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
 type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null };
@@ -20,6 +21,9 @@ type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatu
 export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
   const [saved, setSaved] = useState(false);
+  // Incremented only after a confirmed user action, so loading the saved state never animates.
+  const [savePulse, setSavePulse] = useState(0);
+  const [registrationPulse, setRegistrationPulse] = useState(0);
   const [reminder, setReminder] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState<RegistrationState | null>(null);
@@ -80,6 +84,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`);
       if (!latest.ok) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
       setRegistration(await latest.json() as RegistrationState);
+      if (method === "POST") setRegistrationPulse(value => value + 1);
     } catch (error) {
       setRegistrationError(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.");
     } finally {
@@ -118,7 +123,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const activeRegistration = registration?.registration && registration.registration.status !== "CANCELLED" ? registration.registration : null;
   const waitlistOnly = Boolean(registration && registration.capacity !== null && registration.confirmedCount >= registration.capacity);
   const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration;
-  const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
+  const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
   const stickyAction = canRegister
     ? status === "authenticated"
       ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
@@ -139,7 +144,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>
-        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><TicketCheck className="h-4 w-4" />{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : null}
+        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><PopIcon pulse={registrationPulse}><TicketCheck className="h-4 w-4" /></PopIcon>{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : null}
         {registration.registration?.status === "CONFIRMED" && <p className="text-sm leading-6 text-muted-foreground">{hasExternalTickets && !isFree ? "Próximo passo: confira e adquira seu ingresso no site do organizador. Você pode consultar sua presença e o passe do EventMap nesta página." : "Próximo passo: consulte seu passe abaixo e confira o local e o horário do evento. Volte a esta página para acompanhar sua inscrição."}</p>}
         {status === "authenticated" && registration.registration?.status === "CONFIRMED" && <CheckInPass key={session?.user?.id} eventId={eventId} />}
         {status === "authenticated" ? registration.registration?.status === "CHECKED_IN" ? null : registration.registration && registration.registration.status !== "CANCELLED" ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar inscrição"}</button> : <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : registration.capacity !== null && registration.confirmedCount >= registration.capacity ? "Entrar na lista de espera" : "Confirmar presença"}</button> : <Link href={loginHref} className={`${button} bg-primary text-primary-foreground`}>Entre para confirmar presença</Link>}
@@ -149,7 +154,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     </section>}
     {eventStatus === "PUBLISHED" && <EventPeoplePreview eventId={eventId} />}
     <div className="flex flex-wrap gap-2">
-      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (!result.saved) setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><Bookmark className="h-4 w-4" />{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href={loginHref}>Entrar para salvar</Link>}
+      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><PopIcon pulse={savePulse}><Bookmark className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></PopIcon>{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href={loginHref}>Entrar para salvar</Link>}
       <button type="button" onClick={() => void share()} className={button}><Share2 className="h-4 w-4" />Compartilhar</button>
       <a className={button} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" aria-hidden="true" />Adicionar ao calendário (.ics)</a>
       {googleCalendarUrl && <a className={button} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" />Google Agenda<span className="sr-only"> (abre em nova aba)</span></a>}
