@@ -168,6 +168,61 @@ section("pipeline.race", async () => {
   assert.equal(m.store.events.length, 0, "a transação desfaz o evento");
 });
 
+const immediateDeps = (m, pages) => ({
+  ...depsFor(pages),
+  discoverAll: async () => ({ sources: Object.keys(pages).map(url => ({ url, platform: url.includes("ticket360") ? "Ticket360" : "Sympla" })), sourceErrors: [], partial: false }),
+});
+section("immediate.run", async () => {
+  const { aiEventsAction } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await aiEventsAction(m.db, ADMIN, { action: "run", city: "Campinas", maxPerRun: 3 }, immediateDeps(m, { [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
+  assert.equal(report.created, 1);
+  const [run] = m.store.aiEventRun;
+  assert.equal(run.status, "SUCCEEDED"); assert.equal(run.createdCount, 1);
+  assert.equal(m.store.aiEventRun.filter(r => r.status === "QUEUED").length, 0, "nada fica na fila");
+});
+section("immediate.inspect", async () => {
+  const { aiEventsAction } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await aiEventsAction(m.db, ADMIN, { action: "inspect", url: SYMPLA[0] }, immediateDeps(m, { [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
+  assert.equal(report.items.length, 1);
+  assert.equal(m.store.events[0].status, "PENDING");
+});
+section("immediate.concurrency", async () => {
+  const { aiEventsAction } = load("lib/aiEvents/service.ts");
+  const busy = memory();
+  for (let i = 0; i < 3; i++) busy.store.aiEventRun.push({ id: randomUUID(), status: "RUNNING", startedAt: new Date(NOW.getTime() - 60_000), requestedBy: "outro", createdAt: new Date(NOW.getTime() - 60_000) });
+  await assert.rejects(() => aiEventsAction(busy.db, ADMIN, { action: "run", city: "Campinas", maxPerRun: 3 }, immediateDeps(busy, {})), e => e.status === 429);
+  const stale = memory();
+  for (let i = 0; i < 3; i++) stale.store.aiEventRun.push({ id: randomUUID(), status: "RUNNING", startedAt: new Date(NOW.getTime() - 11 * 60_000), requestedBy: "outro", createdAt: new Date(NOW.getTime() - 11 * 60_000) });
+  await aiEventsAction(stale.db, ADMIN, { action: "run", city: "Campinas", maxPerRun: 3 }, immediateDeps(stale, {}));
+});
+section("immediate.approve-legacy-pending", async () => {
+  const { aiEventsAction } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const v = verified(SYMPLA[0], "Legado");
+  const id = randomUUID();
+  m.store.aiEventCandidate.push({ id, sourceUrl: v.sourceUrl, sourceHash: v.sourceHash, status: "PENDING", eventId: null, name: v.name });
+  await aiEventsAction(m.db, ADMIN, { action: "approve", id }, depsFor({ [SYMPLA[0]]: () => v }));
+  assert.equal(m.store.events[0].status, "PENDING");
+  assert.equal(m.store.aiEventCandidate[0].eventId, m.store.events[0].id);
+  assert.equal(m.store.notification.length, 0);
+});
+section("immediate.worker-keeps-running", async () => {
+  const { pollAiEvents } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  m.store.aiEventAutomation.push({ id: "default", city: "Campinas", enabled: false, maxPerRun: 3, leaseUntil: null });
+  m.store.aiEventRun.push({ id: "fresh", status: "RUNNING", startedAt: new Date(NOW.getTime() - 60_000), requestedBy: ADMIN, createdAt: NOW });
+  await pollAiEvents(m.db, immediateDeps(m, {}));
+  assert.equal(m.store.aiEventRun.find(r => r.id === "fresh").status, "RUNNING");
+});
+
+section("immediate.route", () => {
+  const route = fs.readFileSync(path.join(__dirname, "..", "app", "api", "admin", "ai-events", "route.ts"), "utf8");
+  assert.match(route, /export const maxDuration = 60;/);
+  assert.match(route, /\{ \.\.\.\(await aiEventsSnapshot\(prisma, adminId\)\), report \}/, "POST devolve o relatório da busca");
+});
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of sections) {

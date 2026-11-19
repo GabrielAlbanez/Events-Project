@@ -8,11 +8,13 @@ import { AiEventsError, aiEventsAction, aiEventsSnapshot } from "@/lib/aiEvents/
 import { aiEventActionSchema } from "@/schemas/aiEvents";
 
 export const dynamic = "force-dynamic";
+// A busca roda na própria requisição (orçamento interno de 45 s).
+export const maxDuration = 60;
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 function failure(error: unknown) {
   if (error instanceof AiEventsError || error instanceof CommunityError) return NextResponse.json({ message: error.message }, { status: error.status, headers });
   if (error instanceof ZodError) return NextResponse.json({ message: "Confira os campos informados." }, { status: 400, headers });
-  return NextResponse.json({ message: "A área de IA ainda não está disponível. Confira a configuração e as migrações do servidor." }, { status: 503, headers });
+  return NextResponse.json({ message: "A importação de eventos ainda não está disponível. Confira a configuração e as migrações do servidor." }, { status: 503, headers });
 }
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +28,7 @@ export async function POST(request: NextRequest) {
     checkOrigin(request);
     const adminId = await getAuthenticatedAdminId(request);
     if (!adminId) throw new AiEventsError(403, "Acesso restrito ao administrador.");
-    await aiEventsAction(prisma, adminId, aiEventActionSchema.parse(await readCommunityBody(request)));
-    return NextResponse.json(await aiEventsSnapshot(prisma, adminId), { headers });
+    const report = await aiEventsAction(prisma, adminId, aiEventActionSchema.parse(await readCommunityBody(request)));
+    return NextResponse.json({ ...(await aiEventsSnapshot(prisma, adminId)), report }, { headers });
   } catch (error) { return failure(error); }
 }
