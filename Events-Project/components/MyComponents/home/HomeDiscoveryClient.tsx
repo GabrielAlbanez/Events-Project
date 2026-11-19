@@ -5,11 +5,12 @@ import { useSocket } from "@/context/SocketContext";
 import Mapa from "@/components/MyComponents/Map";
 import { Evento } from "@/types";
 import { CalendarDays, ChevronDown, MapPin, Search, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { matchesPeriod, parseEventDate, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { matchesPeriod, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "@/app/discovery.module.css";
 import { LuxuryHomePresentation } from "@/components/MyComponents/home/LuxuryHomePresentation";
 import { LoadingShimmer } from "@/components/animations/LoadingShimmer";
+import { EventDateBlock } from "@/components/MyComponents/EventDateBlock";
 
 const filters: { label: string; value: Period }[] = [
   { label: "Todos", value: "todos" },
@@ -47,6 +48,9 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const sheetToggle = useRef<HTMLButtonElement>(null);
   const touchStart = useRef<number | null>(null);
+  const listScroll = useRef<HTMLDivElement>(null);
+  /** Id picked on the map (not in the list): only those selections scroll the list. */
+  const mapSelection = useRef<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [urlReady, setUrlReady] = useState(false);
   useEffect(() => {
@@ -124,6 +128,22 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
   }, [events, period, search, discovery]);
 
+  const handleMapSelect = useCallback((id: string | null) => { mapSelection.current = id; setSelectedId(id); }, []);
+
+  // Pin -> list: bring the event picked on the map into view inside the list panel (desktop only, focus stays put).
+  useEffect(() => {
+    const id = mapSelection.current;
+    mapSelection.current = null;
+    if (!id || id !== selectedId || !window.matchMedia("(min-width: 768px)").matches) return;
+    const container = listScroll.current;
+    const item = container?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(id)}"]`);
+    if (!container || !item) return;
+    const bounds = container.getBoundingClientRect();
+    const rect = item.getBoundingClientRect();
+    const offset = rect.top < bounds.top ? rect.top - bounds.top - 12 : rect.bottom > bounds.bottom ? rect.bottom - bounds.bottom + 12 : 0;
+    if (offset) container.scrollBy({ top: offset, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [selectedId]);
+
   const hasActiveFilters = Boolean(search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
 
   const handleQuickSearch = ({ location, period: selectedPeriod, category }: { location: string; period: Period; category: string }) => {
@@ -162,7 +182,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
               <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${sheetExpanded ? "" : "rotate-180"}`} />
             </span>
           </button>
-          <div id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
+          <div ref={listScroll} id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
           <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
             <div className="relative isolate">
               <div aria-hidden="true" className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 overflow-hidden rounded-3xl">
@@ -192,16 +212,16 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
               {loading && <div role="status" className="space-y-2"><span className="sr-only">Carregando eventos…</span>{[0, 1, 2].map((item) => <div key={item} aria-hidden="true" className="relative flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-3"><div className="h-[84px] w-[84px] shrink-0 rounded-xl bg-muted" /><div className="flex min-w-0 flex-1 flex-col justify-center gap-3"><div className="h-2.5 w-20 rounded bg-muted" /><div className="h-3.5 w-4/5 rounded bg-muted" /><div className="h-3 w-3/5 rounded bg-muted" /></div><LoadingShimmer className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/20" /></div>)}</div>}
               {loadError && <div role="alert" className="rounded-2xl border border-border bg-muted/40 p-5 text-sm leading-6 text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
               {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
-              <div className="space-y-2">{filteredEvents.map((event) => <button key={event.id} type="button" onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} aria-pressed={selectedId === event.id} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-cta-foreground/30 bg-cta/20 dark:border-cta/60 dark:bg-cta/10" : "border-border bg-card hover:border-primary/30  "}`}>
-                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary/10">{event.banner ? <img src={event.banner} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-primary"><CalendarDays className="h-6 w-6" aria-hidden="true" /><span className="text-xs font-semibold">EventMap</span></div>}</div>
-                <div className="min-w-0 flex-1 py-0.5"><span className="block text-xs font-semibold leading-4 text-primary">{parseEventDate(event.dataInicio) ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(parseEventDate(event.dataInicio)!) : "Data a confirmar"}</span><h3 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-5 tracking-tight">{event.nome}</h3><p className="mt-2 flex items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
+              <div className="space-y-2">{filteredEvents.map((event) => <button key={event.id} type="button" data-event-id={event.id} onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} aria-pressed={selectedId === event.id} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-cta-foreground/30 bg-cta/20 dark:border-cta/60 dark:bg-cta/10" : highlightedId === event.id ? "border-primary/40 bg-card shadow-surface ring-1 ring-primary/30" : "border-border bg-card hover:border-primary/30  "}`}>
+                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary/10">{event.banner ? <><img src={event.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="sm" date={event.dataInicio} className="absolute left-1.5 top-1.5" /></> : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="sm" date={event.dataInicio} /></div>}</div>
+                <div className="min-w-0 flex-1 self-center py-0.5"><h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight">{event.nome}</h3><p className="mt-2 flex items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
               </button>)}</div>
             </div>
           </div>
           </div>
         </section>
         <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-muted`} aria-label="Mapa dos eventos">
-          <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
+          <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={handleMapSelect} onHighlightEvent={setHighlightedId} />
         </section>
       </section>
       </div>

@@ -6,6 +6,7 @@ import {
   DirectionsRenderer,
 } from "@react-google-maps/api";
 import { toast } from "react-toastify";
+import { LazyMotion, m, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   Route,
@@ -23,6 +24,8 @@ import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
 import Link from "next/link";
+import { EventDateBlock } from "./EventDateBlock";
+import { animationConfig, loadAnimationFeatures } from "@/components/animations/config";
 
 // Componente de Loading Personalizado
 const CustomLoading = () => (
@@ -47,9 +50,12 @@ const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 const USER_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#C7F34A" stroke="#0B0D12" stroke-width="2"/><circle cx="13" cy="13" r="3" fill="#0B0D12"/></svg>') };
-const createEventMarkerIcon = (fill: string, ink: string) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
+// The SVG's intrinsic width/height sets the rendered size; Google anchors it at the bottom centre (pin tip), so bigger pins don't shift.
+const createEventMarkerIcon = (fill: string, ink: string, width = 28, height = 36) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
 const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
 const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
+/** List hover/focus: same pin, ~30% larger (static swap, no map animation). */
+const HIGHLIGHTED_EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff", 36, 46);
 // Only the explicit `?endereco=` search is geocoded in the browser; events use stored coordinates.
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
 const locationNoticeKey = "eventmap:location-notice-accepted";
@@ -59,21 +65,25 @@ const EventMarkers = memo(function EventMarkers({
   onSelect,
   selectedId,
   highlightedId,
+  onHover,
 }: {
   events: Evento[];
   onSelect: (event: Evento) => void;
   selectedId: string | null;
   highlightedId: string | null;
+  onHover: (id: string | null) => void;
 }) {
   return events.map((event) => (
     <Marker
       key={event.id}
       position={{ lat: event.lat!, lng: event.lng! }}
       title={event.id === selectedId ? event.nome + " — evento selecionado" : event.nome}
-      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
+      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : event.id === highlightedId ? HIGHLIGHTED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
       zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : undefined}
       opacity={highlightedId && event.id !== highlightedId && event.id !== selectedId ? 0.6 : 1}
       onClick={() => onSelect(event)}
+      onMouseOver={() => onHover(event.id)}
+      onMouseOut={() => onHover(null)}
     />
   ));
 });
@@ -98,9 +108,11 @@ type MapProps = {
   selectedId: string | null;
   highlightedId: string | null;
   onSelectEvent: (id: string | null) => void;
+  /** Pin hover (pointer devices only) so the list can mirror the highlight. */
+  onHighlightEvent?: (id: string | null) => void;
 };
 
-const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapProps) => {
+const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighlightEvent }: MapProps) => {
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
@@ -301,6 +313,17 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
   const visibleEvents = useMemo(() => events.filter(hasMapCoordinates), [events]);
   const missingCoordinates = events.length - visibleEvents.length;
   const handleEventSelect = useCallback((event: Evento) => onSelectEvent(event.id), [onSelectEvent]);
+  // Clearing waits a beat so swapping to the bigger icon (which may emit out/over) never flickers the highlight.
+  const hoverClearTimer = useRef<number | null>(null);
+  const handleMarkerHover = useCallback((id: string | null) => {
+    if (!onHighlightEvent || !window.matchMedia("(hover: hover)").matches) return;
+    if (hoverClearTimer.current !== null) window.clearTimeout(hoverClearTimer.current);
+    hoverClearTimer.current = null;
+    if (id) onHighlightEvent(id);
+    else hoverClearTimer.current = window.setTimeout(() => { hoverClearTimer.current = null; onHighlightEvent(null); }, 80);
+  }, [onHighlightEvent]);
+  useEffect(() => () => { if (hoverClearTimer.current !== null) window.clearTimeout(hoverClearTimer.current); }, []);
+  const reducedMotion = useReducedMotion();
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedId) ?? null,
     [events, selectedId]
@@ -333,7 +356,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             >
               {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} />}
 
-              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} />
+              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} onHover={handleMarkerHover} />
 
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
@@ -355,13 +378,33 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             )}
 
             {selectedEvent && !showDirections && (
-              <div className="absolute left-3 right-[72px] top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-border bg-card/95 p-3 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5">
-                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-primary">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedEvent.endereco}</p>{selectedMappable
-                  ? <button type="button" className="mt-2 text-xs font-semibold text-brand" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button>
-                  : <><p className="mt-1 text-xs text-muted-foreground">Local ainda sem coordenadas no mapa.</p><Link href={"/eventos/" + encodeURIComponent(selectedEvent.id)} className="mt-1 inline-block text-xs font-semibold text-brand">Ver detalhes</Link></>}</div>
-                <button type="button" aria-label="Fechar evento" className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center self-start rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelectEvent(null)}><X className="h-4 w-4" aria-hidden="true" /></button>
-              </div>
+              <LazyMotion features={loadAnimationFeatures} strict>
+                <m.div
+                  key={selectedEvent.id}
+                  initial={reducedMotion === false ? { opacity: 0, y: -animationConfig.entranceDistance / 2 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reducedMotion === false ? animationConfig.grid.reenterDuration : 0, ease: animationConfig.ease }}
+                  className="absolute left-3 right-[72px] top-3 z-10 max-w-sm rounded-2xl border border-border bg-card/95 p-3 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5 md:w-96"
+                >
+                  <div className="flex gap-3 pr-9">
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-primary/10">
+                      {selectedEvent.banner
+                        ? <><img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="sm" date={selectedEvent.dataInicio} className="absolute left-1.5 top-1.5" /></>
+                        : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="sm" date={selectedEvent.dataInicio} /></div>}
+                    </div>
+                    <div className="min-w-0 flex-1 self-center">
+                      <p className="line-clamp-2 text-sm font-semibold leading-5">{selectedEvent.nome}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{selectedEvent.endereco || "Local a confirmar"}</p>
+                      {!selectedMappable && <p className="mt-1 text-xs text-muted-foreground">Local ainda sem coordenadas no mapa.</p>}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Link href={"/eventos/" + encodeURIComponent(selectedEvent.id)} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-cta px-3 text-sm font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">Ver evento</Link>
+                    {selectedMappable && <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setEventoAtivo(selectedEvent)}>Detalhes e rota</button>}
+                  </div>
+                  <button type="button" aria-label="Fechar evento" className="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelectEvent(null)}><X className="h-4 w-4" aria-hidden="true" /></button>
+                </m.div>
+              </LazyMotion>
             )}
 
             {!showDirections && !selectedEvent && <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-2 md:bottom-auto md:right-5 md:top-5">
