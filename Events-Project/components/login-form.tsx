@@ -11,14 +11,14 @@ import { loginFormSchema } from "@/schemas/LoiginSchema";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
-import { validateUser } from "@/app/(actions)/Login/action";
 import { GoogleButton } from "./MyComponents/GoogleButton";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
+import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
 import styles from "./MyComponents/LoginPage.module.css";
 import { authPathWithReturn, safeReturnPath } from "@/lib/authReturn";
+import { credentialsErrorMessages, GENERIC_LOGIN_ERROR, loginErrorMessage } from "@/lib/auth/errorMessages";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
@@ -40,62 +40,72 @@ export function LoginForm({
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams()
   const callbackUrl = safeReturnPath(searchParams.get("callbackUrl"));
+  const urlError = searchParams.get("error");
+  const [formError, setFormError] = useState<string | null>(() => loginErrorMessage(urlError));
+  const [redirecting, setRedirecting] = useState(false);
+  const submittingRef = useRef(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    const error = searchParams.get("error"); // Captura o erro da URL
-    if (error) {
-      // Exibe o erro como um toast
-      toast.error(decodeURIComponent(error));
-    }
-  }, [searchParams]);
+    // Only whitelisted NextAuth codes become text; raw query values are never rendered.
+    setFormError(loginErrorMessage(urlError));
+  }, [urlError]);
+
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach(clearTimeout);
+      timers.length = 0;
+    };
+  }, []);
+
+  const schedule = (callback: () => void, delay: number) => {
+    timersRef.current.push(setTimeout(callback, delay));
+  };
 
   const onSubmit = async (data: LoginFormData) => {
+    // Guards against double submits that happen before React re-renders the button.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setFormError(null);
+    let keepLocked = false;
     try {
-      // Chama a Server Action para validar as credenciais e verificar vínculos
-      const validationResponse = await validateUser(data);
-
-      if (validationResponse.status === "error") {
-        toast.error(validationResponse.error);
-        return;
-      }
-
-      // Se a validação passar, chama o signIn
       const signInResponse = await signIn("credentials", {
-        email: data.email,
+        email: data.email.trim(),
         password: data.password,
         redirect: false,
         callbackUrl,
       });
 
-      if (signInResponse?.ok) {
+      if (signInResponse?.ok && !signInResponse.error) {
+        keepLocked = true;
+        setRedirecting(true);
         socket.disconnect();
         await update();
         toast.success("Login realizado com sucesso!");
-
-
-        // Adiciona um refresh explícito
-        setTimeout(() => {
-          router.refresh(); // Atualiza o estado antes do redirecionamento
-          setTimeout(() => {
-            router.replace(callbackUrl); // Retoma a página que iniciou o login.
-          }, 500); // Pequeno atraso para garantir o estado atualizado
+        // Refresh server components before returning to the page that started the login.
+        schedule(() => {
+          router.refresh();
+          schedule(() => router.replace(callbackUrl), 500);
         }, 500);
-      } else {
-        toast.error(
-          (signInResponse?.error === "AccountSuspended" ? "Sua conta está suspensa. Entre em contato com a administração." : signInResponse?.error) ||
-            "Erro ao realizar login. Verifique as credenciais."
-        );
+        return;
       }
-    } catch (error) {
-      console.error("Erro inesperado durante o login:", error);
-      toast.error("Erro inesperado durante o login.");
+      setFormError(loginErrorMessage(signInResponse?.error) ?? GENERIC_LOGIN_ERROR);
+    } catch {
+      setFormError(credentialsErrorMessages.ServiceUnavailable);
+    } finally {
+      if (!keepLocked) submittingRef.current = false;
     }
   };
+
+  const busy = isSubmitting || redirecting;
+  const describedBy = (fieldError: string | null) => [fieldError, formError ? "login-form-error" : null].filter(Boolean).join(" ") || undefined;
 
   return (
     <form
       className={cn(styles.form, className)}
-      aria-busy={isSubmitting}
+      aria-busy={busy}
+      noValidate
       onSubmit={handleSubmit(onSubmit)}
       {...props}
     >
@@ -114,9 +124,18 @@ export function LoginForm({
         </p>
       </div>
       <p className="text-sm leading-6 text-muted-foreground">Saiba como usamos seus dados de acesso na <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>. Para acesso, correção ou exclusão, use o <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">canal de privacidade</Link>.</p>
+      <div id="login-form-error" role="alert" aria-live="assertive" className={formError ? "flex gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground" : "sr-only"}>
+        {formError && (
+          <>
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+            <p className="leading-relaxed">{formError}</p>
+          </>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">Campos marcados com <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">asterisco</span> são obrigatórios.</p>
       <div className={styles.fields}>
         <div className={styles.field}>
-          <Label htmlFor="email">E-mail</Label>
+          <Label htmlFor="email">E-mail <span aria-hidden="true" className="text-destructive">*</span></Label>
           <Input
             id="email"
             type="email"
@@ -124,8 +143,9 @@ export function LoginForm({
             autoComplete="email"
             autoCapitalize="none"
             spellCheck={false}
+            aria-required="true"
             aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? "email-error" : undefined}
+            aria-describedby={describedBy(errors.email ? "email-error" : null)}
             {...register("email")}
           />
           {errors.email && (
@@ -134,7 +154,7 @@ export function LoginForm({
         </div>
         <div className={styles.field}>
           <div className={styles.passwordLabel}>
-            <Label htmlFor="password">Senha</Label>
+            <Label htmlFor="password">Senha <span aria-hidden="true" className="text-destructive">*</span></Label>
             <a
               href="/recuperar-senha"
               className={styles.recoveryLink}
@@ -143,15 +163,15 @@ export function LoginForm({
             </a>
           </div>
           <div className="relative">
-            <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Sua senha" className="pr-12" aria-invalid={!!errors.password} aria-describedby={errors.password ? "password-error" : undefined} {...register("password")} />
+            <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Sua senha" className="pr-12" aria-required="true" aria-invalid={!!errors.password} aria-describedby={describedBy(errors.password ? "password-error" : null)} {...register("password")} />
             <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} className={styles.passwordToggle}>{showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}</button>
           </div>
           {errors.password && (
             <p id="password-error" role="alert" className={styles.fieldError}>{errors.password.message}</p>
           )}
         </div>
-        <Button type="submit" variant="cta" className={styles.submit} disabled={isSubmitting}>
-          {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Entrando...</> : <>Entrar na minha conta<ArrowRight className="h-4 w-4" aria-hidden="true" /></>}
+        <Button type="submit" variant="cta" className={styles.submit} disabled={busy}>
+          {busy ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Entrando...</> : <>Entrar na minha conta<ArrowRight className="h-4 w-4" aria-hidden="true" /></>}
         </Button>
         <div className={styles.divider}><span aria-hidden="true" />ou continue com<span aria-hidden="true" /></div>
         <div className={styles.googleButton}><GoogleButton textBody="Continuar com Google" callbackUrl={callbackUrl} /></div>

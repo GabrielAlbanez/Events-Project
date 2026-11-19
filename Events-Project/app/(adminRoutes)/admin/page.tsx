@@ -12,6 +12,7 @@ import { useSocket, useSocketStatus } from "@/context/SocketContext";
 import { User as UserType } from "@/types";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
+import { TransferEventOwnership } from "@/components/MyComponents/organizer/TransferEventOwnership";
 
 interface UserWithStatus extends UserType { online?: boolean }
 
@@ -34,6 +35,8 @@ export default function AdminPage() {
   const identity = useRef(session?.user?.id);
   identity.current = status === "authenticated" && session?.user?.role === "ADMIN" ? session.user.id : undefined;
   useEffect(() => { const timer = setTimeout(() => { setQuery(filterValue.trim()); setPage(1); }, 300); return () => clearTimeout(timer); }, [filterValue]);
+  // Organizer request notifications link to /admin?q=<email>; prefill the search once.
+  useEffect(() => { const initial = new URLSearchParams(window.location.search).get("q")?.trim().slice(0, 100); if (initial) setFilterValue(initial); }, []);
 
   const fetchUsers = useCallback(async () => {
     if (!identity.current) return;
@@ -123,6 +126,8 @@ export default function AdminPage() {
           {loading ? <div role="status" className="rounded-xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">Carregando usuários...</div> : error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-8 text-center"><p className="text-sm text-foreground">{error}</p><Button type="button" className="mt-4" onClick={() => void fetchUsers()}>Tentar novamente</Button></div> : <UserTable key={session.user.id} users={users} setUsers={setUsers} />}
           {!loading && !error && <nav aria-label="Páginas de usuários" className="mt-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Até {pagination.pageSize} contas por página</p><div className="flex items-center gap-3"><Button variant="outline" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Anterior</Button><span className="text-sm">{pagination.page} / {pagination.totalPages}</span><Button variant="outline" disabled={page >= pagination.totalPages} onClick={() => setPage(current => current + 1)}>Próxima</Button></div></nav>}
         </section>
+
+        <div className="mt-6"><TransferEventOwnership /></div>
       </div>
     </main>
   );

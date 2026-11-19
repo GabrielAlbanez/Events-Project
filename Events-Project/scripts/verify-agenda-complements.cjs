@@ -12,11 +12,11 @@ function load(file, dependencies={}) {const m={exports:{}};new Function("require
  assert.equal((text.match(/https:\/\/example.com\/eventos\/first/g)||[]).length,1);assert.ok(!text.includes("private@example.com"));assert.ok(!text.includes("cancelled"));
  assert.throws(()=>invites.buildPlanInvite([cancelled],"https://example.com"));assert.throws(()=>invites.buildPlanInvite([base],"javascript:alert(1)"));
  const many=invites.buildPlanInvite(Array.from({length:9},(_,i)=>({...base,id:String(i)})),"https://example.com");assert.equal((many.match(/https:\/\//g)||[]).length,5);
- let owner=null;const calls=[];const db={favorite:{findMany:async q=>{calls.push(q);return [{event:{category:"Música",lat:null,lng:null}}];}},follow:{findMany:async q=>{calls.push(q);return [{promoterId:"followed"}];}},events:{findMany:async q=>{calls.push(q);return [base,preference];}}};
- const service=load("lib/services/recommendations.ts",{"@/lib/prisma":{__esModule:true,default:db},"@/lib/eventQueries":{publicEventSelect:{id:true,nome:true}},"@/lib/eventRecommendations":rank});
+ let owner=null;const calls=[];const db={favorite:{findMany:async q=>{calls.push(q);return q.where.userId===owner?.id?[{event:{id:"saved",nome:"Salvo",category:"Música",lat:null,lng:null}}]:[];}},follow:{findMany:async q=>{calls.push(q);return [{promoterId:"followed"}];}},eventRegistration:{findMany:async q=>{calls.push(q);return [];}},events:{findMany:async q=>{calls.push(q);return [base,preference];}}};
+ const service=load("lib/services/recommendations.ts",{"@/lib/prisma":{__esModule:true,default:db},"@/lib/eventQueries":{publicEventSelect:{id:true,nome:true},toPublicEvent:e=>({...e,validate:e.validate??false})},"@/lib/eventRecommendations":rank});
  assert.deepEqual(await service.getRecommendedEvents(async()=>owner),[]);assert.equal(calls.length,0);
  owner={id:"session-owner",role:"BASIC"};assert.equal((await service.getRecommendedEvents(async()=>owner)).length,2);
- assert.equal(calls[0].where.userId,owner.id);assert.equal(calls[1].where.userId,owner.id);
- for(const q of calls.slice(2)){assert.equal(q.where.status,"PUBLISHED");assert.equal(q.where.favorites.none.userId,owner.id);assert.equal(q.take,80);assert.equal(q.select.email,undefined);}
+ assert.equal(calls[0].where.userId,owner.id);assert.equal(calls[1].where.userId,owner.id);assert.equal(calls[2].where.userId,owner.id);
+ for(const q of calls.filter(q=>q.select?.nome)){const w=q.where.AND?q.where.AND[0]:q.where;assert.equal(w.status,"PUBLISHED");assert.equal(w.favorites.none.userId,owner.id);assert.equal(q.take,80);assert.equal(q.select.email,undefined);}
  console.log("PASS: recommendation ranking/access bounds, public selected invitations and private-data exclusion");
 })().catch(error=>{console.error(error);process.exitCode=1;});

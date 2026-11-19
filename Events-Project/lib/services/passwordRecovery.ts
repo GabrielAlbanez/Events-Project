@@ -10,6 +10,16 @@ import { publicSiteUrl } from "@/lib/publicUrl";
 const genericMessage = "Se a conta puder receber este link, enviaremos as instruções por e-mail. Confira também o spam.";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 type Purpose = "recovery" | "verification";
+// Mirrors lib/mail/transport.ts (generic SMTP or the legacy Gmail pair) without loading
+// nodemailer here; a misconfigured transport still fails safely at delivery time.
+const mailTransportPresent = () => Boolean(process.env.SMTP_HOST?.trim() || (process.env.EMAIL_USER && process.env.EMAIL_PASS));
+// Only existing accounts trigger an SMTP round trip. Every answer waits at least this
+// long, so the response time does not reveal whether the e-mail is registered.
+const MIN_LINK_RESPONSE_MS = 1200;
+async function waitAtLeast(startedAt: number, minimumMs: number): Promise<void> {
+  const remaining = minimumMs - (Date.now() - startedAt);
+  if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+}
 
 function baseUrl(): string {
   const url = publicSiteUrl();
@@ -20,7 +30,8 @@ function baseUrl(): string {
 // Persisted buckets are separate from authentication tokens. Proxy IP headers are
 // trusted only when the deployment explicitly opts in; otherwise use a global bucket.
 export async function requestAccountLink(email: string, purpose: Purpose, clientKey: string): Promise<{ message: string }> {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new CommunityError(503, "O envio de e-mail está temporariamente indisponível. Tente novamente mais tarde.");
+  if (!mailTransportPresent()) throw new CommunityError(503, "O envio de e-mail está temporariamente indisponível. Tente novamente mais tarde.");
+  const startedAt = Date.now();
   const origin = baseUrl();
   const normalized = email.trim().toLowerCase();
   const now = new Date();
@@ -61,6 +72,7 @@ export async function requestAccountLink(email: string, purpose: Purpose, client
       console.warn("Account link delivery unavailable.");
     }
   }
+  await waitAtLeast(startedAt, MIN_LINK_RESPONSE_MS);
   return { message: genericMessage };
 }
 

@@ -35,7 +35,9 @@
     "uploads:cleanup": "node scripts/cleanup-upload.cjs",
     "test:recovery:http": "node scripts/verify-recovery-http.cjs",
     "test:password-sessions": "node scripts/verify-password-session-revocation.cjs",
-    "test:notifications": "node scripts/verify-notifications.cjs && node scripts/verify-notification-push.cjs && node scripts/verify-notification-services.cjs"
+    "test:notifications": "node scripts/verify-notifications.cjs && node scripts/verify-notification-push.cjs && node scripts/verify-notification-services.cjs",
+    "test:offline": "node scripts/run-offline-tests.cjs",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.5.3",

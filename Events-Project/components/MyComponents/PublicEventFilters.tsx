@@ -36,7 +36,10 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  const { isLoaded: mapsLoaded, enabled: mapsEnabled } = useGoogleMaps();
  const generation = useRef(0);
  const currentValue = useRef(value);
- if (currentValue.current !== value) { currentValue.current = value; generation.current++; }
+ // Latest-value ref (idempotent during render). A pending location/travel reply is stale when the
+ // generation moved or when the filters it was started with are no longer the current ones.
+ currentValue.current = value;
+ const isCurrent = (request: number, startedWith: DiscoveryFilter) => request === generation.current && currentValue.current === startedWith;
  useEffect(() => () => { generation.current++; }, []);
  const eventSignature = events.map((event) => `${event.id}:${event.lat ?? ""}:${event.lng ?? ""}`).join("|");
  const previousEventSignature = useRef(eventSignature);
@@ -62,7 +65,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
 
  async function calculateTravel() {
   if (!travelChoice) { onChange({ ...value, travelMinutes: null, travelDurations: {} }); setTravelMessage(""); return; }
-  const request = ++generation.current;
+  const request = ++generation.current, startedWith = value;
   setTravelLoading(true);
   setTravelMessage("");
   try {
@@ -74,7 +77,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     { timeout: 10000, maximumAge: 60000 }
    ));
    const candidates = filterDiscovery(events, { ...value, travelMinutes: null, travelDurations: {} }).filter((event) => event.lat != null && event.lng != null).sort((a,b) => directDistance(location,a)-directDistance(location,b)).slice(0,25);
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    if (candidates.length === 0) throw new TravelFilterError("Nenhum evento com localização está disponível para o cálculo.");
    let matrix: Awaited<ReturnType<RouteMatrixLibrary["RouteMatrix"]["computeRouteMatrix"]>>["matrix"];
    try {
@@ -92,16 +95,17 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     throw new TravelFilterError(routesUnavailableMessage);
    }
    const durations: Record<string,number> = {};
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    matrix.rows[0]?.items.forEach((item,index) => {
     if (item.condition === "ROUTE_EXISTS" && item.durationMillis != null) durations[candidates[index].id] = Math.ceil(item.durationMillis/60000);
    });
    onChange({ ...currentValue.current, origin: location, travelMinutes: Number(travelChoice), travelDurations: durations });
    setTravelMessage(`Tempo de carro calculado para ${candidates.length} evento${candidates.length === 1 ? "" : "s"} mais próximo${candidates.length === 1 ? "" : "s"}.${events.length > candidates.length ? " Os demais não entram neste filtro." : ""}`);
   } catch (error) {
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    setTravelMessage(error instanceof TravelFilterError ? error.message : routesUnavailableMessage);
   } finally {
+   // Only a newer request owns the spinner; a filter change made outside must not leave it stuck.
    if (request === generation.current) setTravelLoading(false);
   }
  }
@@ -154,13 +158,13 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
        const radius = value.radius;
        if (!navigator.geolocation) { setLocationMessage("Este navegador não oferece localização. Use os outros filtros."); return; }
        setLocationMessage("Obtendo localização...");
-       const request = ++generation.current;
+       const request = ++generation.current, startedWith = value;
        navigator.geolocation.getCurrentPosition(position => {
-        if (request !== generation.current) return;
+        if (!isCurrent(request, startedWith)) return;
         setLocationMessage("Localização aplicada ao filtro.");
         changeOtherFilter({ ...currentValue.current, radius, origin: { lat: position.coords.latitude, lng: position.coords.longitude } });
        }, () => {
-        if (request !== generation.current) return;
+        if (!isCurrent(request, startedWith)) return;
         changeOtherFilter({ ...currentValue.current, radius: "" });
         setLocationMessage("Não foi possível obter a localização. Permita o acesso no navegador ou use os outros filtros.");
        }, { timeout: 10000, maximumAge: 60000 });

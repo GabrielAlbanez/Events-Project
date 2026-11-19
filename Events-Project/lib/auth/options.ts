@@ -2,7 +2,6 @@ import { isAccountSuspended, accountSessionValid } from "@/lib/auth/accountAcces
 import type { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
-import bcrypt from "bcrypt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { credentialSessionValid, credentialStamp } from "@/lib/auth/sessionCredential";
@@ -44,26 +43,20 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "text", placeholder: "email@example.com" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
-          throw new Error("Email e senha são obrigatórios");
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-
-        if (!user || !user.password || !user.emailVerified) return null;
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password || ""
+      async authorize(credentials, req) {
+        if (!credentials?.email || !credentials.password) return null;
+        // Loaded on demand: session-only consumers of authOptions (and their isolated
+        // tests) never pull bcrypt, the rate limiter or the credentials service.
+        const { authenticateCredentials } = await import("@/lib/services/credentials");
+        const { clientKeyFromHeaders } = await import("@/lib/rateLimit");
+        const result = await authenticateCredentials(
+          { email: credentials.email, password: credentials.password },
+          clientKeyFromHeaders(req?.headers),
         );
-
-        if (!isPasswordValid) return null;
-        if (isAccountSuspended(user)) throw new Error("AccountSuspended");
-
-        return user
+        if (result.status === "success") return result.user;
+        if (result.code === "CredentialsSignin") return null;
+        // Whitelisted codes only; the login form maps them to pt-BR messages.
+        throw new Error(result.code);
       },
     }),
     GoogleProvider({
@@ -87,8 +80,13 @@ export const authOptions: NextAuthOptions = {
         throw new Error("Dados de usuário ou conta estão ausentes.");
       }
 
+      // Exact match first, then case-insensitive: a legacy mixed-case credentials account
+      // must not get a duplicate account when the provider returns a lowercase e-mail.
       const existingUser = await prisma.user.findUnique({
         where: { email: user.email },
+        include: { accounts: true },
+      }) ?? await prisma.user.findFirst({
+        where: { email: { equals: user.email, mode: "insensitive" } },
         include: { accounts: true },
       });
 
@@ -99,10 +97,8 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isSameProvider) {
-          throw new Error(
-            encodeURIComponent( `Esse e-mail ja está vinculado ao um outro proverdor de autenticação.`)
-
-          );
+          // Standard NextAuth code, translated by the login form.
+          throw new Error("OAuthAccountNotLinked");
         }
         if (account.provider === "google") {
           const picture = profile && "picture" in profile ? profile.picture : user.image;

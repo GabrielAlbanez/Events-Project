@@ -1,9 +1,6 @@
 "use server";
-import prisma from "@/lib/prisma";
-import { publicEventSelect } from "@/lib/eventQueries";
+import { listPublicCatalog } from "@/lib/eventQueries";
+// Public read kept for existing callers; the catalog query lives in lib/eventQueries.
 export default async function getAllEvents() {
-  return prisma.events.findMany({
-    where: { status: "PUBLISHED" }, select: publicEventSelect,
-    orderBy: { dataInicio: "asc" },
-  });
+  return listPublicCatalog();
 }

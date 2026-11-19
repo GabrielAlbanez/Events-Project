@@ -22,7 +22,8 @@ export function isPublicPath(pathname: string): boolean {
 
 export function canAccessPath(role: string, pathname: string): boolean {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return role === "ADMIN";
-  if (/^\/myEvents\/[^/]+\/checkin$/.test(pathname)) return role === "PROMOTER" || role === "ADMIN";
+  // Event team members (CommunityTeamMember) may be BASIC; the check-in API enforces owner/team/admin.
+  if (/^\/myEvents\/[^/]+\/checkin$/.test(pathname)) return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   if (/^\/eventos\/[^/]+\/conexoes(?:\/[^/]+)?$/.test(pathname)) {
     return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   }

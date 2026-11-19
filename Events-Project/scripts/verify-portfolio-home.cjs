@@ -35,7 +35,7 @@ const motion = new Proxy({}, { get(_target, tag) {
 } });
 const stubs = {
   "next-auth/react": { useSession: () => ({ status: "unauthenticated", data: null }) },
-  "framer-motion": { motion, useReducedMotion: () => true },
+  "framer-motion": { motion, m: motion, LazyMotion: ({ children }) => children, useReducedMotion: () => true },
   "next/link": { __esModule: true, default: function Link({ href, children, ...props }) {
     const region = React.useContext(Region);
     if (region === "gallery" && href.startsWith("/eventos/")) galleryIds.push(decodeURIComponent(href.slice("/eventos/".length)));

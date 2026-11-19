@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -10,23 +11,28 @@ type propsGoogleButton = {
 };
 
 export function GoogleButton({ textBody, callbackUrl }: propsGoogleButton) {
+  const [pending, setPending] = useState(false);
 
   const handleGoogleLogin = async () => {
+    if (pending) return;
+    setPending(true);
     try {
       const session = await getSession();
 
       if (session) {
         toast.error("Você já está autenticado.");
+        setPending(false);
         return;
       }
 
+      // The page navigates to Google; the button stays disabled until then.
       await signIn("google", {
         callbackUrl: safeReturnPath(callbackUrl),
         redirect: true,
       });
-    } catch (error) {
-      console.log(error)
-      toast.error("Erro inesperado ao realizar login com o Google.");
+    } catch {
+      toast.error("Não foi possível iniciar o login com o Google. Tente novamente.");
+      setPending(false);
     }
   };
 
@@ -36,12 +42,15 @@ export function GoogleButton({ textBody, callbackUrl }: propsGoogleButton) {
       variant="outline"
       className="w-full "
       type="button"
-
+      disabled={pending}
+      aria-busy={pending}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
         className="w-6 h-6"
+        aria-hidden="true"
+        focusable="false"
       >
         <path
           fill="#4285F4"

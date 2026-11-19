@@ -1,5 +1,5 @@
 import { notificationPushPayload } from "../lib/notifications/push.js";
-import { createNotification } from "../lib/notifications/create.js";
+import { createNotification, createNotifications } from "../lib/notifications/create.js";
 import { notificationCopy } from "../lib/notifications/catalog.js";
 import type { PrismaClient } from "@prisma/client";
 import webpush from "web-push";
@@ -52,6 +52,8 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
    favoriteCursor={userId:lastFavorite.userId,eventId:lastFavorite.eventId};
    if(favorites.length<500)break;
    }
+   // Isolated so a reminder failure never blocks lifecycle updates or push delivery.
+   try{await remindRegistrants(now);}catch{console.error("Registration reminders temporarily unavailable.");}
    let changed=false,eventCursor:string|undefined;
    while(!stopped){
    const published=await prisma.events.findMany({where:{status:"PUBLISHED",dataFim:{lte:new Date(now.getTime()+86400000).toISOString().slice(0,10)},...(eventCursor?{id:{gt:eventCursor}}:{})},select:{id:true,nome:true,userId:true,dataFim:true,endTime:true,timezone:true},orderBy:{id:"asc"},take:500});
@@ -86,8 +88,43 @@ export function startNotificationWorker(prisma:PrismaClient, emit:(userId:string
   }catch{console.error("Scheduled event updates temporarily unavailable.");}
   finally{running=false;}
  }
+ // Confirmed attendees get a reminder one day before the start (AI O-01). There is no
+ // per-registration column, so a Notification groupKey bound to the start instant keeps it
+ // idempotent and re-arms it when the schedule changes. Favorites with their own reminder win.
+ async function remindRegistrants(now:Date){
+  let cursor:string|undefined;
+  while(!stopped){
+   const registrations=await prisma.eventRegistration.findMany({where:{status:"CONFIRMED",event:{status:"PUBLISHED",dataInicio:{gte:new Date(now.getTime()-86400000).toISOString().slice(0,10),lte:new Date(now.getTime()+2*86400000).toISOString().slice(0,10)}},...(cursor?{id:{gt:cursor}}:{})},select:{id:true,userId:true,eventId:true,createdAt:true,event:{select:{nome:true,dataInicio:true,startTime:true,timezone:true}}},orderBy:{id:"asc"},take:500});
+   if(!registrations.length)break;
+   const due=registrations.flatMap(registration=>{
+    const start=eventInstant(registration.event.dataInicio,registration.event.startTime,registration.event.timezone);
+    return start&&registrationReminderDue(start,registration.createdAt,now)?[{...registration,groupKey:registrationReminderKey(registration.id,start)}]:[];
+   });
+   if(due.length){
+    const [favorites,existing]=await Promise.all([
+     prisma.favorite.findMany({where:{reminderMinutes:{not:null},OR:due.map(entry=>({userId:entry.userId,eventId:entry.eventId}))},select:{userId:true,eventId:true}}),
+     prisma.notification.findMany({where:{userId:{in:Array.from(new Set(due.map(entry=>entry.userId)))},groupKey:{in:due.map(entry=>entry.groupKey)},createdAt:{gte:new Date(now.getTime()-3*86400000)}},select:{groupKey:true}}),
+    ]);
+    const favored=new Set(favorites.map(favorite=>favorite.userId+":"+favorite.eventId));
+    const sentKeys=new Set(existing.map(notice=>notice.groupKey));
+    const fresh=due.filter(entry=>!favored.has(entry.userId+":"+entry.eventId)&&!sentKeys.has(entry.groupKey));
+    if(fresh.length)await createNotifications(prisma,fresh.map(entry=>notificationCopy({userId:entry.userId,title:"Seu evento está chegando",message:entry.event.nome+" começa em breve. Sua presença está confirmada.",href:"/eventos/"+entry.eventId,type:"EVENT_REMINDER" as const,groupKey:entry.groupKey})));
+   }
+   cursor=registrations[registrations.length-1].id;
+   if(registrations.length<500)break;
+  }
+ }
  const pollingTimer=setInterval(()=>{void poll();},5000);
  const scheduleTimer=setInterval(()=>{void scheduled();},60000);
  void scheduled();
  return ()=>{stopped=true;clearInterval(pollingTimer);clearInterval(scheduleTimer);};
+}
+export const registrationReminderLeadMs=1440*60000;
+/** Due inside the 24h window before start, unless the person registered inside that window. */
+export function registrationReminderDue(start:Date,registeredAt:Date,now:Date):boolean{
+ const opensAt=start.getTime()-registrationReminderLeadMs;
+ return start.getTime()>now.getTime()&&opensAt<=now.getTime()&&registeredAt.getTime()<opensAt;
+}
+export function registrationReminderKey(registrationId:string,start:Date):string{
+ return "registration-reminder:"+registrationId+":"+start.toISOString();
 }

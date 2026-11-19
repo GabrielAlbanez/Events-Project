@@ -11,7 +11,7 @@ export default async function EditarEvento({ params }: { params: { id: string } 
 
   return <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
     <div className="mx-auto max-w-6xl">
-      <header className="mb-8 flex items-start gap-4"><div><FadeInView><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-brand">Painel de eventos</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Editar evento</h1><p className="mt-2 text-muted-foreground">Atualize as informações e envie novamente quando estiver pronto.</p></FadeInView><Link href="/myEvents" className="mt-3 inline-block text-sm font-medium text-brand underline underline-offset-4">Voltar aos meus eventos</Link></div></header>
+      <header className="mb-8 flex items-start gap-4"><div><FadeInView><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-brand">Painel de eventos</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Editar evento</h1><p className="mt-2 text-muted-foreground">{event.status === "PUBLISHED" ? "Ajustes de descrição, imagens e informações práticas são publicados na hora. Mudanças em nome, data, local, ingressos ou preço passam por nova revisão." : "Atualize as informações e envie novamente quando estiver pronto."}</p></FadeInView><Link href="/myEvents" className="mt-3 inline-block text-sm font-medium text-brand underline underline-offset-4">Voltar aos meus eventos</Link></div></header>
       <EventoForm initialEvent={event as Evento} />
     </div>
   </main>;

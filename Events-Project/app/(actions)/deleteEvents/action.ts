@@ -4,10 +4,12 @@ import { notifyEventAudience } from "@/lib/eventNotifications";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedAdminId } from "@/lib/adminAuth";
 import fs from "fs";
+import { z } from "zod";
 import path from "path";
 
 // Diretório onde as imagens estão armazenadas
 const uploadDir = path.join(process.cwd(), "public/uploads");
+const eventIdsSchema = z.array(z.string().min(1).max(100)).min(1).max(500);
 
 export async function deleteEvents(eventIds: string[], adminId: string) {
   // Verifique se o usuário é um ADMIN
@@ -19,9 +21,14 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
     };
   }
 
+  const parsedIds = eventIdsSchema.safeParse(eventIds);
+  if (!parsedIds.success) {
+    return { status: "error", message: "Selecione de 1 a 500 eventos válidos." };
+  }
+
   const { deletedCount, eventsToDelete } = await prisma.$transaction(async (transaction) => {
     const events = await transaction.events.findMany({
-      where: { id: { in: Array.from(new Set(eventIds)) } },
+      where: { id: { in: Array.from(new Set(parsedIds.data)) } },
       select: { id: true, nome: true, userId: true, banner: true, carrossel: true, status: true },
     });
     const admin = await transaction.user.findUnique({
@@ -43,14 +50,15 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
       })),
     });
     for (const event of events) {
-      await notifyEventAudience(transaction, event, { title: "Evento removido", message: event.nome + " foi removido pela administração." });
+      // Registrations are removed with the event (cascade): warn attendees first (BE-02).
+      await notifyEventAudience(transaction, event, { title: "Evento removido", message: event.nome + " foi removido pela administração. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
       await transaction.notification.updateMany({ where: { href: "/eventos/" + event.id }, data: { href: "/EventsCreated" } });
     }
     const deleted = await transaction.events.deleteMany({
       where: { id: { in: events.map((event) => event.id) } },
     });
     return { deletedCount: deleted.count, eventsToDelete: events };
-  });
+  }, { timeout: 20000 });
 
   // Clean files only after the database transaction commits.
   for (const event of eventsToDelete) {

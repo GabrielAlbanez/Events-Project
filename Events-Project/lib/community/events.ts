@@ -58,7 +58,7 @@ export async function mutateEvent(eventId: string, actor: Actor, action: Communi
     if ((managerActions.includes(action.action) && !manage) || (teamActions.includes(action.action) && !team)) throw new CommunityError(403, "Sem permissão para esta ação.");
     const entries = communityEntries(tx, eventId, actor.id);
     const { find: entry, create, update } = entries;
-    if (await handleAnnouncement(action, entries, manage) || await handleQueue(action, tx, entries, eventId, actor.id, { manage, team })) {
+    if (await handleAnnouncement(action, entries, manage, { tx, eventId, eventName: event.nome, eventStatus: event.status, actorId: actor.id }) ||await handleQueue(action, tx, entries, eventId, actor.id, { manage, team })) {
       await signal(tx, `event:${eventId}`);
       return;
     }

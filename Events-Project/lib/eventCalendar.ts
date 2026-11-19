@@ -8,8 +8,15 @@ function fold(line: string) {
  for (const char of line) { const length = Buffer.byteLength(char); if (size + length > 74) { lines.push(part); part = " " + char; size = 1 + length; } else { part += char; size += length; } }
  lines.push(part); return lines.join("\r\n");
 }
-export function createEventCalendar(events: CalendarEvent[], origin: string, now = new Date()): string {
+export type CalendarOptions = { name?: string; refreshHours?: number };
+/** Mantém só eventos com datas válidas, para que um item inconsistente não derrube um feed inteiro. */
+export function calendarSafeEvents<T extends CalendarEvent>(events: T[]): T[] {
+ return events.filter(event => { const start = eventInstant(event.dataInicio, event.startTime, event.timezone ?? undefined), end = eventInstant(event.dataFim, event.endTime, event.timezone ?? undefined, "23:59"); return Boolean(start && end && end > start); });
+}
+export function createEventCalendar(events: CalendarEvent[], origin: string, now = new Date(), options: CalendarOptions = {}): string {
  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EventMap//Agenda//PT-BR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+ if (options.name) lines.push("X-WR-CALNAME:" + escape(options.name.slice(0, 120)));
+ if (options.refreshHours && options.refreshHours > 0) lines.push("REFRESH-INTERVAL;VALUE=DURATION:PT" + Math.trunc(options.refreshHours) + "H", "X-PUBLISHED-TTL:PT" + Math.trunc(options.refreshHours) + "H");
  for (const event of events) {
   const start = eventInstant(event.dataInicio, event.startTime, event.timezone ?? undefined);
   const end = eventInstant(event.dataFim, event.endTime, event.timezone ?? undefined, "23:59");

@@ -7,8 +7,10 @@ import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { DateRangePicker } from "@heroui/react";
 import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
-import { Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
 import { atualizarEvento, salvarEvento, salvarRascunho } from "@/app/(actions)/eventos/actions";
+import { sensitiveEventChanges, sensitiveFieldLabels, type SensitiveChange } from "@/lib/eventScheduleChanges";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { criarSerieRecorrente } from "@/app/(actions)/eventos/recurrence";
 import type { Evento } from "@/types";
 import { eventCategories } from "@/types/features";
@@ -48,6 +50,17 @@ const sectionClass = "rounded-2xl border border-border bg-card p-5 shadow-surfac
 const descriptionOutline = "O que vai acontecer:\n\nPara quem é o evento:\n\nProgramação e atrações:\n\nInformações de entrada:";
 const hasUsefulDescription = (value: string) =>
   value.replace(/O que vai acontecer:|Para quem é o evento:|Programação e atrações:|Informações de entrada:/gi, "").trim().length >= 10;
+const priceCentsOf = (values: Pick<EventoFormData, "isFree" | "price">) => values.isFree ? 0 : Math.round(Number(values.price.replace(",", ".")) * 100);
+
+/** Same rule as the server (lib/services/events.ts): which edits send a published event back to review. */
+function publishedReviewReasons(initialEvent: Evento | undefined, values: EventoFormData, dateRange: EventDateRange | null, coordinates: { lat: number; lng: number } | null, newBanner: boolean): SensitiveChange[] {
+  if (initialEvent?.status !== "PUBLISHED") return [];
+  const coverChange: SensitiveChange[] = newBanner ? [sensitiveFieldLabels.banner] : [];
+  return [...sensitiveEventChanges(
+    { nome: initialEvent.nome, dataInicio: initialEvent.dataInicio, dataFim: initialEvent.dataFim, startTime: initialEvent.startTime ?? null, endTime: initialEvent.endTime ?? null, endereco: initialEvent.endereco, lat: initialEvent.lat ?? null, lng: initialEvent.lng ?? null, linkParaCompra: initialEvent.linkParaCompra, isFree: initialEvent.isFree ?? true, priceCents: initialEvent.priceCents ?? 0, capacity: initialEvent.capacity ?? null, organizerName: initialEvent.organizerName ?? "" },
+    { nome: values.nome.trim(), dataInicio: dateRange?.start.toString() ?? "", dataFim: dateRange?.end.toString() ?? "", startTime: values.startTime, endTime: values.endTime, endereco: values.endereco.trim(), lat: coordinates?.lat ?? null, lng: coordinates?.lng ?? null, linkParaCompra: values.LinkParaCompraIngresso.trim(), isFree: values.isFree, priceCents: priceCentsOf(values), capacity: values.capacity.trim() === "" ? null : Number(values.capacity.trim()), organizerName: values.organizerName.trim() },
+  ), ...coverChange];
+}
 
 type EventoFormProps = React.ComponentPropsWithoutRef<"form"> & { initialEvent?: Evento };
 
@@ -81,7 +94,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
   const saveMode = useRef<"draft" | "submit">("submit");
+  const [reviewPrompt, setReviewPrompt] = useState<EventoFormData | null>(null);
   const allValues = form.watch();
+  const isPublishedEdit = initialEvent?.status === "PUBLISHED";
+  const reviewReasons = publishedReviewReasons(initialEvent, allValues, dateRange, coordinates, !!banner);
   const fingerprint = JSON.stringify({ values: allValues, dates: dateRange && [dateRange.start.toString(), dateRange.end.toString()], coordinates, recurrence, repeatEvery, occurrences });
   const initialFingerprint = useRef(fingerprint);
   const unsaved = useUnsavedChanges(fingerprint !== initialFingerprint.current || !!banner || galleryFiles.length > 0);
@@ -131,7 +147,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
-  const onSubmit = (values: EventoFormData) => {
+  const onSubmit = (values: EventoFormData, reviewConfirmed = false) => {
     const draft = saveMode.current === "draft";
     if (!draft && (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0)) {
       setDateError("Escolha uma data de início e uma data de fim válidas.");
@@ -162,6 +178,11 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       toast.error("Entre na sua conta para criar um evento.");
       return;
     }
+    // OPP-01: warn before a sensitive edit takes a published event offline for review.
+    if (!draft && !reviewConfirmed && publishedReviewReasons(initialEvent, values, dateRange, coordinates, !!banner).length > 0) {
+      setReviewPrompt(values);
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -178,7 +199,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         payload.append("endereco", values.endereco.trim());
         payload.append("category", values.category);
         payload.append("isFree", String(values.isFree));
-        payload.append("priceCents", values.isFree ? "0" : String(Math.round(Number(values.price.replace(",", ".")) * 100)));
+        payload.append("priceCents", String(priceCentsOf(values)));
         payload.append("capacity", values.capacity.trim());
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
@@ -220,6 +241,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             return;
           }
           toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados para análise"}.`);
+        } else if (isPublishedEdit) {
+          // The server decides whether the event stayed online; its message says which.
+          toast.success(result.message || "Alterações salvas.");
         } else {
           toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
         }
@@ -239,6 +263,22 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   return (
     <FormProvider {...form}>
       {unsaved.dialog}
+      <Dialog open={reviewPrompt !== null} onOpenChange={(open) => { if (!open) setReviewPrompt(null); }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6 leading-snug"><AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />Enviar para nova revisão?</DialogTitle>
+            <DialogDescription>Isso enviará o evento para nova revisão e ele sairá do ar até a aprovação.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Alterações que exigem revisão: <strong>{reviewPrompt ? publishedReviewReasons(initialEvent, reviewPrompt, dateRange, coordinates, !!banner).join(", ") : ""}</strong>.</p>
+            <p className="text-muted-foreground">Inscritos e pessoas que salvaram o evento serão avisados. Para manter o evento no ar, desfaça essas alterações e salve apenas descrição, imagens ou informações práticas.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setReviewPrompt(null)}>Voltar e revisar</Button>
+            <Button type="button" variant="cta" disabled={isPending} onClick={() => { const values = reviewPrompt; setReviewPrompt(null); if (values) { saveMode.current = "submit"; onSubmit(values, true); } }}>Salvar e enviar para revisão</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           {draftRecovery.recovery && <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="Recuperar rascunho local"><h2 className="font-semibold">Você tem um rascunho neste navegador</h2><p className="mt-2 text-sm text-muted-foreground">Salvo em {new Date(draftRecovery.recovery.savedAt).toLocaleString("pt-BR")}. As imagens precisam ser selecionadas novamente. {draftRecovery.conflict ? "O evento foi atualizado desde este rascunho: recuperar substituirá os campos atuais. Confira antes de salvar." : "Recupere suas alterações ou descarte para continuar."}</p><div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={restoreDraft} disabled={fingerprint !== initialFingerprint.current || isPending}>Recuperar rascunho</Button><Button type="button" variant="ghost" onClick={draftRecovery.discard}>Descartar rascunho</Button></div>{fingerprint !== initialFingerprint.current && <p className="mt-2 text-xs text-muted-foreground">Você já editou o formulário. O rascunho anterior não substituirá essas alterações.</p>}</section>}
@@ -417,8 +457,8 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           </section>
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
-            <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>
-            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para análise"}</Button></div>
+            {isPublishedEdit ? <div className="flex items-start gap-3" aria-live="polite">{reviewReasons.length ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" /> : <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" />}<div className="space-y-1 text-sm text-foreground">{reviewReasons.length ? <><p className="font-semibold">Estas alterações exigem nova revisão: {reviewReasons.join(", ")}.</p><p className="text-muted-foreground">Ao salvar, o evento sairá do ar até a aprovação. Inscritos e quem salvou o evento serão avisados.</p></> : <><p className="font-semibold">O evento continua no ar.</p><p className="text-muted-foreground">Descrição, imagens, categoria, informações práticas e aumento de vagas são publicados na hora. Nome, data, horário, local, link de ingressos, preço e redução de vagas passam por nova revisão.</p></>}</div></div> : <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>}
+            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? (isPublishedEdit ? "Salvando alterações..." : "Enviando evento...") : isPublishedEdit ? (reviewReasons.length ? "Salvar e enviar para revisão" : "Publicar alterações") : "Enviar para análise"}</Button></div>
           </div>
         </div>
 

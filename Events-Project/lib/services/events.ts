@@ -1,7 +1,8 @@
 import { Evento } from "@/types";
 import prisma from "@/lib/prisma";
 import type { ResolveCurrentUser } from "@/lib/services/authContext";
-import { eventUpdateNotice } from "@/lib/eventScheduleChanges";
+import { eventUpdateNotice, sensitiveEventChanges, sensitiveFieldLabels } from "@/lib/eventScheduleChanges";
+import { reconcileEventWaitlist } from "@/lib/services/attendance";
 import { notifyEventAudience } from "@/lib/eventNotifications";
 import { publicEventSelect } from "@/lib/eventQueries";
 import { parseEventInput } from "@/schemas/eventInput";
@@ -37,7 +38,9 @@ async function save(formData: FormData, userId: string | null, eventId: string |
             return { success: false, message: "Evento não encontrado ou acesso negado." };
         if (existing?.status === "CANCELLED" || existing?.status === "ENDED")
             return { success: false, message: "Este evento já foi encerrado. Duplique-o para criar uma nova edição." };
-        const parsed = parseEventInput(formData, submit);
+        // A published event may stay online after the edit, so it must keep meeting the submission rules
+        // even when a client sends submit=false (server actions accept any argument).
+        const parsed = parseEventInput(formData, submit || existing?.status === "PUBLISHED");
         if (!parsed.success)
             return parsed;
         const bannerFile = formData.get("banner");
@@ -52,9 +55,18 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         if (files.length > 10)
             throw new Error("Adicione no máximo 10 imagens.");
         const carrossel = files.length ? await Promise.all(files.map(async (file) => { const url = await saveEventImage(file); savedFiles.push(url); return url; })) : existing?.carrossel ?? [];
-        const status = submit || existing?.status === "PUBLISHED" ? "PENDING" as const : "DRAFT" as const;
+        const wasPublished = existing?.status === "PUBLISHED";
+        // OPP-01: only sensitive changes take a published event back to review.
+        // A new cover is shown everywhere the event appears, so it is reviewed like the name.
+        const sensitive = existing && wasPublished
+            ? [...sensitiveEventChanges(existing, { ...parsed.data, organizerName: formData.has("organizerName") ? parsed.data.organizerName : undefined }), ...(banner !== existing.banner ? [sensitiveFieldLabels.banner] : [])]
+            : [];
+        const liveUpdate = wasPublished && sensitive.length === 0;
+        const status = liveUpdate ? "PUBLISHED" as const : submit || wasPublished ? "PENDING" as const : "DRAFT" as const;
+        const capacityGrew = liveUpdate && existing !== null && existing.capacity !== null && (parsed.data.capacity === null || parsed.data.capacity > existing.capacity);
         const evento = await prisma.$transaction(async (transaction) => {
-            const data = { ...parsed.data, banner, carrossel, status, validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
+            const reviewReset = liveUpdate ? {} : { validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
+            const data = { ...parsed.data, banner, carrossel, status, ...reviewReset };
             // Older clients omit these fields: preserve existing information until explicitly edited.
             if (existing) {
                 if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
@@ -68,16 +80,29 @@ async function save(formData: FormData, userId: string | null, eventId: string |
                     throw new Error("CONCURRENT_EVENT_CHANGE");
             }
             const event = existing ? await transaction.events.findUniqueOrThrow({ where: { id: existing.id } }) : await transaction.events.create({ data: { ...data, userId: user.id } });
-            await record(transaction, event, user, existing ? status === "PENDING" ? "SUBMITTED" : "UPDATED" : "CREATED");
+            if (liveUpdate) {
+                await record(transaction, event, user, "UPDATED", "Alterações publicadas sem nova revisão (campos não sensíveis).");
+                await notifyEventAudience(transaction, event, { title: "Evento atualizado", message: event.nome + ": alterações publicadas sem sair do ar.", includeAdmins: true, includeFavorites: false });
+                return event;
+            }
+            await record(transaction, event, user, existing ? status === "PENDING" ? "SUBMITTED" : "UPDATED" : "CREATED", sensitive.length ? "Nova revisão por alteração de: " + sensitive.join(", ") + "." : undefined);
             if (status === "PENDING")
                 await notifyEventAudience(transaction, event, { title: "Evento em revisão", message: "O evento foi enviado para análise.", includeAdmins: true });
-            if (existing?.status === "PUBLISHED")
-                await notifyEventAudience(transaction, event, { ...eventUpdateNotice(existing, parsed.data), includeFavorites: true });
-            if (existing?.status === "PUBLISHED")
+            if (wasPublished && existing) {
+                await notifyEventAudience(transaction, event, { ...eventUpdateNotice(existing, parsed.data), includeFavorites: true, includeRegistrations: true });
                 await transaction.favorite.updateMany({ where: { eventId: event.id }, data: { reminderSentAt: null } });
+            }
             return event;
         });
-        return { success: true, message: status === "DRAFT" ? "Rascunho salvo." : "Evento enviado para revisão.", evento };
+        if (capacityGrew) {
+            try {
+                await reconcileEventWaitlist(evento.id);
+            }
+            catch {
+                console.error("Waitlist reconciliation failed after an event update.");
+            }
+        }
+        return { success: true, message: liveUpdate ? "Alterações publicadas. O evento continua no ar." : status === "DRAFT" ? "Rascunho salvo." : "Evento enviado para revisão.", evento, published: liveUpdate, reviewReasons: sensitive };
     }
     catch (error) {
         await removeEventImages(savedFiles);
@@ -132,10 +157,12 @@ export async function cancelarEvento(eventId: string, resolveCurrentUser: Resolv
                 return null;
             const changed = await transaction.events.update({ where: { id: event.id }, data: { status: "CANCELLED", validate: false } });
             await record(transaction, changed, user, "CANCELLED");
-            await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: "O organizador cancelou este evento." });
+            // Notify attendees before closing their registrations (BE-02).
+            await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: changed.nome + " foi cancelado pelo organizador. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
+            await transaction.eventRegistration.updateMany({ where: { eventId: changed.id, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
             return changed;
         });
-        return { success: Boolean(evento), message: evento ? "Evento cancelado; a página e o histórico foram preservados." : "Evento indisponível.", evento };
+        return { success: Boolean(evento), message: evento ? "Evento cancelado; inscritos foram avisados e a página e o histórico foram preservados." : "Evento indisponível.", evento };
     }
     catch {
         return { success: false, message: "Não foi possível cancelar o evento." };

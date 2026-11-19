@@ -1,15 +1,25 @@
 "use client";
 
 import {
-  CalendarCheck,
+  Activity,
+  BarChart3,
+  Bell,
+  Bookmark,
+  CalendarDays,
   CalendarPlus,
+  ClipboardList,
   Compass,
-  LayoutDashboard,
+  FileText,
+  Flag,
+  HeartHandshake,
+  History,
   Map,
+  Megaphone,
   Plus,
+  ShieldAlert,
   ShieldCheck,
-  Mail,
   Sparkles,
+  UserCog,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -33,25 +43,34 @@ import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
 import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
 
-type NavItem = { label: string; href: string; icon: typeof Compass; roles?: string[] };
+type Role = "ADMIN" | "PROMOTER" | "BASIC";
+type NavItem = { label: string; href: string; icon: typeof Compass; roles?: Role[]; guest?: boolean };
 
+const members: Role[] = ["ADMIN", "PROMOTER", "BASIC"];
+const organizers: Role[] = ["ADMIN", "PROMOTER"];
+
+// Um ícone por item: o usuário reconhece cada destino pelo símbolo.
 const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
-  { label: "Privacidade e preferências", href: "/privacidade", icon: ShieldCheck },
-  { label: "Seus dados e direitos", href: "/privacidade/solicitacoes", icon: Mail },
-  { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarCheck },
+  { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarDays },
   { label: "Mapa de eventos", href: "/#home-discovery", icon: Map },
-  { label: "Minha agenda", href: "/salvos", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
-  { label: "Central de atividades", href: "/atividade", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER", "BASIC"] },
-  { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
-  { label: "Criar evento", href: "/CriarEvento", icon: CalendarPlus, roles: ["ADMIN", "PROMOTER"] },
-  { label: "Meus eventos", href: "/myEvents", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
-  { label: "Usuários", href: "/admin", icon: UsersRound, roles: ["ADMIN"] },
+  { label: "Minha agenda", href: "/salvos", icon: Bookmark, roles: members },
+  { label: "Central de atividades", href: "/atividade", icon: Activity, roles: members },
+  { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: members },
+  { label: "Notificações", href: "/notificacoes", icon: Bell, roles: members },
+  { label: "Perfil de conexões", href: "/perfil-conexoes", icon: HeartHandshake, roles: members },
+  { label: "Meu perfil", href: "/Profile", icon: UserRound, roles: members },
+  { label: "Para organizadores", href: "/para-organizadores", icon: Megaphone, roles: ["BASIC"], guest: true },
+  { label: "Criar evento", href: "/CriarEvento", icon: CalendarPlus, roles: organizers },
+  { label: "Meus eventos", href: "/myEvents", icon: ClipboardList, roles: organizers },
+  { label: "Resultados", href: "/resultados", icon: BarChart3, roles: organizers },
+  { label: "Usuários", href: "/admin", icon: UserCog, roles: ["ADMIN"] },
   { label: "Importar eventos", href: "/admin/eventos-ia", icon: Sparkles, roles: ["ADMIN"] },
-  { label: "Revisar denúncias", href: "/admin/conexoes-denuncias", icon: UsersRound, roles: ["ADMIN"] },
-  { label: "Resultados", href: "/resultados", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER"] },
-  { label: "Notificações", href: "/notificacoes", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
-  { label: "Meu perfil", href: "/Profile", icon: UserRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
+  { label: "Denúncias de eventos", href: "/admin/reports", icon: ShieldAlert, roles: ["ADMIN"] },
+  { label: "Denúncias de conexões", href: "/admin/conexoes-denuncias", icon: Flag, roles: ["ADMIN"] },
+  { label: "Auditoria de acesso", href: "/admin/auditoria", icon: History, roles: ["ADMIN"] },
+  { label: "Privacidade e preferências", href: "/privacidade", icon: ShieldCheck },
+  { label: "Seus dados e direitos", href: "/privacidade/solicitacoes", icon: FileText },
 ];
 
 export function AppSidebar() {
@@ -70,12 +89,16 @@ export function AppSidebar() {
   const { data: session, status } = useSession();
   const authenticatedUser = status === "authenticated" && session?.user?.id ? session.user : null;
   const role = authenticatedUser?.role;
-  const visibleItems = navigation.filter((item) => !item.roles || (role !== null && role !== undefined && item.roles.includes(role)));
+  const visibleItems = navigation.filter((item) => {
+    if (!item.roles) return true;
+    if (!authenticatedUser) return Boolean(item.guest) && status === "unauthenticated";
+    return typeof role === "string" && (item.roles as string[]).includes(role);
+  });
   const groups = [
     { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery"] },
-    { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/Profile"] },
-    { label: "Organizar", paths: ["/CriarEvento", "/myEvents", "/resultados"] },
-    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/conexoes-denuncias", "/admin/auditoria"] },
+    { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
+    { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/resultados"] },
+    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
     { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },
   ];
   const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
@@ -103,7 +126,7 @@ export function AppSidebar() {
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-cta/15 hover:text-sidebar-foreground data-[active=true]:bg-cta data-[active=true]:text-cta-foreground data-[active=true]:font-semibold data-[active=true]:hover:bg-cta data-[active=true]:hover:text-cta-foreground">
                   <Link href={href} onClick={event => openNavigation(event, href)}>
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5" aria-hidden="true" />
                     <span>{label}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -116,7 +139,7 @@ export function AppSidebar() {
       {(role === "ADMIN" || role === "PROMOTER") && (
         <div className="hidden shrink-0 px-4 pb-3 md:block">
           <Button asChild variant="cta" className="h-11 w-full rounded-xl">
-            <Link href="/CriarEvento" onClick={closeNavigation}><Plus className="h-4 w-4" /> Novo evento</Link>
+            <Link href="/CriarEvento" onClick={closeNavigation}><Plus className="h-4 w-4" aria-hidden="true" /> Novo evento</Link>
           </Button>
         </div>
       )}
@@ -142,7 +165,7 @@ export function AppSidebar() {
         ) : (
           <div className="space-y-2 md:space-y-3">
             <p className="hidden text-sm leading-6 text-muted-foreground md:block">Entre para publicar eventos e salvar suas descobertas.</p>
-            <Button asChild className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button asChild className="h-11 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
               <a href="/login" onClick={closeNavigation}>Entrar na plataforma</a>
             </Button>
           </div>

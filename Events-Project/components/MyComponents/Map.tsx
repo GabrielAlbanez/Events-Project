@@ -6,7 +6,6 @@ import {
   DirectionsRenderer,
 } from "@react-google-maps/api";
 import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import {
   ArrowLeft,
   Route,
@@ -14,11 +13,12 @@ import {
   MapPin,
   ZoomIn,
   ZoomOut,
+  X,
 } from "lucide-react";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
 import { Evento } from "@/types";
 import { useTheme } from "next-themes";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
@@ -50,6 +50,7 @@ const USER_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIC
 const createEventMarkerIcon = (fill: string, ink: string) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
 const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
 const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
+// Only the explicit `?endereco=` search is geocoded in the browser; events use stored coordinates.
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
 const locationNoticeKey = "eventmap:location-notice-accepted";
 
@@ -76,6 +77,21 @@ const EventMarkers = memo(function EventMarkers({
     />
   ));
 });
+
+/** Events reach the map only with stored coordinates (geocoded once at registration). */
+export function hasMapCoordinates(event: Pick<Evento, "lat" | "lng">): event is Pick<Evento, "lat" | "lng"> & { lat: number; lng: number } {
+  return typeof event.lat === "number" && typeof event.lng === "number" && Number.isFinite(event.lat) && Number.isFinite(event.lng)
+    && Math.abs(event.lat) <= 90 && Math.abs(event.lng) <= 180;
+}
+
+/** Removes only `endereco`, keeping the discovery filters (q, periodo, categoria…) and the hash. */
+export function withoutAddressParam(search: string, pathname: string, hash: string): string | null {
+  const params = new URLSearchParams(search);
+  if (!params.has("endereco")) return null;
+  params.delete("endereco");
+  const query = params.toString();
+  return pathname + (query ? "?" + query : "") + hash;
+}
 
 type MapProps = {
   events: Evento[];
@@ -107,7 +123,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
 
   const searchParams = useSearchParams();
   const enderecoParam = searchParams.get("endereco");
-  const router = useRouter();
+  // Next keeps useSearchParams in sync with history.replaceState, without refetching the page.
+  const clearAddressParam = useCallback(() => {
+    const next = withoutAddressParam(window.location.search, window.location.pathname, window.location.hash);
+    if (next) window.history.replaceState(window.history.state, "", next);
+  }, []);
 
   const locationRequestRef = useRef(0);
   const locationInFlightRef = useRef(false);
@@ -131,7 +151,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
           locationInFlightRef.current = false;
           setIsLocating(false);
           setShowLocationPrompt(false);
-          router.replace("/");
+          clearAddressParam();
         },
         (error) => {
           if (requestId !== locationRequestRef.current) return;
@@ -148,7 +168,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     } else {
       toast.error("Geolocalização não suportada pelo navegador.");
     }
-  }, [router]);
+  }, [clearAddressParam]);
 
   // Guarda somente que a explicação foi aceita, nunca as coordenadas.
   // A permissão de localização continua sendo controlada pelo navegador.
@@ -229,8 +249,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     setRouteError(null);
     toast.info("Rota limpa com sucesso.");
     setIsRouteTracing(false); // Move the modal back to the center
-    router.replace("/");
-  }, [directions, router]);
+    clearAddressParam();
+  }, [directions, clearAddressParam]);
 
   const convertAddressToCoordinates = useCallback((
     endereco: string
@@ -264,22 +284,6 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     return () => { locationRequestRef.current += 1; };
   }, [convertAddressToCoordinates, enderecoParam]);
 
-  const [geocodedEvents, setGeocodedEvents] = useState<Evento[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    Promise.allSettled(events.map(async (event) => ({
-      ...event,
-      ...(event.lat != null && event.lng != null
-        ? { lat: event.lat, lng: event.lng }
-        : await convertAddressToCoordinates(event.endereco)),
-    }))).then((results) => {
-      if (!cancelled) setGeocodedEvents(
-        results.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
-      );
-    });
-    return () => { cancelled = true; };
-  }, [events, convertAddressToCoordinates]);
-
   const mapOptions = useMemo<google.maps.MapOptions>(() => ({
     fullscreenControl: false,
     cameraControl: false,
@@ -293,15 +297,15 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
     styles: resolvedTheme === "dark" ? DARK_MAP_STYLE : undefined,
   }), [resolvedTheme]);
 
-  const visibleEvents = useMemo(
-    () => geocodedEvents.filter((event) => event.lat != null && event.lng != null),
-    [geocodedEvents]
-  );
+  // No per-visit geocoding: events without stored coordinates stay in the list and are counted below.
+  const visibleEvents = useMemo(() => events.filter(hasMapCoordinates), [events]);
+  const missingCoordinates = events.length - visibleEvents.length;
   const handleEventSelect = useCallback((event: Evento) => onSelectEvent(event.id), [onSelectEvent]);
   const selectedEvent = useMemo(
-    () => visibleEvents.find((event) => event.id === selectedId) ?? null,
-    [visibleEvents, selectedId]
+    () => events.find((event) => event.id === selectedId) ?? null,
+    [events, selectedId]
   );
+  const selectedMappable = Boolean(selectedEvent && hasMapCoordinates(selectedEvent));
   const selectedLat = selectedEvent?.lat;
   const selectedLng = selectedEvent?.lng;
   useEffect(() => {
@@ -353,8 +357,10 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             {selectedEvent && !showDirections && (
               <div className="absolute left-3 right-[72px] top-3 z-10 flex max-w-sm gap-3 rounded-2xl border border-border bg-card/95 p-3 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5">
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-primary">{selectedEvent.banner && <img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" />}</div>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedEvent.endereco}</p><button type="button" className="mt-2 text-xs font-semibold text-brand" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button></div>
-                <button type="button" aria-label="Fechar evento" className="self-start text-muted-foreground" onClick={() => onSelectEvent(null)}>×</button>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedEvent.nome}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedEvent.endereco}</p>{selectedMappable
+                  ? <button type="button" className="mt-2 text-xs font-semibold text-brand" onClick={() => setEventoAtivo(selectedEvent)}>Ver detalhes</button>
+                  : <><p className="mt-1 text-xs text-muted-foreground">Local ainda sem coordenadas no mapa.</p><Link href={"/eventos/" + encodeURIComponent(selectedEvent.id)} className="mt-1 inline-block text-xs font-semibold text-brand">Ver detalhes</Link></>}</div>
+                <button type="button" aria-label="Fechar evento" className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center self-start rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelectEvent(null)}><X className="h-4 w-4" aria-hidden="true" /></button>
               </div>
             )}
 
@@ -397,6 +403,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent }: MapPro
             <div className="absolute bottom-5 left-5 z-10 hidden items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-medium text-muted-foreground shadow-surface backdrop-blur md:flex">
               <span className="h-2 w-2 rounded-full bg-primary" />
               {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} no mapa
+              {missingCoordinates > 0 && <span>· {missingCoordinates} sem coordenadas</span>}
             </div>
           </div>
           {eventoAtivo && (

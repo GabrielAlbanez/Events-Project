@@ -56,6 +56,10 @@ export async function getPromoterStats() {
   return promoters.getPromoterStats(getAuthenticatedUser);
 }
 
+export async function getPromoterInsights(input: promoters.PromoterInsightsInput = {}) {
+  return promoters.getPromoterInsights(input, getAuthenticatedUser);
+}
+
 export async function getRecommendedEvents() {
   return recommendations.getRecommendedEvents(getAuthenticatedUser);
 }
