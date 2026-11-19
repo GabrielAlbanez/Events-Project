@@ -129,7 +129,7 @@ export default function MyEvents() {
   const pendingCount = events.filter((event) => event.status === "PENDING").length;
 
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="relative isolate flex flex-wrap items-start justify-between gap-5 overflow-hidden rounded-3xl border bg-card/80 p-5 shadow-sm sm:p-6">
           <ParallaxCard
@@ -214,6 +214,6 @@ export default function MyEvents() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

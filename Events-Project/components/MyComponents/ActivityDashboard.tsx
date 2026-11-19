@@ -55,7 +55,7 @@ export function ActivityDashboard() {
   const called = (data?.queues ?? []).filter(item => item.status === "CALLED" && item.state !== "CLOSED");
   const show = (id: Filter) => filter === "all" || filter === id;
 
-  return <main className="min-w-0 w-full px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl space-y-8">
+  return <div className="min-w-0 w-full px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl space-y-8">
     <header className="relative isolate overflow-hidden rounded-[28px] border border-border bg-card shadow-surface p-6 sm:p-8 lg:p-10">
       <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-20 -z-10 size-72 rounded-full border-[32px] border-border sm:size-96" />
       <div className="flex flex-wrap items-start justify-between gap-6"><FadeInView className="max-w-2xl"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-brand"><Sparkles className="size-4" aria-hidden="true" /> Sua experiência, organizada</p><h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Central de atividades</h1><p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">Acompanhe o que precisa da sua atenção e prepare o próximo encontro. Suas filas, compromissos e amigos, em um só lugar.</p></FadeInView><Link href="/EventsCreated" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-highlight transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="size-4" aria-hidden="true" /> Descobrir eventos <ArrowRight className="size-4" aria-hidden="true" /></Link></div>
@@ -91,5 +91,5 @@ export function ActivityDashboard() {
         <DialogFooter className="gap-2"><Button type="button" variant="outline" className="min-h-11 rounded-xl" onClick={() => setPending(null)}>Cancelar</Button><Button type="button" variant={pending?.action === "queue.leave" ? "destructive" : "default"} className="min-h-11 rounded-xl" disabled={disabledActions} onClick={() => void confirmAction()}>{actions.busy ? "Salvando..." : pending?.action === "queue.leave" ? "Confirmar saída" : "Confirmar conclusão"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
-  </div></main>;
+  </div></div>;
 }

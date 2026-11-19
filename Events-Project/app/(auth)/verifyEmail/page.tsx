@@ -70,7 +70,7 @@ export default function VerifyEmailPage() {
         : "Confira sua conexão e tente novamente. Se a conta já foi confirmada, você pode entrar normalmente.";
 
   return (
-    <main className="flex min-h-[80vh] w-full items-center justify-center px-4 py-10 sm:px-6">
+    <div className="flex min-h-[80vh] w-full items-center justify-center px-4 py-10 sm:px-6">
       <section className="w-full max-w-lg rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-10" aria-busy={loading}>
         <div role={loading || success ? "status" : "alert"} aria-live="polite">
           <FadeInView stationary><span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-brand">
@@ -86,6 +86,6 @@ export default function VerifyEmailPage() {
           {!success && <Link href="/" className="rounded-lg py-2 text-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Voltar ao início</Link>}
         </div>}
       </section>
-    </main>
+    </div>
   );
 }

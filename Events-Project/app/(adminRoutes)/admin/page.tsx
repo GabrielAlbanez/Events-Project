@@ -104,11 +104,11 @@ export default function AdminPage() {
 
 
   if (status === "loading" || status !== "authenticated" || session?.user?.role !== "ADMIN") {
-    return <main className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Preparando painel de usuários...</p></main>;
+    return <div className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Preparando painel de usuários...</p></div>;
   }
 
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-7xl">
         <header className="relative isolate mb-8 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-6 lg:grid-cols-[auto_minmax(0,1fr)_auto]"><FadeInView className="min-w-0 flex-1"><p className="mb-2 text-sm font-semibold uppercase tracking-widest text-brand">Administração</p><h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl"><UsersRound className="h-8 w-8 text-brand" aria-hidden="true" /> Usuários</h1><p className="mt-2 text-muted-foreground">Encontre contas, consulte eventos e gerencie permissões.</p></FadeInView><Link href="/admin/reports" className="col-start-2 inline-flex min-h-11 max-w-full items-center justify-self-start rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-brand hover:bg-primary/10 lg:col-start-3 lg:row-start-1">Analisar denúncias →</Link><ParallaxCard className="pointer-events-none absolute -top-6 right-1/4 -z-10 hidden h-28 w-28 lg:block" pointerHost="parent" decorationClassName="absolute inset-0 rounded-full border border-primary/20 bg-primary/5 blur-[1px]" secondaryDecoration={<span />} secondaryClassName="absolute inset-5 rounded-full border border-primary/25 bg-primary/10"><span /></ParallaxCard></header>
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Busque eventos reais e revise cada proposta antes de publicar.</p><Button asChild variant="outline"><Link href="/admin/eventos-ia">Importar eventos →</Link></Button></div>
@@ -129,7 +129,7 @@ export default function AdminPage() {
 
         <div className="mt-6"><TransferEventOwnership /></div>
       </div>
-    </main>
+    </div>
   );
 }
 

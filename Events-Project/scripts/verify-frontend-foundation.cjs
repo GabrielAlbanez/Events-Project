@@ -90,17 +90,7 @@ check("layout renders exactly one main#conteudo after a skip link", () => {
 });
 // Pages still declaring their own <main>: the coordinator converts them to <div> (see integration notes).
 // Remove entries from this list as they are converted; new nested mains outside it fail.
-const PENDING_MAIN_CONVERSION = new Set([
-  "app/(adminRoutes)/admin/page.tsx", "app/(adminRoutes)/admin/reports/page.tsx", "app/(auth)/verifyEmail/page.tsx",
-  "app/(private)/CriarEvento/page.tsx", "app/(private)/Profile/page.tsx", "app/(private)/eventos/[id]/editar/page.tsx",
-  "app/(private)/myEvents/[id]/checkin/page.tsx", "app/(private)/myEvents/page.tsx", "app/(private)/notificacoes/page.tsx",
-  "app/(private)/resultados/error.tsx", "app/(private)/resultados/loading.tsx", "app/(private)/resultados/page.tsx",
-  "app/(private)/salvos/page.tsx", "app/eventos/error.tsx", "app/page.tsx", "app/promotores/[id]/page.tsx", "app/promotores/error.tsx",
-  "components/MyComponents/ActivityDashboard.tsx", "components/MyComponents/AdminAiEvents.tsx", "components/MyComponents/CommunityEventHub.tsx",
-  "components/MyComponents/CommunityRooms.tsx", "components/MyComponents/EventChatHub.tsx", "components/MyComponents/GlobalConnectionsProfile.tsx",
-  "components/MyComponents/ImpersonationAudit.tsx", "components/MyComponents/LoginPageShell.tsx", "components/MyComponents/PartyConnectionsHub.tsx",
-  "components/MyComponents/PartyReports.tsx", "components/MyComponents/PortfolioDemo.tsx", "components/MyComponents/home/HomeDiscoveryClient.tsx",
-]);
+const PENDING_MAIN_CONVERSION = new Set([]);
 // Legitimate mains: the layout, documents rendered instead of the layout, and the unused shadcn SidebarInset primitive.
 const ALLOWED_MAIN = new Set(["components/Providers/ClientProviders.tsx", "app/global-error.tsx", "components/MyComponents/ImpersonationGuard.tsx", "components/ui/sidebar.tsx"]);
 check("no page adds a second main landmark", () => {

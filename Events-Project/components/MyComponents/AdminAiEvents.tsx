@@ -23,8 +23,8 @@ type Confirmation = { payload: AiEventsAction; title: string; description: strin
 
 export default function AdminAiEvents() {
   const { data: session, status } = useSession();
-  if (status === "loading") return <main className="p-6"><p role="status" className="text-muted-foreground">Conferindo acesso ao painel…</p></main>;
-  if (status !== "authenticated" || !session?.user?.id || session.user.role !== "ADMIN") return <main className="p-6"><p role="alert">Este painel está disponível somente para administradores.</p></main>;
+  if (status === "loading") return <div className="p-6"><p role="status" className="text-muted-foreground">Conferindo acesso ao painel…</p></div>;
+  if (status !== "authenticated" || !session?.user?.id || session.user.role !== "ADMIN") return <div className="p-6"><p role="alert">Este painel está disponível somente para administradores.</p></div>;
   return <AiEventsContent key={`${session.user.id}:${session.user.role}`} />;
 }
 
@@ -81,7 +81,7 @@ function AiEventsContent() {
   const searchInProgress = snapshot?.runs.some(run => run.status === "QUEUED" || run.status === "RUNNING");
   const failure = localError || resource.error || (resource.message && resource.message !== "Alteração salva." ? resource.message : "");
 
-  return <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"><div className="mx-auto max-w-6xl space-y-6">
+  return <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"><div className="mx-auto max-w-6xl space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><Link href="/admin" className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-brand">← Administração</Link><p className="mt-3 text-xs font-bold uppercase tracking-[.18em] text-brand">Importação automática</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Importar eventos</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Busque eventos em fontes públicas e revise as propostas antes de publicá-las na agenda.</p></div><Button variant="outline" disabled={resource.loading || resource.refreshing || resource.busy || !resource.online} onClick={() => void resource.refresh()}>Atualizar</Button></header>
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border bg-card px-5 py-4 text-sm"><span className="inline-flex items-center gap-2"><Radio size={16} className="text-brand" aria-hidden="true" />{realtime === "live" ? "Atualizações em tempo real" : "Sincronizando atualizações"}</span><span className="inline-flex items-center gap-2 text-muted-foreground"><Clock3 size={16} aria-hidden="true" />Próxima execução: {dateTime(snapshot?.config?.nextRunAt ?? null)}</span></div>
     {failure && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm"><p>{failure}</p><p className="mt-1 text-muted-foreground">Se a configuração ainda não estiver disponível, confira a preparação do servidor e tente atualizar novamente.</p></div>}
@@ -164,6 +164,6 @@ function AiEventsContent() {
       <section className="rounded-2xl border bg-card p-5 sm:p-6"><h2 className="text-xl font-semibold">Execuções recentes</h2>{!snapshot.runs.length ? <p className="mt-4 text-sm text-muted-foreground">Nenhuma execução registrada.</p> : <ul className="mt-4 divide-y divide-border">{snapshot.runs.map(run => <li key={run.id} className="flex flex-wrap items-start justify-between gap-3 py-4 first:pt-0 last:pb-0"><div><p className="text-sm font-semibold">{statuses[run.status] ?? run.status}</p><p className="mt-1 text-xs text-muted-foreground">{dateTime(run.startedAt)}{run.finishedAt ? ` · Finalizada em ${dateTime(run.finishedAt)}` : ""}</p>{run.message && <p className="mt-2 max-w-3xl break-words text-sm leading-6 text-muted-foreground">{run.message}</p>}</div><span className="text-sm text-muted-foreground">{run.createdCount} evento{run.createdCount === 1 ? "" : "s"}</span></li>)}</ul>}</section>
     </>}
     <Dialog open={confirmation !== null} onOpenChange={open => { if (!open && !resource.busy) setConfirmation(null); }}><DialogContent className="max-h-[90dvh] max-w-[calc(100%_-_2rem)] overflow-y-auto rounded-2xl data-[state=closed]:animate-none sm:max-w-lg"><DialogTitle>{confirmation?.title}</DialogTitle><DialogDescription className="leading-6">{confirmation?.description}</DialogDescription>{failure && <p role="alert" className="text-sm text-destructive">{failure}</p>}<DialogFooter className="gap-2"><Button variant="outline" disabled={resource.busy} onClick={() => setConfirmation(null)}>Cancelar</Button><Button variant="cta" disabled={disabled || !confirmation} onClick={() => { if (confirmation) void act(confirmation.payload, confirmation.payload.action === "approve" ? "Evento publicado." : confirmation.payload.action === "run" ? "Busca adicionada à fila." : "Alteração salva."); }}>{resource.busy && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}Confirmar autorização</Button></DialogFooter></DialogContent></Dialog>
-  </div></main>;
+  </div></div>;
 }
 

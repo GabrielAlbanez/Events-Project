@@ -185,7 +185,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
 
   const items = conversations ?? [{ id: eventId, name: chat.event?.name ?? "Chat do evento", href: `/eventos/${encodeURIComponent(eventId)}/chat`, preview: chat.messages.at(-1)?.text || "Converse com os participantes" }];
 
-  return <LazyMotion features={loadAnimationFeatures} strict><main className={styles.page}>
+  return <LazyMotion features={loadAnimationFeatures} strict><div className={styles.page}>
 
     <div className={styles.toolbar}><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Conexões da festa" : "Voltar ao evento"}</Link></div>
 
@@ -229,6 +229,6 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
 
     </section>
 
-  </main></LazyMotion>;
+  </div></LazyMotion>;
 
 }

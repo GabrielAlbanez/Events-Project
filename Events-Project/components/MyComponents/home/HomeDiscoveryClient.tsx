@@ -152,7 +152,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
 
       <div ref={homeScrollContainer} className={styles.scroller}>
       <LuxuryHomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} period={period} periodLinks={periodLinks} onPeriodChange={setPeriod} onQuickSearch={handleQuickSearch} searchValue={search} categoryValue={discovery.category} />
-      <main id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
+      <section id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
         <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
@@ -203,7 +203,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
         <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-muted`} aria-label="Mapa dos eventos">
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={setSelectedId} />
         </section>
-      </main>
+      </section>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-Status: PENDENTE
+Status: CONCLUÍDO
 # HANDOFF — 2026-11-18 — Produto comercial
 ## Tarefa original
 Missão "transformar o EventMap em produto comercial de alto valor": auditoria com 7 agentes (produto, UX/UI, front-end, back-end, IA, monetização, QA), priorização P0/P1/P2, implementação, validação, relatório final.
@@ -31,3 +31,8 @@ npm run dev:socket; npx tsc --noEmit --incremental false; npm run lint; npm run 
 - Integração feita pelo coordenador: contexto de comunicados em lib/community/events.ts; capa (banner) agora é mudança sensível (eventScheduleChanges + events.ts + EventoForm); testes atualizados e PASSANDO: verify-event-platform, verify-notifications, verify-notification-worker, verify-home-realtime, verify-portfolio-home, verify-agenda-complements. tsc 0 erros, lint ok.
 - Falta (ordem): 1) terminar revisões C e F; 2) converter <main>→<div> nos 24 arquivos de PENDING_MAIN_CONVERSION (scripts/verify-frontend-foundation.cjs) e esvaziar a lista; HomeDiscoveryClient usa <section id="home-discovery" tabIndex={-1}>; login-form.tsx também tem <main>; 3) link "Fazer check-in" p/ equipe na comunidade; 4) SimilarEvents na página do evento (nota F4); 5) loading próprio para /myEvents/[id]/checkin; 6) reiniciar dev server; node scripts/run-offline-tests.cjs; tsc; tsc server; lint; npm run build; 7) revisar diff, commit e push na branch codex/produto-comercial-20261118; 8) relatório final (docs/produto-comercial/00-relatorio-final.md).
 - Detalhes: C:/Users/gabri/EventsApp/painel-agentes/prompts/INTEGRACAO-pendente.md e report-*.md.
+
+## Conclusão 19/11
+- Revisões C/F tinham aplicado suas integrações antes do corte; coordenador concluiu: <main> único (29 arquivos), SimilarEvents, link de check-in da equipe, verify-upload.
+- Verificação final: tsc 0, tsc server 0, lint 0, test:offline 51/51, build exit 0, smoke HTTP ok.
+- Relatório: docs/produto-comercial/00-relatorio-final.md.

@@ -40,7 +40,7 @@ export default function PortfolioDemo({ events }: { events: DemoEvent[] }) {
   ];
 
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <header className={styles.header}>
         <Link href="/" className={styles.back}><ArrowLeft size={17} aria-hidden="true" /> EventMap</Link>
         <span className={styles.badge}>Demonstração · simulação local</span>
@@ -71,6 +71,6 @@ export default function PortfolioDemo({ events }: { events: DemoEvent[] }) {
         </aside>
       </div>
       <footer className={styles.footer}><div><strong>Um ambiente para experimentar.</strong><p>Tudo acontece apenas nesta página e é apagado ao recarregar. Esta simulação local não demonstra entrega WebSocket real. Para conferir as funcionalidades conectadas, explore o site real.</p></div><Link href="/">Explorar o site real <ArrowRight size={16} aria-hidden="true" /></Link></footer>
-    </main>
+    </div>
   );
 }

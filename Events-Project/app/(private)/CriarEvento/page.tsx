@@ -3,7 +3,7 @@ import { FadeInView } from "@/components/animations/FadeInView";
 
 export default function CriarEvento() {
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-start gap-4">
           
@@ -17,6 +17,6 @@ export default function CriarEvento() {
         </div>
         <EventoForm />
       </div>
-    </main>
+    </div>
   );
 }

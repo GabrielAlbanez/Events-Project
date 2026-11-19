@@ -192,14 +192,14 @@ export default function Profile() {
   };
 
   if (user.status === "loading") {
-    return <main className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></main>;
+    return <div className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></div>;
   }
   if (!account) {
-    return <main className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center"><h1 className="text-2xl font-semibold tracking-tight">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></main>;
+    return <div className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center"><h1 className="text-2xl font-semibold tracking-tight">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></div>;
   }
 
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-start gap-4">
           
@@ -258,6 +258,6 @@ export default function Profile() {
         </div>
       </div>
       <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} pending={isImagePending} error={imageError} />
-    </main>
+    </div>
   );
 }
