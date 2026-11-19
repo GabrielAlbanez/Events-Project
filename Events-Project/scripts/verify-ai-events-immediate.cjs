@@ -309,6 +309,19 @@ section("ui", () => {
   assert.doesNotMatch(ui, /Aprovar e publicar/, "nada é publicado direto desta tela");
 });
 
+section("fix.preview-pending", () => {
+  const { canPreviewEvent } = load("lib/eventPreview.ts");
+  const event = { userId: "dono", status: "PENDING" };
+  assert.equal(canPreviewEvent({ id: ADMIN, role: "ADMIN", suspended: false }, event), true, "admin vê o importado pendente");
+  assert.equal(canPreviewEvent({ id: "dono", role: "USER", suspended: false }, event), true, "quem criou vê o próprio rascunho");
+  assert.equal(canPreviewEvent({ id: "outro", role: "USER", suspended: false }, event), false);
+  assert.equal(canPreviewEvent(null, event), false, "público continua sem acesso");
+  assert.equal(canPreviewEvent({ id: ADMIN, role: "ADMIN", suspended: true }, event), false, "conta suspensa não vê");
+  const page = fs.readFileSync(path.join(__dirname, "..", "app", "eventos", "[id]", "page.tsx"), "utf8");
+  assert.match(page, /canPreviewEvent\(/, "a página do evento usa a regra de prévia");
+  assert.match(page, /Prévia: este evento ainda não está no ar/);
+});
+
 section("queue", () => {
   const read = file => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
   assert.match(read("lib/eventQueries.ts"), /aiImport: \{ select: \{ sourceUrl: true/, "a fila recebe a origem do evento importado");
