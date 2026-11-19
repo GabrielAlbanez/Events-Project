@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "./button";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
-import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
 
 type Role = "ADMIN" | "PROMOTER" | "BASIC";
@@ -101,7 +100,7 @@ export function AppSidebar() {
     { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
     { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },
   ];
-  const avatar = authenticatedUser?.image || determineDefaultAvatar(authenticatedUser?.name || "EventMap");
+  const avatar = authenticatedUser?.image || null;
 
   return (
     <Sidebar className="h-screen w-[292px] overflow-hidden border-r border-sidebar-border bg-sidebar shadow-surface">

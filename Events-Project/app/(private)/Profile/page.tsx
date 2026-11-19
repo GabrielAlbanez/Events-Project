@@ -16,7 +16,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useSocket } from "@/context/SocketContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { getMyPublicProfile, updatePromoterProfile } from "@/app/(actions)/engagement/action";
 import { Textarea } from "@/components/ui/textarea";
 import { FadeInView } from "@/components/animations/FadeInView";
@@ -68,7 +67,7 @@ export default function Profile() {
   useEffect(() => {
     if (!user.data) return;
     form.reset({ name: user.data.name || "", password: "", newPassword: "" });
-    setProfileImage(user.data.image || determineDefaultAvatar(user.data.name));
+    setProfileImage(user.data.image || "");
   }, [user.data, form]);
 
   useEffect(() => () => {
@@ -221,7 +220,7 @@ export default function Profile() {
               </ParallaxCard>
             </div>
             <CardContent className="relative px-6 pb-6 pt-0">
-              <ProfileAvatar preview src={profileImage || determineDefaultAvatar(account.name)} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
+              <ProfileAvatar preview src={profileImage || null} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
               <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
               <div className="mt-5">

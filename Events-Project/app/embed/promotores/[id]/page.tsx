@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPromoterPublicAgenda } from "@/lib/services/promoters";
-import { normalizeEventImageUrl } from "@/lib/eventImageUrl";
+import { profileMediaUrl } from "@/lib/profileMediaUrl";
 import { publicSiteUrl } from "@/lib/publicUrl";
 import styles from "../../embed.module.css";
 
@@ -43,7 +43,7 @@ export default async function PromoterEmbed({ params }: Props) {
   if (!agenda) notFound();
   const origin = siteOrigin();
   const name = agenda.promoter.name || "Organizador";
-  const avatar = normalizeEventImageUrl(agenda.promoter.image);
+  const avatar = profileMediaUrl(agenda.promoter.image);
   const promoterUrl = `${origin}/promotores/${encodeURIComponent(agenda.promoter.id)}`;
 
   return (
