@@ -5,7 +5,8 @@ import { notifyEventAudience } from "../eventNotifications";
 import { eventInstant } from "../eventTime";
 import { parseEventInput } from "../../schemas/eventInput";
 import type { AiEventAction } from "../../schemas/aiEvents";
-import { aiConfigured, canonicalSourceUrl, discoverEventSources, inspectEventSource, publicCatalogUrl, type VerifiedEventImport } from "./provider";
+import { aiConfigured, canonicalSourceUrl, discoverEventSources, inspectEventSource, publicCatalogUrl, type DiscoveredSource, type VerifiedEventImport } from "./provider";
+import { platformOf } from "./sources";
 
 export interface AiEventsDependencies {
   configured: typeof aiConfigured;
@@ -53,6 +54,54 @@ function validatedEvent(value: VerifiedEventImport, now: Date) {
   if (!parsedStart || Math.abs(parsedStart.getTime() - start.getTime()) >= 60000) throw new AiEventsError(422, "A data da fonte precisa ser conferida novamente.");
   if (!value.event.banner || value.event.banner.length > 2048 || !/^(?:\/branding\/[a-z0-9-]+\.svg|https:\/\/)/i.test(value.event.banner)) throw new AiEventsError(422, "A fonte não possui uma imagem válida.");
   return { ...result.data, timezone, banner: value.event.banner, carrossel: [] as string[] };
+}
+
+export type ImportOutcome = "created" | "already_imported" | "previously_rejected" | "possible_duplicate" | "invalid" | "failed";
+export interface ImportItem { url: string; platform: string; outcome: ImportOutcome; name?: string; eventId?: string }
+export interface ImportReport { created: number; items: ImportItem[]; sourceErrors: { platform: string; message: string }[]; partial: boolean }
+
+const comparable = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+const LIVE_STATUSES = ["DRAFT", "PENDING", "CHANGES_REQUESTED", "PUBLISHED", "ENDED"] as const;
+
+/**
+ * Importa fontes já descobertas: cada evento oficial vira um evento PENDING na fila normal de validação,
+ * vinculado ao seu AiEventCandidate. Nunca publica nem notifica o público.
+ */
+export async function importSources(db: PrismaClient, actorId: string, runId: string, sources: DiscoveredSource[], city: string | undefined, deps: AiEventsDependencies): Promise<Omit<ImportReport, "sourceErrors" | "partial">> {
+  const items: ImportItem[] = [];
+  for (const source of sources) {
+    const platform = source.platform || platformOf(source.url).label;
+    const existing = await db.aiEventCandidate.findUnique({ where: { sourceUrl: source.url }, select: { status: true } });
+    if (existing) { items.push({ url: source.url, platform, outcome: existing.status === "REJECTED" ? "previously_rejected" : "already_imported" }); continue; }
+    let verified: VerifiedEventImport;
+    try { verified = await deps.inspect(source.url, city); }
+    catch { items.push({ url: source.url, platform, outcome: "failed" }); continue; }
+    let data: ReturnType<typeof validatedEvent>;
+    try { data = validatedEvent(verified, deps.now()); }
+    catch { items.push({ url: source.url, platform, outcome: "invalid", name: verified.name }); continue; }
+    // Mesmo evento vindo de outra plataforma ou já cadastrado por um promotor: não cria de novo.
+    const sameDay = await db.events.findMany({ where: { dataInicio: data.dataInicio, status: { in: [...LIVE_STATUSES] } }, select: { nome: true, endereco: true } });
+    if (sameDay.some(event => comparable(event.nome) === comparable(data.nome) && (!city || comparable(event.endereco).includes(comparable(city))))) {
+      items.push({ url: source.url, platform, outcome: "possible_duplicate", name: data.nome }); continue;
+    }
+    try {
+      const eventId = await transaction(db, async tx => {
+        await lock(tx); await admin(tx, actorId);
+        if (await tx.aiEventCandidate.findUnique({ where: { sourceUrl: verified.sourceUrl }, select: { id: true } })) return null;
+        const event = await tx.events.create({ data: { ...data, userId: actorId, status: "PENDING", validate: false } });
+        await tx.aiEventCandidate.create({ data: { runId, sourceUrl: verified.sourceUrl, sourceHash: verified.sourceHash, sourceVerifiedAt: deps.now(), name: verified.name, startDate: new Date(verified.startDate), address: verified.address, data, status: "PENDING", eventId: event.id } });
+        await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: actorId, actorId, action: "CREATED", note: "Importado de " + platform } });
+        await signalAdmins(tx);
+        return event.id;
+      });
+      items.push(eventId ? { url: source.url, platform, outcome: "created", name: data.nome, eventId } : { url: source.url, platform, outcome: "already_imported", name: data.nome });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") { items.push({ url: source.url, platform, outcome: "already_imported", name: data.nome }); continue; }
+      if (error instanceof AiEventsError && error.status === 403) throw error;
+      items.push({ url: source.url, platform, outcome: "failed", name: data.nome });
+    }
+  }
+  return { created: items.filter(item => item.outcome === "created").length, items };
 }
 
 export async function aiEventsSnapshot(db: PrismaClient, actorId: string, deps: AiEventsDependencies = defaults) {

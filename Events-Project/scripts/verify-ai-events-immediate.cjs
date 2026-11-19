@@ -26,7 +26,7 @@ section("sources", () => {
 // Páginas falsas: catálogo da Sympla, home/explore da Ticket360 e páginas de evento com JSON-LD.
 const NOW = new Date("2030-01-01T00:00:00Z");
 const eventPage = (url, name, locality, startDate = "2030-02-02T19:30:00-03:00") => `<html><script type="application/ld+json">${JSON.stringify({
-  "@type": "MusicEvent", name, url, startDate, endDate: startDate.replace("19:30", "23:00"),
+  "@type": "MusicEvent", name, url, image: "https://images.example.com/banner.jpg", startDate, endDate: startDate.replace("19:30", "23:00"),
   location: { name: "Casa", address: { streetAddress: "Rua Exemplo, 100", addressLocality: locality, addressRegion: "SP", addressCountry: "BR" } },
   offers: { price: "40.00", priceCurrency: "BRL" },
 })}</script></html>`;
@@ -84,6 +84,88 @@ section("discover.max", async () => {
   const r = await providerWith(fakeWeb({ extraSympla: extra })).discoverAllSources("Campinas", 2, { deadline: Date.now() + 10_000 });
   assert.equal(r.sources.length, 2);
   assert.equal(new Set(r.sources.map(s => s.platform)).size, 2, "intercala as plataformas antes de cortar");
+});
+
+// Banco em memória (mesmo modelo de scripts/verify-ai-events.cjs).
+const { randomUUID } = require("node:crypto");
+const ADMIN = randomUUID();
+function memory() {
+  let store = { user: [{ id: ADMIN, role: "ADMIN", suspendedAt: null, suspendedUntil: null }], aiEventAutomation: [], aiEventRun: [], aiEventCandidate: [], events: [], communitySignal: [], eventHistory: [], notification: [], follow: [], favorite: [] };
+  const notes = [], db = { failCandidateCreate: null };
+  const matches = (row, where = {}) => Object.entries(where).every(([k, v]) => v && typeof v === "object" && !(v instanceof Date)
+    ? Object.entries(v).every(([op, x]) => op === "in" ? x.includes(row[k]) : op === "gte" ? row[k] >= x : op === "lt" ? row[k] < x : row[k] === v)
+    : row[k] === v);
+  for (const name of Object.keys(store)) {
+    const list = args => store[name].filter(r => matches(r, args?.where)).slice(0, args?.take ?? Infinity);
+    const create = async ({ data }) => {
+      if (name === "aiEventCandidate" && db.failCandidateCreate) throw db.failCandidateCreate;
+      const row = { id: randomUUID(), createdAt: NOW, status: name === "aiEventRun" ? "QUEUED" : name === "aiEventCandidate" ? "PENDING" : undefined, ...data };
+      store[name].push(row); return row;
+    };
+    db[name] = {
+      findUnique: async a => list(a)[0] ?? null, findFirst: async a => list(a)[0] ?? null, findMany: async a => list(a), count: async a => list(a).length, create,
+      createMany: async ({ data }) => { for (const row of data) await create({ data: row }); return { count: data.length }; },
+      update: async a => { const row = list(a)[0]; assert.ok(row); Object.assign(row, a.data); return row; },
+      updateMany: async a => { const rows = list(a); rows.forEach(r => Object.assign(r, a.data)); return { count: rows.length }; },
+      upsert: async a => { const row = list(a)[0]; if (row) { Object.assign(row, a.update); return row; } return create({ data: a.create }); },
+    };
+  }
+  db.$queryRaw = async strings => { notes.push(strings.join("?")); return []; };
+  db.$transaction = async fn => { const backup = structuredClone(store); try { return await fn(db); } catch (error) { store = backup; throw error; } };
+  return { db, get store() { return store; }, notes };
+}
+const { parseOfficialEvent } = load("lib/aiEvents/provider.ts");
+const verified = (url, name, startDate = "2030-02-02T19:30:00-03:00", locality = "Campinas") => parseOfficialEvent(JSON.stringify({
+  "@type": "MusicEvent", name, url, image: "https://images.example.com/banner.jpg", startDate, endDate: startDate.replace("19:30", "23:00"),
+  location: { name: "Casa", address: { streetAddress: "Rua Exemplo, 100", addressLocality: locality, addressRegion: "SP", addressCountry: "BR" } },
+  isAccessibleForFree: true,
+}), url, locality, new Date("2029-01-01T00:00:00Z"));
+const depsFor = (pages, now = NOW) => ({ configured: () => true, discover: async () => [], inspect: async url => { if (!pages[url]) throw new Error("offline"); return pages[url](); }, now: () => now });
+
+section("pipeline.creates-pending", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
+  assert.equal(report.created, 1);
+  const [event] = m.store.events;
+  assert.equal(event.status, "PENDING"); assert.equal(event.validate, false); assert.equal(event.userId, ADMIN);
+  assert.equal(m.store.aiEventCandidate[0].eventId, event.id);
+  assert.equal(m.store.eventHistory[0].note, "Importado de Sympla");
+  assert.equal(m.store.notification.length, 0, "nenhuma notificação na criação");
+  assert.ok(!m.notes.some(n => n.includes("pg_notify('eventmap_events_updated'")), "não anuncia publicação");
+});
+section("pipeline.rejected-not-reimported", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  m.store.aiEventCandidate.push({ id: randomUUID(), sourceUrl: SYMPLA[0], status: "REJECTED", eventId: null });
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
+  assert.equal(report.items[0].outcome, "previously_rejected");
+  assert.equal(m.store.events.length, 0);
+});
+section("pipeline.cross-platform-duplicate", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }, { url: T360[0], platform: "Ticket360" }], "Campinas",
+    depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show do Fulano"), [T360[0]]: () => verified(T360[0], "SHOW DO FULANO!") }));
+  assert.deepEqual(report.items.map(i => i.outcome), ["created", "possible_duplicate"]);
+  assert.equal(m.store.events.length, 1);
+});
+section("pipeline.past-event", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const m = memory();
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas",
+    depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Antigo", "2029-06-01T19:30:00-03:00") }, new Date("2030-01-01T00:00:00Z")));
+  assert.equal(report.items[0].outcome, "invalid");
+  assert.equal(m.store.events.length, 0);
+});
+section("pipeline.race", async () => {
+  const { importSources } = load("lib/aiEvents/service.ts");
+  const { Prisma } = require("@prisma/client");
+  const m = memory();
+  m.db.failCandidateCreate = new Prisma.PrismaClientKnownRequestError("duplicado", { code: "P2002", clientVersion: "test" });
+  const report = await importSources(m.db, ADMIN, "run-1", [{ url: SYMPLA[0], platform: "Sympla" }], "Campinas", depsFor({ [SYMPLA[0]]: () => verified(SYMPLA[0], "Show A") }));
+  assert.equal(report.items[0].outcome, "already_imported");
+  assert.equal(m.store.events.length, 0, "a transação desfaz o evento");
 });
 
 (async () => {
