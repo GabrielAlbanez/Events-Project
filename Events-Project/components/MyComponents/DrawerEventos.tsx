@@ -13,6 +13,7 @@ import { EventStatusBadge } from "@/components/ui/status-badge";
 import type { Evento } from "@/types";
 import EventPublicActions from "./EventPublicActions";
 import { EventDateBlock } from "./EventDateBlock";
+import { EventArtwork } from "./EventArtwork";
 
 /** Full event from the map plus resolved coordinates; `intialDate`/`finishDate` kept for backward compatibility. */
 type DrawerEvento = Evento & { lat: number; lng: number; intialDate?: string; finishDate?: string };
@@ -128,7 +129,7 @@ export default function DrawerEventos({ evento, onClose, onTraceRoute, isRouteTr
       <DrawerBody className="min-h-0 gap-0 overflow-y-auto overscroll-contain p-0">
         <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-primary/10">
           {showBanner
-            ? <img src={evento.banner} alt="" decoding="async" onError={() => setFailedBanner(evento.banner)} className="h-full w-full object-cover" />
+            ? <EventArtwork src={evento.banner} onError={() => setFailedBanner(evento.banner)} className="h-full w-full" />
             : <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/25 via-primary/10 to-card"><CalendarDays aria-hidden="true" className="h-12 w-12 text-brand" /></div>}
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/25 to-transparent" />
           {/* Decorative: the full date is announced in the facts list below. */}

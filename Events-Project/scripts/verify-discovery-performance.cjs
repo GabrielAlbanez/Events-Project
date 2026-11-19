@@ -210,7 +210,7 @@ function findAll(node, predicate, found = []) {
   // 8. Render purity and small logic fixes.
   const filters = read("components/MyComponents/PublicEventFilters.tsx");
   assert.ok(!/if \(currentValue\.current !== value\)[^\n]*generation\.current\+\+/.test(filters), "no counter increment during render");
-  const table = load("components/MyComponents/TableEventsClient.tsx", { react: { useMemo: fn => fn(), useState: value => [typeof value === "function" ? value() : value, () => {}] }, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": "Link", "lucide-react": {}, "@/types": {}, "@/lib/discoveryPeriod": { parseEventDate: () => null }, "@/components/animations/PresenceGrid": { PresenceGrid: "PresenceGrid" }, "@/components/MyComponents/EventDateBlock": { EventDateBlock: "EventDateBlock" } });
+  const table = load("components/MyComponents/TableEventsClient.tsx", { react: { useMemo: fn => fn(), useState: value => [typeof value === "function" ? value() : value, () => {}] }, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": "Link", "lucide-react": {}, "@/types": {}, "@/lib/discoveryPeriod": { parseEventDate: () => null }, "@/components/animations/PresenceGrid": { PresenceGrid: "PresenceGrid" }, "@/components/MyComponents/EventDateBlock": { EventDateBlock: "EventDateBlock" }, "@/components/MyComponents/EventArtwork": { EventArtwork: "EventArtwork" } });
   assert.equal(table.localMonth(new Date(2026, 10, 30, 23, 30)), "2026-11", "last evening of the month stays in the month");
   assert.equal(table.localMonth(new Date(2027, 0, 1, 0, 5)), "2027-01");
   assert.match(read("components/MyComponents/TableEventsClient.tsx"), /const published = useMemo\(/);
@@ -225,7 +225,7 @@ function findAll(node, predicate, found = []) {
   assert.match(read("components/MyComponents/home/LuxuryHomePresentation.tsx"), /<LazyMotion features=\{loadAnimationFeatures\}>/);
 
   // 10. SimilarEvents: renders nothing without items, explicit reason and safe links otherwise.
-  const similarComponent = load("components/MyComponents/SimilarEvents.tsx", { "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" }, "next/link": "Link", "lucide-react": { CalendarDays: "CalendarDays", Clock: "Clock", MapPin: "MapPin", Navigation: "Navigation", Sparkles: "Sparkles", Tag: "Tag", UserRound: "UserRound", Users: "Users" }, "@/lib/eventRecommendations": {}, "@/components/MyComponents/EventDateBlock": { EventDateBlock: "EventDateBlock" } });
+  const similarComponent = load("components/MyComponents/SimilarEvents.tsx", { "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" }, "next/link": "Link", "lucide-react": { CalendarDays: "CalendarDays", Clock: "Clock", MapPin: "MapPin", Navigation: "Navigation", Sparkles: "Sparkles", Tag: "Tag", UserRound: "UserRound", Users: "Users" }, "@/lib/eventRecommendations": {}, "@/components/MyComponents/EventDateBlock": { EventDateBlock: "EventDateBlock" }, "@/components/MyComponents/EventArtwork": { EventArtwork: "EventArtwork" } });
   assert.equal(similarComponent.SimilarEvents({ items: [] }), null);
   const tree = similarComponent.SimilarEvents({ items: [{ event: event("a b/c", { isFree: true }), reason: "Do mesmo organizador" }] });
   const links = findAll(tree, node => node.type === "Link" && String(node.props.href).startsWith("/eventos/"));

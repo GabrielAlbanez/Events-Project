@@ -46,10 +46,13 @@ function HeroParallax({ container, target, children }: { container: RefObject<HT
 function EventCard({ event, reason, index, count }: { event: Evento; reason?: string; index: number; count: number }) {
   const reduced = useReducedMotion();
   const date = dateParts(event);
+  const sizes = count === 1 ? "(max-width: 767px) calc(100vw - 40px), 46vw" : count === 2 ? "(max-width: 639px) calc(100vw - 40px), 46vw" : "(max-width: 639px) calc(100vw - 40px), (max-width: 1099px) 44vw, 30vw";
   return <m.article className={styles.eventCard} whileHover={reduced ? undefined : { y: -4 }} whileTap={reduced ? undefined : { scale: .99 }} transition={{ duration: .2 }} data-home-motion>
     <Link href={`/eventos/${encodeURIComponent(event.id)}`} className={styles.cardLink}>
       <div className={styles.eventImage}>
-        <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={count === 1 ? "(max-width: 767px) calc(100vw - 40px), 46vw" : count === 2 ? "(max-width: 639px) calc(100vw - 40px), 46vw" : "(max-width: 639px) calc(100vw - 40px), (max-width: 1099px) 44vw, 30vw"} className={styles.banner} />
+        {/* Whole flyer stays visible: a blurred copy fills the box behind the contained artwork. */}
+        <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={sizes} className={styles.bannerBackdrop} />
+        <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={sizes} className={styles.banner} />
         <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
         {event.category && <span className={styles.category}>{event.category}</span>}
       </div>

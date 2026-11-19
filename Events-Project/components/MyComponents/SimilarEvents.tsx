@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, Clock, MapPin, Navigation, Sparkles, Tag, UserRound, Users, type LucideIcon } from "lucide-react";
 import type { RecommendedEvent } from "@/lib/eventRecommendations";
 import { EventDateBlock } from "@/components/MyComponents/EventDateBlock";
+import { EventArtwork } from "@/components/MyComponents/EventArtwork";
 
 function formatPrice(event: RecommendedEvent["event"]): string {
   if (event.isFree) return "Entrada gratuita";
@@ -64,7 +65,7 @@ export function SimilarEvents({ items, title = "Eventos parecidos" }: { items: R
               <Link href={"/eventos/" + encodeURIComponent(event.id)} className="group flex h-full min-w-0 flex-col rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-primary/10">
                   {event.banner
-                    ? <img src={event.banner} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-focus-visible:scale-[1.04] [@media(hover:hover)_and_(pointer:fine)]:motion-safe:group-hover:scale-[1.04]" />
+                    ? <EventArtwork src={event.banner} loading="lazy" className="h-full w-full" imgClassName="motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-focus-visible:scale-[1.04] [@media(hover:hover)_and_(pointer:fine)]:motion-safe:group-hover:scale-[1.04]" />
                     : <div className="flex h-full items-center justify-center text-brand/70"><CalendarDays className="h-10 w-10" aria-hidden="true" /></div>}
                   <EventDateBlock date={event.dataInicio} size="sm" className="absolute left-3 top-3" />
                 </div>
