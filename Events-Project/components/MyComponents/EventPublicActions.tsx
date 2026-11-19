@@ -16,9 +16,9 @@ type ApiError = { message?: string };
 
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
-type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null };
+type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean };
 
-export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl }: EventPublicActionsProps) {
+export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
   const [saved, setSaved] = useState(false);
   // Incremented only after a confirmed user action, so loading the saved state never animates.
@@ -131,7 +131,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     : registrationOpen && hasExternalTickets && !isFree
       ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
       : null;
-  const showStickyBar = panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
+  const showStickyBar = stickyBar && panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
   useEffect(() => {
     // The global footer reads this variable to stay clear of the fixed bar (mobile only, see ClientProviders).
     if (!showStickyBar) return;
