@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import { Evento } from "@/types";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
@@ -26,9 +27,11 @@ type PublicEventFiltersProps = {
  value: DiscoveryFilter;
  onChange: (value: DiscoveryFilter) => void;
  onOpen?: () => void;
+ /** Below sm, collapse to a "Filtros" pill that fits a toolbar row and spans the row when open. From sm up nothing changes. */
+ compact?: boolean;
 };
 
-export default function PublicEventFilters({ events, value, onChange, onOpen }: PublicEventFiltersProps) {
+export default function PublicEventFilters({ events, value, onChange, onOpen, compact = false }: PublicEventFiltersProps) {
  const [locationMessage, setLocationMessage] = useState("");
  const [travelChoice, setTravelChoice] = useState("");
  const [travelLoading, setTravelLoading] = useState(false);
@@ -110,12 +113,14 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
   }
  }
 
+ const activeFilters = [value.category, value.free, value.maxPrice, value.radius, value.travelMinutes !== null].filter(Boolean).length;
  return (
-  <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group rounded-2xl border border-border bg-card p-4">
-   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground marker:hidden focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-    <span aria-hidden="true" className="text-brand transition-transform group-open:rotate-90">▸</span>
-    <span>Mais filtros</span>
-    <span className="ml-auto text-xs font-normal text-muted-foreground">Categoria, preço e localização</span>
+  <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className={compact ? "group min-w-0 open:order-last open:basis-full open:rounded-2xl open:border open:border-border open:bg-card open:p-3 sm:rounded-2xl sm:border sm:border-border sm:bg-card sm:p-4 sm:open:p-4" : "group rounded-2xl border border-border bg-card p-4"}>
+   <summary className={compact ? "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground marker:hidden group-open:border-transparent group-open:px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:rounded-md sm:border-0 sm:bg-transparent sm:px-0 sm:group-open:px-0 [&::-webkit-details-marker]:hidden" : "flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground marker:hidden focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"}>
+    {compact && <span className="flex items-center gap-2 sm:hidden"><SlidersHorizontal aria-hidden="true" className="h-4 w-4 text-brand" />Filtros{activeFilters > 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">{activeFilters}<span className="sr-only"> {activeFilters === 1 ? "filtro ativo" : "filtros ativos"}</span></span>}</span>}
+    <span aria-hidden="true" className={(compact ? "hidden sm:inline " : "") + "text-brand transition-transform group-open:rotate-90"}>▸</span>
+    <span className={compact ? "hidden sm:inline" : undefined}>Mais filtros</span>
+    <span className={(compact ? "hidden sm:inline " : "") + "ml-auto text-xs font-normal text-muted-foreground"}>Categoria, preço e localização</span>
    </summary>
 
    <div className="mt-4 grid min-w-0 gap-4 border-t border-border pt-4 sm:grid-cols-2">

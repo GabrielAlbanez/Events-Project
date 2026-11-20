@@ -70,7 +70,7 @@ export function MobileBottomNav() {
     { label: "Conta", href: accountHref, icon: UserRound, current: authenticated ? pathname === "/Profile" : pathname === "/login" || pathname === "/register" },
   ];
 
-  return <nav aria-label="Navegação rápida" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_hsl(var(--foreground)/0.06)] backdrop-blur-md md:hidden">
+  return <nav aria-label="Navegação rápida" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_hsl(var(--foreground)/0.06)] md:hidden">
     <ul className="mx-auto grid h-16 max-w-md grid-cols-4 px-2">
       {items.map(({ label, href, icon: Icon, current, onClick }) => <li key={label} className="flex">
         <Link href={href} onClick={onClick} aria-current={current ? "page" : undefined} className={`group flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none ${current ? "text-brand" : "text-muted-foreground hover:text-foreground"}`}>
