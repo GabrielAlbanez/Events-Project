@@ -32,3 +32,8 @@ export async function listPromotionReview() {
 export async function reviewPromotion(input: ReviewPromotionInput) {
   return promotions.reviewPromotion(input, resolveAdmin);
 }
+
+/** Reminder on Meus eventos: the real account holder's own unpaid orders only. */
+export async function listMyPendingPromotions() {
+  return promotions.listMyPendingPromotions(resolveAccountHolder);
+}

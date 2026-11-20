@@ -46,6 +46,13 @@ export function shortPromotionCode(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
+/** Unpaid orders older than this deserve a closer look (forgotten "Já paguei" or abandoned order). */
+export const STALE_PROMOTION_ORDER_HOURS = 48;
+export function isStalePromotionOrder(createdAt: Date | string, now: Date, hours: number = STALE_PROMOTION_ORDER_HOURS): boolean {
+  const created = new Date(createdAt).getTime();
+  return Number.isFinite(created) && now.getTime() - created > hours * 60 * 60 * 1000;
+}
+
 type DateLike = Date | string | null | undefined;
 const time = (value: DateLike) => (value == null ? null : new Date(value).getTime());
 

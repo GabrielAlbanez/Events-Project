@@ -12,6 +12,7 @@ import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
 import { StaggerList } from "@/components/animations/StaggerList";
+import PendingPromotionReminder from "@/components/MyComponents/promotions/PendingPromotionReminder";
 
 type StatusFilter = "all" | EventStatus;
 type HistoryEntry = {
@@ -154,6 +155,8 @@ export default function MyEvents() {
             <Plus className="size-4" aria-hidden="true" /> Criar evento
           </Link>
         </header>
+
+        {user?.id && <PendingPromotionReminder userId={user.id} />}
 
         {!isLoading && !error && events.length > 0 && (
           <StaggerList className="grid gap-3 sm:grid-cols-3" itemClassName="h-full">

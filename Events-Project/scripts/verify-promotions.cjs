@@ -137,6 +137,9 @@ function checkEligibility(lib) {
   assert.match(lib.promotionEligibility({ ...event, dataFim: "2099-03-01" }, "owner", NOW), /encerrado/i);
   assert.equal(lib.shortPromotionCode("3f2a9c1e-77aa-4d1b-9c55-0123456789ab"), "3F2A9C1E");
   assert.match(lib.formatPromotionDate(new Date("2099-03-15T02:00:00.000Z")), /^14\/03$/, "DD/MM in São Paulo time");
+  assert.equal(lib.isStalePromotionOrder(new Date(NOW.getTime() - 49 * 60 * 60 * 1000).toISOString(), NOW), true, "older than 48h is stale");
+  assert.equal(lib.isStalePromotionOrder(new Date(NOW.getTime() - 47 * 60 * 60 * 1000), NOW), false, "recent order is not stale");
+  assert.equal(lib.isStalePromotionOrder("not-a-date", NOW), false, "invalid date is not stale");
 }
 
 // Minimal Prisma-like store for the shapes used by lib/services/promotions.ts.
@@ -178,7 +181,7 @@ function freshDb() {
   const users = [{ id: "owner", role: "PROMOTER", name: "Org", email: "org@example.test", suspendedAt: null }, { id: "admin", role: "ADMIN", name: "Admin", email: "admin@example.test", suspendedAt: null }];
   const notifications = [];
   const store = {
-    events: table(events), user: table(users), notification: table(notifications), eventMetric: table([]),
+    events: table(events), user: table(users), notification: table(notifications), eventMetric: table([]), communitySignal: table([]),
   };
   store.eventPromotion = table([], {
     event: (row) => events.find((event) => event.id === row.eventId) ?? null,
@@ -221,7 +224,23 @@ async function checkService() {
 
   assert.equal((await service.markPromotionPaid({ promotionId: order.id, note: "x".repeat(201) }, owner, clock)).success, false, "note up to 200 characters");
   assert.equal((await service.markPromotionPaid({ promotionId: order.id }, stranger, clock)).success, false, "only the requester confirms payment");
-  assert.equal((await service.reviewPromotion({ promotionId: order.id, decision: "confirm" }, admin, clock)).success, false, "cannot confirm before payment is reported");
+  // Unpaid orders are visible to admins (and only to admins), so a forgotten "Já paguei" never hides a real Pix.
+  const unpaidList = await service.listPromotionReview(admin, clock);
+  assert.equal(unpaidList.success, true);
+  assert.equal(unpaidList.data.queue.length, 0, "unpaid orders are not in the payment queue");
+  assert.equal(unpaidList.data.unpaid.length, 1, "unpaid orders are listed separately");
+  const unpaidItem = unpaidList.data.unpaid[0];
+  assert.deepEqual([unpaidItem.code, unpaidItem.event.nome, unpaidItem.organizer.id, unpaidItem.amountCents, unpaidItem.packageId, unpaidItem.status], [order.id.slice(0, 8).toUpperCase(), "Festival de Inverno", "owner", 5900, "7d", "PENDING_PAYMENT"]);
+  assert.equal(typeof unpaidItem.createdAt, "string");
+
+  // Organizer reminder: only the current account's own pending orders.
+  assert.equal((await service.listMyPendingPromotions(anonymous, clock)).success, false, "reminder requires a session");
+  const strangerPending = await service.listMyPendingPromotions(stranger, clock);
+  assert.equal(strangerPending.success && strangerPending.data.length, 0, "other users never see someone else's order");
+  const ownerPending = await service.listMyPendingPromotions(owner, clock);
+  assert.equal(ownerPending.success, true);
+  assert.deepEqual(ownerPending.data.map((item) => [item.id, item.event.id, item.event.nome, item.amountCents]), [[order.id, "event-1", "Festival de Inverno", 5900]]);
+  assert.equal(JSON.stringify(ownerPending.data).includes("org@example.test"), false, "reminder does not leak contact data");
   const paid = await service.markPromotionPaid({ promotionId: order.id, note: "  Pago por Maria  " }, owner, clock);
   assert.equal(paid.success, true, paid.message);
   assert.deepEqual([order.status, order.payerNote], ["AWAITING_REVIEW", "Pago por Maria"]);
@@ -232,13 +251,19 @@ async function checkService() {
   assert.equal((await service.listPromotionReview(notAdmin, clock)).success, false, "queue is admin only");
   const queue = await service.listPromotionReview(admin, clock);
   assert.equal(queue.success && queue.data.queue.length, 1);
+  assert.equal(queue.data.unpaid.length, 0, "reported payments leave the unpaid list");
   const confirmed = await service.reviewPromotion({ promotionId: order.id, decision: "confirm" }, admin, clock);
   assert.equal(confirmed.success, true, confirmed.message);
   assert.equal(order.status, "ACTIVE");
   assert.equal(order.startsAt.getTime(), NOW.getTime());
   assert.equal(order.endsAt.getTime(), NOW.getTime() + 7 * DAY);
   assert.equal(order.reviewedBy, "admin");
-  assert.ok(db.notification.rows.some((notice) => notice.userId === "owner" && /aprovado/i.test(notice.title)), "organizer is notified");
+  const liveNotice = db.notification.rows.find((notice) => notice.userId === "owner" && notice.title === "Seu destaque está no ar");
+  assert.ok(liveNotice, "organizer is notified that the highlight is live");
+  assert.equal(liveNotice.href, "/myEvents/event-1/destaque");
+  assert.equal(liveNotice.type, "SYSTEM");
+  assert.match(liveNotice.message, new RegExp(load("lib/promotions.ts").formatPromotionDate(order.endsAt)), "notice includes the end date");
+  assert.ok(db.communitySignal.rows.some((row) => row.room === "user:owner"), "organizer's notification bell refreshes in real time");
   assert.equal((await service.reviewPromotion({ promotionId: order.id, decision: "confirm" }, admin, clock)).success, false, "cannot confirm twice");
 
   // Stacking: a second paid order starts when the current highlight ends.
@@ -259,7 +284,10 @@ async function checkService() {
   const rejected = await service.reviewPromotion({ promotionId: thirdRow.id, decision: "reject", reason: "Pix não localizado" }, admin, clock);
   assert.equal(rejected.success, true);
   assert.deepEqual([thirdRow.status, thirdRow.reviewNote], ["REJECTED", "Pix não localizado"]);
-  assert.ok(db.notification.rows.some((notice) => notice.userId === "owner" && /recusado/i.test(notice.title)));
+  const rejectNotice = db.notification.rows.find((notice) => notice.userId === "owner" && notice.title === "Pedido de destaque recusado");
+  assert.ok(rejectNotice, "organizer is notified of the rejection");
+  assert.match(rejectNotice.message, /Pix não localizado/, "notice carries the reason");
+  assert.equal(rejectNotice.href, "/myEvents/event-1/destaque");
   const fourth = await service.createPromotionOrder({ eventId: "event-1", packageId: "3d" }, owner, clock);
   const fourthRow = db.eventPromotion.rows[3];
   assert.equal(fourth.success, true);
@@ -281,11 +309,41 @@ async function checkService() {
   assert.equal((await service.reviewPromotion({ promotionId: fifthRow.id, decision: "reject", reason: "Evento cancelado, Pix devolvido" }, admin, clock)).success, true, "rejecting still works");
   eventRow.status = "PUBLISHED";
 
+  // Admin acts on an order whose organizer never clicked "Já paguei".
+  const sixth = await service.createPromotionOrder({ eventId: "event-1", packageId: "3d" }, owner, clock);
+  const sixthRow = db.eventPromotion.rows[5];
+  assert.equal(sixth.success, true);
+  assert.equal((await service.reviewPromotion({ promotionId: sixthRow.id, decision: "reject", reason: "Pix não localizado" }, admin, clock)).success, true, "unpaid order can be rejected");
+  assert.equal(sixthRow.status, "REJECTED");
+  const seventh = await service.createPromotionOrder({ eventId: "event-1", packageId: "3d" }, owner, clock);
+  const seventhRow = db.eventPromotion.rows[6];
+  assert.equal(seventh.success, true);
+  eventRow.status = "CANCELLED";
+  assert.equal((await service.reviewPromotion({ promotionId: seventhRow.id, decision: "confirm" }, admin, clock)).success, false, "eligibility is rechecked for unpaid orders too");
+  assert.equal(seventhRow.status, "PENDING_PAYMENT");
+  eventRow.status = "PUBLISHED";
+  const seventhConfirm = await service.reviewPromotion({ promotionId: seventhRow.id, decision: "confirm" }, admin, clock);
+  assert.equal(seventhConfirm.success, true, "unpaid order whose Pix arrived can be confirmed: " + seventhConfirm.message);
+  assert.equal(seventhRow.status, "ACTIVE");
+  assert.equal(seventhRow.startsAt.getTime(), secondRow.endsAt.getTime(), "stacks after the scheduled chain");
+  assert.ok(db.notification.rows.some((notice) => notice.userId === "owner" && notice.groupKey === "promotion-review:" + seventhRow.id && /aprovado/i.test(notice.title)), "scheduled highlight says approved, not live");
+  // Concurrency: the organizer cancels between the admin's read and write.
+  const eighth = await service.createPromotionOrder({ eventId: "event-1", packageId: "3d" }, owner, clock);
+  const eighthRow = db.eventPromotion.rows[7];
+  assert.equal(eighth.success, true);
+  const realUpdateMany = db.eventPromotion.updateMany;
+  db.eventPromotion.updateMany = async (q) => { eighthRow.status = "CANCELLED"; db.eventPromotion.updateMany = realUpdateMany; return realUpdateMany(q); };
+  const raced = await service.reviewPromotion({ promotionId: eighthRow.id, decision: "confirm" }, admin, clock);
+  assert.equal(raced.success, false, "status changed meanwhile: decision fails cleanly");
+  assert.equal(eighthRow.status, "CANCELLED");
+  assert.equal(eighthRow.startsAt, null);
+  assert.equal((await service.reviewPromotion({ promotionId: sixthRow.id, decision: "confirm" }, admin, clock)).success, false, "decided orders cannot be decided again");
+
   const overview = await service.getPromotionOverview("event-1", owner, clock);
   assert.equal(overview.success, true);
   assert.equal(overview.data.payment.key, "pix@example.test");
   assert.equal(overview.data.open, null);
-  assert.equal(new Date(overview.data.activeUntil).getTime(), secondRow.endsAt.getTime(), "active until the end of the stacked chain");
+  assert.equal(new Date(overview.data.activeUntil).getTime(), seventhRow.endsAt.getTime(), "active until the end of the stacked chain");
   assert.equal(overview.data.packages.length, 2);
   assert.equal(overview.data.resultUnavailable, false);
   assert.equal(overview.data.result.hasData, false, "no metrics yet: empty result, not an error");
@@ -311,7 +369,7 @@ async function checkService() {
   const { listFeaturedEventIds } = load("lib/eventQueries.ts");
   const ids = await listFeaturedEventIds(["event-1", "event-draft"], clock);
   assert.deepEqual([...ids], ["event-1"]);
-  const later = await listFeaturedEventIds(["event-1"], () => new Date(secondRow.endsAt.getTime() + 1));
+  const later = await listFeaturedEventIds(["event-1"], () => new Date(seventhRow.endsAt.getTime() + 1));
   assert.equal(later.size, 0, "expired highlight is not featured (no cron needed)");
 }
 
@@ -324,6 +382,7 @@ function checkWiring() {
   const actions = fs.readFileSync("app/(actions)/promotions/action.ts", "utf8");
   assert.match(actions, /^"use server";/);
   assert.match(actions, /getAuthenticatedAdminId/);
+  assert.match(actions, /listMyPendingPromotions\(resolveAccountHolder\)/, "reminder uses the real account holder (no impersonation)");
 }
 
 function checkUiWiring() {
@@ -331,6 +390,17 @@ function checkUiWiring() {
   assert.doesNotMatch(panel, /NEXT_PUBLIC_FEATURED|process\.env/, "Pix key never reaches client code directly");
   assert.match(panel, /Resultado do destaque/, "organizers see the highlight result");
   assert.match(panel, /Sem base de comparação/, "zero baseline shows text, not Infinity");
+  assert.match(panel, /aria-label="Etapas do pagamento"/, "pending payment shows the step indicator");
+  assert.match(panel, /aria-current=\{[^}]*"step"/, "current step is announced");
+  const adminUi = fs.readFileSync("components/MyComponents/promotions/AdminPromotions.tsx", "utf8");
+  assert.match(adminUi, /Aguardando o organizador marcar o pagamento/, "admin sees unpaid orders");
+  assert.match(adminUi, /Pedido antigo/, "stale unpaid orders are flagged");
+  const myEvents = fs.readFileSync("app/(private)/myEvents/page.tsx", "utf8");
+  assert.match(myEvents, /<PendingPromotionReminder /, "my events shows the reminder");
+  const reminder = fs.readFileSync("components/MyComponents/promotions/PendingPromotionReminder.tsx", "utf8");
+  assert.match(reminder, /listMyPendingPromotions\(\)/, "reminder loads the current user's orders");
+  assert.match(reminder, /Já paguei/, "reminder tells the organizer what to click");
+  assert.match(reminder, /\/destaque`/, "reminder links to the event's highlight page");
   const badge = fs.readFileSync("components/MyComponents/FeaturedBadge.tsx", "utf8");
   assert.match(badge, /aria-label="Evento em destaque patrocinado"/);
   assert.match(badge, /bg-cta/, "badge uses the CTA lime token");

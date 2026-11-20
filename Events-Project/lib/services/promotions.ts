@@ -39,6 +39,9 @@ export type PromotionQueueItem = PromotionView & {
   event: { id: string; nome: string; dataInicio: string };
   organizer: { id: string; name: string | null; email: string | null };
 };
+/** Organizer reminder: own unpaid orders only, without contact data. */
+export type PromotionPendingItem = { id: string; code: string; days: number; amountCents: number; createdAt: string; event: { id: string; nome: string } };
+export type PromotionReviewList = { queue: PromotionQueueItem[]; unpaid: PromotionQueueItem[]; active: PromotionActiveItem[] };
 export type PromotionActiveItem = { id: string; code: string; days: number; startsAt: string | null; endsAt: string | null; event: { id: string; nome: string } };
 
 const viewSelect = {
@@ -57,6 +60,7 @@ function toView(row: ViewRow): PromotionView {
 
 const denied = { success: false as const, message: "Acesso negado." };
 const unavailable = "Pagamento indisponível no momento.";
+const notReviewable = "Este pedido não está mais aberto para análise.";
 const genericError = { success: false as const, message: "Não foi possível concluir agora. Tente novamente em alguns minutos." };
 const ownerHref = (eventId: string) => `/myEvents/${encodeURIComponent(eventId)}/destaque`;
 
@@ -202,15 +206,42 @@ export async function cancelPromotionOrder(rawInput: unknown, resolveCurrentUser
   }
 }
 
-export async function listPromotionReview(resolveAdminId: ResolveAdminId, now: Clock = systemClock): Promise<PromotionResult<{ queue: PromotionQueueItem[]; active: PromotionActiveItem[] }>> {
+/** Reminder for the signed-in organizer: only their own orders still waiting for "Já paguei". */
+export async function listMyPendingPromotions(resolveCurrentUser: ResolveCurrentUser): Promise<PromotionResult<PromotionPendingItem[]>> {
+  const user = await resolveCurrentUser();
+  if (!user) return denied;
+  try {
+    const rows = await prisma.eventPromotion.findMany({
+      where: { userId: user.id, status: "PENDING_PAYMENT" }, orderBy: { createdAt: "desc" }, take: 20,
+      select: { id: true, days: true, amountCents: true, createdAt: true, event: { select: { id: true, nome: true } } },
+    });
+    return {
+      success: true, message: "",
+      data: rows.map((row) => ({
+        id: row.id, code: shortPromotionCode(row.id), days: row.days, amountCents: row.amountCents,
+        createdAt: new Date(row.createdAt).toISOString(), event: { id: row.event.id, nome: row.event.nome },
+      })),
+    };
+  } catch {
+    console.warn("promotion-pending-list-failed");
+    return genericError;
+  }
+}
+
+const queueSelect = {
+  ...viewSelect, event: { select: { id: true, nome: true, dataInicio: true } }, user: { select: { id: true, name: true, email: true } },
+} satisfies Prisma.EventPromotionSelect;
+type QueueRow = Prisma.EventPromotionGetPayload<{ select: typeof queueSelect }>;
+const toQueueItem = (row: QueueRow): PromotionQueueItem => ({ ...toView(row), event: row.event, organizer: row.user });
+
+export async function listPromotionReview(resolveAdminId: ResolveAdminId, now: Clock = systemClock): Promise<PromotionResult<PromotionReviewList>> {
   if (!await resolveAdminId()) return denied;
   try {
     const current = now();
-    const [queue, active] = await Promise.all([
-      prisma.eventPromotion.findMany({
-        where: { status: "AWAITING_REVIEW" }, orderBy: { updatedAt: "asc" }, take: 100,
-        select: { ...viewSelect, event: { select: { id: true, nome: true, dataInicio: true } }, user: { select: { id: true, name: true, email: true } } },
-      }),
+    const [queue, unpaid, active] = await Promise.all([
+      prisma.eventPromotion.findMany({ where: { status: "AWAITING_REVIEW" }, orderBy: { updatedAt: "asc" }, take: 100, select: queueSelect }),
+      // Orders whose organizer may have paid but never clicked "Já paguei": the admin can still check the Pix by code and amount.
+      prisma.eventPromotion.findMany({ where: { status: "PENDING_PAYMENT" }, orderBy: { createdAt: "desc" }, take: 100, select: queueSelect }),
       prisma.eventPromotion.findMany({
         where: { status: "ACTIVE", endsAt: { gt: current } }, orderBy: { endsAt: "asc" }, take: 100,
         select: { id: true, days: true, startsAt: true, endsAt: true, event: { select: { id: true, nome: true } } },
@@ -219,7 +250,8 @@ export async function listPromotionReview(resolveAdminId: ResolveAdminId, now: C
     return {
       success: true, message: "",
       data: {
-        queue: queue.map((row) => ({ ...toView(row), event: row.event, organizer: row.user })),
+        queue: queue.map(toQueueItem),
+        unpaid: unpaid.map(toQueueItem),
         active: active.map((row) => ({ id: row.id, code: shortPromotionCode(row.id), days: row.days, startsAt: iso(row.startsAt), endsAt: iso(row.endsAt), event: row.event })),
       },
     };
@@ -238,11 +270,12 @@ export async function reviewPromotion(rawInput: unknown, resolveAdminId: Resolve
   const input = parsed.data;
   try {
     return await prisma.$transaction(async (tx) => {
+      // Unpaid orders are reviewable too: the organizer may have paid and forgotten to click "Já paguei".
       const order = await tx.eventPromotion.findFirst({
-        where: { id: input.promotionId, status: "AWAITING_REVIEW" },
+        where: { id: input.promotionId, status: { in: OPEN_PROMOTION_STATUSES } },
         select: { id: true, eventId: true, userId: true, days: true, event: { select: eventSelect } },
       });
-      if (!order) return { success: false as const, message: "Este pedido não está mais aguardando análise." };
+      if (!order) return { success: false as const, message: notReviewable };
       const current = now();
       if (input.decision === "confirm") {
         // The event may have been cancelled, unpublished or ended since the order was paid: keep it queued for rejection/refund.
@@ -251,28 +284,33 @@ export async function reviewPromotion(rawInput: unknown, resolveAdminId: Resolve
         const running = await tx.eventPromotion.findMany({ where: { eventId: order.eventId, status: "ACTIVE", endsAt: { gt: current } }, select: { endsAt: true } });
         const window = computeActivationWindow(order.days, current, running);
         const changed = await tx.eventPromotion.updateMany({
-          where: { id: order.id, status: "AWAITING_REVIEW" },
+          where: { id: order.id, status: { in: OPEN_PROMOTION_STATUSES } },
           data: { status: "ACTIVE", startsAt: window.startsAt, endsAt: window.endsAt, reviewedBy: adminId, reviewedAt: current, reviewNote: null, updatedAt: current },
         });
-        if (!changed.count) return { success: false as const, message: "Este pedido não está mais aguardando análise." };
-        const starts = window.startsAt.getTime() > current.getTime() ? ` a partir de ${formatPromotionDate(window.startsAt)}` : "";
+        if (!changed.count) return { success: false as const, message: notReviewable };
+        const scheduled = window.startsAt.getTime() > current.getTime();
         await createNotification(tx, notificationCopy({
-          userId: order.userId, type: "ADMIN" as const, href: ownerHref(order.eventId), groupKey: `promotion-review:${order.id}`,
-          title: "Destaque aprovado", message: `${order.event.nome} fica em destaque${starts} até ${formatPromotionDate(window.endsAt)}.`,
+          userId: order.userId, type: "SYSTEM" as const, href: ownerHref(order.eventId), groupKey: `promotion-review:${order.id}`,
+          title: scheduled ? "Seu destaque foi aprovado" : "Seu destaque está no ar",
+          message: scheduled
+            ? `${order.event.nome} fica em destaque de ${formatPromotionDate(window.startsAt)} até ${formatPromotionDate(window.endsAt)}.`
+            : `${order.event.nome} fica em destaque até ${formatPromotionDate(window.endsAt)}.`,
         }));
+        await tx.communitySignal.create({ data: { room: `user:${order.userId}` } });
         return { success: true as const, message: "Destaque confirmado.", data: undefined };
       }
       const changed = await tx.eventPromotion.updateMany({
-        where: { id: order.id, status: "AWAITING_REVIEW" },
+        where: { id: order.id, status: { in: OPEN_PROMOTION_STATUSES } },
         data: { status: "REJECTED", reviewNote: input.reason, reviewedBy: adminId, reviewedAt: current, updatedAt: current },
       });
-      if (!changed.count) return { success: false as const, message: "Este pedido não está mais aguardando análise." };
+      if (!changed.count) return { success: false as const, message: notReviewable };
       await createNotification(tx, notificationCopy({
-        userId: order.userId, type: "ADMIN" as const, href: ownerHref(order.eventId), groupKey: `promotion-review:${order.id}`,
-        title: "Destaque recusado", message: `${order.event.nome}: ${input.reason}`,
+        userId: order.userId, type: "SYSTEM" as const, href: ownerHref(order.eventId), groupKey: `promotion-review:${order.id}`,
+        title: "Pedido de destaque recusado", message: `${order.event.nome}: ${input.reason}`,
       }));
+      await tx.communitySignal.create({ data: { room: `user:${order.userId}` } });
       return { success: true as const, message: "Pedido recusado.", data: undefined };
-    });
+    }, { isolationLevel: "Serializable" });
   } catch {
     console.warn("promotion-review-failed");
     return genericError;

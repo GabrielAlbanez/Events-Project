@@ -33,6 +33,28 @@ function StatusPill({ item }: { item: Pick<PromotionView, "status" | "startsAt" 
   return <span className={"inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold " + tone}>{label}</span>;
 }
 
+const paymentSteps = ["Pague o Pix", "Clique em “Já paguei”", "Aprovação"] as const;
+
+/** Where the order is in the manual Pix flow. Step 2 is easy to forget, so it stays visible until the admin decides. */
+function PaymentSteps({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <ol aria-label="Etapas do pagamento" className="mt-5 grid gap-2 sm:grid-cols-3">
+      {paymentSteps.map((label, index) => {
+        const step = index + 1;
+        const done = step < current;
+        const active = step === current;
+        return (
+          <li key={label} aria-current={active ? "step" : undefined} className={"flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm " + (active ? "border-primary bg-primary/5 font-semibold text-foreground" : done ? "border-emerald-500/30 text-emerald-800 dark:text-emerald-200" : "text-muted-foreground")}>
+            <span aria-hidden="true" className={"flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold " + (active ? "bg-primary text-primary-foreground" : done ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground")}>{done ? <CheckCircle2 className="size-4" /> : step}</span>
+            <span className="min-w-0 break-words">{label}</span>
+            <span className="sr-only">{done ? " (concluída)" : active ? " (etapa atual)" : " (próxima)"}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 const numberFormat = new Intl.NumberFormat("pt-BR");
 /** EventMetric day keys are already calendar days (YYYY-MM-DD): format them without timezone conversion. */
 const formatDayKey = (key: string) => `${key.slice(8, 10)}/${key.slice(5, 7)}`;
@@ -208,6 +230,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
             {open?.status === "PENDING_PAYMENT" ? (
               <section aria-labelledby="pix-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="pix-title" className="text-xl font-semibold">Pague com Pix</h2><p className="mt-1 text-sm text-muted-foreground">Pacote de {open.days} dias · pedido criado em {formatPromotionDate(open.createdAt)}</p></div><StatusPill item={open} /></div>
+                <PaymentSteps current={1} />
                 <dl className="mt-5 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border bg-background p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valor</dt><dd className="mt-1 text-2xl font-semibold tracking-tight">{formatPromotionAmount(open.amountCents)}</dd></div>
                   <div className="rounded-xl border bg-background p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identificador do pedido</dt><dd className="mt-1 font-mono text-2xl font-semibold tracking-wider">{open.code}</dd><dd className="mt-1 text-xs text-muted-foreground">Escreva na descrição do Pix.</dd></div>
@@ -219,15 +242,17 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                   <label htmlFor="payer-note" className="block text-sm font-medium">Observação <span className="font-normal text-muted-foreground">(opcional)</span></label>
                   <Textarea id="payer-note" value={note} maxLength={PROMOTION_NOTE_MAX} onChange={(event) => setNote(event.target.value)} placeholder="Ex.: nome de quem pagou ou ID da transação" aria-describedby="payer-note-count" className="min-h-20" />
                   <p id="payer-note-count" className="text-right text-xs text-muted-foreground">{note.length}/{PROMOTION_NOTE_MAX}</p>
+                  <p id="paid-hint" className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm leading-6"><Clock3 className="mt-1 size-4 shrink-0 text-brand" aria-hidden="true" /><span><strong className="font-semibold">Já fez o Pix? Clique em &ldquo;Já paguei&rdquo;.</strong> É esse aviso que envia seu pedido para conferência; sem ele, a aprovação pode demorar.</span></p>
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button type="button" variant="outline" disabled={Boolean(busy)} className="min-h-11 rounded-xl" onClick={() => void run("cancel", () => cancelPromotionOrder({ promotionId: open.id }))}>{busy === "cancel" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Cancelando...</> : "Cancelar pedido"}</Button>
-                    <Button type="submit" variant="cta" disabled={Boolean(busy)} className="min-h-11 rounded-xl">{busy === "paid" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando...</> : "Já paguei"}</Button>
+                    <Button type="submit" variant="cta" disabled={Boolean(busy)} aria-describedby="paid-hint" className="min-h-11 rounded-xl">{busy === "paid" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando...</> : "Já paguei"}</Button>
                   </div>
                 </form>
               </section>
             ) : open?.status === "AWAITING_REVIEW" ? (
               <section aria-labelledby="review-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><Clock3 className="size-5" aria-hidden="true" /></span><div><h2 id="review-title" className="text-xl font-semibold">Pagamento em análise</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Pedido {open.code} · {open.days} dias · {formatPromotionAmount(open.amountCents)}. Vamos conferir o Pix e avisar você por notificação.</p></div></div><StatusPill item={open} /></div>
+                <PaymentSteps current={3} />
                 {open.payerNote && <p className="mt-4 break-words rounded-xl border bg-background p-3 text-sm"><span className="text-muted-foreground">Sua observação: </span>{open.payerNote}</p>}
               </section>
             ) : (

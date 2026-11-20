@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 import { AlertCircle, CheckCircle2, Inbox, Loader2, Sparkles } from "lucide-react";
 import { listPromotionReview, reviewPromotion } from "@/app/(actions)/promotions/action";
 import type { PromotionActiveItem, PromotionQueueItem } from "@/lib/services/promotions";
-import { PROMOTION_REASON_MAX, formatPromotionAmount, formatPromotionDate } from "@/lib/promotions";
+import { PROMOTION_REASON_MAX, STALE_PROMOTION_ORDER_HOURS, formatPromotionAmount, formatPromotionDate, isStalePromotionOrder } from "@/lib/promotions";
 import { useSocket } from "@/context/SocketContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +18,7 @@ const dateTime = (value: string) => new Intl.DateTimeFormat("pt-BR", { day: "2-d
 export default function AdminPromotions() {
   const socket = useSocket();
   const [queue, setQueue] = useState<PromotionQueueItem[]>([]);
+  const [unpaid, setUnpaid] = useState<PromotionQueueItem[]>([]);
   const [active, setActive] = useState<PromotionActiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,7 +36,7 @@ export default function AdminPromotions() {
       const result = await listPromotionReview();
       if (id !== request.current) return;
       if (!result.success) { setError(result.message === "Acesso negado." ? loadError : result.message); return; }
-      setQueue(result.data.queue); setActive(result.data.active);
+      setQueue(result.data.queue); setUnpaid(result.data.unpaid); setActive(result.data.active);
     } catch {
       if (id === request.current) setError(loadError);
     } finally {
@@ -69,6 +70,47 @@ export default function AdminPromotions() {
     void decide(item, "reject");
   };
 
+  const renderOrder = (item: PromotionQueueItem) => {
+    const unpaidOrder = item.status === "PENDING_PAYMENT";
+    const stale = unpaidOrder && isStalePromotionOrder(item.createdAt, new Date());
+    return (
+      <li key={item.id} className="rounded-2xl border bg-card p-5 shadow-surface">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link href={`/eventos/${encodeURIComponent(item.event.id)}`} className="break-words text-lg font-semibold hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{item.event.nome}</Link>
+            <p className="mt-1 break-words text-sm text-muted-foreground">{item.organizer.name || "Organizador sem nome"}{item.organizer.email ? ` · ${item.organizer.email}` : ""}</p>
+          </div>
+          <p className="text-right"><span className="block text-2xl font-semibold tracking-tight">{formatPromotionAmount(item.amountCents)}</span><span className="text-sm text-muted-foreground">{item.days} dias</span></p>
+        </div>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Pedido</dt><dd className="font-mono font-semibold tracking-wider">{item.code}</dd></div>
+          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Criado em</dt><dd>{dateTime(item.createdAt)}{stale && <span className="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">Pedido antigo</span>}</dd></div>
+          {unpaidOrder ? (
+            <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Pacote</dt><dd>{item.days} dias</dd></div>
+          ) : (
+            <div className="sm:col-span-3"><dt className="text-xs uppercase tracking-wide text-muted-foreground">Observação do organizador</dt><dd className="break-words">{item.payerNote || <span className="text-muted-foreground">Sem observação</span>}</dd></div>
+          )}
+        </dl>
+        {rejectingId === item.id ? (
+          <form className="mt-4 space-y-2" onSubmit={(event) => submitReject(event, item)}>
+            <label htmlFor={`reason-${item.id}`} className="block text-sm font-medium">Motivo da recusa</label>
+            <Textarea id={`reason-${item.id}`} value={reason} required minLength={3} maxLength={PROMOTION_REASON_MAX} onChange={(event) => setReason(event.target.value)} placeholder="Ex.: Pix não localizado com este identificador" className="min-h-20" autoFocus />
+            <p className="text-xs text-muted-foreground">O organizador recebe este motivo por notificação.</p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={busyId === item.id} onClick={() => { setRejectingId(null); setReason(""); setActionError(""); }}>Voltar</Button>
+              <Button type="submit" variant="destructive" className="min-h-11 rounded-xl" disabled={busyId === item.id}>{busyId === item.id ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Recusando...</> : "Confirmar recusa"}</Button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setRejectingId(item.id); setReason(""); setActionError(""); }}>Recusar</Button>
+            <Button type="button" variant="cta" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setActionError(""); setConfirming(item); }}>Confirmar pagamento</Button>
+          </div>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -84,7 +126,7 @@ export default function AdminPromotions() {
 
         {actionError && !confirming && <p role="alert" className="break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</p>}
 
-        {loading && !queue.length && !active.length ? (
+        {loading && !queue.length && !unpaid.length && !active.length ? (
           <div role="status" aria-busy="true" className="space-y-3"><span className="sr-only">Carregando destaques...</span>{[0, 1].map((index) => <div key={index} aria-hidden="true" className="h-36 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" />)}</div>
         ) : error ? (
           <div role="alert" className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-8 text-center shadow-surface">
@@ -100,38 +142,21 @@ export default function AdminPromotions() {
                 <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-card p-8 text-center"><Inbox className="size-8 text-brand" aria-hidden="true" /><p className="font-medium">Nenhum pagamento para conferir</p><p className="text-sm text-muted-foreground">Quando um organizador avisar que pagou, o pedido aparece aqui.</p></div>
               ) : (
                 <ul className="space-y-3">
-                  {queue.map((item) => (
-                    <li key={item.id} className="rounded-2xl border bg-card p-5 shadow-surface">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <Link href={`/eventos/${encodeURIComponent(item.event.id)}`} className="break-words text-lg font-semibold hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{item.event.nome}</Link>
-                          <p className="mt-1 break-words text-sm text-muted-foreground">{item.organizer.name || "Organizador sem nome"}{item.organizer.email ? ` · ${item.organizer.email}` : ""}</p>
-                        </div>
-                        <p className="text-right"><span className="block text-2xl font-semibold tracking-tight">{formatPromotionAmount(item.amountCents)}</span><span className="text-sm text-muted-foreground">{item.days} dias</span></p>
-                      </div>
-                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                        <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Pedido</dt><dd className="font-mono font-semibold tracking-wider">{item.code}</dd></div>
-                        <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Criado em</dt><dd>{dateTime(item.createdAt)}</dd></div>
-                        <div className="sm:col-span-3"><dt className="text-xs uppercase tracking-wide text-muted-foreground">Observação do organizador</dt><dd className="break-words">{item.payerNote || <span className="text-muted-foreground">Sem observação</span>}</dd></div>
-                      </dl>
-                      {rejectingId === item.id ? (
-                        <form className="mt-4 space-y-2" onSubmit={(event) => submitReject(event, item)}>
-                          <label htmlFor={`reason-${item.id}`} className="block text-sm font-medium">Motivo da recusa</label>
-                          <Textarea id={`reason-${item.id}`} value={reason} required minLength={3} maxLength={PROMOTION_REASON_MAX} onChange={(event) => setReason(event.target.value)} placeholder="Ex.: Pix não localizado com este identificador" className="min-h-20" autoFocus />
-                          <p className="text-xs text-muted-foreground">O organizador recebe este motivo por notificação.</p>
-                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={busyId === item.id} onClick={() => { setRejectingId(null); setReason(""); setActionError(""); }}>Voltar</Button>
-                            <Button type="submit" variant="destructive" className="min-h-11 rounded-xl" disabled={busyId === item.id}>{busyId === item.id ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Recusando...</> : "Confirmar recusa"}</Button>
-                          </div>
-                        </form>
-                      ) : (
-                        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                          <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setRejectingId(item.id); setReason(""); setActionError(""); }}>Recusar</Button>
-                          <Button type="button" variant="cta" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setActionError(""); setConfirming(item); }}>Confirmar pagamento</Button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
+                  {queue.map((item) => renderOrder(item))}
+                </ul>
+              )}
+            </section>
+
+            <section aria-labelledby="unpaid-title" aria-busy={loading} className="space-y-3">
+              <div>
+                <h2 id="unpaid-title" className="text-xl font-semibold">Aguardando o organizador marcar o pagamento <span className="font-normal text-muted-foreground">· {unpaid.length}</span></h2>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">O organizador ainda não clicou em &ldquo;Já paguei&rdquo;. Verifique se chegou um Pix com o identificador e o valor do pedido: se chegou, você pode confirmar daqui; se não, aguarde ou recuse. Pedidos com mais de {STALE_PROMOTION_ORDER_HOURS} horas aparecem como &ldquo;Pedido antigo&rdquo;.</p>
+              </div>
+              {unpaid.length === 0 ? (
+                <p className="rounded-2xl border border-dashed bg-card p-5 text-sm text-muted-foreground">Nenhum pedido aguardando pagamento.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {unpaid.map((item) => renderOrder(item))}
                 </ul>
               )}
             </section>
@@ -164,7 +189,7 @@ export default function AdminPromotions() {
           <DialogHeader>
             <DialogTitle>Confirmar pagamento?</DialogTitle>
             <DialogDescription className="break-words">
-              {confirming && <>Você conferiu o Pix de <strong className="text-foreground">{formatPromotionAmount(confirming.amountCents)}</strong> com o identificador <strong className="font-mono text-foreground">{confirming.code}</strong>? <strong className="text-foreground">{confirming.event.nome}</strong> fica em destaque por {confirming.days} dias, começando agora ou ao fim do destaque atual.</>}
+              {confirming && <>Você conferiu o Pix de <strong className="text-foreground">{formatPromotionAmount(confirming.amountCents)}</strong> com o identificador <strong className="font-mono text-foreground">{confirming.code}</strong>?{confirming.status === "PENDING_PAYMENT" && <> O organizador ainda não marcou o pagamento, então confirme só se o Pix já estiver na conta.</>} <strong className="text-foreground">{confirming.event.nome}</strong> fica em destaque por {confirming.days} dias, começando agora ou ao fim do destaque atual.</>}
             </DialogDescription>
           </DialogHeader>
           {actionError && confirming && <p role="alert" className="break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</p>}
