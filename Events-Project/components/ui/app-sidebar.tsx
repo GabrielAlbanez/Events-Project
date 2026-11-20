@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  BadgeDollarSign,
   BarChart3,
   Bell,
   Bookmark,
@@ -65,6 +66,7 @@ const navigation: NavItem[] = [
   { label: "Resultados", href: "/resultados", icon: BarChart3, roles: organizers },
   { label: "Usuários", href: "/admin", icon: UserCog, roles: ["ADMIN"] },
   { label: "Importar eventos", href: "/admin/eventos-ia", icon: Sparkles, roles: ["ADMIN"] },
+  { label: "Destaques pagos", href: "/admin/destaques", icon: BadgeDollarSign, roles: ["ADMIN"] },
   { label: "Denúncias de eventos", href: "/admin/reports", icon: ShieldAlert, roles: ["ADMIN"] },
   { label: "Denúncias de conexões", href: "/admin/conexoes-denuncias", icon: Flag, roles: ["ADMIN"] },
   { label: "Auditoria de acesso", href: "/admin/auditoria", icon: History, roles: ["ADMIN"] },
@@ -97,7 +99,7 @@ export function AppSidebar() {
     { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery"] },
     { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
     { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/resultados"] },
-    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
+    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/destaques", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
     { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },
   ];
   const avatar = authenticatedUser?.image || null;
