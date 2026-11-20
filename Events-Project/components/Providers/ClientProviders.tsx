@@ -12,6 +12,7 @@ import ImpersonationGuard from "@/components/MyComponents/ImpersonationGuard";
 import { SiteHeader } from "@/components/MyComponents/SiteHeader";
 import { SiteFooter } from "@/components/MyComponents/SiteFooter";
 import siteStyles from "@/components/MyComponents/SiteHeader.module.css";
+import { MobileBottomNav, showsMobileBottomNav } from "@/components/MyComponents/MobileBottomNav";
 
 /** Widgets incorporáveis (/embed/**) rodam sozinhos dentro de um iframe, sem a estrutura do site. */
 export function isEmbedPath(pathname: string | null): boolean {
@@ -35,6 +36,7 @@ export default function ClientProviders({
   defaultOpen: boolean;
 }) {
   const pathname = usePathname();
+  const mobileNav = showsMobileBottomNav(pathname);
 
   // Sem sessão, socket, Google Maps, menu, cabeçalho, sino, rodapé nem guarda de impersonação:
   // o widget é público, tem tema próprio e não deve abrir conexões em nome do visitante do site parceiro.
@@ -52,13 +54,16 @@ export default function ClientProviders({
                 {/* Sidebar */}
                 <AppSidebar />
                 {/* Conteúdo Principal */}
-                <div className={`${siteStyles.shell} relative z-10`}>
+                <div className={`${siteStyles.shell} relative z-10`} data-mobile-nav={mobileNav || undefined}>
                   <SiteHeader />
                   {/* Único landmark principal; as páginas usam div/section dentro dele. */}
                   <main id="conteudo" tabIndex={-1} className={siteStyles.content}><GoogleMapsLoader>{children}</GoogleMapsLoader></main>
                   {/* Rodapé global; reserva espaço extra quando a barra fixa de ação do evento está visível no mobile. */}
                   {showsSiteFooter(pathname) && <SiteFooter className="bg-background pb-[calc(1.5rem+var(--event-cta-space,0px))] xl:pb-6" />}
+                  {/* Reserva a altura da barra inferior do celular (zero no desktop e onde ela não aparece). */}
+                  {mobileNav && <div aria-hidden="true" className={siteStyles.mobileNavSpacer} />}
                 </div>
+                <MobileBottomNav />
               </div>
             </SidebarProvider>
             </ImpersonationGuard>
