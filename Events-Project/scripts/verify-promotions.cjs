@@ -253,6 +253,16 @@ function checkUiWiring() {
   assert.doesNotMatch(panel, /NEXT_PUBLIC_FEATURED|process\.env/, "Pix key never reaches client code directly");
   const badge = fs.readFileSync("components/MyComponents/FeaturedBadge.tsx", "utf8");
   assert.match(badge, /aria-label="Evento em destaque patrocinado"/);
+  assert.match(badge, /bg-cta/, "badge uses the CTA lime token");
+  assert.match(fs.readFileSync("components/MyComponents/TableEventsClient.tsx", "utf8"), /event\.featured && <FeaturedBadge/, "agenda cards show the badge");
+  const home = fs.readFileSync("components/MyComponents/home/LuxuryHomePresentation.tsx", "utf8");
+  assert.match(home, /event\.featured && <FeaturedBadge/, "home cards show the badge");
+  assert.match(home, /prioritizeFeatured\(/, "home gallery puts highlights first");
+  const map = fs.readFileSync("components/MyComponents/Map.tsx", "utf8");
+  assert.match(map, /event\.featured \? FEATURED_EVENT_MARKER_ICON/, "featured map pin variant");
+  assert.match(map, /event\.featured \? 900/, "featured pins draw above regular pins");
+  const pinLine = map.slice(map.indexOf("FEATURED_EVENT_MARKER_ICON =")).split("\n")[0];
+  assert.doesNotMatch(pinLine, /animate|Animation/, "no continuous pin animation");
 }
 
 (async () => {
@@ -264,5 +274,6 @@ function checkUiWiring() {
   checkEligibility(lib);
   await checkService();
   checkWiring();
+  checkUiWiring();
   console.log("PASS promotions: server-side packages, active window, stacking, top-3 ordering, owner/admin guards and notifications.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });
