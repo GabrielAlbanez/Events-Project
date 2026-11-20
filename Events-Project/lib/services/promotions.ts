@@ -5,8 +5,8 @@ import { notificationCopy } from "@/lib/notifications/catalog";
 import type { ResolveAdminId, ResolveCurrentUser } from "@/lib/services/authContext";
 import {
   OPEN_PROMOTION_STATUSES, PROMOTION_PACKAGES, computeActivationWindow, formatPromotionAmount, formatPromotionDate,
-  getPromotionPackage, isPromotionActive, promotionEligibility, shortPromotionCode,
-  type PromotionPackage, type PromotionStatusValue,
+  getPromotionPackage, isPromotionActive, promotionComparisonRange, promotionEligibility, shortPromotionCode, summarizePromotionResult,
+  type PromotionPackage, type PromotionResultSummary, type PromotionStatusValue,
 } from "@/lib/promotions";
 import { cancelPromotionSchema, createPromotionSchema, markPromotionPaidSchema, reviewPromotionSchema } from "@/schemas/promotions";
 
@@ -29,7 +29,12 @@ export type PromotionOverview = {
   /** End of the running (or stacked) highlight chain; null when nothing is active. */
   activeUntil: string | null;
   history: PromotionView[];
+  /** Performance of the latest highlight that already started (running or ended); null when none started. */
+  result: PromotionHighlightResult | null;
+  /** True when the metrics could not be read now (the rest of the overview still loads). */
+  resultUnavailable: boolean;
 };
+export type PromotionHighlightResult = PromotionResultSummary & { promotionId: string; code: string; startsAt: string; endsAt: string };
 export type PromotionQueueItem = PromotionView & {
   event: { id: string; nome: string; dataInicio: string };
   organizer: { id: string; name: string | null; email: string | null };
@@ -79,17 +84,44 @@ export async function getPromotionOverview(eventId: string, resolveCurrentUser: 
       ? computeActivationWindow(0, current, runningOrScheduled).endsAt.toISOString()
       : null;
     const payment = promotionPaymentConfig();
+    const { result, resultUnavailable } = await loadHighlightResult(event.id, rows, current);
     const blockedReason = promotionEligibility(event, user.id, current) ?? (open ? "Já existe um pedido em aberto para este evento." : payment ? null : unavailable);
     return {
       success: true, message: "",
       data: {
         event: { id: event.id, nome: event.nome, status: event.status }, blockedReason, payment,
         packages: [...PROMOTION_PACKAGES], open: open ? toView(open) : null, activeUntil, history: rows.slice(0, 8).map(toView),
+        result, resultUnavailable,
       },
     };
   } catch {
     console.warn("promotion-overview-failed");
     return genericError;
+  }
+}
+
+/** Latest ACTIVE highlight that already started (running or ended) and its metrics, read only for this event. */
+async function loadHighlightResult(eventId: string, rows: ViewRow[], current: Date): Promise<{ result: PromotionHighlightResult | null; resultUnavailable: boolean }> {
+  const latest = rows
+    .filter((row) => row.status === "ACTIVE" && row.startsAt && row.endsAt && row.startsAt.getTime() <= current.getTime())
+    .sort((a, b) => b.startsAt!.getTime() - a.startsAt!.getTime())[0];
+  const range = latest ? promotionComparisonRange(latest, current) : null;
+  if (!latest || !range) return { result: null, resultUnavailable: false };
+  try {
+    const metrics = await prisma.eventMetric.findMany({
+      where: { eventId, day: { gte: range.from, lte: range.to } },
+      select: { day: true, views: true, ticketClicks: true },
+      take: 120,
+    });
+    const summary = summarizePromotionResult(latest, metrics, current);
+    if (!summary) return { result: null, resultUnavailable: false };
+    return {
+      result: { ...summary, promotionId: latest.id, code: shortPromotionCode(latest.id), startsAt: latest.startsAt!.toISOString(), endsAt: latest.endsAt!.toISOString() },
+      resultUnavailable: false,
+    };
+  } catch {
+    console.warn("promotion-result-failed");
+    return { result: null, resultUnavailable: true };
   }
 }
 

@@ -57,6 +57,49 @@ function checkActiveWindow(lib) {
   assert.equal(lib.isPromotionActive({ ...active, startsAt: active.startsAt.toISOString(), endsAt: active.endsAt.toISOString() }, NOW), true, "serialized dates");
 }
 
+function checkResultSummary(lib) {
+  const window = { startsAt: new Date("2099-03-05T15:00:00.000Z"), endsAt: new Date("2099-03-12T15:00:00.000Z") };
+  const metrics = [
+    { day: "2099-02-26", views: 999, ticketClicks: 99 },
+    { day: "2099-03-01", views: 10, ticketClicks: 0 },
+    { day: "2099-03-04", views: 20, ticketClicks: 2 },
+    { day: "2099-03-05", views: 30, ticketClicks: 3 },
+    { day: "2099-03-10", views: 15, ticketClicks: 1 },
+    { day: "2099-03-11", views: 999, ticketClicks: 99 },
+  ];
+  const running = lib.summarizePromotionResult(window, metrics, NOW);
+  assert.equal(running.running, true, "still running at NOW");
+  assert.equal(running.daysElapsed, 5);
+  assert.equal(running.totalDays, 7);
+  assert.equal(running.comparedDays, 6, "UTC day buckets 05..10 vs 27/02..04/03");
+  assert.deepEqual([running.during.from, running.during.to, running.before.from, running.before.to], ["2099-03-05", "2099-03-10", "2099-02-27", "2099-03-04"]);
+  assert.deepEqual([running.during.views, running.during.ticketClicks], [45, 4], "future days are ignored while running");
+  assert.deepEqual([running.before.views, running.before.ticketClicks], [30, 2], "days older than the baseline are ignored");
+  assert.deepEqual(running.change, { views: 50, ticketClicks: 100 });
+  assert.equal(running.hasData, true);
+
+  const ended = lib.summarizePromotionResult({ startsAt: window.startsAt.toISOString(), endsAt: window.endsAt.toISOString() }, metrics, new Date("2099-04-01T00:00:00.000Z"));
+  assert.equal(ended.running, false);
+  assert.equal(ended.daysElapsed, 7);
+  assert.equal(ended.during.to, "2099-03-12", "ended: the whole window counts");
+  assert.equal(ended.during.views, 45 + 999);
+
+  const noBaseline = lib.summarizePromotionResult(window, [{ day: "2099-03-06", views: 7, ticketClicks: 0 }], NOW);
+  assert.deepEqual(noBaseline.change, { views: null, ticketClicks: null }, "never divides by zero");
+  assert.equal(noBaseline.hasData, true);
+  const drop = lib.summarizePromotionResult(window, [{ day: "2099-03-03", views: 40, ticketClicks: 4 }, { day: "2099-03-06", views: 10, ticketClicks: 4 }], NOW);
+  assert.deepEqual(drop.change, { views: -75, ticketClicks: 0 });
+  const empty = lib.summarizePromotionResult(window, [], NOW);
+  assert.equal(empty.hasData, false);
+  assert.deepEqual([empty.during.views, empty.before.views], [0, 0]);
+  assert.deepEqual(empty.change, { views: null, ticketClicks: null });
+
+  assert.equal(lib.summarizePromotionResult(window, metrics, new Date("2099-03-01T00:00:00.000Z")), null, "not started yet");
+  assert.equal(lib.summarizePromotionResult({ startsAt: null, endsAt: null }, metrics, NOW), null);
+  const range = lib.promotionComparisonRange(window, NOW);
+  assert.deepEqual([range.from, range.to], ["2099-02-27", "2099-03-10"], "range used by the server-side query");
+}
+
 function checkStacking(lib) {
   const fresh = lib.computeActivationWindow(3, NOW, []);
   assert.equal(fresh.startsAt.getTime(), NOW.getTime(), "no active highlight: starts now");
@@ -102,8 +145,10 @@ function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
     if (value && typeof value === "object" && !(value instanceof Date)) {
       if ("in" in value) return value.in.includes(row[key]);
-      if ("gt" in value) return row[key] != null && row[key] > value.gt;
-      if ("lte" in value) return row[key] != null && row[key] <= value.lte;
+      if (row[key] == null && ("gt" in value || "gte" in value || "lte" in value)) return false;
+      if ("gt" in value && !(row[key] > value.gt)) return false;
+      if ("gte" in value && !(row[key] >= value.gte)) return false;
+      if ("lte" in value && !(row[key] <= value.lte)) return false;
       return true;
     }
     return row[key] === value;
@@ -133,7 +178,7 @@ function freshDb() {
   const users = [{ id: "owner", role: "PROMOTER", name: "Org", email: "org@example.test", suspendedAt: null }, { id: "admin", role: "ADMIN", name: "Admin", email: "admin@example.test", suspendedAt: null }];
   const notifications = [];
   const store = {
-    events: table(events), user: table(users), notification: table(notifications),
+    events: table(events), user: table(users), notification: table(notifications), eventMetric: table([]),
   };
   store.eventPromotion = table([], {
     event: (row) => events.find((event) => event.id === row.eventId) ?? null,
@@ -242,6 +287,25 @@ async function checkService() {
   assert.equal(overview.data.open, null);
   assert.equal(new Date(overview.data.activeUntil).getTime(), secondRow.endsAt.getTime(), "active until the end of the stacked chain");
   assert.equal(overview.data.packages.length, 2);
+  assert.equal(overview.data.resultUnavailable, false);
+  assert.equal(overview.data.result.hasData, false, "no metrics yet: empty result, not an error");
+
+  // Highlight result: only this event's metrics, highlight window vs the same number of days right before it.
+  db.eventMetric.rows.push(
+    { eventId: "event-1", day: "2099-03-09", views: 8, ticketClicks: 1 },
+    { eventId: "event-1", day: "2099-03-10", views: 12, ticketClicks: 3 },
+    { eventId: "event-1", day: "2099-03-01", views: 999, ticketClicks: 99 },
+    { eventId: "event-other", day: "2099-03-10", views: 500, ticketClicks: 50 },
+  );
+  const withResult = await service.getPromotionOverview("event-1", owner, clock);
+  const result = withResult.data.result;
+  assert.equal(result.promotionId, order.id, "latest started highlight (the stacked one has not started)");
+  assert.equal(result.running, true);
+  assert.deepEqual([result.during.views, result.during.ticketClicks], [12, 3], "other events and older days are not counted");
+  assert.deepEqual([result.before.views, result.before.ticketClicks], [8, 1]);
+  assert.equal(result.change.views, 50);
+  assert.equal(result.change.ticketClicks, 200);
+  assert.equal(JSON.stringify(withResult.data).includes("500"), false, "other events' metrics never leave the server");
 
   // Catalog annotation only flags events with a highlight running now.
   const { listFeaturedEventIds } = load("lib/eventQueries.ts");
@@ -265,6 +329,8 @@ function checkWiring() {
 function checkUiWiring() {
   const panel = fs.readFileSync("components/MyComponents/promotions/PromoteEventPanel.tsx", "utf8");
   assert.doesNotMatch(panel, /NEXT_PUBLIC_FEATURED|process\.env/, "Pix key never reaches client code directly");
+  assert.match(panel, /Resultado do destaque/, "organizers see the highlight result");
+  assert.match(panel, /Sem base de comparação/, "zero baseline shows text, not Infinity");
   const badge = fs.readFileSync("components/MyComponents/FeaturedBadge.tsx", "utf8");
   assert.match(badge, /aria-label="Evento em destaque patrocinado"/);
   assert.match(badge, /bg-cta/, "badge uses the CTA lime token");
@@ -283,6 +349,7 @@ function checkUiWiring() {
   const lib = load("lib/promotions.ts");
   checkPackages(lib);
   checkActiveWindow(lib);
+  checkResultSummary(lib);
   checkStacking(lib);
   checkOrdering(lib);
   checkEligibility(lib);

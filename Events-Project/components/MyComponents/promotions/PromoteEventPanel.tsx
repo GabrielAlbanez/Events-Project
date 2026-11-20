@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { AlertCircle, CheckCircle2, Clock3, Copy, Loader2, MapPin, Sparkles, XCircle } from "lucide-react";
+import { AlertCircle, BarChart3, CheckCircle2, Clock3, Copy, Loader2, MapPin, Minus, Sparkles, TrendingDown, TrendingUp, XCircle } from "lucide-react";
 import { cancelPromotionOrder, createPromotionOrder, getPromotionOverview, markPromotionPaid } from "@/app/(actions)/promotions/action";
-import type { PromotionOverview, PromotionView } from "@/lib/services/promotions";
+import type { PromotionHighlightResult, PromotionOverview, PromotionView } from "@/lib/services/promotions";
 import { PROMOTION_NOTE_MAX, formatPromotionAmount, formatPromotionDate, promotionStatusLabels, type PromotionPackageId } from "@/lib/promotions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +31,66 @@ function StatusPill({ item }: { item: Pick<PromotionView, "status" | "startsAt" 
   const label = ended ? "Encerrado" : scheduled ? "Agendado" : promotionStatusLabels[item.status];
   const tone = ended ? statusTone.CANCELLED : scheduled ? statusTone.AWAITING_REVIEW : statusTone[item.status];
   return <span className={"inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold " + tone}>{label}</span>;
+}
+
+const numberFormat = new Intl.NumberFormat("pt-BR");
+/** EventMetric day keys are already calendar days (YYYY-MM-DD): format them without timezone conversion. */
+const formatDayKey = (key: string) => `${key.slice(8, 10)}/${key.slice(5, 7)}`;
+
+function ChangeBadge({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-xs text-muted-foreground">Sem base de comparação</span>;
+  const up = value > 0, down = value < 0;
+  const Icon = up ? TrendingUp : down ? TrendingDown : Minus;
+  const tone = up ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" : down ? "bg-destructive/10 text-red-700 dark:text-red-300" : "bg-muted text-muted-foreground";
+  const label = `${up ? "+" : down ? "−" : ""}${numberFormat.format(Math.abs(value))}%`;
+  return (
+    <span className={"inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold " + tone}>
+      <Icon className="size-3.5" aria-hidden="true" />{label}
+      <span className="sr-only">{up ? "de aumento" : down ? "de queda" : "sem variação"} em relação ao período anterior</span>
+    </span>
+  );
+}
+
+function HighlightResult({ result, unavailable }: { result: PromotionHighlightResult | null; unavailable: boolean }) {
+  const rows = result ? [
+    { label: "Visualizações", during: result.during.views, before: result.before.views, change: result.change.views },
+    { label: "Cliques em ingressos", during: result.during.ticketClicks, before: result.before.ticketClicks, change: result.change.ticketClicks },
+  ] : [];
+  return (
+    <section aria-labelledby="result-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><BarChart3 className="size-5" aria-hidden="true" /></span>
+          <div className="min-w-0">
+            <h2 id="result-title" className="text-xl font-semibold">Resultado do destaque</h2>
+            {result && <p className="mt-1 text-sm text-muted-foreground">Pedido <span className="font-mono">{result.code}</span> · {formatPromotionDate(result.startsAt)} a {formatPromotionDate(result.endsAt)}{result.running ? ` · dia ${result.daysElapsed} de ${result.totalDays}` : ""}</p>}
+          </div>
+        </div>
+        {result && <span className={"inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold " + (result.running ? statusTone.ACTIVE : statusTone.CANCELLED)}>{result.running ? "Em andamento" : "Encerrado"}</span>}
+      </div>
+      {unavailable || !result ? (
+        <p role="status" className="mt-4 rounded-xl border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">Não foi possível carregar o resultado agora. Tente novamente em alguns minutos.</p>
+      ) : !result.hasData ? (
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">Ainda não há visualizações nem cliques registrados neste período ou nos dias anteriores ao destaque. Os números aparecem aqui conforme o público interage com o evento.</p>
+      ) : (
+        <>
+          <dl className="mt-5 divide-y border-y">
+            {rows.map((row) => (
+              <div key={row.label} className="grid grid-cols-2 items-center gap-x-4 gap-y-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                <dt className="col-span-2 text-sm font-medium sm:col-span-1">{row.label}</dt>
+                <dd className="min-w-0"><span className="block text-xs text-muted-foreground">Durante</span><span className="text-2xl font-semibold tracking-tight tabular-nums">{numberFormat.format(row.during)}</span></dd>
+                <dd className="min-w-0 sm:min-w-20"><span className="block text-xs text-muted-foreground">Antes</span><span className="text-2xl font-semibold tracking-tight tabular-nums text-muted-foreground">{numberFormat.format(row.before)}</span></dd>
+                <dd className="col-span-2 sm:col-span-1 sm:min-w-24 sm:text-right"><ChangeBadge value={row.change} /></dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            {result.running ? "Destaque em andamento: comparamos os dias até hoje" : "Comparamos os dias do destaque"} ({formatDayKey(result.during.from)} a {formatDayKey(result.during.to)}) com os {result.comparedDays} {result.comparedDays === 1 ? "dia imediatamente anterior" : "dias imediatamente anteriores"} ({formatDayKey(result.before.from)} a {formatDayKey(result.before.to)}).
+          </p>
+        </>
+      )}
+    </section>
+  );
 }
 
 export default function PromoteEventPanel({ eventId }: { eventId: string }) {
@@ -133,6 +193,8 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                 <div><p className="font-semibold">Destaque ativo até {formatPromotionDate(overview.activeUntil)}</p><p className="mt-1 text-sm opacity-90">Um novo pacote começa quando este terminar.</p></div>
               </div>
             )}
+
+            {(overview.result || overview.resultUnavailable) && <HighlightResult result={overview.result} unavailable={overview.resultUnavailable} />}
 
             {rejected && !open && (
               <div role="status" className="flex items-start gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 p-4">

@@ -83,3 +83,68 @@ export function promotionEligibility(event: PromotableEvent | null, userId: stri
   if (end && end.getTime() <= now.getTime()) return "Este evento já foi encerrado.";
   return null;
 }
+
+export type PromotionMetricDay = { day: string; views: number; ticketClicks: number };
+export type PromotionMetricTotals = { views: number; ticketClicks: number };
+export type PromotionPeriodTotals = PromotionMetricTotals & { from: string; to: string };
+export type PromotionResultSummary = {
+  running: boolean;
+  /** Whole days since the highlight started (capped at its length). */
+  daysElapsed: number;
+  totalDays: number;
+  /** UTC day buckets compared on each side (EventMetric.day is a UTC YYYY-MM-DD key). */
+  comparedDays: number;
+  during: PromotionPeriodTotals;
+  before: PromotionPeriodTotals;
+  /** Rounded percent change; null when the baseline is 0. */
+  change: { views: number | null; ticketClicks: number | null };
+  hasData: boolean;
+};
+
+const dayKey = (value: number) => new Date(value).toISOString().slice(0, 10);
+const shiftDay = (key: string, days: number) => dayKey(Date.parse(`${key}T00:00:00.000Z`) + days * DAY_MS);
+
+/** Day keys compared for a highlight: the elapsed window and the same number of days right before it. Null before it starts. */
+export function promotionComparisonRange(window: { startsAt: DateLike; endsAt: DateLike }, now: Date) {
+  const starts = time(window.startsAt), ends = time(window.endsAt), current = now.getTime();
+  if (starts == null || ends == null || !Number.isFinite(starts) || !Number.isFinite(ends) || ends <= starts || current < starts) return null;
+  const running = current < ends;
+  const duringFrom = dayKey(starts);
+  const duringTo = dayKey(running ? current : ends - 1);
+  const comparedDays = Math.round((Date.parse(`${duringTo}T00:00:00.000Z`) - Date.parse(`${duringFrom}T00:00:00.000Z`)) / DAY_MS) + 1;
+  const beforeTo = shiftDay(duringFrom, -1);
+  const beforeFrom = shiftDay(duringFrom, -comparedDays);
+  const totalDays = Math.max(1, Math.ceil((ends - starts) / DAY_MS));
+  const daysElapsed = running ? Math.min(totalDays, Math.max(1, Math.ceil((current - starts) / DAY_MS))) : totalDays;
+  return { from: beforeFrom, to: duringTo, duringFrom, duringTo, beforeFrom, beforeTo, comparedDays, running, totalDays, daysElapsed };
+}
+
+const percentChange = (during: number, before: number) => (before > 0 ? Math.round(((during - before) / before) * 100) : null);
+const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0);
+
+/** How the event performed during a highlight versus an equal-length period immediately before it. Pure: no clock, no I/O. */
+export function summarizePromotionResult(
+  window: { startsAt: DateLike; endsAt: DateLike },
+  metrics: readonly PromotionMetricDay[],
+  now: Date,
+): PromotionResultSummary | null {
+  const range = promotionComparisonRange(window, now);
+  if (!range) return null;
+  const during: PromotionPeriodTotals = { from: range.duringFrom, to: range.duringTo, views: 0, ticketClicks: 0 };
+  const before: PromotionPeriodTotals = { from: range.beforeFrom, to: range.beforeTo, views: 0, ticketClicks: 0 };
+  let hasData = false;
+  for (const metric of metrics) {
+    const target = metric.day >= during.from && metric.day <= during.to ? during : metric.day >= before.from && metric.day <= before.to ? before : null;
+    if (!target) continue;
+    target.views += count(metric.views);
+    target.ticketClicks += count(metric.ticketClicks);
+    hasData = true;
+  }
+  hasData = hasData && during.views + during.ticketClicks + before.views + before.ticketClicks > 0;
+  return {
+    running: range.running, daysElapsed: range.daysElapsed, totalDays: range.totalDays, comparedDays: range.comparedDays,
+    during, before,
+    change: { views: percentChange(during.views, before.views), ticketClicks: percentChange(during.ticketClicks, before.ticketClicks) },
+    hasData,
+  };
+}
