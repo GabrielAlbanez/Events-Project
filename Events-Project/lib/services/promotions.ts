@@ -208,11 +208,14 @@ export async function reviewPromotion(rawInput: unknown, resolveAdminId: Resolve
     return await prisma.$transaction(async (tx) => {
       const order = await tx.eventPromotion.findFirst({
         where: { id: input.promotionId, status: "AWAITING_REVIEW" },
-        select: { id: true, eventId: true, userId: true, days: true, event: { select: { nome: true } } },
+        select: { id: true, eventId: true, userId: true, days: true, event: { select: eventSelect } },
       });
       if (!order) return { success: false as const, message: "Este pedido não está mais aguardando análise." };
       const current = now();
       if (input.decision === "confirm") {
+        // The event may have been cancelled, unpublished or ended since the order was paid: keep it queued for rejection/refund.
+        const reason = promotionEligibility(order.event, order.userId, current);
+        if (reason) return { success: false as const, message: `Não é possível ativar: ${reason} Recuse o pedido e devolva o Pix.` };
         const running = await tx.eventPromotion.findMany({ where: { eventId: order.eventId, status: "ACTIVE", endsAt: { gt: current } }, select: { endsAt: true } });
         const window = computeActivationWindow(order.days, current, running);
         const changed = await tx.eventPromotion.updateMany({

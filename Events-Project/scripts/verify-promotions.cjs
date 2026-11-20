@@ -222,6 +222,20 @@ async function checkService() {
   assert.equal((await service.cancelPromotionOrder({ promotionId: fourthRow.id }, owner, clock)).success, true);
   assert.equal(fourthRow.status, "CANCELLED");
 
+  // Confirming re-checks the event: a paid order for an event cancelled meanwhile cannot be activated.
+  const fifth = await service.createPromotionOrder({ eventId: "event-1", packageId: "3d" }, owner, clock);
+  const fifthRow = db.eventPromotion.rows[4];
+  assert.equal(fifth.success, true);
+  await service.markPromotionPaid({ promotionId: fifthRow.id }, owner, clock);
+  const eventRow = db.events.rows.find((event) => event.id === "event-1");
+  eventRow.status = "CANCELLED";
+  const blockedConfirm = await service.reviewPromotion({ promotionId: fifthRow.id, decision: "confirm" }, admin, clock);
+  assert.equal(blockedConfirm.success, false, "cannot activate a highlight for an event that is no longer published");
+  assert.match(blockedConfirm.message, /publicado|encerrado/i);
+  assert.equal(fifthRow.status, "AWAITING_REVIEW", "order stays in the queue so the admin can reject and refund");
+  assert.equal((await service.reviewPromotion({ promotionId: fifthRow.id, decision: "reject", reason: "Evento cancelado, Pix devolvido" }, admin, clock)).success, true, "rejecting still works");
+  eventRow.status = "PUBLISHED";
+
   const overview = await service.getPromotionOverview("event-1", owner, clock);
   assert.equal(overview.success, true);
   assert.equal(overview.data.payment.key, "pix@example.test");
