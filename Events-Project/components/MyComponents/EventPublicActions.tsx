@@ -116,6 +116,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     try { if (navigator.share) await navigator.share({ title: "Evento no EventMap", url }); else { await navigator.clipboard.writeText(url); setMessage("Link do evento copiado."); } }
     catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage("Não foi possível compartilhar. Copie o endereço desta página."); }
   }
+  const toggleSave = () => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } });
   const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}`)}`;
   const hasExternalTickets = Boolean(ticketUrl && /^https?:\/\//i.test(ticketUrl));
   const trackTicket = () => { if (!hasMetricConsent()) return; void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); };
@@ -124,13 +125,18 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const waitlistOnly = Boolean(registration && registration.capacity !== null && registration.confirmedCount >= registration.capacity);
   const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration;
   const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
+  // Mobile: equal-width two-column grid with short labels; from sm up the original inline buttons.
+  const tile = `${button.replace(" px-4 ", " px-2 sm:px-4 ")} min-w-0 flex-1 basis-[calc(50%-0.25rem)] whitespace-nowrap sm:flex-none sm:basis-auto sm:whitespace-normal`;
+  const iconButton = button.replace(" px-4 ", " w-11 shrink-0 px-0 ");
   const stickyAction = canRegister
     ? status === "authenticated"
       ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
       : status === "unauthenticated" ? <Link href={loginHref} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Confirmar presença</Link> : null
     : registrationOpen && hasExternalTickets && !isFree
       ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
-      : null;
+      : registrationOpen && hasExternalTickets
+        ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Ver acesso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
+        : null;
   const showStickyBar = stickyBar && panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
   useEffect(() => {
     // The global footer reads this variable to stay clear of the fixed bar (mobile only, see ClientProviders).
@@ -154,11 +160,11 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     </section>}
     {eventStatus === "PUBLISHED" && <EventPeoplePreview eventId={eventId} />}
     <div className="flex flex-wrap gap-2">
-      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><PopIcon pulse={savePulse}><Bookmark className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></PopIcon>{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href={loginHref}>Entrar para salvar</Link>}
-      <button type="button" onClick={() => void share()} className={button}><Share2 className="h-4 w-4" />Compartilhar</button>
-      <a className={button} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" aria-hidden="true" />Adicionar ao calendário (.ics)</a>
-      {googleCalendarUrl && <a className={button} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" />Google Agenda<span className="sr-only"> (abre em nova aba)</span></a>}
-      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " bg-primary text-primary-foreground"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
+      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={tile} onClick={toggleSave}><PopIcon pulse={savePulse}><Bookmark className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></PopIcon><span className="sm:hidden">{saved ? "Salvo" : "Salvar"}</span><span className="hidden sm:inline">{saved ? "Salvo na minha agenda" : "Salvar evento"}</span></button> : <Link className={tile} href={loginHref}><Bookmark className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="sm:hidden">Salvar<span className="sr-only"> (entrar na conta)</span></span><span className="hidden sm:inline">Entrar para salvar</span></Link>}
+      <button type="button" onClick={() => void share()} className={tile}><Share2 className="h-4 w-4" aria-hidden="true" />Compartilhar</button>
+      <a className={tile} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" aria-hidden="true" /><span className="sm:hidden">Calendário<span className="sr-only"> (arquivo .ics)</span></span><span className="hidden sm:inline">Adicionar ao calendário (.ics)</span></a>
+      {googleCalendarUrl && <a className={tile} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" />Google Agenda<span className="sr-only"> (abre em nova aba)</span></a>}
+      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " order-first basis-full bg-primary text-primary-foreground sm:order-none sm:basis-auto"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
     </div>
     {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); setMessage(result.message); if (result.success) setReminder(minutes); } catch { setMessage("Não foi possível configurar o lembrete."); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
     {status === "authenticated" && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
@@ -166,12 +172,14 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       {reportMessage && <p role="status" className="mt-2 text-sm">{reportMessage}</p>}
     </div>}
     <p role="status" className="text-sm text-muted-foreground">{message}</p>
-    {showStickyBar && <div role="region" aria-label="Ação rápida do evento" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_hsl(var(--foreground)/0.08)] backdrop-blur-md xl:hidden">
+    {showStickyBar && <div role="region" aria-label="Ação rápida do evento" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_hsl(var(--foreground)/0.08)] xl:hidden">
       <div className="mx-auto flex max-w-xl items-center gap-3">
         <div className="min-w-0 flex-1">
           {activeRegistration && registrationOpen ? <RegistrationStatusBadge status={activeRegistration.status} /> : priceLabel ? <p className="truncate text-sm font-semibold">{priceLabel}</p> : null}
           {activeRegistration && registrationOpen ? <a href="#registration-title" className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">Ver minha inscrição</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
         </div>
+        {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Salvo na minha agenda" : "Salvar evento"} className={iconButton}><Bookmark aria-hidden="true" className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></button> : status === "unauthenticated" ? <Link href={loginHref} aria-label="Entrar para salvar" className={iconButton}><Bookmark aria-hidden="true" className="h-4 w-4" /></Link> : null}
+        <button type="button" onClick={() => void share()} aria-label="Compartilhar evento" className={iconButton}><Share2 aria-hidden="true" className="h-4 w-4" /></button>
         {stickyAction}
       </div>
       {canRegister && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{registrationPrivacyNotice}</p>}
