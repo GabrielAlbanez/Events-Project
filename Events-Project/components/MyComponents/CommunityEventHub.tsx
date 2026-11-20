@@ -8,7 +8,8 @@ import type { CommunitySection } from "@/lib/community/liveChanges";
 import type { CommunityEventSnapshot } from "@/types/community";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
-import { useCommunityResource } from "./CommunityResource";
+import { useToastMessage } from "@/hooks/useToastMessage";
+import { COMMUNITY_SAVED_MESSAGE, useCommunityResource } from "./CommunityResource";
 import { CommunityAction, CommunityCard, CommunitySyncStatus, CommunityInteractionBoundary, CommunityStaleBanner } from "./CommunityUI";
 import { CommunityAnnouncements, CommunityFeedback, CommunityLostFound, CommunityPolls, CommunityProgram, CommunityQuestions, CommunityQueues, CommunityTeam } from "./CommunityEventSections";
 
@@ -25,6 +26,7 @@ const sections = [
 
 export default function CommunityEventHub({ eventId }: { eventId: string }) {
   const resource = useCommunityResource<CommunityEventSnapshot>(`/api/community/events/${encodeURIComponent(eventId)}`);
+  useToastMessage(resource.message, resource.message === COMMUNITY_SAVED_MESSAGE ? "success" : "error");
   const [selected, setSelected] = useState<CommunitySection>("announcements");
   useEffect(() => { setSelected("announcements"); }, [resource.identity]);
   const realtime = useCommunityRealtime({ eventId }, resource.refresh);
@@ -39,7 +41,6 @@ export default function CommunityEventHub({ eventId }: { eventId: string }) {
     <CommunityStaleBanner error={resource.error} hasData={!!resource.data} online={resource.online} refreshing={resource.refreshing} refresh={() => void resource.refresh()} />
     {resource.loading ? <CommunityCard><p role="status">Carregando a comunidade...</p></CommunityCard> : resource.error && !resource.data ? <CommunityCard><p role="alert" className="text-sm">{resource.error}</p><CommunityAction busy={false} onClick={() => void resource.refresh()}>Tentar novamente</CommunityAction></CommunityCard> : resource.data && <>
       {!resource.data.permissions.authenticated && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4"><p className="text-sm">Você pode acompanhar a comunidade. Entre para perguntar, votar e participar.</p><Link href="/login" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Entrar</Link></div>}
-      {resource.message && <p role="status" className="rounded-xl border bg-muted/40 p-3 text-sm">{resource.message}</p>}
       <div aria-live="polite" className="space-y-2">{changes.notices.map(notice => {
         const snapshot = resource.data;
         if (!snapshot) return null;

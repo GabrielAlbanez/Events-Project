@@ -22,6 +22,9 @@ function harness(data, overrides = {}) {
     if (name.endsWith('PartyProfileForm')) return { default: 'profile-form', partyIntents: { FRIENDSHIP: { label: 'Amizade' } } };
     if (name.endsWith('PartyAvatar')) return { default: 'avatar' };
     if (name.endsWith('PartyDiscovery')) return { default: 'discovery' };
+    // Mutation feedback is shown as toasts; navigation renders must not raise any.
+    if (name.endsWith('useToastMessage')) return { useToastMessage: (message) => { if (message) throw new Error('Navigation must not produce feedback toasts'); } };
+    if (name.endsWith('CommunityResource')) return { COMMUNITY_SAVED_MESSAGE: 'Alteração salva.' };
     throw new Error('Unexpected dependency: ' + name);
   };
   const module = { exports: {} };

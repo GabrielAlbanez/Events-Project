@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CalendarPlus, Check, Code2, Copy, ExternalLink } from "lucide-react";
+import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 
 type EmbedShareBoxProps = {
@@ -16,7 +17,6 @@ type CopyTarget = "snippet" | "calendar";
 
 export function EmbedShareBox({ snippet, calendarUrl, previewUrl, note }: EmbedShareBoxProps) {
   const [copied, setCopied] = useState<CopyTarget | null>(null);
-  const [message, setMessage] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -25,10 +25,10 @@ export function EmbedShareBox({ snippet, calendarUrl, previewUrl, note }: EmbedS
     try {
       await navigator.clipboard.writeText(value);
       setCopied(target);
-      setMessage(target === "snippet" ? "Código de incorporação copiado." : "Endereço da agenda copiado.");
+      toast.success(target === "snippet" ? "Código de incorporação copiado." : "Endereço da agenda copiado.", { toastId: `embed-copy:${target}` });
     } catch {
       setCopied(null);
-      setMessage("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.");
+      toast.error("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.", { toastId: "embed-copy:error" });
     }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(null), 2500);
@@ -71,7 +71,6 @@ export function EmbedShareBox({ snippet, calendarUrl, previewUrl, note }: EmbedS
           </div>
         </div>
       </div>
-      <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-muted-foreground">{message}</p>
     </section>
   );
 }

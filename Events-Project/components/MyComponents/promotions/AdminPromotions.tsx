@@ -49,16 +49,18 @@ export default function AdminPromotions() {
   const decide = async (item: PromotionQueueItem, decision: "confirm" | "reject") => {
     if (busyId) return;
     setBusyId(item.id); setActionError("");
+    // Confirmation failures stay inside the open dialog; inline reject failures become toasts.
+    const fail = (message: string) => decision === "confirm" ? setActionError(message) : toast.error(message, { toastId: `promotion-review:${message}` });
     try {
       const result = await reviewPromotion(decision === "confirm" ? { promotionId: item.id, decision } : { promotionId: item.id, decision, reason: reason.trim() });
-      if (!result.success) { setActionError(result.message); return; }
+      if (!result.success) { fail(result.message); return; }
       toast.success(result.message, { role: "status" });
       setConfirming(null); setRejectingId(null); setReason("");
       // Catalog, home and map refresh in real time when a highlight starts.
       if (decision === "confirm") socket.emit("create-event");
       await load();
     } catch {
-      setActionError("Não foi possível registrar a decisão. Tente novamente.");
+      fail("Não foi possível registrar a decisão. Tente novamente.");
     } finally {
       setBusyId(null);
     }
@@ -66,7 +68,7 @@ export default function AdminPromotions() {
 
   const submitReject = (event: FormEvent<HTMLFormElement>, item: PromotionQueueItem) => {
     event.preventDefault();
-    if (reason.trim().length < 3) { setActionError("Informe o motivo da recusa (3 a 300 caracteres)."); return; }
+    if (reason.trim().length < 3) { toast.error("Informe o motivo da recusa (3 a 300 caracteres).", { toastId: "promotion-reason" }); return; }
     void decide(item, "reject");
   };
 
@@ -124,7 +126,6 @@ export default function AdminPromotions() {
           <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={loading} onClick={() => void load()}>Atualizar</Button>
         </header>
 
-        {actionError && !confirming && <p role="alert" className="break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</p>}
 
         {loading && !queue.length && !unpaid.length && !active.length ? (
           <div role="status" aria-busy="true" className="space-y-3"><span className="sr-only">Carregando destaques...</span>{[0, 1].map((index) => <div key={index} aria-hidden="true" className="h-36 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" />)}</div>

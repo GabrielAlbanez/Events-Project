@@ -6,6 +6,7 @@ import {
   DirectionsRenderer,
 } from "@react-google-maps/api";
 import { toast } from "react-toastify";
+import { locationErrorMessage } from "@/lib/geolocationHelp";
 import { LazyMotion, m, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
@@ -49,6 +50,7 @@ const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "water", elementType: "geometry", stylers: [{ color: "#0B111C" }] },
 ];
 
+const LOCATION_TOAST_ID = "location";
 const USER_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#C7F34A" stroke="#0B0D12" stroke-width="2"/><circle cx="13" cy="13" r="3" fill="#0B0D12"/></svg>') };
 // The SVG's intrinsic width/height sets the rendered size; Google anchors it at the bottom centre (pin tip), so bigger pins don't shift.
 const createEventMarkerIcon = (fill: string, ink: string, width = 28, height = 36) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
@@ -156,9 +158,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     if (navigator.geolocation) {
       locationInFlightRef.current = true;
       setIsLocating(true);
-      navigator.geolocation.getCurrentPosition(
+      const locate = (retry: boolean) => navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (requestId !== locationRequestRef.current) return;
+          // A lingering error from an earlier attempt must not stay on screen once location is known.
+          toast.dismiss(LOCATION_TOAST_ID);
           const { latitude, longitude } = pos.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           setUserLocation({ lat: latitude, lng: longitude });
@@ -168,19 +172,26 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
           clearAddressParam();
         },
         (error) => {
+          // Superseded requests (a newer search, cancel or success) stay silent.
           if (requestId !== locationRequestRef.current) return;
+          // Chrome on Windows often fails the first low-accuracy network lookup: retry once with GPS/Wi-Fi before reporting.
+          if (!retry && (error.code === error.POSITION_UNAVAILABLE || error.code === error.TIMEOUT)) {
+            locate(true);
+            return;
+          }
           locationInFlightRef.current = false;
           setIsLocating(false);
-          toast.error(error.code === error.PERMISSION_DENIED
-            ? "A localização está bloqueada no navegador. Para usá-la, permita o acesso nas configurações deste site. Você também pode selecionar um endereço."
-            : error.code === error.TIMEOUT
-              ? "A localização demorou para responder. Tente novamente ou selecione um endereço."
-              : "Não foi possível acessar sua localização. Você pode explorar o mapa ou selecionar um endereço.");
+          const message = locationErrorMessage(error.code, navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+          // One stable id: repeated taps never stack, and the long platform steps stay readable for longer.
+          const options = { type: "error" as const, autoClose: error.code === error.TIMEOUT ? 6000 : 12000 };
+          if (toast.isActive(LOCATION_TOAST_ID)) toast.update(LOCATION_TOAST_ID, { ...options, render: message });
+          else toast(message, { ...options, toastId: LOCATION_TOAST_ID });
         },
-        { enableHighAccuracy: false, maximumAge: 60000, timeout: 7000 }
+        retry ? { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } : { enableHighAccuracy: false, maximumAge: 60000, timeout: 7000 }
       );
+      locate(false);
     } else {
-      toast.error("Geolocalização não suportada pelo navegador.");
+      toast.error("Geolocalização não suportada pelo navegador.", { toastId: LOCATION_TOAST_ID });
     }
   }, [clearAddressParam]);
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Camera, CheckCircle2, Download, RefreshCcw, Search, ShieldCheck, UserCheck, Users, X } from "lucide-react";
+import { toast } from "react-toastify";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { StaggerList } from "@/components/animations/StaggerList";
 import { Button } from "@/components/ui/button";
@@ -44,13 +45,11 @@ export default function CheckInPage() {
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
   const [working, setWorking] = useState(false);
-  const [feedback, setFeedback] = useState("");
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [query, setQuery] = useState("");
   const [pendingManual, setPendingManual] = useState<Attendee | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scannedRef = useRef(false);
@@ -84,7 +83,6 @@ export default function CheckInPage() {
   const submitCheckIn = useCallback(async (body: { token: string } | { registrationId: string }) => {
     if (working) return;
     setWorking(true);
-    setFeedback("");
     try {
       const response = await fetch(`${apiBase}/check-in`, {
         method: "POST",
@@ -93,11 +91,13 @@ export default function CheckInPage() {
       });
       const data = await response.json().catch(() => ({})) as ApiError & { user?: { name?: string | null } };
       if (!response.ok) throw new Error(data.message || "Não foi possível registrar a entrada.");
-      setFeedback(`Entrada registrada${data.user?.name ? ` para ${data.user.name}` : ""}.`);
+      const success = `Entrada registrada${data.user?.name ? ` para ${data.user.name}` : ""}.`;
+      toast.success(success, { toastId: `checkin:${success}` });
       if ("token" in body) setToken("");
       await loadAttendees();
     } catch (cause) {
-      setFeedback(cause instanceof Error ? cause.message : "Não foi possível registrar a entrada.");
+      const message = cause instanceof Error ? cause.message : "Não foi possível registrar a entrada.";
+      toast.error(message, { toastId: `checkin-error:${message}` });
     } finally {
       setWorking(false);
       scannedRef.current = false;
@@ -156,7 +156,6 @@ export default function CheckInPage() {
 
   async function exportCsv() {
     setExporting(true);
-    setExportError("");
     try {
       const response = await fetch(`${apiBase}/attendees`, { cache: "no-store" });
       if (!response.ok) {
@@ -174,7 +173,8 @@ export default function CheckInPage() {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (cause) {
-      setExportError(cause instanceof Error ? cause.message : "Não foi possível exportar os participantes.");
+      const message = cause instanceof Error ? cause.message : "Não foi possível exportar os participantes.";
+      toast.error(message, { toastId: `checkin-export:${message}` });
     } finally {
       setExporting(false);
     }
@@ -196,11 +196,9 @@ export default function CheckInPage() {
       {scanning ? <div className="mt-4 max-w-lg overflow-hidden rounded-xl border bg-black"><video ref={videoRef} playsInline muted className="aspect-video w-full object-cover" /><button type="button" onClick={stopCamera} className="flex min-h-11 w-full items-center justify-center gap-2 bg-card text-sm font-semibold"><X className="h-4 w-4" />Fechar câmera</button></div> : <button type="button" onClick={() => void startCamera()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Camera className="h-4 w-4" />Ler QR Code</button>}
       {cameraError && <p role="alert" className="mt-3 text-sm text-destructive">{cameraError}</p>}
       <form onSubmit={(event) => { event.preventDefault(); void registerCheckIn(token); }} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"><label htmlFor="checkin-token" className="grid min-w-0 flex-1 gap-2 text-sm font-medium">Código de entrada<input id="checkin-token" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Cole o código do participante" className="h-11 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label><button type="submit" disabled={working || !token.trim()} className="min-h-11 rounded-xl border border-primary bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{working ? "Validando..." : "Registrar entrada"}</button></form>
-      {feedback && <p role="status" className="mt-3 text-sm font-medium">{feedback}</p>}
     </section>
     <section aria-labelledby="attendees-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="attendees-title" className="flex items-center gap-2 text-xl font-semibold"><Users className="h-5 w-5 text-brand" />Participantes</h2><p className="mt-1 text-xs text-muted-foreground">A lista atualiza automaticamente enquanto esta página estiver aberta.</p></div><div className="flex flex-wrap gap-2">{overview?.access.canExport && <button type="button" onClick={() => void exportCsv()} disabled={exporting} aria-describedby="export-note" className="inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"><Download className="h-4 w-4" />{exporting ? "Exportando..." : "Exportar CSV"}</button>}<button type="button" onClick={() => { setLoading(true); void loadAttendees(); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-muted"><RefreshCcw className="h-4 w-4" />Atualizar</button></div></div>
       {overview?.access.canExport && <p id="export-note" className="mt-3 text-xs text-muted-foreground">O CSV contém nome e e-mail dos participantes: use estes dados apenas para a operação do evento (LGPD). Colunas separadas por ponto e vírgula para abrir direto no Excel.</p>}
-      {exportError && <p role="alert" className="mt-2 text-sm text-destructive">{exportError}</p>}
       <label htmlFor="attendee-search" className="mt-5 grid gap-2 text-sm font-medium">Buscar participante<span className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input id="attendee-search" type="search" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={team ? "Nome do participante" : "Nome ou e-mail"}className="h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /></span></label>
       {loading && !overview ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando inscrições...</p> : error && !overview ? <p role="alert" className="mt-5 text-sm text-destructive">{error}</p> : attendees.length === 0 ? <p className="mt-5 text-sm text-muted-foreground">Ainda não há inscrições neste evento.</p> : filtered.length === 0 ? <p className="mt-5 text-sm text-muted-foreground">Nenhum participante encontrado para “{query.trim()}”.</p> : <>
         {error && <p role="alert" className="mt-4 text-sm text-destructive">{error} Mostrando a última lista carregada.</p>}

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { hasMetricConsent, METRIC_CONSENT_EVENT, setMetricConsent } from "@/lib/metricConsent";
 
 export function MetricPreference() {
   const [enabled, setEnabled] = useState(false);
   const [ready, setReady] = useState(false);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     const sync = () => setEnabled(hasMetricConsent());
@@ -23,11 +23,11 @@ export function MetricPreference() {
         setMetricConsent(next);
         const saved = hasMetricConsent();
         setEnabled(saved);
-        setMessage(saved === next ? next ? "Métricas opcionais ativadas neste navegador." : "Métricas opcionais desativadas. A limpeza dos cookies de contagem foi solicitada; cookies remanescentes expiram em até uma hora." : "Não foi possível guardar sua escolha. Verifique as configurações de cookies do navegador.");
+        const message = saved === next ? next ? "Métricas opcionais ativadas neste navegador." : "Métricas opcionais desativadas. A limpeza dos cookies de contagem foi solicitada; cookies remanescentes expiram em até uma hora." : "Não foi possível guardar sua escolha. Verifique as configurações de cookies do navegador.";
+        toast(message, { type: saved === next ? "success" : "error", toastId: `metrics:${message}` });
       }} aria-describedby="privacy-metrics-help" className="mt-1 size-5 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" />
       Permitir métricas de eventos
     </label>
     <p id="privacy-metrics-help" className="text-sm leading-6 text-muted-foreground">Opcional e desativado por padrão. Contamos visualizações e cliques em ingressos de forma agregada por evento e dia. Cookies de até uma hora evitam contagens repetidas; sua escolha fica neste navegador por até 180 dias. Recusar não impede o acesso aos eventos.</p>
-    {message && <p role="status" className="text-sm leading-6">{message}</p>}
   </div>;
 }

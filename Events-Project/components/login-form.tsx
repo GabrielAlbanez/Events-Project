@@ -14,13 +14,25 @@ import { signIn, useSession } from "next-auth/react";
 import { GoogleButton } from "./MyComponents/GoogleButton";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
 import styles from "./MyComponents/LoginPage.module.css";
 import { authPathWithReturn, safeReturnPath } from "@/lib/authReturn";
 import { credentialsErrorMessages, GENERIC_LOGIN_ERROR, loginErrorMessage } from "@/lib/auth/errorMessages";
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
+
+// URL notices are whitelisted here; any other ?notice= value is ignored.
+const LOGIN_NOTICES: Record<string, { type: "error" | "warning" | "info"; message: string; persistent?: boolean }> = {
+  "account-suspended": { type: "warning", persistent: true, message: "Sua conta está suspensa. A administração suspendeu seu acesso e encerrou suas sessões. Sua conta foi preservada; entre em contato com a administração para obter orientações." },
+  "account-removed": { type: "error", persistent: true, message: "Sua conta foi banida do site. O administrador removeu sua conta e sua sessão foi encerrada. Se acredita que houve um engano, entre em contato com a administração." },
+  "credentials-changed": { type: "info", message: "Sessão encerrada por segurança. Sua sessão anterior deixou de ser válida. Entre novamente para continuar." },
+};
+
+function showLoginError(message: string) {
+  // toastId keyed by message prevents duplicates from re-renders or React strict mode.
+  toast.error(message, { toastId: `login-error:${message}` });
+}
 
 export function LoginForm({
   className,
@@ -29,6 +41,7 @@ export function LoginForm({
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginFormSchema),
@@ -41,15 +54,22 @@ export function LoginForm({
   const searchParams = useSearchParams()
   const callbackUrl = safeReturnPath(searchParams.get("callbackUrl"));
   const urlError = searchParams.get("error");
-  const [formError, setFormError] = useState<string | null>(() => loginErrorMessage(urlError));
+  const notice = searchParams.get("notice");
   const [redirecting, setRedirecting] = useState(false);
   const submittingRef = useRef(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     // Only whitelisted NextAuth codes become text; raw query values are never rendered.
-    setFormError(loginErrorMessage(urlError));
+    const urlMessage = loginErrorMessage(urlError);
+    if (urlMessage) showLoginError(urlMessage);
   }, [urlError]);
+
+  useEffect(() => {
+    const config = notice ? LOGIN_NOTICES[notice] : undefined;
+    if (!config) return;
+    toast(config.message, { type: config.type, toastId: `login-notice:${notice}`, autoClose: config.persistent ? false : 6000 });
+  }, [notice]);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -67,7 +87,6 @@ export function LoginForm({
     // Guards against double submits that happen before React re-renders the button.
     if (submittingRef.current) return;
     submittingRef.current = true;
-    setFormError(null);
     let keepLocked = false;
     try {
       const signInResponse = await signIn("credentials", {
@@ -90,16 +109,17 @@ export function LoginForm({
         }, 500);
         return;
       }
-      setFormError(loginErrorMessage(signInResponse?.error) ?? GENERIC_LOGIN_ERROR);
+      showLoginError(loginErrorMessage(signInResponse?.error) ?? GENERIC_LOGIN_ERROR);
+      setFocus("password");
     } catch {
-      setFormError(credentialsErrorMessages.ServiceUnavailable);
+      showLoginError(credentialsErrorMessages.ServiceUnavailable);
     } finally {
       if (!keepLocked) submittingRef.current = false;
     }
   };
 
   const busy = isSubmitting || redirecting;
-  const describedBy = (fieldError: string | null) => [fieldError, formError ? "login-form-error" : null].filter(Boolean).join(" ") || undefined;
+  const describedBy = (fieldError: string | null) => fieldError ?? undefined;
 
   return (
     <form
@@ -109,27 +129,11 @@ export function LoginForm({
       onSubmit={handleSubmit(onSubmit)}
       {...props}
     >
-      {searchParams.get("notice") === "account-suspended" && <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"><p className="text-sm font-semibold">Sua conta está suspensa</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">A administração suspendeu seu acesso e encerrou suas sessões. Sua conta foi preservada. Entre em contato com a administração para obter orientações.</p></div>}
-      {searchParams.get("notice") === "account-removed" && (
-        <div role="alert" className="flex gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-foreground">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive"><ShieldAlert className="h-5 w-5" aria-hidden="true" /></span>
-          <div className="space-y-1"><p className="text-sm font-semibold">Sua conta foi banida do site</p><p className="text-sm leading-relaxed text-muted-foreground">O administrador removeu sua conta e sua sessão foi encerrada. Se acredita que houve um engano, entre em contato com a administração.</p></div>
-        </div>
-      )}
-      {searchParams.get("notice") === "credentials-changed" && <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm font-semibold">Sessão encerrada por segurança</p><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Sua sessão anterior deixou de ser válida. Entre novamente para continuar.</p></div>}
       <div className={styles.formHeading}>
         <h1>Bom ter você de volta</h1>
         <p>
           Entre para acompanhar seus eventos e conexões.
         </p>
-      </div>
-      <div id="login-form-error" role="alert" aria-live="assertive" className={formError ? "flex gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground" : "sr-only"}>
-        {formError && (
-          <>
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
-            <p className="leading-relaxed">{formError}</p>
-          </>
-        )}
       </div>
       <p className="text-xs text-muted-foreground">Campos marcados com <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">asterisco</span> são obrigatórios.</p>
       <div className={styles.fields}>

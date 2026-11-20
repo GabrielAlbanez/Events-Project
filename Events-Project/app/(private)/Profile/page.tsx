@@ -94,12 +94,12 @@ export default function Profile() {
       catch { setPublicProfileError("Use um link completo começando com https://."); return; }
     }
     setPublicProfileSaving(true);
+    setPublicProfileError("");
     try {
       const result = await updatePromoterProfile({ bio: bio.trim(), contactUrl: contactUrl.trim() });
-      if (!result.success) { setPublicProfileError(result.message); return; }
-      setPublicProfileError("");
+      if (!result.success) { toast.error(result.message, { toastId: `public-profile:${result.message}` }); return; }
       toast.success("Perfil público atualizado.");
-    } catch { setPublicProfileError("Não foi possível salvar o perfil público."); }
+    } catch { toast.error("Não foi possível salvar o perfil público.", { toastId: "public-profile:save" }); }
     finally { setPublicProfileSaving(false); }
   };
 

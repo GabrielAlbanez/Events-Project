@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
+import { toast } from "react-toastify";
 import { requestOrganizerAccess } from "@/app/(actions)/organizer/action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +13,12 @@ import { eventCategories } from "@/types/features";
 const selectClass = "flex h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 md:text-sm";
 type Values = { brandName: string; city: string; eventType: string; link: string; message: string };
 const empty: Values = { brandName: "", city: "", eventType: "", link: "", message: "" };
+const showFormError = (message: string) => toast.error(message, { toastId: `organizer-request:${message}` });
 
 export function OrganizerRequestForm({ interest = "access", submitLabel }: { interest?: OrganizerInterest; submitLabel?: string }) {
   const id = useId();
   const [values, setValues] = useState<Values>(empty);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState("");
   const [sent, setSent] = useState("");
   const [pending, setPending] = useState(false);
   const lock = useRef(false);
@@ -31,15 +32,16 @@ export function OrganizerRequestForm({ interest = "access", submitLabel }: { int
     if (values.city.trim().length < 2) local.city = "Informe a cidade.";
     if (!values.eventType) local.eventType = "Escolha o tipo de evento.";
     setErrors(local);
-    if (Object.keys(local).length) { setFormError("Revise os campos destacados."); return; }
-    lock.current = true; setPending(true); setFormError("");
+    const firstInvalid = Object.keys(local)[0];
+    if (firstInvalid) { showFormError("Revise os campos destacados."); document.getElementById(`${id}-${firstInvalid}`)?.focus(); return; }
+    lock.current = true; setPending(true);
     try {
       const result = await requestOrganizerAccess({ ...values, eventType: values.eventType as (typeof eventCategories)[number], interest });
       if (result.success) { setSent(result.message); setValues(empty); return; }
       setErrors(result.fieldErrors ?? {});
-      setFormError(result.message);
+      showFormError(result.message);
     } catch {
-      setFormError("Não foi possível enviar agora. Confira sua conexão e tente novamente.");
+      showFormError("Não foi possível enviar agora. Confira sua conexão e tente novamente.");
     } finally {
       lock.current = false; setPending(false);
     }
@@ -60,7 +62,6 @@ export function OrganizerRequestForm({ interest = "access", submitLabel }: { int
       <div><label htmlFor={`${id}-link`} className="mb-2 block text-sm font-medium">Instagram ou site <span className="font-normal text-muted-foreground">(opcional)</span></label><Input {...field("link")} value={values.link} onChange={event => set("link")(event.target.value)} maxLength={organizerLimits.link} inputMode="url" autoCapitalize="none" spellCheck={false} placeholder="@suaprodutora ou https://..." />{error("link")}</div>
     </div>
     <div><label htmlFor={`${id}-message`} className="mb-2 block text-sm font-medium">Mensagem <span className="font-normal text-muted-foreground">(opcional)</span></label><Textarea {...field("message")} value={values.message} onChange={event => set("message")(event.target.value)} maxLength={organizerLimits.message} rows={4} placeholder={interest === "plans" ? "Conte quantos eventos você faz por mês e o que precisa em um plano." : "Conte que eventos você organiza e com que frequência."} /><p className="mt-1 text-xs text-muted-foreground">{values.message.length}/{organizerLimits.message} caracteres</p>{error("message")}</div>
-    {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
     <p className="text-xs leading-5 text-muted-foreground">Os administradores do EventMap recebem estes dados com o nome e o e-mail da sua conta para analisar o pedido.</p>
     <Button type="submit" variant="cta" disabled={pending} className="w-full sm:w-auto">{pending ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> Enviando...</> : <><Send className="h-4 w-4" aria-hidden="true" /> {submitLabel ?? (interest === "plans" ? "Entrar na lista" : "Enviar pedido")}</>}</Button>
   </form>;

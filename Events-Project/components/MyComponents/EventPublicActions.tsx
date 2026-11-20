@@ -9,10 +9,13 @@ import EventPeoplePreview from "./EventPeoplePreview";
 import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
 import { RegistrationStatusBadge } from "@/components/ui/status-badge";
 import { PopIcon } from "@/components/animations/PopIcon";
+import { toast } from "react-toastify";
 
 type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
 type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null };
 type ApiError = { message?: string };
+// Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
+const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
 
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
@@ -25,7 +28,6 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const [savePulse, setSavePulse] = useState(0);
   const [registrationPulse, setRegistrationPulse] = useState(0);
   const [reminder, setReminder] = useState<number | null>(null);
-  const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState<RegistrationState | null>(null);
   const [registrationLoading, setRegistrationLoading] = useState(true);
   const [registrationPending, setRegistrationPending] = useState(false);
@@ -34,7 +36,6 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const [reportReason, setReportReason] = useState("INCORRECT_INFORMATION");
   const [reportDetails, setReportDetails] = useState("");
   const [reportPending, setReportPending] = useState(false);
-  const [reportMessage, setReportMessage] = useState("");
   const [pending, startTransition] = useTransition();
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelOutOfView, setPanelOutOfView] = useState(false);
@@ -58,7 +59,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   useEffect(() => {
     let active = true;
     if (status !== "authenticated") { setSaved(false); setReminder(null); return; }
-    getFavoriteState(eventId).then(result => { if (active) { setSaved(result.saved); setReminder(result.reminderMinutes); } }).catch(() => { if (active) setMessage("Não foi possível consultar sua agenda."); });
+    getFavoriteState(eventId).then(result => { if (active) { setSaved(result.saved); setReminder(result.reminderMinutes); } }).catch(() => { if (active) notify("Não foi possível consultar sua agenda.", "error"); });
     return () => { active = false; };
   }, [eventId, status, session?.user?.id]);
   useEffect(() => {
@@ -76,7 +77,6 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   }, [eventId, status, session?.user?.id]);
   async function changeRegistration(method: "POST" | "DELETE") {
     setRegistrationPending(true);
-    setRegistrationError("");
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { method });
       const result = await response.json() as ApiError;
@@ -86,14 +86,13 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       setRegistration(await latest.json() as RegistrationState);
       if (method === "POST") setRegistrationPulse(value => value + 1);
     } catch (error) {
-      setRegistrationError(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.");
+      notify(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.", "error");
     } finally {
       setRegistrationPending(false);
     }
   }
   async function submitReport() {
     setReportPending(true);
-    setReportMessage("");
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/reports`, {
         method: "POST",
@@ -102,21 +101,21 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       });
       const result = await response.json() as ApiError;
       if (!response.ok) throw new Error(result.message || "Não foi possível enviar a denúncia.");
-      setReportMessage("Denúncia enviada para análise. Obrigado por nos avisar.");
+      notify("Denúncia enviada para análise. Obrigado por nos avisar.", "success");
       setReportDetails("");
       setReportOpen(false);
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : "Não foi possível enviar a denúncia.");
+      notify(error instanceof Error ? error.message : "Não foi possível enviar a denúncia.", "error");
     } finally {
       setReportPending(false);
     }
   }
   async function share() {
     const url = new URL('/eventos/' + encodeURIComponent(eventId), window.location.origin).href;
-    try { if (navigator.share) await navigator.share({ title: "Evento no EventMap", url }); else { await navigator.clipboard.writeText(url); setMessage("Link do evento copiado."); } }
-    catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage("Não foi possível compartilhar. Copie o endereço desta página."); }
+    try { if (navigator.share) await navigator.share({ title: "Evento no EventMap", url }); else { await navigator.clipboard.writeText(url); notify("Link do evento copiado.", "success"); } }
+    catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) notify("Não foi possível compartilhar. Copie o endereço desta página.", "error"); }
   }
-  const toggleSave = () => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } });
+  const toggleSave = () => startTransition(async () => { try { const result = await toggleFavorite(eventId); notify(result.message, result.success ? "success" : "error"); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { notify("Não foi possível salvar. Tente novamente.", "error"); } });
   const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}`)}`;
   const hasExternalTickets = Boolean(ticketUrl && /^https?:\/\//i.test(ticketUrl));
   const trackTicket = () => { if (!hasMetricConsent()) return; void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); };
@@ -166,12 +165,10 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       {googleCalendarUrl && <a className={tile} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" /><span aria-hidden="true"><span className="sm:hidden">Google</span><span className="hidden sm:inline">Google Agenda</span></span><span className="sr-only">Google Agenda (abre em nova aba)</span></a>}
       {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " order-first basis-full bg-primary text-primary-foreground sm:order-none sm:basis-auto"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
     </div>
-    {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); setMessage(result.message); if (result.success) setReminder(minutes); } catch { setMessage("Não foi possível configurar o lembrete."); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
+    {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); notify(result.message, result.success ? "success" : "error"); if (result.success) setReminder(minutes); } catch { notify("Não foi possível configurar o lembrete.", "error"); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
     {status === "authenticated" && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
       {reportOpen && <div className="mt-3 max-w-xl space-y-3 rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">Sua denúncia será analisada pela equipe de moderação.</p><label htmlFor="report-reason" className="block text-sm font-medium">Motivo</label><select id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="INCORRECT_INFORMATION">Informações incorretas</option><option value="INAPPROPRIATE_CONTENT">Conteúdo inadequado</option><option value="SPAM">Spam ou fraude</option><option value="OTHER">Outro motivo</option></select><label htmlFor="report-details" className="block text-sm font-medium">Descreva o problema</label><textarea id="report-details" value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Explique o que precisa ser verificado" className="w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /><button type="button" disabled={reportPending || reportDetails.trim().length < 5} onClick={() => void submitReport()} className={`${button} bg-primary text-primary-foreground disabled:opacity-50`}>{reportPending ? "Enviando..." : "Enviar denúncia"}</button></div>}
-      {reportMessage && <p role="status" className="mt-2 text-sm">{reportMessage}</p>}
     </div>}
-    <p role="status" className="text-sm text-muted-foreground">{message}</p>
     {showStickyBar && <div role="region" aria-label="Ação rápida do evento" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_hsl(var(--foreground)/0.08)] xl:hidden">
       <div className="mx-auto flex max-w-xl items-center gap-3">
         <div className="min-w-0 flex-1">
@@ -190,7 +187,6 @@ export function FollowPromoter({ promoterId, following, count }: { promoterId: s
   const { status } = useSession();
   const [isFollowing, setFollowing] = useState(following);
   const [followers, setFollowers] = useState(count);
-  const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  return <div className="space-y-2"><p className="text-sm text-muted-foreground">{followers} seguidores</p>{status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={isFollowing} className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground" onClick={() => startTransition(async () => { try { const result = await toggleFollow(promoterId); setMessage(result.message); if (result.success && typeof result.following === "boolean") { setFollowers(value => value + (result.following === isFollowing ? 0 : result.following ? 1 : -1)); setFollowing(result.following); } } catch { setMessage("Não foi possível atualizar. Tente novamente."); } })}>{isFollowing ? "Seguindo · deixar de seguir" : "Seguir organizador"}</button> : <Link href="/login" className="text-brand underline">Entre para seguir este organizador</Link>}<p role="status" className="text-sm">{message}</p></div>;
+  return <div className="space-y-2"><p className="text-sm text-muted-foreground">{followers} seguidores</p>{status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={isFollowing} className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground" onClick={() => startTransition(async () => { try { const result = await toggleFollow(promoterId); notify(result.message, result.success ? "success" : "error"); if (result.success && typeof result.following === "boolean") { setFollowers(value => value + (result.following === isFollowing ? 0 : result.following ? 1 : -1)); setFollowing(result.following); } } catch { notify("Não foi possível atualizar. Tente novamente.", "error"); } })}>{isFollowing ? "Seguindo · deixar de seguir" : "Seguir organizador"}</button> : <Link href="/login" className="text-brand underline">Entre para seguir este organizador</Link>}</div>;
 }

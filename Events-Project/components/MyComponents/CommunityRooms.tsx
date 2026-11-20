@@ -6,7 +6,8 @@ import Link from "next/link";
 import { UsersRound } from "lucide-react";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import type { CommunityRoomSnapshot, CommunityRoomSummary } from "@/types/community";
-import { useCommunityResource } from "./CommunityResource";
+import { useToastMessage } from "@/hooks/useToastMessage";
+import { COMMUNITY_SAVED_MESSAGE, useCommunityResource } from "./CommunityResource";
 import { CommunityAction, CommunityBadge, CommunityCard, CommunityEmpty, CommunityField, CommunityForm, CommunitySelect, CommunitySyncStatus, CommunityInteractionBoundary, CommunityStaleBanner } from "./CommunityUI";
 import { FadeInView } from "@/components/animations/FadeInView";
 
@@ -16,16 +17,18 @@ function CommunityRoomsHeader({ title, description }: { title: string; descripti
 
 export function CommunityRooms() {
   const resource = useCommunityResource<{ rooms: CommunityRoomSummary[] }>("/api/community/rooms");
+  useToastMessage(resource.message, resource.message === COMMUNITY_SAVED_MESSAGE ? "success" : "error");
   const realtime = useCommunityRealtime({ user: true }, resource.refresh);
   return <CommunityInteractionBoundary online={resource.online}><div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-5xl space-y-6"><CommunityRoomsHeader title="Salas com amigos" description="Convide pessoas da sua turma, sugira eventos e decidam juntos. Cada sala é privada para seus membros." /><CommunitySyncStatus refreshing={resource.refreshing} error={resource.error} realtime={realtime} lastSuccessfulAt={resource.lastSuccessfulAt} /><CommunityStaleBanner error={resource.error} hasData={!!resource.data} online={resource.online} refreshing={resource.refreshing} refresh={() => void resource.refresh()} />
     {!resource.authenticated && !resource.loading ? <CommunityCard><p>Entre para criar uma sala ou acessar seus convites.</p><Link href="/login" className="font-semibold text-brand underline">Entrar</Link></CommunityCard> : <>
       <CommunityCard title="Criar uma sala" description="Depois de criar, convide seus amigos pelo email da conta deles."><CommunityForm submit="Criar sala privada" busy={resource.busy} onSubmit={values => resource.act({ action: "room.create", name: String(values.get("name") ?? "").trim() })}><CommunityField name="name" label="Nome da turma" maxLength={80} placeholder="Ex.: Amigos do fim de semana" /></CommunityForm></CommunityCard>
       {resource.loading ? <p role="status">Carregando suas salas...</p> : resource.error && !resource.data ? <CommunityCard><p role="alert">{resource.error}</p><CommunityAction busy={false} onClick={() => void resource.refresh()}>Tentar novamente</CommunityAction></CommunityCard> : <section aria-label="Suas salas" className="grid gap-4 sm:grid-cols-2">{resource.data?.rooms.length ? resource.data.rooms.map(room => <CommunityCard key={room.id} title={room.name}><div className="flex flex-wrap gap-2"><CommunityBadge>{room.members} membros</CommunityBadge><CommunityBadge>{room.suggestions} sugestões</CommunityBadge>{room.owner && <CommunityBadge>Você organiza</CommunityBadge>}</div><Link href={`/salas/${room.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Abrir sala →</Link></CommunityCard>) : <CommunityEmpty>Nenhuma sala ainda. Crie a primeira ou peça a um amigo para adicionar o email da sua conta.</CommunityEmpty>}</section>}
-    </>}{resource.message && <p role="status" className="rounded-xl border bg-muted/40 p-3 text-sm">{resource.message}</p>}</div></div></CommunityInteractionBoundary>;
+    </>}</div></div></CommunityInteractionBoundary>;
 }
 
 export function CommunityRoom({ roomId }: { roomId: string }) {
   const resource = useCommunityResource<CommunityRoomSnapshot>(`/api/community/rooms/${encodeURIComponent(roomId)}`);
+  useToastMessage(resource.message, resource.message === COMMUNITY_SAVED_MESSAGE ? "success" : "error");
   const realtime = useCommunityRealtime({ roomId }, resource.refresh);
   const room = resource.data;
   return <CommunityInteractionBoundary online={resource.online}><div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-5xl space-y-6"><CommunityRoomsHeader title={room?.name ?? "Sala com amigos"} description="As sugestões e os votos acompanham as mudanças da sua turma." /><CommunitySyncStatus refreshing={resource.refreshing} error={resource.error} realtime={realtime} lastSuccessfulAt={resource.lastSuccessfulAt} /><CommunityStaleBanner error={resource.error} hasData={!!resource.data} online={resource.online} refreshing={resource.refreshing} refresh={() => void resource.refresh()} /><Link href="/salas" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand">← Todas as salas</Link>
@@ -34,5 +37,5 @@ export function CommunityRoom({ roomId }: { roomId: string }) {
         <div className="space-y-3">{room.suggestions.length ? room.suggestions.map(suggestion => <article key={suggestion.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><Link href={`/eventos/${suggestion.event.id}`} className="break-words font-semibold text-brand hover:underline">{suggestion.event.name}</Link><p className="mt-1 text-sm text-muted-foreground">{suggestion.event.date} · sugerido por {suggestion.authorName || "Membro"}</p><p className="mt-2 text-sm font-medium">{suggestion.votes} votos</p></div><CommunityAction busy={resource.busy} onClick={() => void resource.act({ action: "suggestion.vote", suggestionId: suggestion.id, voted: !suggestion.mine })}>{suggestion.mine ? "Retirar meu voto" : "Quero ir"}</CommunityAction></div></article>) : <CommunityEmpty>Qual vai ser o próximo encontro? Adicione a primeira sugestão.</CommunityEmpty>}</div>
       </CommunityCard>
       <CommunityCard title="Pessoas nesta sala" description="Só os membros conseguem acessar as sugestões. Para receber o convite, a conta precisa estar cadastrada e ter confirmado o e-mail pelo link recebido. O amigo pode reenviar a confirmação na tela de login.">{room.owner && <CommunityForm submit="Adicionar amigo" busy={resource.busy} onSubmit={values => resource.act({ action: "member.add", email: String(values.get("email") ?? "").trim() })}><CommunityField name="email" label="Email da conta do amigo" type="email" maxLength={254} /></CommunityForm>}<ul className="space-y-2">{room.members.map(member => <li key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 p-3"><span className="break-words text-sm font-medium">{member.name || "Membro"}{member.id === resource.userId ? " (você)" : ""}</span>{room.owner && member.id !== resource.userId && <ConfirmAction busy={resource.busy} title="Remover?" description="Remover esta pessoa da sala?" label="Remover" onConfirm={() => resource.act({ action: "member.remove", userId: member.id })} />}</li>)}</ul></CommunityCard>
-    </>}{resource.message && <p role="status" className="rounded-xl border bg-muted/40 p-3 text-sm">{resource.message}</p>}</div></div></CommunityInteractionBoundary>;
+    </>}</div></div></CommunityInteractionBoundary>;
 }

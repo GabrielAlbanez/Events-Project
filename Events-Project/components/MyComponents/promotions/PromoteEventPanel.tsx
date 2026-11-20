@@ -120,7 +120,6 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<Busy>(null);
-  const [actionMessage, setActionMessage] = useState("");
   const [selected, setSelected] = useState<PromotionPackageId>("7d");
   const [note, setNote] = useState("");
   const request = useRef(0);
@@ -144,15 +143,15 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
 
   const run = async (kind: Exclude<Busy, null>, action: () => Promise<{ success: boolean; message: string }>) => {
     if (busy) return;
-    setBusy(kind); setActionMessage("");
+    setBusy(kind);
     try {
       const result = await action();
-      if (!result.success) { setActionMessage(result.message || actionError); return; }
+      if (!result.success) { const message = result.message || actionError; toast.error(message, { toastId: `promotion-action:${message}` }); return; }
       toast.success(result.message, { role: "status" });
       if (kind === "paid") setNote("");
       await load();
     } catch {
-      setActionMessage(actionError);
+      toast.error(actionError, { toastId: `promotion-action:${actionError}` });
     } finally {
       setBusy(null);
     }
@@ -224,8 +223,6 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                 <div className="min-w-0"><p className="font-semibold">Pedido {rejected.code} recusado</p>{rejected.reviewNote && <p className="mt-1 break-words text-sm text-muted-foreground">Motivo: {rejected.reviewNote}</p>}<p className="mt-1 text-sm text-muted-foreground">Você pode criar um novo pedido abaixo.</p></div>
               </div>
             )}
-
-            {actionMessage && <p role="alert" className="break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-700 dark:text-red-300">{actionMessage}</p>}
 
             {open?.status === "PENDING_PAYMENT" ? (
               <section aria-labelledby="pix-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">

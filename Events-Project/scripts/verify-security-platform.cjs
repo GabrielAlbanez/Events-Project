@@ -416,7 +416,11 @@ function checkLoginForm() {
   assert.match(form, /loginErrorMessage\(signInResponse\?\.error\)/);
   assert.match(form, /submittingRef\.current\) return;/, "double submit guard");
   assert.match(form, /timers\.forEach\(clearTimeout\)/, "timers cleared on unmount");
-  assert.match(form, /id="login-form-error" role="alert"/);
+  // Form-level login errors are announced through a deduplicated toast (role="alert") and focus returns to the password field.
+  assert.match(form, /toast\.error\(message, \{ toastId: `login-error:\$\{message\}` \}\)/);
+  assert.match(form, /showLoginError\(loginErrorMessage\(signInResponse\?\.error\) \?\? GENERIC_LOGIN_ERROR\);\s*setFocus\("password"\)/);
+  assert.match(form, /LOGIN_NOTICES\[notice\]/, "only whitelisted ?notice= values become toasts");
+  assert.doesNotMatch(form, /toast\([^)]*searchParams\.get/, "raw query values are never rendered");
   assert.match(form, /aria-describedby=\{describedBy\(errors\.email/);
   assert.match(form, /aria-required="true"/);
   const google = read("components/MyComponents/GoogleButton.tsx");
