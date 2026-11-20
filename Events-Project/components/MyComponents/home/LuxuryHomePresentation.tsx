@@ -9,6 +9,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, 
 import type { Evento } from "@/types";
 import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
+import { prioritizeFeatured } from "@/lib/promotions";
+import { FeaturedBadge } from "@/components/MyComponents/FeaturedBadge";
 import type { HomePresentationProps } from "./HomePresentation";
 import { HomeEventImage } from "./HomeEventImage";
 import { HeroCarousel, HeroSearch, type HeroSearchValues } from "./HeroDiscovery";
@@ -55,6 +57,7 @@ function EventCard({ event, reason, index, count }: { event: Evento; reason?: st
         <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={sizes} className={styles.banner} />
         <span className={styles.dateBadge} aria-label={date.full}><strong>{date.day}</strong><span>{date.month}</span></span>
         {event.category && <span className={styles.category}>{event.category}</span>}
+        {event.featured && <FeaturedBadge className="absolute right-3 top-3 z-[1] sm:right-4 sm:top-4" />}
       </div>
       <div className={styles.eventBody}>
         {reason && <p className={styles.recommendationReason}>{reason}</p>}
@@ -147,7 +150,11 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
   const heroSuggestions = suggestions.slice(0, suggestions.length > 1 ? Math.min(3, suggestions.length - 1) : 1);
   const heroEventIds = new Set(heroSuggestions.map(({ event }) => event.id));
   const remainingSuggestions = suggestions.filter(({ event }) => !heroEventIds.has(event.id));
-  const gallerySuggestions = remainingSuggestions;
+  // Paid highlights lead "Mais eventos" (up to 3, by date) even when the recommender did not pick them; the list size stays the same.
+  const shownIds = new Set([...heroSuggestions, ...remainingSuggestions].map(({ event }) => event.id));
+  const featuredExtras = publicUpcoming.filter(event => event.featured && !shownIds.has(event.id)).map(event => ({ event, reason: undefined as string | undefined }));
+  const rankedGallery = prioritizeFeatured([...remainingSuggestions, ...featuredExtras].map(item => ({ ...item, featured: item.event.featured })));
+  const gallerySuggestions = rankedGallery.slice(0, Math.max(remainingSuggestions.length, Math.min(3, rankedGallery.length)));
   const navigate = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const container = scrollContainer.current, target = document.getElementById(event.currentTarget.hash.slice(1));

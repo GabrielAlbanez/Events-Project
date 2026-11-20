@@ -56,6 +56,8 @@ const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
 const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
 /** List hover/focus: same pin, ~30% larger (static swap, no map animation). */
 const HIGHLIGHTED_EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff", 36, 46);
+/** Paid highlight: larger pin with the CTA lime ring and dot, drawn above regular pins. Static (no animation). */
+const FEATURED_EVENT_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 28 36"><path d="M14 1.5C7.2 1.5 2 6.8 2 13.5 2 22.8 14 34 14 34S26 22.8 26 13.5C26 6.8 20.8 1.5 14 1.5Z" fill="#2455FF" stroke="#C7F34A" stroke-width="2.6"/><circle cx="14" cy="13" r="5" fill="#C7F34A" stroke="#10151F" stroke-width="1"/></svg>') };
 // Only the explicit `?endereco=` search is geocoded in the browser; events use stored coordinates.
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
 const locationNoticeKey = "eventmap:location-notice-accepted";
@@ -77,9 +79,9 @@ const EventMarkers = memo(function EventMarkers({
     <Marker
       key={event.id}
       position={{ lat: event.lat!, lng: event.lng! }}
-      title={event.id === selectedId ? event.nome + " — evento selecionado" : event.nome}
-      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : event.id === highlightedId ? HIGHLIGHTED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
-      zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : undefined}
+      title={event.id === selectedId ? event.nome + " — evento selecionado" : event.featured ? event.nome + " — destaque patrocinado" : event.nome}
+      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : event.id === highlightedId ? HIGHLIGHTED_EVENT_MARKER_ICON : event.featured ? FEATURED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
+      zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : event.featured ? 900 : undefined}
       opacity={highlightedId && event.id !== highlightedId && event.id !== selectedId ? 0.6 : 1}
       onClick={() => onSelect(event)}
       onMouseOver={() => onHover(event.id)}
