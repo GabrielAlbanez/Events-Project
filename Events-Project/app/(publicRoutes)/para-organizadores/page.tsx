@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import type { LucideIcon } from "lucide-react";
-import { BadgeCheck, BarChart3, BellRing, ChevronDown, ListChecks, MapPinned, MessagesSquare, QrCode, Repeat, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
+import { ArrowUpToLine, BadgeCheck, BarChart3, BellRing, ChevronDown, ListChecks, MapPin, MapPinned, MessagesSquare, QrCode, Repeat, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
+import { FeaturedBadge } from "@/components/MyComponents/FeaturedBadge";
 import { OrganizerRequestPanel } from "@/components/MyComponents/organizer/OrganizerRequestPanel";
+import { authOptions } from "@/lib/auth/options";
+import { authPathWithReturn } from "@/lib/authReturn";
+import { MAX_FEATURED_ON_TOP, PROMOTION_PACKAGES, formatPromotionAmount } from "@/lib/promotions";
 
 export const metadata: Metadata = {
   title: "Para organizadores",
@@ -29,9 +34,22 @@ const steps = [
   { title: "Publique e acompanhe", text: "Cadastre o evento, envie para revisão e acompanhe inscrições, check-ins e resultados em um só lugar." },
 ] as const;
 
+/** Highlight benefits as implemented: list ordering (lib/promotions.ts), badge and larger map pin. */
+const highlightBenefits: Feature[] = [
+  { icon: ArrowUpToLine, title: "No topo da agenda e da página inicial", text: `O evento sobe para o topo da agenda e de "Mais eventos para descobrir". Até ${MAX_FEATURED_ON_TOP} destaques ficam no topo ao mesmo tempo, por data.` },
+  { icon: Sparkles, title: "Selo \"Destaque\"", text: "O cartão do evento mostra o selo, identificado para o público como destaque patrocinado." },
+  { icon: MapPin, title: "Pin maior no mapa", text: "O evento ganha um pin maior no mapa, mais fácil de notar entre os eventos da região." },
+];
+
+const highlightSteps = [
+  { title: "Publique o evento", text: "O destaque vale para eventos publicados e ainda não encerrados." },
+  { title: "Clique em \"Destacar evento\"", text: "Em Meus eventos, escolha o evento, o pacote e gere o pedido." },
+  { title: "Pague o Pix e avise", text: "Use \"Já paguei\" no pedido. Ativamos o destaque depois de conferir o pagamento." },
+] as const;
+
 const faq = [
-  { q: "Quanto custa?", a: "Hoje o uso por organizadores é gratuito, em um piloto com organizadores selecionados. Planos pagos ainda estão em definição e, se forem criados, terão preço e condições informados antes de qualquer cobrança." },
-  { q: "O EventMap vende ingressos?", a: "Não. O EventMap não processa pagamentos. Você pode informar o link da sua bilheteria, e a inscrição no EventMap funciona como confirmação de presença com controle de lotação e check-in." },
+  { q: "Quanto custa?", a: "Hoje o uso por organizadores é gratuito, em um piloto com organizadores selecionados. O único item pago é o destaque opcional de eventos, com preços informados nesta página antes de qualquer pedido. Planos pagos ainda estão em definição e, se forem criados, terão preço e condições informados antes de qualquer cobrança." },
+  { q: "O EventMap vende ingressos?", a: "Não. O EventMap não processa pagamentos de ingressos. Você pode informar o link da sua bilheteria, e a inscrição no EventMap funciona como confirmação de presença com controle de lotação e check-in." },
   { q: "Quanto tempo leva a análise do pedido?", a: "A equipe analisa os pedidos manualmente. Quando sua conta for liberada, você recebe um aviso na central de notificações e já pode criar eventos." },
   { q: "Meu evento já está no EventMap. Como assumo a administração?", a: "Alguns eventos são cadastrados pela equipe a partir de fontes oficiais. Na página do evento, use \"Sou o organizador deste evento\". Depois de confirmar sua identidade, a equipe transfere o evento para sua conta." },
   { q: "Quem pode ver os dados dos participantes?", a: "Nome e e-mail de quem se inscreve ficam visíveis para você, para a equipe que você adicionar ao evento e para a administração do EventMap, apenas para gestão daquele evento, conforme os Termos de Uso e a LGPD." },
@@ -42,7 +60,9 @@ const linkClass = "rounded-sm font-medium text-brand underline underline-offset-
 const primaryCta = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cta px-5 font-semibold text-cta-foreground shadow-sm transition-colors hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
 const secondaryCta = "inline-flex min-h-12 items-center justify-center rounded-xl border border-input bg-background px-5 font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
 
-export default function ForOrganizersPage() {
+export default async function ForOrganizersPage() {
+  const session = await getServerSession(authOptions).catch(() => null);
+  const signedIn = Boolean(session?.user?.id);
   return <div className="w-full min-w-0">
     <div className="mx-auto max-w-6xl space-y-20 px-4 py-10 sm:px-6 sm:py-14 lg:px-10">
       <section aria-labelledby="org-hero" className="relative overflow-hidden rounded-3xl border border-border bg-card px-5 py-10 shadow-surface sm:px-10 sm:py-14">
@@ -87,7 +107,7 @@ export default function ForOrganizersPage() {
       <section id="planos" aria-labelledby="org-plans" className="scroll-mt-24 space-y-8">
         <div className="max-w-2xl">
           <h2 id="org-plans" className="text-2xl font-bold tracking-tight sm:text-3xl">Planos</h2>
-          <p className="mt-3 leading-7 text-muted-foreground">Ainda não há cobrança nem preços definidos. Estamos construindo os planos com os primeiros organizadores.</p>
+          <p className="mt-3 leading-7 text-muted-foreground">Ainda não há cobrança pelos planos nem preços definidos. Estamos construindo os planos com os primeiros organizadores. O <a href="#destaque" className={linkClass}>destaque de eventos</a> é opcional e cobrado à parte.</p>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <article aria-labelledby="plan-pilot" className="flex flex-col rounded-2xl border-2 border-brand/40 bg-card p-6 shadow-surface">
@@ -110,6 +130,52 @@ export default function ForOrganizersPage() {
               <div className="border-t border-border p-4"><OrganizerRequestPanel interest="plans" returnTo="/para-organizadores#planos" /></div>
             </details>
           </article>
+        </div>
+      </section>
+
+      <section id="destaque" aria-labelledby="org-highlight" className="scroll-mt-24 space-y-8 rounded-3xl border border-border bg-card p-5 shadow-surface sm:p-10">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
+          <div>
+            <FeaturedBadge />
+            <h2 id="org-highlight" className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Destaque seu evento</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">Um impulso opcional e pago para o evento ser visto primeiro por quem procura o que fazer.</p>
+            <ul className="mt-6 space-y-5">
+              {highlightBenefits.map(({ icon: Icon, title, text }) => <li key={title} className="flex gap-4">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Icon className="h-5 w-5" aria-hidden="true" /></span>
+                <div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{text}</p></div>
+              </li>)}
+            </ul>
+          </div>
+          <div>
+            <h3 className="sr-only">Pacotes de destaque</h3>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              {PROMOTION_PACKAGES.map(item => <li key={item.id} className="rounded-2xl border border-border bg-background p-5">
+                <p className="font-semibold">{item.label} de destaque</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight">{formatPromotionAmount(item.amountCents)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Pagamento único via Pix</p>
+              </li>)}
+            </ul>
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">Pagamento via Pix, confirmado pela equipe. O destaque começa quando o pagamento é confirmado.</p>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold">Como destacar</h3>
+          <ol className="mt-4 grid gap-4 md:grid-cols-3">
+            {highlightSteps.map((step, index) => <li key={step.title} className="rounded-2xl bg-muted/40 p-5">
+              <span aria-hidden="true" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-sm font-bold text-background">{index + 1}</span>
+              <h4 className="mt-4 font-semibold"><span className="sr-only">Passo {index + 1}: </span>{step.title}</h4>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.text}</p>
+            </li>)}
+          </ol>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {signedIn
+            ? <Link href="/myEvents" className={primaryCta}><Sparkles className="h-4 w-4" aria-hidden="true" /> Ir para Meus eventos</Link>
+            : <>
+              <Link href={authPathWithReturn("/register", "/para-organizadores#pedir-acesso")} className={primaryCta}><UserPlus className="h-4 w-4" aria-hidden="true" /> Criar conta de organizador</Link>
+              <Link href={authPathWithReturn("/login", "/myEvents")} className={secondaryCta}>Já tenho conta</Link>
+            </>}
+          <p className="text-sm leading-6 text-muted-foreground sm:ml-2">Disponível para contas de organizador com evento publicado.</p>
         </div>
       </section>
 
