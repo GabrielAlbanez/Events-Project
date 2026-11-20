@@ -36,6 +36,8 @@ export function canAccessPath(role: string, pathname: string): boolean {
   if (/^\/salas(?:\/[^/]+)?$/.test(pathname)) {
     return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   }
+  // Paid highlight orders: the page and its actions also enforce event ownership.
+  if (/^\/myEvents\/[^/]+\/destaque$/.test(pathname)) return role === "PROMOTER" || role === "ADMIN";
   if (/^\/eventos\/[^/]+\/editar$/.test(pathname)) {
     return role === "PROMOTER" || role === "ADMIN";
   }

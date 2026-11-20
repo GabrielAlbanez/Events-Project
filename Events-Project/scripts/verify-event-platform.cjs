@@ -38,6 +38,9 @@ async function run(){
  assert.equal(getSessionRole({id:"test",role:"ADMIN"}),"ADMIN");
  assert.equal(canAccessPath("BASIC","/eventos/test/editar"),false);
  assert.equal(canAccessPath("PROMOTER","/eventos/test/editar"),true);
+for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),true);
+for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),false);
+assert.equal(canAccessPath("PROMOTER","/myEvents/a/b/destaque"),false);
  for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/atividade"),true);
  assert.equal(canAccessPath("GUEST","/atividade"),false);
  assert.equal(canAccessPath("BASIC","/atividade/private"),false);
