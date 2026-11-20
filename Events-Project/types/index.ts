@@ -53,4 +53,6 @@ export type Evento = {
   views?: number;
   ticketClicks?: number;
   favoriteCount?: number;
+  /** Running paid highlight, computed on the server. Absent means not featured. */
+  featured?: boolean;
 };

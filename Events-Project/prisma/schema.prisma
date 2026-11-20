@@ -58,6 +58,8 @@ model User {
   partyReportsTo PartyReport[] @relation("PartyReportTo")
   impersonationsStarted ImpersonationSession[] @relation("ImpersonationAdmin")
   impersonationsReceived ImpersonationSession[] @relation("ImpersonationTarget")
+  promotionsRequested EventPromotion[] @relation("PromotionRequester")
+  promotionsReviewed  EventPromotion[] @relation("PromotionReviewer")
 }
 
 model ImpersonationSession {
@@ -152,6 +154,7 @@ model Events {
   partyLikes PartyLike[]
   partyReports PartyReport[]
   aiImport AiEventCandidate?
+  promotions EventPromotion[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
   @@map("events")
@@ -643,4 +646,37 @@ model UserSuspensionAudit {
   createdAt DateTime @default(now())
   @@index([userId, createdAt])
   @@index([actorId, createdAt])
+}
+enum PromotionStatus {
+  PENDING_PAYMENT
+  AWAITING_REVIEW
+  ACTIVE
+  REJECTED
+  CANCELLED
+}
+
+/// Paid highlight (Pix manual + admin review). Active = ACTIVE and startsAt <= now < endsAt, computed on read.
+model EventPromotion {
+  id          String          @id @default(uuid())
+  eventId     String
+  userId      String
+  packageId   String
+  days        Int
+  amountCents Int
+  status      PromotionStatus @default(PENDING_PAYMENT)
+  payerNote   String?
+  reviewNote  String?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  event       Events          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User            @relation("PromotionRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer    User?           @relation("PromotionReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([status, endsAt])
+  @@map("event_promotions")
 }

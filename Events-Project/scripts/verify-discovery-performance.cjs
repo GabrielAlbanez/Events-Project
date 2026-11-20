@@ -54,7 +54,7 @@ function findAll(node, predicate, found = []) {
   const calls = [];
   let rows = [];
   const prisma = { events: { findMany: async query => { calls.push(query); return typeof rows === "function" ? rows(query) : rows; }, findFirst: async query => { calls.push(query); return rows[0] ?? null; } } };
-  const queries = load("lib/eventQueries.ts", { react: { cache: fn => fn }, "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/eventImageUrl": images, "@/types": {} });
+  const queries = load("lib/eventQueries.ts", { react: { cache: fn => fn }, "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/eventImageUrl": images, "@/types": {}, "@/lib/promotions": load("lib/promotions.ts", { "@/lib/eventTime": load("lib/eventTime.ts") }) });
   const historicFields = ["id", "nome", "banner", "carrossel", "descricao", "organizerName", "dataInicio", "dataFim", "linkParaCompra", "endereco", "userId", "validate", "status", "category", "priceCents", "isFree", "lat", "lng", "startTime", "endTime", "timezone", "capacity", "ageRating", "accessibilityInfo", "participationInfo", "validatedAt", "aiImport", "user", "validator"];
   assert.deepEqual(Object.keys(queries.publicEventSelect).sort(), [...historicFields].sort(), "default /api/AllEvents fields kept for existing consumers");
   for (const nested of ["user", "validator"]) assert.deepEqual(Object.keys(queries.publicEventSelect[nested].select).sort(), ["id", "image", "name"], nested + " exposes only public fields");

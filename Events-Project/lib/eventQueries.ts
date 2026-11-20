@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { Evento } from "@/types";
 import prisma from "@/lib/prisma";
 import { normalizeEventImages } from "@/lib/eventImageUrl";
+import { prioritizeFeatured } from "@/lib/promotions";
 
 // Every nested account field is explicitly public.
 export const publicEventSelect = {
@@ -31,8 +32,9 @@ export const publicEventCardSelect = {
 
 export type PublicEventRow = Prisma.EventsGetPayload<{ select: typeof publicEventSelect }>;
 export type PublicEventCardRow = Prisma.EventsGetPayload<{ select: typeof publicEventCardSelect }>;
-export type PublicEvent = Omit<PublicEventRow, "validate"> & { validate: boolean };
-export type PublicEventCard = Omit<PublicEventCardRow, "validate"> & { validate: boolean };
+/** `featured` is set (true) only while a paid highlight is running; computed on the server. */
+export type PublicEvent = Omit<PublicEventRow, "validate"> & { validate: boolean; featured?: boolean };
+export type PublicEventCard = Omit<PublicEventCardRow, "validate"> & { validate: boolean; featured?: boolean };
 
 /** Same fields as the stored row plus normalized artwork; `validate` is never null for clients. */
 export function toPublicEvent(event: PublicEventRow): PublicEvent {
@@ -43,15 +45,38 @@ export function toPublicEventCard(event: PublicEventCardRow): PublicEventCard {
   return { ...normalizeEventImages(event), validate: event.validate ?? false };
 }
 
+/** Events with a paid highlight running now (ACTIVE and startsAt <= now < endsAt). Computed on read; no cron. */
+export async function listFeaturedEventIds(eventIds: string[], now: () => Date = () => new Date()): Promise<Set<string>> {
+  if (!eventIds.length) return new Set();
+  const current = now();
+  const rows = await prisma.eventPromotion.findMany({
+    where: { eventId: { in: eventIds }, status: "ACTIVE", startsAt: { lte: current }, endsAt: { gt: current } },
+    select: { eventId: true },
+  });
+  return new Set(rows.map((row) => row.eventId));
+}
+
+/** Flags events with a running paid highlight. If highlights cannot be read, the catalog is served unflagged. */
+async function withFeatured<T extends { id: string; featured?: boolean }>(events: T[]): Promise<T[]> {
+  if (!events.length) return events;
+  let featured: Set<string>;
+  try {
+    featured = await listFeaturedEventIds(events.map((event) => event.id));
+  } catch {
+    return events;
+  }
+  return featured.size ? events.map((event) => (featured.has(event.id) ? { ...event, featured: true } : event)) : events;
+}
+
 const catalogOrder: Prisma.EventsOrderByWithRelationInput[] = [{ dataInicio: "asc" }, { id: "asc" }];
 
-/** Default public catalog: every published event, earliest start first (unchanged contract). */
+/** Default public catalog: every published event, earliest start first; up to 3 running highlights move to the top. */
 export async function listPublicCatalog(take?: number): Promise<PublicEvent[]> {
   const events = await prisma.events.findMany({
     where: { status: "PUBLISHED" }, select: publicEventSelect, orderBy: catalogOrder,
     ...(take ? { take } : {}),
   });
-  return events.map(toPublicEvent);
+  return prioritizeFeatured(await withFeatured(events.map(toPublicEvent)));
 }
 
 export type CatalogPageOptions = {
@@ -81,10 +106,11 @@ function toPage<T extends { id: string }>(rows: T[], limit: number): CatalogPage
 export async function listPublicCatalogPage(options: CatalogPageOptions): Promise<CatalogPage<PublicEvent> | CatalogPage<PublicEventCard>> {
   if (options.view === "card") {
     const rows = await prisma.events.findMany({ ...pageQuery(options), select: publicEventCardSelect });
-    return toPage(rows.map(toPublicEventCard), options.limit);
+    return toPage(await withFeatured(rows.map(toPublicEventCard)), options.limit);
   }
+  // Pages keep the stable (dataInicio, id) cursor order; highlights are only flagged.
   const rows = await prisma.events.findMany({ ...pageQuery(options), select: publicEventSelect });
-  return toPage(rows.map(toPublicEvent), options.limit);
+  return toPage(await withFeatured(rows.map(toPublicEvent)), options.limit);
 }
 
 type AsyncLookup<A extends unknown[], R> = (...args: A) => Promise<R>;
