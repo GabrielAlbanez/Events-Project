@@ -123,7 +123,6 @@ export function LoginForm({
           Entre para acompanhar seus eventos e conexões.
         </p>
       </div>
-      <p className="text-sm leading-6 text-muted-foreground">Saiba como usamos seus dados de acesso na <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>. Para acesso, correção ou exclusão, use o <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">canal de privacidade</Link>.</p>
       <div id="login-form-error" role="alert" aria-live="assertive" className={formError ? "flex gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground" : "sr-only"}>
         {formError && (
           <>
@@ -175,6 +174,7 @@ export function LoginForm({
         </Button>
         <div className={styles.divider}><span aria-hidden="true" />ou continue com<span aria-hidden="true" /></div>
         <div className={styles.googleButton}><GoogleButton textBody="Continuar com Google" callbackUrl={callbackUrl} /></div>
+        <p className="text-xs leading-5 text-muted-foreground">Saiba como usamos seus dados de acesso na <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>. Para acesso, correção ou exclusão, use o <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">canal de privacidade</Link>.</p>
       </div>
       <div className={styles.formFooter}>
         <Link href="/confirmar-email" className={styles.confirmationLink}>Reenviar confirmação de e-mail</Link>
