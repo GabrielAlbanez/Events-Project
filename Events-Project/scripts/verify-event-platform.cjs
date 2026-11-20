@@ -41,6 +41,9 @@ async function run(){
 for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),true);
 for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),false);
 assert.equal(canAccessPath("PROMOTER","/myEvents/a/b/destaque"),false);
+const {routeShowsOwnRealtimeStatus}=load("lib/realtimeRoutes.ts");
+for(const route of ["/eventos/e1/chat","/eventos/e1/conexoes/m1"])assert.equal(routeShowsOwnRealtimeStatus(route),true,route);
+for(const route of ["/","/eventos/e1","/eventos/e1/conexoes","/EventsCreated",null])assert.equal(routeShowsOwnRealtimeStatus(route),false,String(route));
  for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/atividade"),true);
  assert.equal(canAccessPath("GUEST","/atividade"),false);
  assert.equal(canAccessPath("BASIC","/atividade/private"),false);

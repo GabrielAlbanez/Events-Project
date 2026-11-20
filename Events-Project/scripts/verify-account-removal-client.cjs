@@ -31,6 +31,8 @@ new Function("require", "module", "exports", "window", source)(name => {
   if (name === "react/jsx-runtime") return { jsx: (...args) => args, jsxs: (...args) => args };
   if (name === "next-auth/react") return { useSession: () => session, signOut(options) { return new Promise((resolve, reject) => outs.push({ options, resolve, reject })); } };
   if (name === "react-toastify") return { toast: { error: text => notices.push(text), success() {} } };
+  if (name === "next/navigation") return { usePathname: () => "/" };
+  if (name === "@/lib/realtimeRoutes") return { routeShowsOwnRealtimeStatus: () => false };
   return { socket };
 }, moduleValue, moduleValue.exports, { location: { assign: path => redirects.push(path) } });
 function render() { cursor = 0; moduleValue.exports.SocketProvider({ children: null }); while (effects.length) effects.shift()(); }
