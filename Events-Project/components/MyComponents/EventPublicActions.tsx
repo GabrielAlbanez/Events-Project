@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bookmark, Share2, CalendarPlus, Flag, TicketCheck, Users, ExternalLink } from "lucide-react";
 import { getFavoriteState, toggleFavorite, setEventReminder, toggleFollow } from "@/app/(actions)/engagement/action";
 import CheckInPass from "./CheckInPass";
+import TicketPurchase from "./tickets/TicketPurchase";
 import EventPeoplePreview from "./EventPeoplePreview";
 import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
 import { RegistrationStatusBadge } from "@/components/ui/status-badge";
@@ -19,9 +20,9 @@ const notify = (text: string, type: "success" | "error") => { if (text) toast(te
 
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
-type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean };
+type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean; /** Set when EventMap sells this event's tickets (Pix): replaces the free registration with the checkout. */ ticketSale?: { priceCents: number } };
 
-export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true }: EventPublicActionsProps) {
+export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true, ticketSale }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
   const [saved, setSaved] = useState(false);
   // Incremented only after a confirmed user action, so loading the saved state never animates.
@@ -127,7 +128,9 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   // Mobile: equal-width two-column grid with short labels; from sm up the original inline buttons.
   const tile = `${button.replace(" px-4 ", " px-2 sm:px-4 ")} min-w-0 flex-1 basis-[calc(50%-0.25rem)] whitespace-nowrap sm:flex-none sm:basis-auto sm:whitespace-normal`;
   const iconButton = button.replace(" px-4 ", " w-11 shrink-0 px-0 ");
-  const stickyAction = canRegister
+  const stickyAction = ticketSale && registrationOpen
+    ? activeRegistration ? null : <a href="#ticket-title" className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso</a>
+    : canRegister
     ? status === "authenticated"
       ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
       : status === "unauthenticated" ? <Link href={loginHref} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Confirmar presença</Link> : null
@@ -145,7 +148,8 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     return () => { rootStyle.removeProperty("--event-cta-space"); };
   }, [showStickyBar]);
   return <div ref={panelRef} className="space-y-3">
-    {eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+    {ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} />}
+    {!ticketSale && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
       <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>
@@ -173,13 +177,13 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       <div className="mx-auto flex max-w-xl items-center gap-3">
         <div className="min-w-0 flex-1">
           {activeRegistration && registrationOpen ? <RegistrationStatusBadge status={activeRegistration.status} /> : priceLabel ? <p className="truncate text-sm font-semibold">{priceLabel}</p> : null}
-          {activeRegistration && registrationOpen ? <a href="#registration-title" className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">Ver minha inscrição</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
+          {activeRegistration && registrationOpen ? <a href={ticketSale ? "#ticket-title" : "#registration-title"} className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">{ticketSale ? "Ver meu ingresso" : "Ver minha inscrição"}</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
         </div>
         {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Salvo na minha agenda" : "Salvar evento"} className={iconButton}><Bookmark aria-hidden="true" className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></button> : status === "unauthenticated" ? <Link href={loginHref} aria-label="Entrar para salvar" className={iconButton}><Bookmark aria-hidden="true" className="h-4 w-4" /></Link> : null}
         <button type="button" onClick={() => void share()} aria-label="Compartilhar evento" className={iconButton}><Share2 aria-hidden="true" className="h-4 w-4" /></button>
         {stickyAction}
       </div>
-      {canRegister && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{registrationPrivacyNotice}</p>}
+      {canRegister && !ticketSale && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{registrationPrivacyNotice}</p>}
     </div>}
   </div>;
 }

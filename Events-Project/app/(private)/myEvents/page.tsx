@@ -151,9 +151,14 @@ export default function MyEvents() {
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
             </FadeInView>
           </div>
-          <Link href="/CriarEvento" className="relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            <Plus className="size-4" aria-hidden="true" /> Criar evento
-          </Link>
+          <div className="relative z-10 flex flex-wrap gap-2">
+            <Link href="/myEvents/pagamentos" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Pagamentos
+            </Link>
+            <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <Plus className="size-4" aria-hidden="true" /> Criar evento
+            </Link>
+          </div>
         </header>
 
         {user?.id && <PendingPromotionReminder userId={user.id} />}

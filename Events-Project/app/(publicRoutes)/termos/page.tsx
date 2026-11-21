@@ -6,7 +6,7 @@ import { privacyConfig } from "@/lib/privacy";
 export const metadata: Metadata = { title: "Termos de Uso", description: "Regras de uso do EventMap para quem descobre eventos e para quem os organiza: conteúdo, moderação, responsabilidades e privacidade." };
 
 /** Version label shown to users. Update it whenever the text changes in a relevant way. */
-const termsVersion = { label: "Versão 0.1 — para validação jurídica", updatedAt: "18 de novembro de 2026" } as const;
+const termsVersion = { label: "Versão 0.2 — para validação jurídica", updatedAt: "20 de novembro de 2026" } as const;
 
 const linkClass = "rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const sections = [
@@ -15,11 +15,12 @@ const sections = [
   { id: "conta", title: "3. Sua conta" },
   { id: "participantes", title: "4. Para quem participa de eventos" },
   { id: "organizadores", title: "5. Para organizadores" },
-  { id: "conteudo", title: "6. Política de conteúdo" },
-  { id: "moderacao", title: "7. Moderação e medidas" },
-  { id: "responsabilidade", title: "8. Limites de responsabilidade" },
-  { id: "privacidade", title: "9. Privacidade e LGPD" },
-  { id: "alteracoes", title: "10. Alterações, contato e foro" },
+  { id: "ingressos", title: "6. Venda de ingressos pelo EventMap" },
+  { id: "conteudo", title: "7. Política de conteúdo" },
+  { id: "moderacao", title: "8. Moderação e medidas" },
+  { id: "responsabilidade", title: "9. Limites de responsabilidade" },
+  { id: "privacidade", title: "10. Privacidade e LGPD" },
+  { id: "alteracoes", title: "11. Alterações, contato e foro" },
 ] as const;
 
 export default function TermsPage() {
@@ -50,7 +51,7 @@ export default function TermsPage() {
       <Section id="servico" title={sections[1].title}>
         <p>O EventMap é uma plataforma para descobrir eventos em mapa e agenda, salvar favoritos, confirmar presença, participar de comunidades e conversas de eventos e, para contas autorizadas, publicar e gerenciar eventos.</p>
         <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-          <li>O EventMap <strong className="text-foreground">não vende ingressos</strong> nem processa pagamentos. Links de compra levam a serviços de terceiros, com termos próprios.</li>
+          <li>Em eventos indicados na página como &quot;Comprar ingresso&quot;, o EventMap intermedeia a venda de ingressos por Pix, processados pelo Mercado Pago (veja a seção 6). Nos demais eventos, o EventMap não vende ingressos: links de compra levam a serviços de terceiros, com termos próprios.</li>
           <li>A confirmação de presença no EventMap é um registro de interesse e de lotação definido pelo organizador; ela não substitui ingresso emitido por outra bilheteria, salvo quando o organizador informar o contrário.</li>
           <li>Alguns eventos são cadastrados pela própria equipe do EventMap a partir de fontes públicas oficiais. O organizador real pode pedir a administração desses eventos pela página do evento.</li>
           <li>Recursos podem ser alterados, suspensos ou descontinuados para manutenção, segurança ou evolução do produto.</li>
@@ -83,11 +84,22 @@ export default function TermsPage() {
           <li>Mantenha o evento atualizado. Em caso de adiamento ou cancelamento, atualize a página para que os participantes sejam avisados.</li>
           <li>Use os dados dos participantes (nome, e-mail, presença) apenas para a gestão daquele evento, em conformidade com a LGPD. Não os venda, não os use para envio de publicidade sem base legal e não os compartilhe com terceiros sem autorização.</li>
           <li>Pessoas que você adiciona à equipe do evento agem em seu nome; você responde pelo uso que fizerem das ferramentas.</li>
-          <li>Hoje o uso por organizadores é gratuito, em fase piloto. Planos pagos, se criados, terão condições próprias de preço, cobrança, cancelamento e reembolso informadas antes da contratação.</li>
+          <li>Hoje o uso por organizadores é gratuito, em fase piloto, exceto a taxa sobre ingressos vendidos pelo EventMap (seção 6) e serviços opcionais contratados à parte, como destaques. Planos pagos, se criados, terão condições próprias de preço, cobrança, cancelamento e reembolso informadas antes da contratação.</li>
         </ul>
       </Section>
 
-      <Section id="conteudo" title={sections[5].title}>
+      <Section id="ingressos" title={sections[5].title}>
+        <p>Quando o organizador ativa a venda pelo EventMap, a compra é feita por Pix gerado no site e processado pelo Mercado Pago. O EventMap atua como intermediador: o valor é pago diretamente na conta do Mercado Pago do organizador, que é o vendedor do ingresso e o responsável pelo evento.</p>
+        <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+          <li><strong className="text-foreground">Taxa da plataforma:</strong> o EventMap retém 20% do valor de cada ingresso vendido, descontados do valor do organizador. Quem compra paga o preço anunciado, sem acréscimo. O Mercado Pago pode cobrar do organizador a própria tarifa sobre o Pix.</li>
+          <li><strong className="text-foreground">Confirmação:</strong> o ingresso é confirmado depois que o Mercado Pago aprova o pagamento e vira a inscrição com QR Code usada no check-in. O Pix vale por 30 minutos; depois disso, o pedido expira e a vaga é liberada.</li>
+          <li><strong className="text-foreground">Um ingresso por pessoa:</strong> nesta fase, cada conta compra um ingresso por evento, pessoal e intransferível.</li>
+          <li><strong className="text-foreground">Cancelamento e reembolso:</strong> o reembolso é feito pelo organizador, pelo painel de pagamentos, com estorno integral pelo Mercado Pago (incluindo a taxa da plataforma). Em compras pela internet, quem compra pode desistir em até 7 dias a partir da compra (direito de arrependimento, art. 49 do Código de Defesa do Consumidor); peça o estorno ao organizador por esse prazo. Se o evento for cancelado, o organizador deve estornar os ingressos antes do cancelamento.</li>
+          <li>O EventMap não guarda dados de pagamento de quem compra. As credenciais da conta do Mercado Pago do organizador ficam criptografadas e podem ser desconectadas a qualquer momento.</li>
+        </ul>
+      </Section>
+
+      <Section id="conteudo" title={sections[6].title}>
         <p>É proibido publicar ou enviar, em eventos, comunidades, conversas, perfis ou imagens, conteúdo que:</p>
         <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
           <li>seja ilegal, fraudulento ou engane sobre o evento, o preço ou o organizador (incluindo eventos falsos e golpes com ingressos);</li>
@@ -100,24 +112,24 @@ export default function TermsPage() {
         <p className="text-muted-foreground">Também é proibido tentar burlar limites técnicos, automatizar acessos sem autorização, explorar falhas de segurança ou interferir no funcionamento do serviço.</p>
       </Section>
 
-      <Section id="moderacao" title={sections[6].title}>
+      <Section id="moderacao" title={sections[7].title}>
         <p className="text-muted-foreground">Pessoas com conta podem denunciar eventos e, nas conexões da festa, perfis. A administração analisa as denúncias e pode, de forma proporcional à gravidade: pedir ajustes, ocultar ou remover conteúdo, cancelar a publicação de um evento, suspender recursos ou suspender e excluir contas. Em casos graves ou de risco a terceiros, medidas podem ser aplicadas antes de contato prévio. Quando possível, informaremos o motivo da medida. Se discordar, responda pela central de notificações ou pelo contato abaixo.</p>
       </Section>
 
-      <Section id="responsabilidade" title={sections[7].title}>
+      <Section id="responsabilidade" title={sections[8].title}>
         <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-          <li>O EventMap divulga eventos de terceiros e não é organizador, produtor nem vendedor desses eventos. Realização, segurança, qualidade, mudanças, cancelamentos e reembolsos são responsabilidade do organizador e da bilheteria utilizada.</li>
+          <li>O EventMap divulga eventos de terceiros e não é organizador, produtor nem vendedor desses eventos. Realização, segurança, qualidade, mudanças, cancelamentos e reembolsos são responsabilidade do organizador e da bilheteria utilizada, inclusive quando o ingresso é vendido pelo EventMap.</li>
           <li>O serviço é oferecido como está, sem garantia de funcionamento ininterrupto. Mapas, rotas, notificações e logins de terceiros dependem desses fornecedores.</li>
           <li>Na medida permitida pela lei, o EventMap não responde por prejuízos indiretos decorrentes de informações publicadas por organizadores ou usuários, nem por serviços externos acessados por links.</li>
           <li>Nada nestes termos afasta direitos garantidos pelo Código de Defesa do Consumidor ou por outra norma que não possa ser afastada por contrato.</li>
         </ul>
       </Section>
 
-      <Section id="privacidade" title={sections[8].title}>
+      <Section id="privacidade" title={sections[9].title}>
         <p className="text-muted-foreground">O tratamento de dados pessoais segue a Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e está descrito na <Link href="/privacidade" className={linkClass}>Política de Privacidade</Link>, incluindo quais dados usamos, por quê, com quem compartilhamos e como exercer seus direitos. Organizadores que recebem dados de participantes também devem cumprir a LGPD no uso desses dados.</p>
       </Section>
 
-      <Section id="alteracoes" title={sections[9].title}>
+      <Section id="alteracoes" title={sections[10].title}>
         <p className="text-muted-foreground">Podemos atualizar estes termos. Mudanças relevantes serão publicadas nesta página com nova data e, quando adequado, avisadas no aplicativo. Continuar usando o serviço após o aviso significa concordar com a nova versão.</p>
         <p className="text-muted-foreground">Responsável: <strong className="text-foreground">{privacyConfig.controllerName}</strong>.{privacyConfig.contactEmail ? <> Contato: <a className={`${linkClass} break-all`} href={`mailto:${privacyConfig.contactEmail}`}>{privacyConfig.contactEmail}</a>.</> : " O contato ainda não foi publicado."}</p>
         <p className="text-muted-foreground">Estes termos seguem a legislação brasileira. O foro competente será definido na validação jurídica, respeitado o direito do consumidor de ajuizar ações no seu domicílio.</p>

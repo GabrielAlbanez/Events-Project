@@ -625,6 +625,25 @@ function checkWiring() {
   const events = fs.readFileSync("lib/services/events.ts", "utf8");
   assert.match(events, /ticketSettingsProblem/, "event form enforces ticket settings on the server");
   assert.match(events, /ticketOrder\.count/, "cancelling an event with sold tickets requires refunds first");
+  for (const file of ["components/MyComponents/tickets/TicketPurchase.tsx", "components/MyComponents/tickets/PaymentsPanel.tsx"]) {
+    const source = fs.readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /process\.env|MP_CLIENT_SECRET|TICKETS_ENCRYPTION_KEY/, file + " never reads secrets");
+  }
+  const purchase = fs.readFileSync("components/MyComponents/tickets/TicketPurchase.tsx", "utf8");
+  assert.match(purchase, /4000/, "status polling every ~4s");
+  assert.match(purchase, /clearInterval|clearTimeout/, "polling is cleaned up");
+  const terms = fs.readFileSync("app/(publicRoutes)/termos/page.tsx", "utf8");
+  assert.match(terms, /20%/);
+  assert.match(terms, /art\. 49/);
+  const publicActions = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
+  assert.match(publicActions, /ticketSale && registrationOpen && <TicketPurchase/, "event page shows the checkout when EventMap sells tickets");
+  assert.match(fs.readFileSync("app/eventos/[id]/page.tsx", "utf8"), /isTicketSaleActive\(/, "buy button hidden unless payments are configured");
+  const eventForm = fs.readFileSync("components/MyComponents/EventoForm.tsx", "utf8");
+  assert.match(eventForm, /Vender ingressos pelo EventMap/);
+  assert.match(eventForm, /conecte sua conta do Mercado Pago/, "disabled toggle links to the connect page");
+  assert.match(eventForm, /payload\.append\("ticketsEnabled"/);
+  const sidebar = fs.readFileSync("components/ui/app-sidebar.tsx", "utf8");
+  for (const href of ["/ingressos", "/myEvents/pagamentos", "/admin/ingressos"]) assert.match(sidebar, new RegExp(`href: "${href.replace(/\//g, "\/")}"`), href + " in navigation");
   const envExample = fs.readFileSync(".env.example", "utf8");
   for (const name of ["MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_WEBHOOK_SECRET", "TICKETS_ENCRYPTION_KEY", "MP_REDIRECT_URI"]) assert.match(envExample, new RegExp(`^${name}=\\s*$`, "m"), name + " documented without value");
 }

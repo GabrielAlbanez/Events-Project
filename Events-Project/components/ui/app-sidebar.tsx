@@ -20,9 +20,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Ticket,
+  Receipt,
   UserCog,
   UserRound,
   UsersRound,
+  Wallet,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -55,6 +58,7 @@ const navigation: NavItem[] = [
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarDays },
   { label: "Mapa de eventos", href: "/#home-discovery", icon: Map },
   { label: "Minha agenda", href: "/salvos", icon: Bookmark, roles: members },
+  { label: "Meus ingressos", href: "/ingressos", icon: Ticket, roles: members },
   { label: "Central de atividades", href: "/atividade", icon: Activity, roles: members },
   { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: members },
   { label: "Notificações", href: "/notificacoes", icon: Bell, roles: members },
@@ -63,10 +67,12 @@ const navigation: NavItem[] = [
   { label: "Para organizadores", href: "/para-organizadores", icon: Megaphone, roles: ["BASIC"], guest: true },
   { label: "Criar evento", href: "/CriarEvento", icon: CalendarPlus, roles: organizers },
   { label: "Meus eventos", href: "/myEvents", icon: ClipboardList, roles: organizers },
+  { label: "Pagamentos", href: "/myEvents/pagamentos", icon: Wallet, roles: organizers },
   { label: "Resultados", href: "/resultados", icon: BarChart3, roles: organizers },
   { label: "Usuários", href: "/admin", icon: UserCog, roles: ["ADMIN"] },
   { label: "Importar eventos", href: "/admin/eventos-ia", icon: Sparkles, roles: ["ADMIN"] },
   { label: "Destaques pagos", href: "/admin/destaques", icon: BadgeDollarSign, roles: ["ADMIN"] },
+  { label: "Ingressos vendidos", href: "/admin/ingressos", icon: Receipt, roles: ["ADMIN"] },
   { label: "Denúncias de eventos", href: "/admin/reports", icon: ShieldAlert, roles: ["ADMIN"] },
   { label: "Denúncias de conexões", href: "/admin/conexoes-denuncias", icon: Flag, roles: ["ADMIN"] },
   { label: "Auditoria de acesso", href: "/admin/auditoria", icon: History, roles: ["ADMIN"] },
@@ -97,9 +103,9 @@ export function AppSidebar() {
   });
   const groups = [
     { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery"] },
-    { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
-    { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/resultados"] },
-    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/destaques", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
+    { label: "Participar", paths: ["/salvos", "/ingressos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
+    { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/myEvents/pagamentos", "/resultados"] },
+    { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/destaques", "/admin/ingressos", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
     { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },
   ];
   const avatar = authenticatedUser?.image || null;
@@ -122,7 +128,7 @@ export function AppSidebar() {
           return <section key={group.label} className="mb-3 shrink-0 md:mb-5" aria-label={group.label}><p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
         <SidebarMenu className="gap-1 md:gap-1.5">
           {items.map(({ label, href, icon: Icon }) => {
-            const active = href === "/" || href === "/admin" || href === "/privacidade" ? pathname === href : pathname.startsWith(href);
+            const active = href === "/" || href === "/admin" || href === "/privacidade" ? pathname === href : href === "/myEvents" ? pathname.startsWith(href) && !pathname.startsWith("/myEvents/pagamentos") : pathname.startsWith(href);
             return (
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton asChild isActive={active} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-cta/15 hover:text-sidebar-foreground data-[active=true]:bg-cta data-[active=true]:text-cta-foreground data-[active=true]:font-semibold data-[active=true]:hover:bg-cta data-[active=true]:hover:text-cta-foreground">
