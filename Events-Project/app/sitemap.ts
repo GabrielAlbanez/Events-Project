@@ -11,6 +11,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true },
     orderBy: { id: "asc" },
   });
-  return ["/", "/EventsCreated", ...events.map(event => "/eventos/" + encodeURIComponent(event.id))]
+  return ["/", "/EventsCreated", "/produto", ...events.map(event => "/eventos/" + encodeURIComponent(event.id))]
     .map(path => ({ url: new URL(path, origin).href }));
 }
