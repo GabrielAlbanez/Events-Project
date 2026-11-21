@@ -213,3 +213,77 @@ body {
     scale: 1.025;
   }
 }
+
+/* Organizer promotion kit: printable poster (A4), shown only while printing from the kit. */
+#em-promo-poster {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  body.em-printing-poster > :not(#em-promo-poster) {
+    display: none !important;
+  }
+
+  body.em-printing-poster {
+    background: #fff !important;
+  }
+
+  body.em-printing-poster #em-promo-poster {
+    display: flex;
+    min-height: calc(297mm - 28mm);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6mm;
+    color: #070b1f;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    text-align: center;
+    break-inside: avoid;
+  }
+
+  #em-promo-poster .em-poster-kicker {
+    font-size: 14pt;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #1b36d4;
+  }
+
+  #em-promo-poster .em-poster-title {
+    max-width: 90%;
+    font-size: 38pt;
+    font-weight: 700;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+  }
+
+  #em-promo-poster .em-poster-line {
+    font-size: 16pt;
+  }
+
+  #em-promo-poster .em-poster-price {
+    font-size: 18pt;
+    font-weight: 700;
+  }
+
+  #em-promo-poster .em-poster-qr {
+    width: 85mm;
+    height: 85mm;
+    margin-top: 4mm;
+  }
+
+  #em-promo-poster .em-poster-cta {
+    font-size: 14pt;
+    font-weight: 600;
+  }
+
+  #em-promo-poster .em-poster-url {
+    font-size: 13pt;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+}
