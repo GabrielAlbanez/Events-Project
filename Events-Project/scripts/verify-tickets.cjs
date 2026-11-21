@@ -14,6 +14,8 @@ let db;
 const cache = new Map();
 // Module stubs for files whose real dependencies (session, notifications fan-out) are out of scope here.
 const stubs = {};
+class PrismaKnownError extends Error { constructor(code, meta) { super("prisma " + code); this.code = code; this.meta = meta; } }
+const prismaStub = { Prisma: { PrismaClientKnownRequestError: PrismaKnownError, TransactionIsolationLevel: { Serializable: "Serializable" } } };
 function load(file) {
   file = path.resolve(file);
   if (cache.has(file)) return cache.get(file).exports;
@@ -23,7 +25,7 @@ function load(file) {
   const resolve = (name) => {
     if (Object.hasOwn(stubs, name)) return stubs[name];
     if (name === "@/lib/prisma") return { __esModule: true, get default() { return db; } };
-    if (name === "@prisma/client") return { Prisma: { PrismaClientKnownRequestError: class extends Error {}, TransactionIsolationLevel: { Serializable: "Serializable" } } };
+    if (name === "@prisma/client") return prismaStub;
     if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
     if (name.startsWith(".")) {
       const base = path.resolve(path.dirname(file), name.replace(/\.js$/, ""));
@@ -131,7 +133,7 @@ function checkSecurity(sec) {
   const secret = env.MP_WEBHOOK_SECRET;
   const ts = "1742505638683";
   const v1 = crypto.createHmac("sha256", secret).update(`id:123456;request-id:req-1;ts:${ts};`).digest("hex");
-  const good = { xSignature: `ts=${ts},v1=${v1}`, xRequestId: "req-1", dataId: "123456", secret };
+  const good = { xSignature: `ts=${ts},v1=${v1}`, xRequestId: "req-1", dataId: "123456", secret, now: new Date(Number(ts)) };
   assert.equal(sec.verifyMercadoPagoSignature(good), true);
   assert.equal(sec.verifyMercadoPagoSignature({ ...good, xSignature: ` v1=${v1} , ts=${ts} ` }), true, "order and spaces do not matter");
   assert.equal(sec.verifyMercadoPagoSignature({ ...good, dataId: "123457" }), false, "other payment id");
@@ -143,6 +145,24 @@ function checkSecurity(sec) {
   assert.equal(sec.verifyMercadoPagoSignature({ ...good, secret: "" }), false, "no secret: never valid");
   const upper = crypto.createHmac("sha256", secret).update(`id:abc123;request-id:req-1;ts:${ts};`).digest("hex");
   assert.equal(sec.verifyMercadoPagoSignature({ ...good, dataId: "ABC123", xSignature: `ts=${ts},v1=${upper}` }), true, "alphanumeric ids are lowercased per MP docs");
+  // Replay window: 10 minutes either way; milliseconds (MP) and seconds both understood.
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, now: new Date(Number(ts) + 9 * MIN) }), true, "9 minutes old: accepted");
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, now: new Date(Number(ts) + 11 * MIN) }), false, "11 minutes old: replay rejected");
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, now: new Date(Number(ts) - 11 * MIN) }), false, "11 minutes in the future: rejected");
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, now: undefined }), false, "defaults to the real clock: a 2025 signature is stale");
+  const tsSeconds = String(Math.floor(Number(ts) / 1000));
+  const v1Seconds = crypto.createHmac("sha256", secret).update(`id:123456;request-id:req-1;ts:${tsSeconds};`).digest("hex");
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, xSignature: `ts=${tsSeconds},v1=${v1Seconds}` }), true, "ts in seconds");
+  assert.equal(sec.verifyMercadoPagoSignature({ ...good, xSignature: `ts=${tsSeconds},v1=${v1Seconds}`, now: new Date(Number(ts) + 20 * MIN) }), false, "ts in seconds, stale");
+
+  // Cron bearer secret: exact match only, never without a configured secret.
+  const cronSecret = "c".repeat(32);
+  assert.equal(sec.verifyBearerSecret(`Bearer ${cronSecret}`, cronSecret), true);
+  assert.equal(sec.verifyBearerSecret(`Bearer ${cronSecret}x`, cronSecret), false);
+  assert.equal(sec.verifyBearerSecret(cronSecret, cronSecret), false, "scheme required");
+  assert.equal(sec.verifyBearerSecret("Bearer ", ""), false, "no secret configured: always refused");
+  assert.equal(sec.verifyBearerSecret(null, cronSecret), false);
+  assert.equal(sec.verifyBearerSecret("Bearer short", "short"), false, "secrets under 16 characters are refused");
 
   // OAuth state: signed, bound to the user, expiring.
   const state = sec.signOAuthState("user-1", env, NOW);
@@ -165,7 +185,7 @@ function mockMercadoPago() {
   const payments = new Map();
   const idempotency = new Map();
   let sequence = 9000;
-  const mp = { calls, payments, fail: null, tokenCount: 0 };
+  const mp = { calls, payments, fail: null, tokenCount: 0, fixedUserId: null, onRefresh: null, refreshStatus: 200 };
   const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   mp.fetch = async (url, init = {}) => {
     const method = (init.method || "GET").toUpperCase();
@@ -178,13 +198,15 @@ function mockMercadoPago() {
     if (pathname === "/oauth/token" && method === "POST") {
       mp.tokenCount++;
       if (body.code === "bad-code") return json(400, { message: "invalid_grant" });
-      return json(200, { access_token: `APP_USR-access-${mp.tokenCount}`, refresh_token: `TG-refresh-${mp.tokenCount}`, expires_in: 15552000, user_id: 777000 + mp.tokenCount, token_type: "bearer" });
+      if (body.grant_type === "refresh_token" && mp.refreshStatus !== 200) return json(mp.refreshStatus, { error: "invalid_grant" });
+      if (body.grant_type === "refresh_token" && mp.onRefresh) await mp.onRefresh();
+      return json(200, { access_token: `APP_USR-access-${mp.tokenCount}`, refresh_token: `TG-refresh-${mp.tokenCount}`, expires_in: 15552000, user_id: mp.fixedUserId ?? 777000 + mp.tokenCount, token_type: "bearer" });
     }
     if (pathname === "/v1/payments" && method === "POST") {
       const key = headers["x-idempotency-key"];
       if (idempotency.has(key)) return json(201, idempotency.get(key));
       const id = ++sequence;
-      const payment = { id, status: "pending", external_reference: body.external_reference, transaction_amount: body.transaction_amount, application_fee: body.application_fee, point_of_interaction: { transaction_data: { qr_code: `00020126pix-${id}`, qr_code_base64: `iVBORw0KGgo${id}` } } };
+      const payment = { id, status: "pending", currency_id: "BRL", external_reference: body.external_reference, transaction_amount: body.transaction_amount, application_fee: body.application_fee, point_of_interaction: { transaction_data: { qr_code: `00020126pix-${id}`, qr_code_base64: `iVBORw0KGgo${id}` } } };
       payments.set(String(id), payment);
       idempotency.set(key, payment);
       return json(201, payment);
@@ -193,6 +215,12 @@ function mockMercadoPago() {
     if (paymentMatch && method === "GET") {
       const payment = payments.get(paymentMatch[1]);
       return payment ? json(200, payment) : json(404, { message: "not found" });
+    }
+    if (paymentMatch && method === "PUT") {
+      const payment = payments.get(paymentMatch[1]);
+      if (!payment) return json(404, { message: "not found" });
+      payment.status = body.status;
+      return json(200, payment);
     }
     const refundMatch = pathname.match(/^\/v1\/payments\/(\d+)\/refunds$/);
     if (refundMatch && method === "POST") {
@@ -215,6 +243,12 @@ function checkClient(mpLib) {
   assert.equal(url.origin + url.pathname, "https://auth.mercadopago.com/authorization");
   assert.deepEqual(Object.fromEntries(url.searchParams), { client_id: "test-client-id", response_type: "code", platform_id: "mp", state: "state-123", redirect_uri: "https://eventmap.test/api/mercadopago/callback" });
   assert.equal(url.href.includes("test-client-secret-value"), false, "secret never goes to the browser");
+  // Base URL overrides are for isolated tests only: ignored on the Vercel production deployment.
+  const overrides = { ...ENV, MP_API_BASE_URL: "http://127.0.0.1:9/mp", MP_AUTH_BASE_URL: "http://127.0.0.1:9/auth" };
+  assert.deepEqual([mpLib.mercadoPagoConfig(overrides).apiBase, mpLib.mercadoPagoConfig(overrides).authBase], ["http://127.0.0.1:9/mp", "http://127.0.0.1:9/auth"]);
+  const prod = mpLib.mercadoPagoConfig({ ...overrides, VERCEL_ENV: "production" });
+  assert.deepEqual([prod.apiBase, prod.authBase], ["https://api.mercadopago.com", "https://auth.mercadopago.com"], "overrides ignored in production");
+  assert.equal(mpLib.mercadoPagoConfig({ ...overrides, VERCEL_ENV: "preview" }).apiBase, "http://127.0.0.1:9/mp", "preview deployments may use a test double");
 }
 
 async function checkClientCalls(mpLib) {
@@ -239,7 +273,16 @@ async function checkClientCalls(mpLib) {
   assert.equal(call.body.date_of_expiration, "2099-03-10T12:30:00.000-03:00", "expiration in Brasília offset");
   assert.deepEqual([pix.paymentId, pix.qrCode, pix.qrCodeBase64], ["9001", "00020126pix-9001", "iVBORw0KGgo9001"]);
   const fetched = await mpLib.getMercadoPagoPayment(config.apiBase, "APP_USR-seller", "9001", mp.fetch);
-  assert.deepEqual([fetched.id, fetched.status, fetched.externalReference, fetched.amountCents], ["9001", "pending", "order-1", 2500]);
+  assert.deepEqual([fetched.id, fetched.status, fetched.externalReference, fetched.amountCents, fetched.currencyId, fetched.applicationFeeCents], ["9001", "pending", "order-1", 2500, "BRL", 500]);
+  // fee_details form of the marketplace fee, and its absence.
+  mp.payments.get("9001").application_fee = undefined;
+  mp.payments.get("9001").fee_details = [{ type: "mercadopago_fee", amount: 0.5 }, { type: "application_fee", amount: 5 }];
+  assert.equal((await mpLib.getMercadoPagoPayment(config.apiBase, "APP_USR-seller", "9001", mp.fetch)).applicationFeeCents, 500);
+  mp.payments.get("9001").fee_details = [];
+  assert.equal((await mpLib.getMercadoPagoPayment(config.apiBase, "APP_USR-seller", "9001", mp.fetch)).applicationFeeCents, null);
+  await mpLib.cancelMercadoPagoPayment(config.apiBase, "APP_USR-seller", "9001", mp.fetch);
+  assert.deepEqual([mp.calls.at(-1).method, mp.calls.at(-1).body], ["PUT", { status: "cancelled" }]);
+  mp.payments.get("9001").status = "pending";
   await mpLib.refundMercadoPagoPayment(config.apiBase, "APP_USR-seller", "9001", "refund-order-1", mp.fetch);
   assert.equal(mp.calls.at(-1).headers["x-idempotency-key"], "refund-order-1");
   assert.equal(mp.payments.get("9001").status, "refunded");
@@ -310,9 +353,9 @@ function table(name, rows, defaults = () => ({}), relations = {}) {
 }
 function freshDb() {
   const events = [
-    { id: "event-1", nome: "Show de Verão", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-20", startTime: "20:00", timezone: "America/Sao_Paulo", ticketsEnabled: true, ticketCapacity: 2, isFree: false, priceCents: 2500 },
-    { id: "event-free", nome: "Feira", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-20", startTime: null, timezone: "America/Sao_Paulo", ticketsEnabled: false, ticketCapacity: null, isFree: true, priceCents: 0 },
-    { id: "event-open", nome: "Festival", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-25", startTime: "18:00", timezone: "America/Sao_Paulo", ticketsEnabled: true, ticketCapacity: null, isFree: false, priceCents: 1234 },
+    { id: "event-1", nome: "Show de Verão", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-20", dataFim: "2099-03-20", endTime: "23:00", startTime: "20:00", timezone: "America/Sao_Paulo", ticketsEnabled: true, ticketCapacity: 2, isFree: false, priceCents: 2500 },
+    { id: "event-free", nome: "Feira", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-20", dataFim: "2099-03-20", endTime: null, startTime: null, timezone: "America/Sao_Paulo", ticketsEnabled: false, ticketCapacity: null, isFree: true, priceCents: 0 },
+    { id: "event-open", nome: "Festival", userId: "seller", status: "PUBLISHED", dataInicio: "2099-03-25", dataFim: "2099-03-25", endTime: null, startTime: "18:00", timezone: "America/Sao_Paulo", ticketsEnabled: true, ticketCapacity: null, isFree: false, priceCents: 1234 },
   ];
   const users = [
     { id: "seller", name: "Organizadora", email: "seller@example.test", emailVerified: true, role: "PROMOTER", accounts: [] },
@@ -372,7 +415,8 @@ async function checkService() {
   assert.equal((await service.startMercadoPagoConnect(as("seller", "PROMOTER"), bare)).success, false);
   const bareOverview = await service.getPaymentsOverview(as("seller", "PROMOTER"), bare);
   assert.equal(bareOverview.success && bareOverview.data.configured, false);
-  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(1), bare), 400, "webhook without secret is rejected");
+  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(1), bare), 503, "not configured: 503 so Mercado Pago retries later");
+  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(1), { ...deps, env: { ...ENV, MP_WEBHOOK_SECRET: "" } }), 503, "missing webhook secret is a configuration problem, not a bad signature");
 
   // OAuth connect: state bound to the user, code exchanged on the server, tokens encrypted.
   assert.equal((await service.startMercadoPagoConnect(anonymous, deps)).success, false);
@@ -590,10 +634,14 @@ async function checkService() {
   assert.ok(account.expiresAt.getTime() > NOW.getTime() + 100 * 24 * 60 * MIN, "new expiry stored");
   assert.equal(account.accessTokenEnc.includes("APP_USR"), false);
 
-  // Disconnect is refused while a Pix is open, then removes tokens and disables sales.
+  // Disconnect is refused while a Pix is open, and while paid tickets exist for events that have not ended.
   const blocked = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
   assert.equal(blocked.success, false, "pending Pix blocks disconnect");
   current = new Date(NOW.getTime() + 45 * MIN);
+  const paidBlocked = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
+  assert.equal(paidBlocked.success, false, "paid tickets for an upcoming event block disconnect");
+  assert.match(paidBlocked.message, /ingresso pago/);
+  current = new Date("2099-03-26T03:30:00.000Z");
   const disconnected = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
   assert.equal(disconnected.success, true, disconnected.message);
   assert.equal(db.mercadoPagoAccount.rows.length, 0);
@@ -643,6 +691,236 @@ async function checkFinancialRecords() {
     assert.match(sql, new RegExp(`ADD CONSTRAINT "ticket_orders_${column}_fkey"[^;]*ON DELETE RESTRICT`), column + " recreated with RESTRICT");
   }
   assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)|DELETE\s+FROM|TRUNCATE|UPDATE\s+"/i, "constraint-only migration");
+}
+
+// Production-audit hardening: webhook availability, payment verification, late oversell, token lifecycle, reconciliation.
+async function checkHardening() {
+  const sec = load("lib/ticketSecurity.ts");
+  const service = load("lib/services/tickets.ts");
+  const as = (id, role = "BASIC") => async () => ({ id, role });
+  const mp = mockMercadoPago();
+  const deps = { fetch: mp.fetch, now: clock, env: ENV, statusCheckIntervalMs: 0, reconcileIntervalMs: 0 };
+  db = freshDb();
+  current = NOW;
+  const connect = (patch = {}) => {
+    db.mercadoPagoAccount.rows.splice(0);
+    db.mercadoPagoAccount.rows.push({ id: "acc-1", userId: "seller", mpUserId: "555", accessTokenEnc: sec.encryptTicketToken("APP_USR-stored", ENV), refreshTokenEnc: sec.encryptTicketToken("TG-stored", ENV), expiresAt: new Date(NOW.getTime() + 100 * 24 * 60 * MIN), connectedAt: NOW, ...patch });
+    return db.mercadoPagoAccount.rows[0];
+  };
+  connect();
+  const buy = async (buyer, eventId = "event-open") => {
+    const result = await service.createTicketOrder({ eventId }, as(buyer), deps);
+    assert.equal(result.success, true, result.message);
+    return db.ticketOrder.rows.find((row) => row.id === result.data.id);
+  };
+  const approve = (row) => { mp.payments.get(row.mpPaymentId).status = "approved"; };
+
+  // Payment verification: currency, payment id and marketplace fee must match the stored order.
+  const usd = await buy("buyer");
+  approve(usd);
+  mp.payments.get(usd.mpPaymentId).currency_id = "USD";
+  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps), 200);
+  assert.equal(usd.status, "PENDING", "non-BRL payment never confirms");
+  mp.payments.get(usd.mpPaymentId).currency_id = "BRL";
+  mp.payments.get(usd.mpPaymentId).application_fee = 1;
+  await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps);
+  assert.equal(usd.status, "PENDING", "marketplace fee different from the order fee never confirms");
+  mp.payments.get(usd.mpPaymentId).id = 424242;
+  mp.payments.get(usd.mpPaymentId).application_fee = 2.47;
+  await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps);
+  assert.equal(usd.status, "PENDING", "payment id different from the stored one never confirms");
+  mp.payments.get(usd.mpPaymentId).id = Number(usd.mpPaymentId);
+  mp.payments.get(usd.mpPaymentId).application_fee = undefined;
+  await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps);
+  assert.equal(usd.status, "PAID", "fee absent from Mercado Pago's answer: confirmed (logged)");
+
+  // Webhook replay: a valid signature older than 10 minutes is refused.
+  const stale = signedWebhook(usd.mpPaymentId);
+  current = new Date(NOW.getTime() + 11 * MIN);
+  assert.equal(await service.handleMercadoPagoWebhook(stale, deps), 400, "replayed signature rejected");
+  current = NOW;
+
+  // Late approval with the event sold out: refunded automatically, buyer and seller notified.
+  const capacityEvent = db.events.rows.find((event) => event.id === "event-1");
+  const late = await buy("buyer", "event-1");
+  current = new Date(NOW.getTime() + 31 * MIN);
+  await service.getTicketOrderStatus({ orderId: late.id }, as("buyer"), deps);
+  assert.equal(late.status, "EXPIRED");
+  const filler1 = await buy("buyer2", "event-1");
+  const filler2 = await buy("google", "event-1");
+  for (const filler of [filler1, filler2]) { approve(filler); await service.handleMercadoPagoWebhook(signedWebhook(filler.mpPaymentId), deps); }
+  assert.deepEqual([filler1.status, filler2.status], ["PAID", "PAID"], "event-1 (capacity 2) is now full");
+  approve(late);
+  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(late.mpPaymentId), deps), 200);
+  assert.equal(late.status, "REFUNDED", "late approval on a full event is refunded");
+  assert.ok(mp.calls.some((call) => call.url.endsWith(`/v1/payments/${late.mpPaymentId}/refunds`) && call.headers["x-idempotency-key"] === `refund-${late.id}`));
+  assert.equal(db.eventRegistration.rows.some((row) => row.eventId === "event-1" && row.userId === "buyer" && row.status === "CONFIRMED"), false, "no seat granted");
+  assert.ok(db.notification.rows.some((row) => row.userId === "buyer" && row.title === "Ingressos esgotados" && /Pix foi devolvido/.test(row.message)));
+  assert.ok(db.notification.rows.some((row) => row.userId === "seller" && row.title === "Pix devolvido automaticamente"));
+  // Same situation, but Mercado Pago refuses the refund: the money stays, so the ticket is honored above capacity.
+  assert.equal(capacityEvent.ticketCapacity, 2);
+  db.ticketOrder.rows.push({ id: "order-late-2", eventId: "event-1", buyerId: "admin", sellerId: "seller", unitCents: 2500, feeCents: 500, status: "EXPIRED", mpPaymentId: "8800", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: null, refundedAt: null, createdAt: current });
+  mp.payments.set("8800", { id: 8800, status: "approved", currency_id: "BRL", external_reference: "order-late-2", transaction_amount: 25, application_fee: 5 });
+  mp.fail = (pathname) => pathname.endsWith("/refunds");
+  assert.equal(await service.handleMercadoPagoWebhook(signedWebhook("8800"), deps), 200);
+  mp.fail = null;
+  const lateTwo = db.ticketOrder.rows.find((row) => row.id === "order-late-2");
+  assert.equal(lateTwo.status, "PAID", "refund refused: order stays PAID");
+  assert.ok(db.eventRegistration.rows.some((row) => row.eventId === "event-1" && row.userId === "admin" && row.status === "CONFIRMED"), "ticket honored");
+  current = NOW;
+
+  // Unknown payment id (store failed at creation): recovered through external_reference with the collector's token.
+  db.ticketOrder.rows.push({ id: "order-orphan", eventId: "event-open", buyerId: "buyer2", sellerId: "seller", unitCents: 1234, feeCents: 247, status: "PENDING", mpPaymentId: null, pixCopyPaste: null, pixQrBase64: null, expiresAt: new Date(NOW.getTime() + 20 * MIN), paidAt: null, refundedAt: null, createdAt: NOW });
+  mp.payments.set("7700", { id: 7700, status: "approved", currency_id: "BRL", external_reference: "order-orphan", transaction_amount: 12.34, application_fee: 2.47 });
+  assert.equal(await service.handleMercadoPagoWebhook({ ...signedWebhook("7700"), mpUserId: "999" }, deps), 200, "unknown collector: ignored");
+  const orphan = db.ticketOrder.rows.find((row) => row.id === "order-orphan");
+  assert.equal(orphan.mpPaymentId, null);
+  assert.equal(await service.handleMercadoPagoWebhook({ ...signedWebhook("7700"), mpUserId: "555" }, deps), 200);
+  assert.deepEqual([orphan.mpPaymentId, orphan.status], ["7700", "PAID"], "orphan payment adopted and confirmed");
+  mp.payments.set("7701", { id: 7701, status: "approved", currency_id: "BRL", external_reference: "order-orphan", transaction_amount: 12.34, application_fee: 2.47 });
+  await service.handleMercadoPagoWebhook({ ...signedWebhook("7701"), mpUserId: "555" }, deps);
+  assert.equal(orphan.mpPaymentId, "7700", "an order that already has a payment id is never re-linked");
+
+  // Store failure after Mercado Pago created the Pix: cancel there first, then release the order.
+  const originalUpdateMany = db.ticketOrder.updateMany;
+  db.ticketOrder.updateMany = async (q) => { if (q.data && q.data.mpPaymentId) throw new Error("db down"); return originalUpdateMany(q); };
+  const storeFailed = await service.createTicketOrder({ eventId: "event-open" }, as("google"), deps);
+  assert.equal(storeFailed.success, false);
+  assert.equal(storeFailed.data, undefined, "no QR code is shown for a payment that was not stored");
+  const storeRow = db.ticketOrder.rows.filter((row) => row.buyerId === "google" && row.eventId === "event-open").at(-1);
+  const cancelCall = mp.calls.find((call) => call.method === "PUT" && call.body && call.body.status === "cancelled");
+  assert.ok(cancelCall, "payment cancelled at Mercado Pago");
+  assert.equal(storeRow.status, "CANCELLED", "order released only after the cancel");
+  mp.fail = (pathname, method) => method === "PUT";
+  current = new Date(NOW.getTime() + 11 * MIN);
+  const cancelFailed = await service.createTicketOrder({ eventId: "event-open" }, as("google"), deps);
+  mp.fail = null;
+  db.ticketOrder.updateMany = originalUpdateMany;
+  assert.equal(cancelFailed.success, false);
+  const keptRow = db.ticketOrder.rows.filter((row) => row.buyerId === "google" && row.eventId === "event-open").at(-1);
+  assert.notEqual(keptRow.id, storeRow.id);
+  assert.equal(keptRow.status, "PENDING", "cancel failed: order kept PENDING (seat held) instead of a blind cancel");
+  keptRow.status = "EXPIRED";
+  current = NOW;
+
+  // Serializable retries: serialization conflicts (P2034, or 40001 behind P2010/P2028) are retried with backoff.
+  const realTransaction = db.$transaction;
+  let conflicts = 0;
+  db.$transaction = (fn, options) => {
+    if (conflicts < 3) { conflicts++; return Promise.reject(conflicts === 2 ? new PrismaKnownError("P2010", { code: "40001" }) : new PrismaKnownError(conflicts === 3 ? "P2028" : "P2034", { message: "could not serialize access (40001)" })); }
+    return realTransaction(fn, options);
+  };
+  const retried = await service.createTicketOrder({ eventId: "event-open" }, as("admin", "ADMIN"), deps);
+  assert.equal(retried.success, true, "succeeds after three serialization conflicts: " + retried.message);
+  assert.equal(conflicts, 3);
+  conflicts = 0;
+  db.$transaction = () => { conflicts++; return Promise.reject(new PrismaKnownError("P2034")); };
+  assert.equal((await service.createTicketOrder({ eventId: "event-open" }, as("buyer"), deps)).success, false);
+  assert.equal(conflicts, 5, "gives up after 5 attempts");
+  conflicts = 0;
+  db.$transaction = () => { conflicts++; return Promise.reject(new PrismaKnownError("P2002")); };
+  await service.createTicketOrder({ eventId: "event-open" }, as("buyer"), deps);
+  assert.equal(conflicts, 1, "other errors are not retried");
+  db.$transaction = realTransaction;
+
+  // Reconciliation: recent EXPIRED/PENDING orders with a payment id are re-read; older than 24 hours are left alone.
+  const missed = db.ticketOrder.rows.find((row) => row.id === retried.data.id);
+  missed.status = "EXPIRED";
+  approve(missed);
+  db.ticketOrder.rows.push({ id: "order-ancient", eventId: "event-open", buyerId: "buyer", sellerId: "seller", unitCents: 1234, feeCents: 247, status: "EXPIRED", mpPaymentId: "6600", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: null, refundedAt: null, createdAt: new Date(NOW.getTime() - 25 * 60 * MIN) });
+  mp.payments.set("6600", { id: 6600, status: "approved", currency_id: "BRL", external_reference: "order-ancient", transaction_amount: 12.34, application_fee: 2.47 });
+  const report = await service.reconcileRecentTicketOrders(deps);
+  assert.equal(missed.status, "PAID", "missed webhook recovered by reconciliation");
+  assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-ancient").status, "EXPIRED", "outside the 24 hour window");
+  assert.ok(report.checked >= 1 && report.failed === 0, JSON.stringify(report));
+  assert.deepEqual(await service.reconcileRecentTicketOrders({ ...deps, env: { NEXTAUTH_SECRET: ENV.NEXTAUTH_SECRET } }), { checked: 0, failed: 0 }, "not configured: no-op");
+  // Opportunistic run when the buyer opens /ingressos (throttled per viewer).
+  db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-extra", nome: "Extra" });
+  const viaList = await buy("buyer", "event-extra");
+  current = new Date(NOW.getTime() + 31 * MIN);
+  await service.getTicketOrderStatus({ orderId: viaList.id }, as("buyer"), deps);
+  assert.equal(viaList.status, "EXPIRED");
+  approve(viaList);
+  const throttled = { ...deps, reconcileIntervalMs: 20 * MIN };
+  const getsBefore = mp.calls.filter((call) => call.method === "GET").length;
+  await service.listMyTickets(as("buyer"), throttled);
+  assert.equal(viaList.status, "PAID", "listing my tickets reconciles my recent orders");
+  viaList.status = "EXPIRED";
+  await service.listMyTickets(as("buyer"), throttled);
+  assert.equal(viaList.status, "EXPIRED", "second load within the interval does not call Mercado Pago again");
+  assert.ok(mp.calls.filter((call) => call.method === "GET").length > getsBefore);
+  viaList.status = "PAID";
+  current = NOW;
+
+  // Refunds: disconnected account vs provider failure vs store failure after a successful refund.
+  const refundable = db.ticketOrder.rows.find((row) => row.id === "order-orphan");
+  db.mercadoPagoAccount.rows.splice(0);
+  const disconnected = await service.refundTicketOrder({ orderId: refundable.id }, as("seller", "PROMOTER"), deps);
+  assert.equal(disconnected.success, false);
+  assert.match(disconnected.message, /desconectada/, "disconnected account is named as such");
+  connect();
+  mp.fail = (pathname) => pathname.endsWith("/refunds");
+  const providerDown = await service.refundTicketOrder({ orderId: refundable.id }, as("seller", "PROMOTER"), deps);
+  mp.fail = null;
+  assert.match(providerDown.message, /não confirmou/);
+  assert.doesNotMatch(providerDown.message, /desconectada/);
+  let failingWrites = 2;
+  db.ticketOrder.updateMany = async (q) => { if (q.data && q.data.status === "REFUNDED" && failingWrites-- > 0) throw new Error("db down"); return originalUpdateMany(q); };
+  const refundStoreFailed = await service.refundTicketOrder({ orderId: refundable.id }, as("seller", "PROMOTER"), deps);
+  db.ticketOrder.updateMany = originalUpdateMany;
+  assert.equal(refundStoreFailed.success, true, "money already returned: never reported as a failure");
+  assert.match(refundStoreFailed.message, /em instantes/);
+  assert.equal(refundable.status, "PAID", "both writes failed; the webhook/reconcile will reflect it");
+  failingWrites = 1;
+  db.ticketOrder.updateMany = async (q) => { if (q.data && q.data.status === "REFUNDED" && failingWrites-- > 0) throw new Error("db down"); return originalUpdateMany(q); };
+  const refundRetried = await service.refundTicketOrder({ orderId: refundable.id }, as("seller", "PROMOTER"), deps);
+  db.ticketOrder.updateMany = originalUpdateMany;
+  assert.equal(refundRetried.success, true);
+  assert.equal(refundable.status, "REFUNDED", "markRefunded retried once");
+
+  // Token refresh race: another request rotated the refresh token first, so its stored token is used.
+  const racing = connect({ expiresAt: new Date(NOW.getTime() + 2 * 24 * 60 * MIN) });
+  mp.onRefresh = async () => {
+    racing.refreshTokenEnc = sec.encryptTicketToken("TG-winner", ENV);
+    racing.accessTokenEnc = sec.encryptTicketToken("APP_USR-winner", ENV);
+    racing.expiresAt = new Date(NOW.getTime() + 180 * 24 * 60 * MIN);
+  };
+  const raced = await buy("buyer2");
+  mp.onRefresh = null;
+  const racedCall = mp.calls.filter((call) => call.url.endsWith("/v1/payments") && call.method === "POST").at(-1);
+  assert.equal(racedCall.headers.authorization, "Bearer APP_USR-winner", "concurrent refresh: the stored winner is used");
+  assert.equal(sec.decryptTicketToken(racing.refreshTokenEnc, ENV), "TG-winner", "the winner's refresh token is not overwritten");
+  raced.status = "EXPIRED";
+
+  // invalid_grant: account flagged for reconnection, seller notified once, sales show as unavailable.
+  const revoked = connect({ expiresAt: new Date(NOW.getTime() + 2 * 24 * 60 * MIN) });
+  mp.refreshStatus = 400;
+  const afterRevoke = await service.createTicketOrder({ eventId: "event-open" }, as("buyer2"), deps);
+  assert.equal(afterRevoke.success, false);
+  assert.equal(revoked.expiresAt.getTime(), 0, "flagged for reconnection");
+  assert.equal(db.mercadoPagoAccount.rows.length, 1, "the account row is kept");
+  const reconnectNotices = () => db.notification.rows.filter((row) => row.userId === "seller" && /Reconecte/.test(row.title)).length;
+  assert.equal(reconnectNotices(), 1);
+  const panel = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+  assert.equal(panel.data.account.needsReconnect, true, "panel asks to reconnect");
+  assert.equal(reconnectNotices(), 1, "seller notified once");
+  const tokenCalls = mp.calls.filter((call) => call.url.endsWith("/oauth/token")).length;
+  assert.equal((await service.getTicketPurchaseState("event-open", as("buyer2"), deps)).data.state, "unavailable", "buyers see sales unavailable");
+  await service.createTicketOrder({ eventId: "event-open" }, as("buyer2"), deps);
+  assert.equal(mp.calls.filter((call) => call.url.endsWith("/oauth/token")).length, tokenCalls, "a flagged account is not refreshed again");
+  mp.refreshStatus = 200;
+
+  // Reconnect: a different Mercado Pago account is refused while orders are open or paid; the same account is fine.
+  const start = await service.startMercadoPagoConnect(as("seller", "PROMOTER"), deps);
+  const state = new URL(start.data.url).searchParams.get("state");
+  mp.fixedUserId = 999001;
+  assert.equal(await service.completeMercadoPagoConnect({ code: "good-code", state }, as("seller", "PROMOTER"), deps), "account_mismatch");
+  assert.equal(db.mercadoPagoAccount.rows[0].mpUserId, "555", "stored account untouched");
+  mp.fixedUserId = 555;
+  assert.equal(await service.completeMercadoPagoConnect({ code: "good-code", state }, as("seller", "PROMOTER"), deps), "connected");
+  assert.ok(db.mercadoPagoAccount.rows[0].expiresAt.getTime() > NOW.getTime(), "reconnection clears the flag");
+  assert.equal((await service.getPaymentsOverview(as("seller", "PROMOTER"), deps)).data.account.needsReconnect, false);
+  mp.fixedUserId = null;
 }
 
 function checkWiring() {
@@ -704,8 +982,26 @@ function checkWiring() {
   assert.match(eventForm, /payload\.append\("ticketsEnabled"/);
   const sidebar = fs.readFileSync("components/ui/app-sidebar.tsx", "utf8");
   for (const href of ["/ingressos", "/myEvents/pagamentos", "/admin/ingressos"]) assert.match(sidebar, new RegExp(`href: "${href.replace(/\//g, "\/")}"`), href + " in navigation");
+  // Free RSVP stays closed for paid EventMap sales even while payments are not configured.
+  const attendanceSource = fs.readFileSync("lib/services/attendance.ts", "utf8");
+  assert.match(attendanceSource, /if \(event\.ticketsEnabled && !event\.isFree\) \{/, "registration blocked regardless of payments configuration");
+  assert.match(attendanceSource, /As vendas deste evento estão pausadas no momento\./);
+  assert.match(attendanceSource, /ticketSalesPaused: sellsTickets && !configured/);
+  // Webhook route forwards the collector hint; cron route is bearer-protected; health reports payments.
+  assert.match(fs.readFileSync("app/api/webhooks/mercadopago/route.ts", "utf8"), /mpUserId:/);
+  const cron = fs.readFileSync("app/api/cron/tickets-reconcile/route.ts", "utf8");
+  assert.match(cron, /verifyBearerSecret\(request\.headers\.get\("authorization"\), secret\)/);
+  assert.match(cron, /reconcileRecentTicketOrders\(\)/);
+  assert.match(cron, /export async function GET/, "Vercel Cron uses GET");
+  const vercel = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
+  const job = vercel.crons.find((item) => item.path === "/api/cron/tickets-reconcile");
+  assert.ok(job, "cron scheduled");
+  assert.match(job.schedule, /^\d+ \d+ \* \* \*$/, "daily schedule (Vercel Hobby)");
+  const health = fs.readFileSync("app/api/health/route.ts", "utf8");
+  assert.match(health, /payments: ticketPaymentsConfigured\(\)/);
+  assert.doesNotMatch(health, /MP_|TICKETS_ENCRYPTION_KEY/, "health exposes no variable names");
   const envExample = fs.readFileSync(".env.example", "utf8");
-  for (const name of ["MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_WEBHOOK_SECRET", "TICKETS_ENCRYPTION_KEY", "MP_REDIRECT_URI"]) assert.match(envExample, new RegExp(`^${name}=\\s*$`, "m"), name + " documented without value");
+  for (const name of ["MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_WEBHOOK_SECRET", "TICKETS_ENCRYPTION_KEY", "MP_REDIRECT_URI", "CRON_SECRET"]) assert.match(envExample, new RegExp(`^${name}=\\s*$`, "m"), name + " documented without value");
 }
 
 (async () => {
@@ -715,6 +1011,7 @@ function checkWiring() {
   checkClient(mpLib);
   await checkClientCalls(mpLib);
   await checkService();
+  await checkHardening();
   await checkFinancialRecords();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");

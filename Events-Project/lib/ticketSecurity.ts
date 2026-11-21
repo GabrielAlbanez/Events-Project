@@ -12,6 +12,8 @@ export class TicketConfigError extends Error {
 
 const TOKEN_VERSION = "v1";
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+/** Webhook signatures older (or further in the future) than this are replays and are rejected. */
+export const WEBHOOK_MAX_SKEW_MS = 10 * 60 * 1000;
 
 function decodeKey(value: string | undefined): Buffer | null {
   const raw = value?.trim();
@@ -66,8 +68,9 @@ function safeEqual(a: string, b: string): boolean {
  * Mercado Pago webhook signature: header `x-signature: ts=<ts>,v1=<hmac>`; manifest
  * `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` signed with HMAC-SHA256 and the webhook secret.
  * Alphanumeric data ids are lowercased, and absent parts are left out of the manifest (MP docs).
+ * `ts` must be within WEBHOOK_MAX_SKEW_MS of now; Mercado Pago sends milliseconds, but seconds are accepted too.
  */
-export function verifyMercadoPagoSignature(input: { xSignature: string | null | undefined; xRequestId: string | null | undefined; dataId: string | null | undefined; secret: string | null | undefined }): boolean {
+export function verifyMercadoPagoSignature(input: { xSignature: string | null | undefined; xRequestId: string | null | undefined; dataId: string | null | undefined; secret: string | null | undefined; now?: Date }): boolean {
   if (!input.secret || !input.xSignature || input.xSignature.length > 512) return false;
   const parts = Object.fromEntries(input.xSignature.split(",").map((part) => {
     const [name, ...rest] = part.split("=");
@@ -76,12 +79,23 @@ export function verifyMercadoPagoSignature(input: { xSignature: string | null | 
   const ts = parts.ts;
   const v1 = parts.v1;
   if (!ts || !/^\d{1,20}$/.test(ts) || !v1 || !/^[0-9a-f]{64}$/i.test(v1)) return false;
+  const tsNumber = Number(ts);
+  const tsMs = tsNumber > 1e12 ? tsNumber : tsNumber * 1000;
+  if (!Number.isFinite(tsMs) || Math.abs((input.now ?? new Date()).getTime() - tsMs) > WEBHOOK_MAX_SKEW_MS) return false;
   let manifest = "";
   if (input.dataId) manifest += `id:${/^[a-z0-9]+$/i.test(input.dataId) ? input.dataId.toLowerCase() : input.dataId};`;
   if (input.xRequestId) manifest += `request-id:${input.xRequestId};`;
   manifest += `ts:${ts};`;
   const expected = createHmac("sha256", input.secret).update(manifest).digest("hex");
   return safeEqual(expected, v1.toLowerCase());
+}
+
+/** `Authorization: Bearer <secret>` check for internal routes (Vercel Cron). False when the secret is not set. */
+export function verifyBearerSecret(header: string | null | undefined, secret: string | null | undefined): boolean {
+  const expected = secret?.trim();
+  if (!expected || expected.length < 16 || !header || header.length > 1024) return false;
+  const match = /^Bearer (.+)$/.exec(header);
+  return match !== null && safeEqual(match[1], expected);
 }
 
 function stateSecret(env: Env): string {

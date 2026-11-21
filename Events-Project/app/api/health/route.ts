@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ticketPaymentsConfigured } from "@/lib/ticketSecurity";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const DB_TIMEOUT_MS = 3000;
 
-type HealthResponse = { status: "ok" | "degraded"; db: "ok" | "error"; time: string };
+/** `payments` only says whether ticket payments are configured; no variable names or values are exposed. */
+type HealthResponse = { status: "ok" | "degraded"; db: "ok" | "error"; payments: boolean; time: string };
 
 async function pingDatabase(): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -26,7 +28,7 @@ async function pingDatabase(): Promise<boolean> {
 /** Public liveness/readiness probe: cheap DB ping, no caching, no sensitive details. */
 export async function GET() {
   const dbOk = await pingDatabase();
-  const body: HealthResponse = { status: dbOk ? "ok" : "degraded", db: dbOk ? "ok" : "error", time: new Date().toISOString() };
+  const body: HealthResponse = { status: dbOk ? "ok" : "degraded", db: dbOk ? "ok" : "error", payments: ticketPaymentsConfigured(), time: new Date().toISOString() };
   return NextResponse.json(body, {
     status: dbOk ? 200 : 503,
     headers: { "Cache-Control": "no-store, max-age=0" },

@@ -12,7 +12,12 @@ export type PixPaymentInput = {
   notificationUrl: string | null; expiresAt: Date;
 };
 export type PixPayment = { paymentId: string; status: string; qrCode: string; qrCodeBase64: string };
-export type MercadoPagoPayment = { id: string; status: string; externalReference: string | null; amountCents: number | null };
+export type MercadoPagoPayment = {
+  id: string; status: string; externalReference: string | null; amountCents: number | null;
+  currencyId: string | null;
+  /** Marketplace fee as reported by Mercado Pago (top-level `application_fee` or a `fee_details` entry); null when absent. */
+  applicationFeeCents: number | null;
+};
 
 const TIMEOUT_MS = 10_000;
 
@@ -25,17 +30,24 @@ export class MercadoPagoError extends Error {
 
 const trimSlash = (value: string) => value.replace(/\/+$/, "");
 
-/** Null when the app credentials are missing. MP_API_BASE_URL / MP_AUTH_BASE_URL exist only for isolated tests. */
+const MP_API_BASE = "https://api.mercadopago.com";
+const MP_AUTH_BASE = "https://auth.mercadopago.com";
+
+/**
+ * Null when the app credentials are missing. MP_API_BASE_URL / MP_AUTH_BASE_URL exist only for isolated tests and are
+ * ignored on the Vercel production deployment, so a stray variable can never send seller tokens to another host.
+ */
 export function mercadoPagoConfig(env: Env = process.env): MercadoPagoConfig | null {
   const clientId = env.MP_CLIENT_ID?.trim();
   const clientSecret = env.MP_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) return null;
   const site = trimSlash(env.NEXTAUTH_URL?.trim() || env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000");
+  const overridable = env.VERCEL_ENV !== "production";
   return {
     clientId, clientSecret,
     redirectUri: env.MP_REDIRECT_URI?.trim() || `${site}/api/mercadopago/callback`,
-    apiBase: trimSlash(env.MP_API_BASE_URL?.trim() || "https://api.mercadopago.com"),
-    authBase: trimSlash(env.MP_AUTH_BASE_URL?.trim() || "https://auth.mercadopago.com"),
+    apiBase: trimSlash((overridable && env.MP_API_BASE_URL?.trim()) || MP_API_BASE),
+    authBase: trimSlash((overridable && env.MP_AUTH_BASE_URL?.trim()) || MP_AUTH_BASE),
   };
 }
 
@@ -133,8 +145,28 @@ export async function getMercadoPagoPayment(apiBase: string, accessToken: string
     id: String(body.id ?? ""),
     status: typeof body.status === "string" ? body.status : "unknown",
     externalReference: typeof body.external_reference === "string" ? body.external_reference : null,
-    amountCents: typeof amount === "number" && Number.isFinite(amount) ? Math.round(amount * 100) : null,
+    amountCents: centsOf(amount),
+    currencyId: typeof body.currency_id === "string" ? body.currency_id : null,
+    applicationFeeCents: applicationFeeOf(body),
   };
+}
+
+function centsOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value * 100) : null;
+}
+
+function applicationFeeOf(body: Record<string, unknown>): number | null {
+  const direct = centsOf(body.application_fee);
+  if (direct !== null) return direct;
+  if (!Array.isArray(body.fee_details)) return null;
+  const fee = body.fee_details.find((item): item is { amount: unknown } => Boolean(item) && typeof item === "object" && (item as { type?: unknown }).type === "application_fee");
+  return fee ? centsOf(fee.amount) : null;
+}
+
+/** Cancels a pending payment so its Pix can no longer be paid. */
+export async function cancelMercadoPagoPayment(apiBase: string, accessToken: string, paymentId: string, fetchImpl: MpFetch = fetch): Promise<void> {
+  if (!paymentIdPattern.test(paymentId)) throw new MercadoPagoError("payment_invalid_id");
+  await request(fetchImpl, `${apiBase}/v1/payments/${paymentId}`, { method: "PUT", headers: authHeaders(accessToken), body: JSON.stringify({ status: "cancelled" }) }, "payment_cancel");
 }
 
 /** Full refund (the platform fee is returned too). */

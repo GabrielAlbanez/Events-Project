@@ -338,7 +338,8 @@ async function checkHealth() {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("cache-control"), /no-store/);
   let body = await response.json();
-  assert.deepEqual(Object.keys(body).sort(), ["db", "status", "time"]);
+  assert.deepEqual(Object.keys(body).sort(), ["db", "payments", "status", "time"]);
+  assert.equal(typeof body.payments, "boolean", "payments is only a configured flag");
   assert.equal(body.db, "ok"); assert.equal(body.status, "ok");
   assert.ok(!Number.isNaN(Date.parse(body.time)));
   fail = true;

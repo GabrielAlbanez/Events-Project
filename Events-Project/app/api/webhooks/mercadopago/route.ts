@@ -11,7 +11,7 @@ const MAX_BODY = 16 * 1024;
  */
 export async function POST(request: NextRequest) {
   const query = request.nextUrl.searchParams;
-  let body: { type?: unknown; topic?: unknown; data?: { id?: unknown } } = {};
+  let body: { type?: unknown; topic?: unknown; data?: { id?: unknown }; user_id?: unknown } = {};
   try {
     const text = await request.text();
     if (text.length > MAX_BODY) return new NextResponse(null, { status: 400 });
@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     xRequestId: request.headers.get("x-request-id"),
     dataId,
     type,
+    // Unsigned hint (collector account) used only to recover a payment whose id was never stored.
+    mpUserId: typeof body?.user_id === "string" || typeof body?.user_id === "number" ? String(body.user_id) : null,
   });
   return new NextResponse(null, { status, headers: { "Cache-Control": "no-store" } });
 }

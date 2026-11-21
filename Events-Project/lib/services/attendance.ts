@@ -88,7 +88,10 @@ export async function getRegistrationState(eventId: string, userId: string | nul
     prisma.eventRegistration.count({ where: { eventId, status: "WAITLISTED" } }),
     userId ? prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } }, select: { id: true, status: true, createdAt: true, checkedInAt: true } }) : Promise.resolve(null),
   ]);
-  return { capacity: event.capacity, confirmedCount, waitingCount, registration, ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()) };
+  const sellsTickets = Boolean(event.ticketsEnabled && !event.isFree);
+  const configured = ticketPaymentsConfigured();
+  // ticketSalesPaused: EventMap sells this event, but payments are not configured right now (no free RSVP either).
+  return { capacity: event.capacity, confirmedCount, waitingCount, registration, ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()), ticketSalesPaused: sellsTickets && !configured };
 }
 
 export async function registerForEvent(eventId: string, userId: string) {
@@ -97,7 +100,10 @@ export async function registerForEvent(eventId: string, userId: string) {
     assertOpen(event);
     if (event.userId === userId) throw new AttendanceError("O organizador não pode se inscrever no próprio evento.", 409);
     // While EventMap sells the tickets, the registration (and its QR) comes only from a paid order.
-    if (event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()) throw new AttendanceError("Este evento vende ingressos pelo EventMap. Compre seu ingresso para participar.", 409);
+    // Also while payments are not configured: a paid event never turns into a free RSVP.
+    if (event.ticketsEnabled && !event.isFree) {
+      throw new AttendanceError(ticketPaymentsConfigured() ? "Este evento vende ingressos pelo EventMap. Compre seu ingresso para participar." : "As vendas deste evento estão pausadas no momento.", 409);
+    }
     const existing = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (existing && existing.status !== "CANCELLED") return { id: existing.id, status: existing.status };
     let confirmedCount = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
