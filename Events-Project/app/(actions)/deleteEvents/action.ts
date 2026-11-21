@@ -26,11 +26,18 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
     return { status: "error", message: "Selecione de 1 a 500 eventos válidos." };
   }
 
-  const { deletedCount, eventsToDelete } = await prisma.$transaction(async (transaction) => {
+  const ticketBlocked = {
+    status: "error",
+    message: "Há pedidos de ingresso registrados para o(s) evento(s) selecionado(s). O histórico financeiro precisa ser mantido: cancele o evento e estorne os ingressos pagos em vez de excluí-lo.",
+  };
+  const run = () => prisma.$transaction(async (transaction) => {
     const events = await transaction.events.findMany({
       where: { id: { in: Array.from(new Set(parsedIds.data)) } },
       select: { id: true, nome: true, userId: true, banner: true, carrossel: true, status: true },
     });
+    // Ticket orders are financial records (ON DELETE RESTRICT): any order, in any status, blocks the delete.
+    const ticketOrders = await transaction.ticketOrder.count({ where: { eventId: { in: events.map((event) => event.id) } } });
+    if (ticketOrders > 0) return null;
     const admin = await transaction.user.findUnique({
       where: { id: adminId },
       select: { name: true },
@@ -62,6 +69,17 @@ export async function deleteEvents(eventIds: string[], adminId: string) {
     });
     return { deletedCount: deleted.count, eventsToDelete: events };
   }, { timeout: 20000 });
+
+  let outcome: Awaited<ReturnType<typeof run>>;
+  try {
+    outcome = await run();
+  } catch (error) {
+    // An order created between the check and the delete trips the foreign key: same friendly answer.
+    if ((error as { code?: unknown } | null)?.code === "P2003") return ticketBlocked;
+    throw error;
+  }
+  if (!outcome) return ticketBlocked;
+  const { deletedCount, eventsToDelete } = outcome;
 
   // Clean files only after the database transaction commits.
   for (const event of eventsToDelete) {

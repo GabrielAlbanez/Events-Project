@@ -269,6 +269,7 @@ function actionDb(calls, events) {
     eventHistory: { create: op("eventHistory", "create", {}), createMany: op("eventHistory", "createMany", {}) },
     notification: { updateMany: op("notification", "updateMany", { count: 0 }) },
     aiEventCandidate: { updateMany: op("aiEventCandidate", "updateMany", { count: 1 }) },
+    ticketOrder: { count: op("ticketOrder", "count", 0) },
   };
   return { ...tx, $transaction: async fn => fn(tx) };
 }

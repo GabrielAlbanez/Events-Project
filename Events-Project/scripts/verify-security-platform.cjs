@@ -379,7 +379,7 @@ async function checkUserAdministration() {
   target._count.Events = 0;
   assert.equal((await admin.deleteUser({ id: "member" }, async () => "admin")).status, "success");
   const [, where] = calls.find(call => call[0] === "delete");
-  assert.deepEqual(where, { id: "member", role: { not: "ADMIN" }, Events: { none: {} }, friendsOwned: { none: {} } }, "guard is re-checked atomically");
+  assert.deepEqual(where, { id: "member", role: { not: "ADMIN" }, Events: { none: {} }, friendsOwned: { none: {} }, ticketsBought: { none: {} }, ticketsSold: { none: {} } }, "guard is re-checked atomically");
   assert.ok(calls.some(call => call[0] === "signal" && call[1] === "user:member"));
 
   calls.length = 0;

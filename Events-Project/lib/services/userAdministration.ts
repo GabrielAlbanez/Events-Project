@@ -35,7 +35,7 @@ export async function deleteUser(user: User, resolveAdminId: ResolveAdminId) {
 
   const exisgingUser = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, role: true, _count: { select: { Events: true, friendsOwned: true } } },
+    select: { id: true, role: true, _count: { select: { Events: true, friendsOwned: true, ticketsBought: true, ticketsSold: true } } },
   });
 
   if (!exisgingUser) {
@@ -53,11 +53,15 @@ export async function deleteUser(user: User, resolveAdminId: ResolveAdminId) {
   // registrations, chats and memberships. Those accounts must be suspended instead.
   const blocker = deletionBlocker(exisgingUser._count?.Events ?? 0, exisgingUser._count?.friendsOwned ?? 0);
   if (blocker) return { status: "error", message: blocker };
+  // Ticket orders are financial records (ON DELETE RESTRICT on buyer and seller): keep the account, suspend it instead.
+  if ((exisgingUser._count?.ticketsBought ?? 0) + (exisgingUser._count?.ticketsSold ?? 0) > 0) {
+    return { status: "error", message: ticketHistoryBlocker };
+  }
 
   const deletedUser = await prisma.$transaction(async tx => {
     const deleted = await tx.user.deleteMany({
       // Re-checked atomically: an event created after the check above blocks the delete.
-      where: { id, role: { not: "ADMIN" }, Events: { none: {} }, friendsOwned: { none: {} } },
+      where: { id, role: { not: "ADMIN" }, Events: { none: {} }, friendsOwned: { none: {} }, ticketsBought: { none: {} }, ticketsSold: { none: {} } },
     });
     if (deleted.count > 0) {
       // The signal has no user foreign key, so it survives the account deletion.
@@ -75,6 +79,8 @@ export async function deleteUser(user: User, resolveAdminId: ResolveAdminId) {
   }
   return { status: "error", message: "Este usuário não pode ser excluído agora. Atualize a lista e tente novamente." };
 }
+
+export const ticketHistoryBlocker = "Esta conta tem histórico de compra ou venda de ingressos, que precisa ser mantido como registro financeiro. Suspenda a conta em vez de excluí-la.";
 
 /** Explains why a hard delete would destroy data owned by other people, or null when safe. */
 export function deletionBlocker(ownedEvents: number, ownedRooms: number): string | null {

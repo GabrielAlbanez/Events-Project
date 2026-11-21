@@ -12,6 +12,8 @@ globalThis.fetch = async () => { throw new Error("real network is forbidden in o
 
 let db;
 const cache = new Map();
+// Module stubs for files whose real dependencies (session, notifications fan-out) are out of scope here.
+const stubs = {};
 function load(file) {
   file = path.resolve(file);
   if (cache.has(file)) return cache.get(file).exports;
@@ -19,6 +21,7 @@ function load(file) {
   cache.set(file, mod);
   const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const resolve = (name) => {
+    if (Object.hasOwn(stubs, name)) return stubs[name];
     if (name === "@/lib/prisma") return { __esModule: true, get default() { return db; } };
     if (name === "@prisma/client") return { Prisma: { PrismaClientKnownRequestError: class extends Error {}, TransactionIsolationLevel: { Serializable: "Serializable" } } };
     if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
@@ -320,7 +323,15 @@ function freshDb() {
     { id: "admin", name: "Admin", email: "admin@example.test", emailVerified: true, role: "ADMIN", accounts: [] },
   ];
   const store = {
-    events: table("event", events), user: table("user", users), notification: table("notification", []), communitySignal: table("signal", []),
+    events: table("event", events), notification: table("notification", []), communitySignal: table("signal", []),
+    user: table("user", users, () => ({}), {
+      _count: (row) => ({
+        Events: events.filter((event) => event.userId === row.id).length, friendsOwned: 0,
+        ticketsBought: store.ticketOrder.rows.filter((order) => order.buyerId === row.id).length,
+        ticketsSold: store.ticketOrder.rows.filter((order) => order.sellerId === row.id).length,
+      }),
+    }),
+    eventHistory: table("history", []), aiEventCandidate: table("candidate", []),
     eventRegistration: table("registration", [], () => ({ status: "CONFIRMED", qrVersion: 0, checkedInAt: null })),
     mercadoPagoAccount: table("mpaccount", [], () => ({ connectedAt: current })),
   };
@@ -590,6 +601,50 @@ async function checkService() {
   current = NOW;
 }
 
+// Ticket orders are financial records: deleting their event or a buyer/seller account is refused (DB RESTRICT + friendly guard).
+async function checkFinancialRecords() {
+  db = freshDb();
+  current = NOW;
+  stubs["@/lib/adminAuth"] = { getAuthenticatedAdminId: async () => "admin" };
+  stubs["@/lib/eventNotifications"] = { notifyEventAudience: async () => undefined };
+  const { deleteEvents } = load("app/(actions)/deleteEvents/action.ts");
+  const { deleteUser } = load("lib/services/userAdministration.ts");
+  db.events.rows.push({ id: "event-plain", nome: "Sem vendas", userId: "seller", status: "PUBLISHED", banner: "", carrossel: [] });
+  for (const event of db.events.rows) { event.banner ??= ""; event.carrossel ??= []; }
+  db.ticketOrder.rows.push({ id: "order-old", eventId: "event-1", buyerId: "buyer2", sellerId: "seller", unitCents: 2500, feeCents: 500, status: "EXPIRED", expiresAt: NOW, createdAt: NOW });
+
+  const blockedDelete = await deleteEvents(["event-1", "event-plain"], "admin");
+  assert.equal(blockedDelete.status, "error", "an event with any ticket order (even expired) cannot be deleted");
+  assert.match(blockedDelete.message, /ingresso/i);
+  assert.ok(db.events.rows.some((event) => event.id === "event-1") && db.events.rows.some((event) => event.id === "event-plain"), "nothing deleted when one event is blocked");
+  assert.equal(db.eventHistory.rows.length, 0, "no audit row for a refused delete");
+  const okDelete = await deleteEvents(["event-plain"], "admin");
+  assert.equal(okDelete.status, "success", okDelete.message);
+  assert.equal(db.events.rows.some((event) => event.id === "event-plain"), false);
+
+  const buyerDelete = await deleteUser({ id: "buyer2" }, async () => "admin");
+  assert.equal(buyerDelete.status, "error", "a buyer with ticket history cannot be hard-deleted");
+  assert.match(buyerDelete.message, /ingresso/i);
+  assert.ok(db.user.rows.some((user) => user.id === "buyer2"));
+  const plainDelete = await deleteUser({ id: "unverified" }, async () => "admin");
+  assert.equal(plainDelete.status, "success", plainDelete.message);
+  delete stubs["@/lib/adminAuth"];
+  delete stubs["@/lib/eventNotifications"];
+
+  const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
+  const ticketModel = schema.match(/model TicketOrder \{[\s\S]*?\n\}/)[0];
+  for (const relation of ["event ", "buyer ", "seller "]) {
+    assert.match(ticketModel, new RegExp(`\\n\\s*${relation}[^\\n]*onDelete: Restrict`), relation.trim() + " relation is RESTRICT");
+  }
+  const restrict = fs.readdirSync("prisma/migrations").filter((name) => name.endsWith("_ticket_orders_restrict"));
+  assert.equal(restrict.length, 1, "one RESTRICT migration");
+  const sql = fs.readFileSync(path.join("prisma/migrations", restrict[0], "migration.sql"), "utf8");
+  for (const column of ["eventId", "buyerId", "sellerId"]) {
+    assert.match(sql, new RegExp(`ADD CONSTRAINT "ticket_orders_${column}_fkey"[^;]*ON DELETE RESTRICT`), column + " recreated with RESTRICT");
+  }
+  assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)|DELETE\s+FROM|TRUNCATE|UPDATE\s+"/i, "constraint-only migration");
+}
+
 function checkWiring() {
   const { canAccessPath, isPublicPath } = load("lib/authPolicy.ts");
   for (const role of ["PROMOTER", "ADMIN"]) assert.equal(canAccessPath(role, "/myEvents/pagamentos"), true, role + " pagamentos");
@@ -660,6 +715,7 @@ function checkWiring() {
   checkClient(mpLib);
   await checkClientCalls(mpLib);
   await checkService();
+  await checkFinancialRecords();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

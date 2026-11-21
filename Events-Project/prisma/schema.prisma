@@ -727,9 +727,9 @@ model TicketOrder {
   refundedAt   DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
-  event        Events            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  event        Events            @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Restrict)
 
   @@index([eventId, status])
   @@index([buyerId, createdAt])
