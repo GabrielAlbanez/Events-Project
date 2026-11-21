@@ -925,6 +925,10 @@ async function checkHardening() {
 }
 
 function checkWiring() {
+  // Production runtime reads EVENTMAP_PRODUCTION_DATABASE_URL (lib/prisma.ts); migrations must target that same database.
+  const migrate = fs.readFileSync("scripts/migrate-on-production.cjs", "utf8");
+  assert.match(fs.readFileSync("lib/prisma.ts", "utf8"), /EVENTMAP_PRODUCTION_DATABASE_URL/);
+  assert.match(migrate, /DATABASE_URL: process\.env\.EVENTMAP_PRODUCTION_DATABASE_URL/, "migrations run against the runtime production database");
   const { canAccessPath, isPublicPath } = load("lib/authPolicy.ts");
   for (const role of ["PROMOTER", "ADMIN"]) assert.equal(canAccessPath(role, "/myEvents/pagamentos"), true, role + " pagamentos");
   for (const role of ["BASIC", "GUEST"]) assert.equal(canAccessPath(role, "/myEvents/pagamentos"), false);

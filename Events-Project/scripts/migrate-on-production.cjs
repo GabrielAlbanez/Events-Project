@@ -8,7 +8,14 @@ if (process.env.VERCEL_ENV !== "production") {
   process.exit(0);
 }
 
-const result = spawnSync("npx", ["prisma", "migrate", "deploy"], { encoding: "utf8", shell: true, timeout: 180000 });
+// The production runtime connects with EVENTMAP_PRODUCTION_DATABASE_URL (lib/prisma.ts), so migrate that same database.
+// Without it, `prisma migrate deploy` would use DATABASE_URL, a different database the site never reads.
+if (!process.env.EVENTMAP_PRODUCTION_DATABASE_URL) {
+  console.error("[migrate] EVENTMAP_PRODUCTION_DATABASE_URL is not set; aborting build so the current deployment stays live.");
+  process.exit(1);
+}
+const env = { ...process.env, DATABASE_URL: process.env.EVENTMAP_PRODUCTION_DATABASE_URL };
+const result = spawnSync("npx", ["prisma", "migrate", "deploy"], { encoding: "utf8", shell: true, timeout: 180000, env });
 // Never echo datasource/connection details into build logs.
 const safe = (text) => (text || "").split(/\r?\n/).filter((line) => line && !/datasource|postgres(ql)?:\/\/|@[\w.-]+:\d+/i.test(line)).join("\n");
 const out = safe(result.stdout);
