@@ -835,6 +835,24 @@ async function checkHardening() {
   assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-ancient").status, "EXPIRED", "outside the 24 hour window");
   assert.ok(report.checked >= 1 && report.failed === 0, JSON.stringify(report));
   assert.deepEqual(await service.reconcileRecentTicketOrders({ ...deps, env: { NEXTAUTH_SECRET: ENV.NEXTAUTH_SECRET } }), { checked: 0, failed: 0 }, "not configured: no-op");
+  // Crash between marking a late oversold approval PAID and refunding it: PAID with no registration row at all
+  // (grantTicket always creates one and cancelling keeps it). Reconciliation finishes the refund.
+  const strand = (id, eventId, paymentId, status) => {
+    db.ticketOrder.rows.push({ id, eventId, buyerId: "unverified", sellerId: "seller", unitCents: 2500, feeCents: 500, status: "PAID", mpPaymentId: paymentId, pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: NOW, refundedAt: null, createdAt: NOW });
+    mp.payments.set(paymentId, { id: Number(paymentId), status, currency_id: "BRL", external_reference: id, transaction_amount: 25, application_fee: 5 });
+    return db.ticketOrder.rows.find((row) => row.id === id);
+  };
+  const stranded = strand("order-stranded", "event-1", "5500", "approved");
+  const strandedRefunded = strand("order-stranded-2", "event-open", "5501", "refunded");
+  const honored = db.ticketOrder.rows.find((row) => row.id === "order-late-2");
+  const honoredRefunds = () => mp.calls.filter((call) => call.url.endsWith("/v1/payments/8800/refunds")).length;
+  const honoredBefore = honoredRefunds();
+  await service.reconcileRecentTicketOrders(deps);
+  assert.equal(stranded.status, "REFUNDED", "stranded oversold order is refunded by reconciliation");
+  assert.ok(mp.calls.some((call) => call.url.endsWith("/v1/payments/5500/refunds") && call.headers["x-idempotency-key"] === "refund-order-stranded"), "refund reuses the order idempotency key");
+  assert.equal(strandedRefunded.status, "REFUNDED", "refund already done at Mercado Pago: order marked REFUNDED");
+  assert.equal(honored.status, "PAID", "paid order with a registration is left alone");
+  assert.equal(honoredRefunds(), honoredBefore, "no new refund attempt for honored tickets");
   // Opportunistic run when the buyer opens /ingressos (throttled per viewer).
   db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-extra", nome: "Extra" });
   const viaList = await buy("buyer", "event-extra");

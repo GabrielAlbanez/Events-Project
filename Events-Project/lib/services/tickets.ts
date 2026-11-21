@@ -712,8 +712,48 @@ export async function reconcileRecentTicketOrders(deps?: TicketDeps, scope: Reco
       failed++;
     }
   }
+  const stranded = await findStrandedOrders(now, scope);
+  for (const order of stranded) {
+    if (!order.mpPaymentId) continue;
+    try {
+      const token = tokens.get(order.sellerId) ?? await sellerAccessToken(order.sellerId, config, d);
+      tokens.set(order.sellerId, token);
+      await settleStrandedOrder(order, await getMercadoPagoPayment(config.apiBase, token, order.mpPaymentId, d.fetch), { config, token, d });
+      checked++;
+    } catch {
+      failed++;
+    }
+  }
   if (failed) console.warn("ticket-reconcile-partial");
   return { checked, failed };
+}
+
+/**
+ * PAID orders with no registration row at all: a late oversold approval whose refund never ran (process died
+ * between the two steps). grantTicket always creates the row and cancelling keeps it, so no row means no seat.
+ */
+async function findStrandedOrders(now: Date, scope: ReconcileScope): Promise<SyncOrder[]> {
+  const paid = await prisma.ticketOrder.findMany({
+    where: {
+      mpPaymentId: { not: null }, status: "PAID", createdAt: { gte: new Date(now.getTime() - RECONCILE_WINDOW_MS) },
+      ...(scope.sellerId ? { sellerId: scope.sellerId } : {}), ...(scope.buyerId ? { buyerId: scope.buyerId } : {}),
+    },
+    orderBy: { createdAt: "asc" }, take: 200, select: orderSelect,
+  });
+  if (!paid.length) return [];
+  const registrations = await prisma.eventRegistration.findMany({
+    where: { OR: paid.map((order) => ({ eventId: order.eventId, userId: order.buyerId })) },
+    select: { eventId: true, userId: true },
+  });
+  const seated = new Set(registrations.map((row) => `${row.eventId}:${row.userId}`));
+  return paid.filter((order) => !seated.has(`${order.eventId}:${order.buyerId}`));
+}
+
+/** Finishes the interrupted refund, or records one Mercado Pago already made. Same idempotency key as the first try. */
+async function settleStrandedOrder(order: SyncOrder, payment: MercadoPagoPayment, ctx: SyncContext): Promise<void> {
+  if (!paymentMatchesOrder(order, payment)) return;
+  if (payment.status === "approved") await refundLateApproval(order, payment.id, ctx);
+  else if (payment.status === "refunded" || payment.status === "charged_back") await markRefunded(order, ctx.d.now(), "sold_out");
 }
 
 const lastReconcile = new Map<string, number>();
