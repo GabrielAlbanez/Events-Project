@@ -314,6 +314,7 @@ function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
     if (key === "OR") return value.some((part) => matches(row, part));
     if (key === "eventId_userId") return row.eventId === value.eventId && row.userId === value.userId;
+    if (key === "eventId_code") return row.eventId === value.eventId && row.code === value.code;
     return cmp(row[key], value);
   });
 }
@@ -377,6 +378,7 @@ function freshDb() {
     eventHistory: table("history", []), aiEventCandidate: table("candidate", []),
     eventRegistration: table("registration", [], () => ({ status: "CONFIRMED", qrVersion: 0, checkedInAt: null })),
     mercadoPagoAccount: table("mpaccount", [], () => ({ connectedAt: current })),
+    ticketCoupon: table("coupon", [], () => ({ percentOff: null, amountOffCents: null, maxUses: null, expiresAt: null, active: true })),
   };
   store.ticketOrder = table("order", [], () => ({ status: "PENDING", mpPaymentId: null, pixCopyPaste: null, pixQrBase64: null, paidAt: null, refundedAt: null }), {
     event: (row) => events.find((event) => event.id === row.eventId) ?? null,
@@ -1043,8 +1045,98 @@ function checkWiring() {
   for (const name of ["MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_WEBHOOK_SECRET", "TICKETS_ENCRYPTION_KEY", "MP_REDIRECT_URI", "CRON_SECRET"]) assert.match(envExample, new RegExp(`^${name}=\\s*$`, "m"), name + " documented without value");
 }
 
+
+// Discount coupons: created by the event owner, applied at checkout; the 20% fee is charged on the discounted price.
+function checkCouponRules(lib) {
+  assert.equal(lib.normalizeCouponCode(" amigo10 "), "AMIGO10");
+  assert.equal(lib.normalizeCouponCode("AB"), null, "too short");
+  assert.equal(lib.normalizeCouponCode("x".repeat(21)), null, "too long");
+  assert.equal(lib.normalizeCouponCode("amigo 10"), null, "no spaces");
+  assert.equal(lib.normalizeCouponCode(42), null);
+  assert.equal(lib.discountedTicketCents(5000, { percentOff: 10, amountOffCents: null }), 4500);
+  assert.equal(lib.discountedTicketCents(2999, { percentOff: 15, amountOffCents: null }), 2549, "percent discount rounded half up in the buyer's favor");
+  assert.equal(lib.discountedTicketCents(5000, { percentOff: null, amountOffCents: 1500 }), 3500);
+  assert.equal(lib.discountedTicketCents(800, { percentOff: null, amountOffCents: 2000 }), lib.TICKET_COUPON_MIN_CHARGE_CENTS, "never below the minimum charge");
+  assert.equal(lib.TICKET_COUPON_MIN_CHARGE_CENTS, 100);
+  assert.equal(lib.TICKET_COUPON_MAX_PERCENT, 90);
+}
+
+async function checkCoupons() {
+  const sec = load("lib/ticketSecurity.ts");
+  const service = load("lib/services/tickets.ts");
+  const as = (id, role = "BASIC") => async () => ({ id, role });
+  const mp = mockMercadoPago();
+  const deps = { fetch: mp.fetch, now: clock, env: ENV, statusCheckIntervalMs: 0, reconcileIntervalMs: 0 };
+  db = freshDb();
+  current = NOW;
+  db.mercadoPagoAccount.rows.push({ id: "acc-1", userId: "seller", mpUserId: "555", accessTokenEnc: sec.encryptTicketToken("APP_USR-stored", ENV), refreshTokenEnc: sec.encryptTicketToken("TG-stored", ENV), expiresAt: new Date(NOW.getTime() + 100 * 24 * 60 * MIN), connectedAt: NOW });
+
+  // Creation: owner only, validated, unique per event.
+  const make = (input, who = as("seller", "PROMOTER")) => service.createTicketCoupon({ eventId: "event-1", ...input }, who, deps);
+  assert.equal((await make({ code: "AMIGO10", percentOff: 10 }, as("buyer"))).success, false, "only the event owner creates coupons");
+  assert.equal((await make({ code: "AMIGO10", percentOff: 10 }, async () => null)).success, false);
+  assert.equal((await make({ code: "AB", percentOff: 10 })).success, false, "invalid code");
+  assert.equal((await make({ code: "TUDO", percentOff: 95 })).success, false, "percent capped at 90");
+  assert.equal((await make({ code: "AMBOS", percentOff: 10, amountOffCents: 500 })).success, false, "percent or amount, not both");
+  assert.equal((await make({ code: "NADA" })).success, false, "a discount is required");
+  const created = await make({ code: "amigo10", percentOff: 10, maxUses: 1 });
+  assert.equal(created.success, true, created.message);
+  assert.equal(created.data.code, "AMIGO10");
+  assert.equal((await make({ code: "AMIGO10", percentOff: 20 })).success, false, "duplicate code on the same event");
+  const cincoCreated = await make({ code: "CINCO", amountOffCents: 500, expiresAt: new Date(NOW.getTime() + 60 * MIN).toISOString() });
+  assert.equal(cincoCreated.success, true, cincoCreated.message);
+  assert.equal((await service.createTicketCoupon({ eventId: "event-open", code: "AMIGO10", percentOff: 10 }, as("seller", "PROMOTER"))).success, true, "same code allowed on another event");
+
+  // Preview: price after discount, without reserving anything.
+  const preview = await service.previewTicketCoupon({ eventId: "event-1", code: "amigo10" }, as("buyer"), deps);
+  assert.equal(preview.success, true, preview.message);
+  assert.deepEqual([preview.data.code, preview.data.discountCents, preview.data.finalCents], ["AMIGO10", 250, 2250]);
+  assert.equal((await service.previewTicketCoupon({ eventId: "event-1", code: "NAOEXISTE" }, as("buyer"), deps)).success, false);
+  assert.equal(db.ticketOrder.rows.length, 0, "preview reserves nothing");
+
+  // Checkout with a coupon: Pix charged at the discounted price, fee 20% of that, discount recorded on the order.
+  const bought = await service.createTicketOrder({ eventId: "event-1", couponCode: "amigo10" }, as("buyer"), deps);
+  assert.equal(bought.success, true, bought.message);
+  const order = db.ticketOrder.rows.find((row) => row.id === bought.data.id);
+  assert.deepEqual([order.unitCents, order.feeCents, order.discountCents, order.couponId], [2250, 450, 250, created.data.id]);
+  const pixCall = mp.calls.filter((call) => call.url.endsWith("/v1/payments") && call.method === "POST").at(-1);
+  assert.deepEqual([pixCall.body.transaction_amount, pixCall.body.application_fee], [22.5, 4.5]);
+  // Usage limit counts paid and still-open orders.
+  const limited = await service.createTicketOrder({ eventId: "event-1", couponCode: "AMIGO10" }, as("buyer2"), deps);
+  assert.equal(limited.success, false);
+  assert.match(limited.message, /cupom/i);
+  assert.equal((await service.previewTicketCoupon({ eventId: "event-1", code: "AMIGO10" }, as("buyer2"), deps)).success, false, "preview also respects the limit");
+  // Once the Pix expires unpaid, the use is released.
+  current = new Date(NOW.getTime() + 31 * MIN);
+  assert.equal((await service.previewTicketCoupon({ eventId: "event-1", code: "AMIGO10" }, as("buyer2"), deps)).success, true, "expired Pix frees the coupon");
+  // Expired coupon.
+  current = new Date(NOW.getTime() + 61 * MIN);
+  assert.equal((await service.previewTicketCoupon({ eventId: "event-1", code: "CINCO" }, as("buyer2"), deps)).success, false, "coupon past its expiry");
+  current = NOW;
+  // Deactivated coupon; only the owner can toggle it.
+  const cinco = db.ticketCoupon.rows.find((row) => row.code === "CINCO");
+  assert.equal((await service.setTicketCouponActive({ couponId: cinco.id, active: false }, as("buyer"))).success, false);
+  assert.equal((await service.setTicketCouponActive({ couponId: cinco.id, active: false }, as("seller", "PROMOTER"))).success, true);
+  assert.equal((await service.createTicketOrder({ eventId: "event-1", couponCode: "CINCO" }, as("buyer2"), deps)).success, false, "inactive coupon refused");
+  // Without a coupon the full price applies; a client cannot send its own price.
+  const full = await service.createTicketOrder({ eventId: "event-1" }, as("buyer2"), deps);
+  assert.equal(full.success, true, full.message);
+  const fullRow = db.ticketOrder.rows.find((row) => row.id === full.data.id);
+  assert.deepEqual([fullRow.unitCents, fullRow.feeCents, fullRow.discountCents ?? 0, fullRow.couponId ?? null], [2500, 500, 0, null]);
+  assert.equal((await service.createTicketOrder({ eventId: "event-1", unitCents: 1 }, as("google"), deps)).success, false, "unknown fields rejected");
+
+  // Owner listing with uses.
+  const listed = await service.listTicketCoupons("event-1", as("seller", "PROMOTER"), deps);
+  assert.equal(listed.success, true, listed.message);
+  const amigo = listed.data.find((row) => row.code === "AMIGO10");
+  assert.deepEqual([amigo.percentOff, amigo.maxUses, amigo.uses, amigo.active], [10, 1, 1, true]);
+  assert.equal(listed.data.find((row) => row.code === "CINCO").active, false);
+  assert.equal((await service.listTicketCoupons("event-1", as("buyer"), deps)).success, false, "buyers cannot list coupons");
+}
+
 (async () => {
   checkPure(load("lib/tickets.ts"));
+  checkCouponRules(load("lib/tickets.ts"));
   checkSecurity(load("lib/ticketSecurity.ts"));
   const mpLib = load("lib/mercadopago.ts");
   checkClient(mpLib);
@@ -1052,6 +1144,7 @@ function checkWiring() {
   await checkService();
   await checkHardening();
   await checkFinancialRecords();
+  await checkCoupons();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -2,7 +2,7 @@
 
 import { getAuthenticatedAdminId, getAuthenticatedUser } from "@/lib/adminAuth";
 import * as tickets from "@/lib/services/tickets";
-import type { CreateTicketOrderInput, TicketOrderInput } from "@/schemas/tickets";
+import type { CreateTicketCouponInput, CreateTicketOrderInput, TicketCouponPreviewInput, TicketCouponToggleInput, TicketOrderInput } from "@/schemas/tickets";
 
 // Buying, connecting and refunding move money for the real account holder: impersonated sessions can only read.
 const resolveAccountHolder = () => getAuthenticatedUser(undefined, { allowImpersonation: false });
@@ -47,4 +47,20 @@ export async function refundTicketOrder(input: TicketOrderInput) {
 
 export async function getAdminTicketOverview() {
   return tickets.getAdminTicketOverview(resolveAdmin);
+}
+
+export async function createTicketCoupon(input: CreateTicketCouponInput) {
+  return tickets.createTicketCoupon(input, resolveAccountHolder);
+}
+
+export async function listTicketCoupons(eventId: string) {
+  return tickets.listTicketCoupons(eventId, resolveViewer);
+}
+
+export async function setTicketCouponActive(input: TicketCouponToggleInput) {
+  return tickets.setTicketCouponActive(input, resolveAccountHolder);
+}
+
+export async function previewTicketCoupon(input: TicketCouponPreviewInput) {
+  return tickets.previewTicketCoupon(input, resolveViewer);
 }

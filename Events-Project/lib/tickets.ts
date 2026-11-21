@@ -35,6 +35,25 @@ export function isValidTicketPrice(cents: unknown): cents is number {
   return typeof cents === "number" && Number.isInteger(cents) && cents >= TICKET_MIN_CENTS && cents <= TICKET_MAX_CENTS;
 }
 
+export const TICKET_COUPON_MIN_CHARGE_CENTS = 100;
+export const TICKET_COUPON_MAX_PERCENT = 90;
+export const TICKET_COUPON_CODE_PATTERN = /^[A-Z0-9_-]{3,20}$/;
+
+/** Coupon codes are case-insensitive: stored and compared uppercase. Null when the code is not acceptable. */
+export function normalizeCouponCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const code = raw.trim().toUpperCase();
+  return TICKET_COUPON_CODE_PATTERN.test(code) ? code : null;
+}
+
+export type TicketCouponDiscount = { percentOff: number | null; amountOffCents: number | null };
+
+/** Price the buyer pays with a coupon. The discount rounds in the buyer's favor and never charges below R$ 1,00. */
+export function discountedTicketCents(priceCents: number, coupon: TicketCouponDiscount): number {
+  const discount = coupon.percentOff != null ? Math.round((priceCents * coupon.percentOff) / 100) : coupon.amountOffCents ?? 0;
+  return Math.max(TICKET_COUPON_MIN_CHARGE_CENTS, priceCents - discount);
+}
+
 export function formatTicketAmount(cents: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }

@@ -161,6 +161,7 @@ model Events {
   aiImport AiEventCandidate?
   promotions EventPromotion[]
   ticketOrders TicketOrder[]
+  ticketCoupons TicketCoupon[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
   @@map("events")
@@ -725,8 +726,11 @@ model TicketOrder {
   expiresAt    DateTime
   paidAt       DateTime?
   refundedAt   DateTime?
+  couponId     String?
+  discountCents Int              @default(0)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+  coupon       TicketCoupon?     @relation(fields: [couponId], references: [id], onDelete: SetNull)
   event        Events            @relation(fields: [eventId], references: [id], onDelete: Restrict)
   buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
   seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Restrict)
@@ -735,4 +739,23 @@ model TicketOrder {
   @@index([buyerId, createdAt])
   @@index([sellerId, status])
   @@map("ticket_orders")
+}
+
+/// Discount code created by the event owner. Never deleted from the UI (deactivated instead); uses are counted from orders.
+model TicketCoupon {
+  id             String        @id @default(uuid())
+  eventId        String
+  code           String
+  percentOff     Int?
+  amountOffCents Int?
+  maxUses        Int?
+  expiresAt      DateTime?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  event          Events        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orders         TicketOrder[]
+
+  @@unique([eventId, code])
+  @@map("ticket_coupons")
 }

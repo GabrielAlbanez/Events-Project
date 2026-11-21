@@ -5,7 +5,7 @@ import { notificationCopy } from "@/lib/notifications/catalog";
 import type { ResolveAdminId, ResolveCurrentUser } from "@/lib/services/authContext";
 import {
   TICKET_FEE_PERCENT, TICKET_ORDER_RATE_LIMIT, TICKET_ORDER_RATE_WINDOW_MS, TICKET_ORDER_TTL_MS,
-  isOpenTicketOrder, shortTicketCode, ticketEligibility, ticketFeeCents, ticketSeatsLeft, ticketSettingsError,
+  discountedTicketCents, isOpenTicketOrder, normalizeCouponCode, shortTicketCode, ticketEligibility, ticketFeeCents, ticketSeatsLeft, ticketSettingsError,
   type TicketBlockCode, type TicketOrderStatusValue,
 } from "@/lib/tickets";
 import { eventInstant } from "@/lib/eventTime";
@@ -14,7 +14,7 @@ import {
   MercadoPagoError, cancelMercadoPagoPayment, createMercadoPagoPixPayment, exchangeMercadoPagoCode, getMercadoPagoPayment, mercadoPagoAuthorizeUrl, mercadoPagoConfig,
   refreshMercadoPagoToken, refundMercadoPagoPayment, type MercadoPagoConfig, type MercadoPagoPayment, type MercadoPagoTokens, type MpFetch, type PixPayment,
 } from "@/lib/mercadopago";
-import { connectCallbackSchema, createTicketOrderSchema, ticketOrderSchema } from "@/schemas/tickets";
+import { connectCallbackSchema, createTicketCouponSchema, createTicketOrderSchema, ticketCouponPreviewSchema, ticketCouponToggleSchema, ticketOrderSchema } from "@/schemas/tickets";
 
 type Env = Record<string, string | undefined>;
 /** Everything external is injectable so the offline suite never touches the network or the real clock. */
@@ -418,10 +418,19 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       const recent = await tx.ticketOrder.count({ where: { buyerId: user.id, createdAt: { gte: new Date(now.getTime() - TICKET_ORDER_RATE_WINDOW_MS) } } });
       if (recent >= TICKET_ORDER_RATE_LIMIT) return { kind: "blocked", message: "Muitas tentativas de compra em pouco tempo. Aguarde alguns minutos e tente novamente." };
       if (event.ticketCapacity != null && await seatsTaken(tx, event.id, now) >= event.ticketCapacity) return { kind: "blocked", message: "Ingressos esgotados." };
+      let unitCents = event.priceCents;
+      let coupon: { id: string; discountCents: number } | null = null;
+      if (parsed.data.couponCode) {
+        const applied = await resolveCoupon(tx, event.id, event.priceCents, parsed.data.couponCode, now);
+        if (!applied.ok) return { kind: "blocked", message: applied.message };
+        unitCents = applied.finalCents;
+        coupon = { id: applied.couponId, discountCents: applied.discountCents };
+      }
       const order = await tx.ticketOrder.create({
         data: {
-          eventId: event.id, buyerId: user.id, sellerId: event.userId!, unitCents: event.priceCents, feeCents: ticketFeeCents(event.priceCents),
+          eventId: event.id, buyerId: user.id, sellerId: event.userId!, unitCents, feeCents: ticketFeeCents(unitCents),
           expiresAt: new Date(now.getTime() + TICKET_ORDER_TTL_MS),
+          ...(coupon ? { couponId: coupon.id, discountCents: coupon.discountCents } : {}),
         },
         select: orderSelect,
       });
@@ -475,6 +484,129 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
     console.warn("ticket-pix-cancel-failed");
   }
   return pixError;
+}
+
+// ---------- Discount coupons ----------
+
+export type TicketCouponView = {
+  id: string; code: string; percentOff: number | null; amountOffCents: number | null; maxUses: number | null;
+  expiresAt: string | null; active: boolean; uses: number; createdAt: string;
+};
+export type TicketCouponPreview = { code: string; priceCents: number; discountCents: number; finalCents: number };
+type CouponCheck = { ok: true; couponId: string; code: string; discountCents: number; finalCents: number } | { ok: false; message: string };
+const couponInvalid = "Cupom inválido para este evento.";
+const couponSelect = { id: true, eventId: true, code: true, percentOff: true, amountOffCents: true, maxUses: true, expiresAt: true, active: true, createdAt: true } satisfies Prisma.TicketCouponSelect;
+
+/** Uses held by a coupon: paid orders plus Pix still open. An unpaid Pix that expired gives its use back. */
+function couponUses(db: Prisma.TransactionClient | typeof prisma, couponId: string, now: Date): Promise<number> {
+  return db.ticketOrder.count({ where: { couponId, OR: [{ status: "PAID" }, { status: "PENDING", expiresAt: { gt: now } }] } });
+}
+
+async function resolveCoupon(db: Prisma.TransactionClient | typeof prisma, eventId: string, priceCents: number, rawCode: string, now: Date): Promise<CouponCheck> {
+  const code = normalizeCouponCode(rawCode);
+  if (!code) return { ok: false, message: couponInvalid };
+  const coupon = await db.ticketCoupon.findUnique({ where: { eventId_code: { eventId, code } }, select: couponSelect });
+  if (!coupon || !coupon.active) return { ok: false, message: couponInvalid };
+  if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() <= now.getTime()) return { ok: false, message: "Este cupom expirou." };
+  if (coupon.maxUses != null && await couponUses(db, coupon.id, now) >= coupon.maxUses) return { ok: false, message: "Este cupom já atingiu o limite de usos." };
+  const finalCents = discountedTicketCents(priceCents, coupon);
+  return { ok: true, couponId: coupon.id, code, discountCents: priceCents - finalCents, finalCents };
+}
+
+/** Event owned by the user (coupon management is the organizer's, not an admin's). */
+async function ownedTicketEvent(eventId: string, userId: string) {
+  const event = await prisma.events.findUnique({ where: { id: eventId }, select: { id: true, userId: true, priceCents: true } });
+  return event && event.userId === userId ? event : null;
+}
+
+function couponView(row: Prisma.TicketCouponGetPayload<{ select: typeof couponSelect }>, uses: number): TicketCouponView {
+  return {
+    id: row.id, code: row.code, percentOff: row.percentOff, amountOffCents: row.amountOffCents, maxUses: row.maxUses,
+    expiresAt: iso(row.expiresAt), active: row.active, uses, createdAt: new Date(row.createdAt).toISOString(),
+  };
+}
+
+export async function createTicketCoupon(rawInput: unknown, resolveAccountHolder: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<TicketCouponView>> {
+  const d = resolveDeps(deps);
+  const user = await resolveAccountHolder();
+  if (!user) return denied;
+  const parsed = createTicketCouponSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, message: "Confira o cupom: desconto de 1% a 90% ou valor a partir de R$ 1,00." };
+  const input = parsed.data;
+  const code = normalizeCouponCode(input.code);
+  if (!code) return { success: false, message: "Use de 3 a 20 letras, números, - ou _ no código do cupom." };
+  if ((input.percentOff == null) === (input.amountOffCents == null)) return { success: false, message: "Escolha um desconto em porcentagem ou em valor." };
+  if (input.expiresAt && new Date(input.expiresAt).getTime() <= d.now().getTime()) return { success: false, message: "A validade do cupom precisa ser no futuro." };
+  try {
+    const event = await ownedTicketEvent(input.eventId, user.id);
+    if (!event) return denied;
+    const duplicate = await prisma.ticketCoupon.findUnique({ where: { eventId_code: { eventId: event.id, code } }, select: { id: true } });
+    if (duplicate) return { success: false, message: "Já existe um cupom com esse código neste evento." };
+    const row = await prisma.ticketCoupon.create({
+      data: {
+        eventId: event.id, code, percentOff: input.percentOff ?? null, amountOffCents: input.amountOffCents ?? null,
+        maxUses: input.maxUses ?? null, expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      },
+      select: couponSelect,
+    });
+    return { success: true, message: "Cupom criado.", data: couponView(row, 0) };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { success: false, message: "Já existe um cupom com esse código neste evento." };
+    console.warn("ticket-coupon-create-failed");
+    return genericError;
+  }
+}
+
+export async function listTicketCoupons(eventId: string, resolveViewer: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<TicketCouponView[]>> {
+  const d = resolveDeps(deps);
+  const user = await resolveViewer();
+  if (!user || typeof eventId !== "string" || !eventId) return denied;
+  try {
+    const event = await ownedTicketEvent(eventId, user.id);
+    if (!event) return denied;
+    const rows = await prisma.ticketCoupon.findMany({ where: { eventId: event.id }, orderBy: { createdAt: "desc" }, take: 100, select: couponSelect });
+    const now = d.now();
+    const data = await Promise.all(rows.map(async (row) => couponView(row, await couponUses(prisma, row.id, now))));
+    return { success: true, message: "", data };
+  } catch {
+    console.warn("ticket-coupon-list-failed");
+    return genericError;
+  }
+}
+
+export async function setTicketCouponActive(rawInput: unknown, resolveAccountHolder: ResolveCurrentUser): Promise<TicketResult> {
+  const user = await resolveAccountHolder();
+  if (!user) return denied;
+  const parsed = ticketCouponToggleSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, message: "Cupom não encontrado." };
+  try {
+    const coupon = await prisma.ticketCoupon.findUnique({ where: { id: parsed.data.couponId }, select: { id: true, eventId: true } });
+    if (!coupon || !await ownedTicketEvent(coupon.eventId, user.id)) return denied;
+    await prisma.ticketCoupon.update({ where: { id: coupon.id }, data: { active: parsed.data.active } });
+    return { success: true, message: parsed.data.active ? "Cupom reativado." : "Cupom desativado.", data: undefined };
+  } catch {
+    console.warn("ticket-coupon-toggle-failed");
+    return genericError;
+  }
+}
+
+/** Shows the discounted price before the Pix is generated. Reserves nothing; the checkout checks the coupon again. */
+export async function previewTicketCoupon(rawInput: unknown, resolveViewer: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<TicketCouponPreview>> {
+  const d = resolveDeps(deps);
+  const user = await resolveViewer();
+  if (!user) return loginRequired;
+  const parsed = ticketCouponPreviewSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, message: couponInvalid };
+  try {
+    const event = await prisma.events.findUnique({ where: { id: parsed.data.eventId }, select: { id: true, priceCents: true, ticketsEnabled: true, isFree: true } });
+    if (!event || !event.ticketsEnabled || event.isFree) return { success: false, message: couponInvalid };
+    const applied = await resolveCoupon(prisma, event.id, event.priceCents, parsed.data.code, d.now());
+    if (!applied.ok) return { success: false, message: applied.message };
+    return { success: true, message: "Cupom aplicado.", data: { code: applied.code, priceCents: event.priceCents, discountCents: applied.discountCents, finalCents: applied.finalCents } };
+  } catch {
+    console.warn("ticket-coupon-preview-failed");
+    return genericError;
+  }
 }
 
 // ---------- Confirmation (webhook + live check) ----------
