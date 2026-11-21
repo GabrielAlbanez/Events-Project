@@ -7,7 +7,7 @@ import { publicSiteUrl } from "@/lib/publicUrl";
 
 const TITLE = "Como funciona o EventMap — descubra, participe e viva cada evento";
 const DESCRIPTION = "Veja como o EventMap funciona: encontre eventos perto de você no mapa, salve, receba lembretes, confirme presença ou compre o ingresso por Pix e entre com seu QR Code.";
-const OG_IMAGE = { url: "/landing/agenda.jpg", width: 1860, height: 1185, alt: "Agenda de eventos do EventMap" };
+const OG_IMAGE = { url: "/landing/descoberta-mapa.jpg", width: 2000, height: 1280, alt: "Descoberta de eventos no mapa do EventMap" };
 
 function siteBase(): URL | undefined {
   try { return publicSiteUrl(); } catch { return undefined; }

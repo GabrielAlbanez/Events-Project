@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Screenshot } from "./DeviceFrames";
+import { DEMO_DATA_CAPTION, Screenshot } from "./DeviceFrames";
 import styles from "./Landing.module.css";
 
 export function OrganizersSection() {
@@ -25,6 +25,7 @@ export function OrganizersSection() {
           width={1800}
           height={1140}
           sizes="(max-width: 860px) 92vw, 720px"
+          caption={DEMO_DATA_CAPTION}
           className={styles.bandShot}
         />
       </div>
