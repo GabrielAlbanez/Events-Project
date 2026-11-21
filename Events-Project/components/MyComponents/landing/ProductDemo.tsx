@@ -216,10 +216,10 @@ const POLL = [
 ];
 
 const URLS: Record<ViewName, string> = {
-  discovery: "eventmap.com.br",
-  event: "eventmap.com.br/eventos/jazz-no-terraco",
-  community: "eventmap.com.br/eventos/jazz-no-terraco/comunidade",
-  checkin: "eventmap.com.br/eventos/jazz-no-terraco",
+  discovery: "seu-eventmap.app",
+  event: "seu-eventmap.app/eventos/jazz-no-terraco",
+  community: "seu-eventmap.app/eventos/jazz-no-terraco/comunidade",
+  checkin: "seu-eventmap.app/eventos/jazz-no-terraco",
 };
 
 const DESIGN = {
@@ -671,7 +671,7 @@ function CommunityView({ state, compact }: { state: DemoState; compact: boolean 
               <div className={styles.chatHead}>
                 <MessageCircle />
                 <h3>Chat dos participantes</h3>
-                <span className={styles.online}><span />Conectado ao chat</span>
+                <span className={styles.online}><span />{compact ? "Conectado" : "Conectado ao chat"}</span>
               </div>
               <div className={styles.chatBody}>
                 {visibleMessages.map((message) => (
@@ -970,13 +970,30 @@ export default function ProductDemo() {
     const screen = screenRef.current;
     const stage = stageRef.current;
     if (!screen || !stage) return;
-    const target = stage.querySelector<HTMLElement>(`[data-demo-target="${cursorTarget}"]`);
-    if (!target) return;
-    const screenBox = screen.getBoundingClientRect();
-    const box = target.getBoundingClientRect();
-    const x = box.left - screenBox.left + Math.min(box.width / 2, 120);
-    const y = box.top - screenBox.top + box.height * 0.55;
-    setCursor((prev) => (prev.ready && Math.abs(prev.x - x) < 0.5 && Math.abs(prev.y - y) < 0.5 ? prev : { x, y, ready: true }));
+    const measure = () => {
+      const target = stage.querySelector<HTMLElement>(`[data-demo-target="${cursorTarget}"]`);
+      if (!target) return;
+      const screenBox = screen.getBoundingClientRect();
+      const box = target.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) return;
+      const x = box.left - screenBox.left + Math.min(box.width / 2, 120);
+      const y = box.top - screenBox.top + box.height * 0.55;
+      setCursor((prev) => (prev.ready && Math.abs(prev.x - x) < 0.5 && Math.abs(prev.y - y) < 0.5 ? prev : { x, y, ready: true }));
+    };
+    measure();
+    // Reajusta quando zoom do mapa, rolagem simulada ou entradas terminam de se mover.
+    let frame = 0;
+    const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    stage.addEventListener("transitionend", settle);
+    stage.addEventListener("animationend", settle);
+    return () => {
+      cancelAnimationFrame(frame);
+      stage.removeEventListener("transitionend", settle);
+      stage.removeEventListener("animationend", settle);
+    };
   }, [cursorTarget, scale, layout, reduced, state.view]);
 
   const setBar = (element: HTMLSpanElement | null) => {

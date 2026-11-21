@@ -1,5 +1,5 @@
-Status: EM ANDAMENTO
+Status: CONCLUÍDO
 # HANDOFF — 2026-11-21 — Landing comercial /produto
 - Feito: auditoria comercial e estratégia em docs/marketing/estrategia-comercial.md; screenshots reais em public/landing/.
-- Em curso: landing app/produto + components/MyComponents/landing/* e demo interativa ProductDemo (subagentes).
-- Próximo: QA (tsc, lint, build, screenshots responsivos claro/escuro), commit e push na branch claude/brave-euler-we7l2h.
+- Concluído: landing /produto, demo interativa ProductDemo, link no header e sidebar; tsc, lint e build aprovados.
+- Próximo: decisões do roadmap P0 (onboarding de organizador, canal de contato comercial, socket sempre ativo).

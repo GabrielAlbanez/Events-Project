@@ -37,6 +37,7 @@ const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarCheck },
   { label: "Mapa de eventos", href: "/#home-discovery", icon: Map },
+  { label: "Para organizadores", href: "/produto", icon: Sparkles },
   { label: "Minha agenda", href: "/salvos", icon: CalendarCheck, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Central de atividades", href: "/atividade", icon: LayoutDashboard, roles: ["ADMIN", "PROMOTER", "BASIC"] },
   { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: ["ADMIN", "PROMOTER", "BASIC"] },
@@ -68,7 +69,7 @@ export function AppSidebar() {
   const role = authenticatedUser?.role;
   const visibleItems = navigation.filter((item) => !item.roles || (role !== null && role !== undefined && item.roles.includes(role)));
   const groups = [
-    { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery"] },
+    { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery", "/produto"] },
     { label: "Participar", paths: ["/salvos", "/atividade", "/salas", "/notificacoes", "/Profile"] },
     { label: "Organizar", paths: ["/CriarEvento", "/myEvents", "/resultados"] },
     { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/conexoes-denuncias", "/admin/auditoria"] },

@@ -1061,7 +1061,7 @@
   font-size: 11.5px;
   font-weight: 650;
   white-space: nowrap;
-  transform: translateX(-30%);
+  transform: translateX(-14px);
   animation: fadeUp 0.3s var(--ease-out) both;
 }
 
@@ -1237,11 +1237,7 @@
 }
 
 .compact .mapPill {
-  top: 12px;
-  bottom: auto;
-  left: 12px;
-  padding: 6px 10px;
-  font-size: 11px;
+  display: none;
 }
 
 .pillDot {
@@ -1864,6 +1860,10 @@
   gap: 8px;
 }
 
+.chatHead h3 {
+  white-space: nowrap;
+}
+
 .pollHead > svg,
 .chatHead > svg {
   width: 17px;
@@ -1974,6 +1974,8 @@
   justify-content: flex-end;
   gap: 9px;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px);
+  mask-image: linear-gradient(to bottom, transparent, #000 28px);
 }
 
 .compact .chatBody {
