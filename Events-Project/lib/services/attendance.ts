@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, RegistrationStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { eventInstant } from "@/lib/eventTime";
+import { ticketPaymentsConfigured } from "@/lib/ticketSecurity";
 
 const tokenLifetimeMs = 5 * 60 * 1000;
 const retryLimit = 3;
@@ -39,7 +40,7 @@ function assertOpen(event: { status: string; dataInicio: string; startTime: stri
 async function eventForRegistration(tx: Prisma.TransactionClient, eventId: string) {
   const event = await tx.events.findUnique({ where: { id: eventId }, select: {
     id: true, status: true, dataInicio: true, startTime: true, timezone: true,
-    capacity: true, userId: true,
+    capacity: true, userId: true, ticketsEnabled: true, isFree: true,
   } });
   if (!event) throw new AttendanceError("Evento não encontrado.", 404);
   return event;
@@ -95,6 +96,8 @@ export async function registerForEvent(eventId: string, userId: string) {
     const event = await eventForRegistration(tx, eventId);
     assertOpen(event);
     if (event.userId === userId) throw new AttendanceError("O organizador não pode se inscrever no próprio evento.", 409);
+    // While EventMap sells the tickets, the registration (and its QR) comes only from a paid order.
+    if (event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()) throw new AttendanceError("Este evento vende ingressos pelo EventMap. Compre seu ingresso para participar.", 409);
     const existing = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (existing && existing.status !== "CANCELLED") return { id: existing.id, status: existing.status };
     let confirmedCount = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
@@ -119,6 +122,9 @@ export async function cancelRegistration(eventId: string, userId: string) {
     const registration = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (!registration || registration.status === "CANCELLED") return { status: "CANCELLED" as const, promotedUserId: null };
     if (registration.status === "CHECKED_IN") throw new AttendanceError("Uma entrada já validada não pode ser cancelada.", 409);
+    // A paid ticket is cancelled by the organizer with a refund, never silently by the buyer.
+    const paid = await tx.ticketOrder.findFirst({ where: { eventId, buyerId: userId, status: "PAID" }, select: { id: true } });
+    if (paid) throw new AttendanceError("Ingressos pagos são cancelados pela organização com estorno. Fale com quem organiza o evento.", 409);
     await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
     let promotedUserId: string | null = null;
     if (registration.status === "CONFIRMED") {

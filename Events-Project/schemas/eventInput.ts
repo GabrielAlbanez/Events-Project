@@ -40,6 +40,18 @@ export function parseEventInput(form: FormData, submit: boolean) {
   if (!result.success) return { success: false as const, message: result.error.issues[0].message };
   if (submit && (result.data.nome.length < 3 || result.data.descricao.length < 10 || result.data.endereco.length < 3 || !result.data.dataInicio || !result.data.dataFim))
     return { success: false as const, message: "Informe nome e endereço com pelo menos 3 caracteres, descrição com 10 caracteres e datas antes de enviar." };
-  if (submit && !result.data.isFree && !result.data.linkParaCompra) return { success: false as const, message: "Informe um link de ingressos para o evento pago." };
+  // Events sold through EventMap do not need an external ticket link (the settings are checked by the event service).
+  if (submit && !result.data.isFree && !result.data.linkParaCompra && text("ticketsEnabled") !== "true") return { success: false as const, message: "Informe um link de ingressos para o evento pago." };
   return { success: true as const, data: { ...result.data, priceCents: result.data.isFree ? 0 : result.data.priceCents } };
+}
+const ticketSettingsSchema = z.object({
+  ticketsEnabled: z.boolean(),
+  ticketCapacity: z.number().int().min(1, "Informe uma lotação de ingressos inteira e positiva.").max(1000000, "A lotação de ingressos pode ter até 1 milhão.").nullable(),
+});
+/** EventMap ticket sales settings. Null when the form does not send them (older clients keep the stored values). */
+export function parseTicketSettings(form: FormData) {
+  if (!form.has("ticketsEnabled")) return null;
+  const capacity = String(form.get("ticketCapacity") ?? "").trim();
+  const result = ticketSettingsSchema.safeParse({ ticketsEnabled: form.get("ticketsEnabled") === "true", ticketCapacity: capacity === "" ? null : Number(capacity) });
+  return result.success ? { success: true as const, data: result.data } : { success: false as const, message: result.error.issues[0].message };
 }

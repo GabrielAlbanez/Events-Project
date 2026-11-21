@@ -60,6 +60,9 @@ model User {
   impersonationsReceived ImpersonationSession[] @relation("ImpersonationTarget")
   promotionsRequested EventPromotion[] @relation("PromotionRequester")
   promotionsReviewed  EventPromotion[] @relation("PromotionReviewer")
+  mercadoPagoAccount  MercadoPagoAccount?
+  ticketsBought       TicketOrder[] @relation("TicketBuyer")
+  ticketsSold         TicketOrder[] @relation("TicketSeller")
 }
 
 model ImpersonationSession {
@@ -127,6 +130,8 @@ model Events {
   category           String                @default("Outros")
   isFree             Boolean               @default(false)
   priceCents         Int                   @default(0)
+  ticketsEnabled     Boolean               @default(false)
+  ticketCapacity     Int?
   lat                Float?
   lng                Float?
   startTime          String?
@@ -155,6 +160,7 @@ model Events {
   partyReports PartyReport[]
   aiImport AiEventCandidate?
   promotions EventPromotion[]
+  ticketOrders TicketOrder[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
   @@map("events")
@@ -679,4 +685,54 @@ model EventPromotion {
   @@index([eventId, status])
   @@index([status, endsAt])
   @@map("event_promotions")
+}
+
+/// Organizer's Mercado Pago account connected by OAuth (marketplace). Tokens are AES-256-GCM encrypted; never sent to clients or logs.
+model MercadoPagoAccount {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  mpUserId        String
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mercado_pago_accounts")
+}
+
+enum TicketOrderStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+/// One Pix ticket per buyer per event. PENDING orders reserve a seat until expiresAt; PAID creates/activates the EventRegistration.
+model TicketOrder {
+  id           String            @id @default(uuid())
+  eventId      String
+  buyerId      String
+  sellerId     String
+  unitCents    Int
+  feeCents     Int
+  status       TicketOrderStatus @default(PENDING)
+  mpPaymentId  String?           @unique
+  pixCopyPaste String?
+  pixQrBase64  String?
+  expiresAt    DateTime
+  paidAt       DateTime?
+  refundedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  event        Events            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, status])
+  @@map("ticket_orders")
 }

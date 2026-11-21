@@ -37,6 +37,7 @@
     "test:password-sessions": "node scripts/verify-password-session-revocation.cjs",
     "test:notifications": "node scripts/verify-notifications.cjs && node scripts/verify-notification-push.cjs && node scripts/verify-notification-services.cjs",
     "test:promotions": "node scripts/verify-promotions.cjs",
+    "test:tickets": "node scripts/verify-tickets.cjs",
     "test:offline": "node scripts/run-offline-tests.cjs",
     "typecheck": "tsc --noEmit --incremental false"
   },

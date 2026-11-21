@@ -41,6 +41,13 @@ async function run(){
 for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),true);
 for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),false);
 assert.equal(canAccessPath("PROMOTER","/myEvents/a/b/destaque"),false);
+// Ticket sales routes (a missing entry once redirected organizers home).
+for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/pagamentos"),true);
+for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/pagamentos"),false);
+for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/ingressos"),true);
+assert.equal(canAccessPath("GUEST","/ingressos"),false);
+assert.equal(canAccessPath("ADMIN","/admin/ingressos"),true);
+for(const role of ["BASIC","PROMOTER"])assert.equal(canAccessPath(role,"/admin/ingressos"),false);
 const {routeShowsOwnRealtimeStatus}=load("lib/realtimeRoutes.ts");
 for(const route of ["/eventos/e1/chat","/eventos/e1/conexoes/m1"])assert.equal(routeShowsOwnRealtimeStatus(route),true,route);
 for(const route of ["/","/eventos/e1","/eventos/e1/conexoes","/EventsCreated",null])assert.equal(routeShowsOwnRealtimeStatus(route),false,String(route));

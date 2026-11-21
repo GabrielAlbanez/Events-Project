@@ -5,7 +5,8 @@ import { eventUpdateNotice, sensitiveEventChanges, sensitiveFieldLabels } from "
 import { reconcileEventWaitlist } from "@/lib/services/attendance";
 import { notifyEventAudience } from "@/lib/eventNotifications";
 import { publicEventSelect } from "@/lib/eventQueries";
-import { parseEventInput } from "@/schemas/eventInput";
+import { parseEventInput, parseTicketSettings } from "@/schemas/eventInput";
+import { ticketSettingsProblem } from "@/lib/services/tickets";
 import { Prisma, EventHistoryAction } from "@prisma/client";
 import { saveEventImage, removeEventImages } from "@/lib/storage/eventImages";
 import { uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
@@ -43,6 +44,14 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const parsed = parseEventInput(formData, submit || existing?.status === "PUBLISHED");
         if (!parsed.success)
             return parsed;
+        // Ticket sales: older clients omit the fields and keep the stored settings; enabling is always re-checked here.
+        const ticketInput = parseTicketSettings(formData);
+        if (ticketInput && !ticketInput.success)
+            return ticketInput;
+        const ticketSettings = ticketInput?.data ?? { ticketsEnabled: existing?.ticketsEnabled ?? false, ticketCapacity: existing?.ticketCapacity ?? null };
+        const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents });
+        if (ticketProblem)
+            return { success: false, message: ticketProblem };
         const bannerFile = formData.get("banner");
         let banner = existing?.banner ?? "";
         if (bannerFile instanceof File && bannerFile.size) {
@@ -66,7 +75,7 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const capacityGrew = liveUpdate && existing !== null && existing.capacity !== null && (parsed.data.capacity === null || parsed.data.capacity > existing.capacity);
         const evento = await prisma.$transaction(async (transaction) => {
             const reviewReset = liveUpdate ? {} : { validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
-            const data = { ...parsed.data, banner, carrossel, status, ...reviewReset };
+            const data = { ...parsed.data, ...ticketSettings, banner, carrossel, status, ...reviewReset };
             // Older clients omit these fields: preserve existing information until explicitly edited.
             if (existing) {
                 if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
@@ -116,7 +125,7 @@ export async function getOwnedEvent(id: string, resolveCurrentUser: ResolveCurre
     const user = await actor(resolveCurrentUser);
     if (!user)
         return null;
-    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true } });
+    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true, ticketsEnabled: true, ticketCapacity: true } });
     return event ? { ...event, validate: event.validate ?? false } : null;
 }
 export async function duplicarEvento(eventId: string, resolveCurrentUser: ResolveCurrentUser) {
@@ -155,13 +164,19 @@ export async function cancelarEvento(eventId: string, resolveCurrentUser: Resolv
             const event = await transaction.events.findFirst({ where: { id: eventId, ...(user.role === "ADMIN" ? {} : { userId: user.id }) } });
             if (!event || event.status !== "PUBLISHED")
                 return null;
-            const changed = await transaction.events.update({ where: { id: event.id }, data: { status: "CANCELLED", validate: false } });
+            // Sold tickets must be refunded first (and open Pix payments must finish), so no buyer stays charged for a cancelled event.
+            const ticketsOutstanding = await transaction.ticketOrder.count({ where: { eventId: event.id, OR: [{ status: "PAID" }, { status: "PENDING", expiresAt: { gt: new Date() } }] } });
+            if (ticketsOutstanding)
+                return "TICKETS_OUTSTANDING" as const;
+            const changed = await transaction.events.update({ where: { id: event.id }, data: { status: "CANCELLED", validate: false, ticketsEnabled: false } });
             await record(transaction, changed, user, "CANCELLED");
             // Notify attendees before closing their registrations (BE-02).
             await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: changed.nome + " foi cancelado pelo organizador. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
             await transaction.eventRegistration.updateMany({ where: { eventId: changed.id, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
             return changed;
         });
+        if (evento === "TICKETS_OUTSTANDING")
+            return { success: false, message: "Este evento tem ingressos pagos ou Pix em andamento. Estorne os ingressos em Pagamentos (e aguarde até 30 minutos pelos Pix abertos) antes de cancelar." };
         return { success: Boolean(evento), message: evento ? "Evento cancelado; inscritos foram avisados e a página e o histórico foram preservados." : "Evento indisponível.", evento };
     }
     catch {

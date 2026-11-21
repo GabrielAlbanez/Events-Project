@@ -46,6 +46,9 @@ export type Evento = {
   isFree?: boolean;
   priceCents?: number;
   capacity?: number | null;
+  /** EventMap ticket sales (Pix via Mercado Pago); only loaded where the organizer edits the event. */
+  ticketsEnabled?: boolean;
+  ticketCapacity?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;
