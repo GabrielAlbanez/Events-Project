@@ -44,8 +44,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getPublicEvent(params.id);
   if (!event) return { title: "Evento indisponível" };
   const canonical = new URL("/eventos/" + encodeURIComponent(event.id), siteBase()).href;
-  const image = event.banner ? absoluteUrl(event.banner) : undefined;
-  return { metadataBase: siteBase(), title: event.nome, description: event.descricao.slice(0,160), alternates: { canonical }, openGraph: { url: canonical, title: event.nome, description: event.descricao.slice(0,160), ...(image ? { images: [{ url: image }] } : {}) } };
+  const description = event.descricao.slice(0,160);
+  // og:image comes from ./opengraph-image.tsx (works with or without a banner); declaring images here would duplicate it.
+  return { metadataBase: siteBase(), title: event.nome, description, alternates: { canonical }, openGraph: { url: canonical, title: event.nome, description }, twitter: { card: "summary_large_image", title: event.nome, description } };
 }
 /** Publisher role for the claim CTA. Failures only hide the CTA; the event page still renders. */
 async function publisherRole(userId: string | null | undefined): Promise<string | null> {

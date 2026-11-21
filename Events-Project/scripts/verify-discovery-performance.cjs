@@ -237,5 +237,27 @@ function findAll(node, predicate, found = []) {
   assert.ok(findAll(tree, node => node.type === "Link" && node.props.href === "/EventsCreated").length === 1);
   assert.match(flatText(tree), /Do mesmo organizador/); assert.match(flatText(tree), /Entrada gratuita/);
 
+  // 11. Share previews: every public event gets a 1200x630 Open Graph card (Satori-safe) and a large Twitter card.
+  const ogFile = "app/eventos/[id]/opengraph-image.tsx";
+  assert.ok(fs.existsSync(path.join(root, ogFile)), "event opengraph-image route exists");
+  const og = read(ogFile);
+  assert.match(og, /new ImageResponse\(/, "OG image uses ImageResponse");
+  assert.match(og, /from "next\/og"/);
+  assert.match(og, /width:\s*1200,\s*height:\s*630/, "OG image is 1200x630");
+  assert.match(og, /contentType\s*=\s*"image\/png"/);
+  assert.ok(!/runtime\s*=\s*["']edge["']/.test(og), "OG image keeps the nodejs runtime (Prisma)");
+  assert.match(og, /getPublicEvent\(/, "OG image only reads public events");
+  assert.match(og, /webp/i, "OG image guards against WebP/AVIF banners Satori cannot decode");
+  assert.match(og, /isTicketSaleActive\(/, "ticket badge follows the real checkout state");
+  const eventPage = read("app/eventos/[id]/page.tsx");
+  assert.match(eventPage, /card:\s*"summary_large_image"/, "event metadata declares a large Twitter card");
+  assert.ok(!/openGraph:\s*\{[^}]*images:/.test(eventPage), "file convention supplies the single og:image");
+  // Crawlers are anonymous: the share image must not be redirected to /login by the middleware.
+  const policy = load("lib/authPolicy.ts", { "@/roles": { roles: {}, roleRoutes: {}, publicRoutes: [] } });
+  assert.equal(policy.isPublicPath("/eventos/abc/opengraph-image"), true);
+  assert.equal(policy.isPublicPath("/eventos/abc/opengraph-image/card"), true);
+  assert.equal(policy.isPublicPath("/eventos/abc/opengraph-image/card/extra"), false);
+  assert.equal(policy.isPublicPath("/eventos/abc/chat"), false);
+
   console.log("PASS discovery/performance: image normalization, lean opt-in catalog pagination with unchanged default contract, deterministic explainable recommendations (registrations, co-saves, exclusions), similar events, map without client geocoding or URL wipe, server-rendered home data with fallback, render purity and LazyMotion home.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

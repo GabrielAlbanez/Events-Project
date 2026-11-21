@@ -16,8 +16,9 @@ export function getSessionRole(identity: SessionIdentity | null): string {
   return typeof identity.role === "string" && identity.role in roles ? identity.role : "GUEST";
 }
 
+// The event share image (opengraph-image) is public: link-preview crawlers are anonymous and it only renders public events.
 export function isPublicPath(pathname: string): boolean {
-  return publicRoutes.includes(pathname) || ["/recuperar-senha", "/redefinir-senha", "/confirmar-email"].includes(pathname) || /^\/eventos\/[^/]+(?:\/comunidade)?$/.test(pathname);
+  return publicRoutes.includes(pathname) || ["/recuperar-senha", "/redefinir-senha", "/confirmar-email"].includes(pathname) || /^\/eventos\/[^/]+(?:\/comunidade|\/opengraph-image(?:\/[^/]+)?)?$/.test(pathname);
 }
 
 export function canAccessPath(role: string, pathname: string): boolean {
