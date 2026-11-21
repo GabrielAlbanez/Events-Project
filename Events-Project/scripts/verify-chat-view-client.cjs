@@ -37,7 +37,7 @@ function harness() {
       if (!cache.has(path)) { const child = { exports: {} }; new Function('require', 'module', 'exports', compile(path))(requireComponent, child, child.exports); cache.set(path, child.exports); }
       return cache.get(path);
     }
-    if (name === '@/lib/uploadLimits') return require('../lib/uploadLimits.ts');
+    if (name === '@/lib/uploadLimits') return (() => { const loaded = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync('lib/uploadLimits.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(require, loaded, loaded.exports); return loaded.exports; })();
     throw new Error('Unexpected dependency: ' + name);
   };
   new Function('require', 'module', 'exports', source)(requireComponent, module, module.exports);

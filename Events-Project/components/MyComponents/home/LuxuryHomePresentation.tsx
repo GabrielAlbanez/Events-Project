@@ -186,7 +186,7 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
       <m.div className={styles.heroShowcase} aria-busy={loading} initial="rest" animate="visible" variants={reveal} data-home-motion>
         {parallax && !reduced ? <HeroParallax container={scrollContainer} target={heroRef}><HeroCarousel events={heroSuggestions.map(({ event }) => event)} loading={loading} loadError={loadError} onExplore={navigate} /></HeroParallax> : <HeroCarousel events={heroSuggestions.map(({ event }) => event)} loading={loading} loadError={loadError} onExplore={navigate} />}
       </m.div>
-      <div className={styles.heroBottom}><a href="#luxury-events" onClick={navigate} className={styles.scrollCue}><ArrowDown size={16} aria-hidden="true" />Descubra o que vem a seguir</a><Link href="/demonstracao" className={styles.scrollCue}>Conhecer a demonstração <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+      <div className={styles.heroBottom}><a href="#luxury-events" onClick={navigate} className={styles.scrollCue}><ArrowDown size={16} aria-hidden="true" />Descubra o que vem a seguir</a><Link href="/conheca" className={styles.scrollCue}>Como o EventMap funciona <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
       </div>
     </section>
 

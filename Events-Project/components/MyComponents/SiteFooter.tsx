@@ -2,6 +2,7 @@ import Link from "next/link";
 
 /** Institutional links shared by the public pages. Hook-free, so it renders in server or client trees. */
 export const siteFooterLinks = [
+  { href: "/conheca", label: "Como funciona" },
   { href: "/para-organizadores", label: "Para organizadores" },
   { href: "/termos", label: "Termos de Uso" },
   { href: "/privacidade", label: "Privacidade" },
