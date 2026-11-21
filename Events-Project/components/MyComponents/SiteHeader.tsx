@@ -58,6 +58,7 @@ export function SiteHeader() {
         <Link href="/" onClick={openHome} aria-current={pathname === "/" && !mapActive ? "page" : undefined}>Descobrir</Link>
         <Link href="/EventsCreated" aria-current={pathname === "/EventsCreated" ? "page" : undefined}>Agenda</Link>
         <Link href="/#home-discovery" onClick={event => openDiscovery(event)} aria-current={pathname === "/" && mapActive ? "location" : undefined}>Mapa</Link>
+        <Link href="/conheca" aria-current={pathname === "/conheca" ? "page" : undefined}>Como funciona</Link>
       </nav>
       <div className={styles.actions}>
         {showOrganizers && <Link href="/para-organizadores" className={styles.organizers} aria-current={pathname === "/para-organizadores" ? "page" : undefined}>Para organizadores</Link>}

@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  CirclePlay,
   Ticket,
   Receipt,
   UserCog,
@@ -57,6 +58,7 @@ const navigation: NavItem[] = [
   { label: "Descobrir", href: "/", icon: Compass },
   { label: "Agenda de eventos", href: "/EventsCreated", icon: CalendarDays },
   { label: "Mapa de eventos", href: "/#home-discovery", icon: Map },
+  { label: "Como funciona", href: "/conheca", icon: CirclePlay },
   { label: "Minha agenda", href: "/salvos", icon: Bookmark, roles: members },
   { label: "Meus ingressos", href: "/ingressos", icon: Ticket, roles: members },
   { label: "Central de atividades", href: "/atividade", icon: Activity, roles: members },
@@ -102,7 +104,7 @@ export function AppSidebar() {
     return typeof role === "string" && (item.roles as string[]).includes(role);
   });
   const groups = [
-    { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery"] },
+    { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery", "/conheca"] },
     { label: "Participar", paths: ["/salvos", "/ingressos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
     { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/myEvents/pagamentos", "/resultados"] },
     { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/destaques", "/admin/ingressos", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
