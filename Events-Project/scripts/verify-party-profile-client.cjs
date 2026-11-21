@@ -25,7 +25,7 @@ function harness() {
     if (name.endsWith('PartyActions')) return { partyButton: '', partyInput: '' };
     if (name.endsWith('PartyAvatar')) return { default: 'avatar' };
     if (name.endsWith('animations/config')) return { loadAnimationFeatures() {} };
-    if (name === '@/lib/uploadLimits') return require('../lib/uploadLimits.ts');
+    if (name === '@/lib/uploadLimits') return (() => { const loaded = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync('lib/uploadLimits.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(require, loaded, loaded.exports); return loaded.exports; })();
     throw new Error('Unexpected dependency: ' + name);
   };
   new Function('require', 'module', 'exports', source)(requireComponent, module, module.exports);
