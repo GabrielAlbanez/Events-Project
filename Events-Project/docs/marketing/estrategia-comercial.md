@@ -1,8 +1,10 @@
 # EventMap — Estratégia comercial, marca e landing page
 
-Data: 21/11/2026 · Branch: `claude/brave-euler-we7l2h` · Landing: `/produto`
+Data: 21/11/2026 · Branch: `claude/brave-euler-we7l2h` · Landing: `/conheca`
 
 Este documento reúne a auditoria comercial do produto, o posicionamento, a análise de naming, a estratégia de aquisição/monetização e o copy usado na landing page. Tudo que é descrito como **implementado** foi conferido no código deste repositório; o que é **sugestão** está marcado como tal.
+
+> **Atualização (21/11/2026, após merge da `main`):** desde a primeira versão deste documento, a `main` passou a ter **venda de ingressos por Pix via Mercado Pago com divisão automática**, **pedido de acesso de organizador pelo site** (`/para-organizadores`), **destaque pago de eventos**, Resultados 2.0, Termos e Privacidade. A importação de eventos ("Eventos IA") é uma importação verificada de fontes, **sem IA**. Os pontos fracos 1–3 da seção 1 estão parcialmente resolvidos; veja `docs/produto-comercial/` para o estado atual. A landing foi renomeada para **`/conheca`** ("Como funciona") e reposicionada para o público em geral; a página B2B é `/para-organizadores`.
 
 ---
 
