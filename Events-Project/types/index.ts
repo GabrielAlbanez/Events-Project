@@ -39,7 +39,8 @@ export type Evento = {
   lat?: number | null;
   lng?: number | null;
   validate: boolean;
-  validator: PublicPerson | null;
+  /** Reviewer name; only loaded for the organizer's own event list, never in the public catalog. */
+  validator?: Pick<PublicPerson, "name"> | null;
   userId?: string | null;
   status?: EventStatus;
   category?: string;

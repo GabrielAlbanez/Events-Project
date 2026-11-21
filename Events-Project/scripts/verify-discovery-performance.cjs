@@ -55,9 +55,12 @@ function findAll(node, predicate, found = []) {
   let rows = [];
   const prisma = { events: { findMany: async query => { calls.push(query); return typeof rows === "function" ? rows(query) : rows; }, findFirst: async query => { calls.push(query); return rows[0] ?? null; } } };
   const queries = load("lib/eventQueries.ts", { react: { cache: fn => fn }, "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/eventImageUrl": images, "@/types": {}, "@/lib/promotions": load("lib/promotions.ts", { "@/lib/eventTime": load("lib/eventTime.ts") }) });
-  const historicFields = ["id", "nome", "banner", "carrossel", "descricao", "organizerName", "dataInicio", "dataFim", "linkParaCompra", "endereco", "userId", "validate", "status", "category", "priceCents", "isFree", "lat", "lng", "startTime", "endTime", "timezone", "capacity", "ageRating", "accessibilityInfo", "participationInfo", "validatedAt", "aiImport", "user", "validator"];
+  const historicFields = ["id", "nome", "banner", "carrossel", "descricao", "organizerName", "dataInicio", "dataFim", "linkParaCompra", "endereco", "userId", "validate", "status", "category", "priceCents", "isFree", "lat", "lng", "startTime", "endTime", "timezone", "capacity", "ageRating", "accessibilityInfo", "participationInfo", "validatedAt", "aiImport", "user"];
   assert.deepEqual(Object.keys(queries.publicEventSelect).sort(), [...historicFields].sort(), "default /api/AllEvents fields kept for existing consumers");
-  for (const nested of ["user", "validator"]) assert.deepEqual(Object.keys(queries.publicEventSelect[nested].select).sort(), ["id", "image", "name"], nested + " exposes only public fields");
+  assert.deepEqual(Object.keys(queries.publicEventSelect.user.select).sort(), ["id", "image", "name"], "user exposes only public fields");
+  assert.equal(Object.hasOwn(queries.publicEventSelect, "validator"), false, "reviewer identity is not part of the public catalog");
+  assert.deepEqual(Object.keys(queries.publicEventSelect.aiImport.select).sort(), ["sourceUrl", "sourceVerifiedAt"], "official source link stays public");
+  assert.match(read("app/(actions)/getForEventsByUserId/action.ts"), /validator: \{ select: \{ name: true \} \}/, "owner view keeps only the reviewer name");
   const card = Object.keys(queries.publicEventCardSelect);
   for (const heavy of ["descricao", "carrossel", "accessibilityInfo", "participationInfo", "validator", "user", "aiImport"]) assert.ok(!card.includes(heavy), "card view omits " + heavy);
   for (const needed of ["id", "nome", "banner", "dataInicio", "dataFim", "endereco", "lat", "lng", "category", "isFree", "priceCents", "status", "validate"]) assert.ok(card.includes(needed), "card view keeps " + needed);

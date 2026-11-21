@@ -15,6 +15,9 @@ function socketSources() {
   }
 }
 
+const CSP_REPORT_PATH = "/api/csp-report";
+const CSP_REPORT_GROUP = "csp-endpoint";
+
 function cspDirectives(frameAncestors) {
   return [
     "default-src 'self'",
@@ -30,6 +33,9 @@ function cspDirectives(frameAncestors) {
     "base-uri 'self'",
     "frame-ancestors " + frameAncestors,
     "form-action 'self' https://accounts.google.com",
+    // Violations are collected (sanitized, rate-limited) by app/api/csp-report while the policy is Report-Only.
+    "report-uri " + CSP_REPORT_PATH,
+    "report-to " + CSP_REPORT_GROUP,
   ].join("; ");
 }
 
@@ -55,10 +61,14 @@ const baseSecurityHeaders = [
 function securityHeaders(embeddable) {
   return [
     ...baseSecurityHeaders,
-    ...(embeddable ? [] : [{ key: "X-Frame-Options", value: "SAMEORIGIN" }]),
+    // COOP isolates our window from cross-origin openers; popups (Google OAuth) keep working. Embeds are left untouched.
+    ...(embeddable ? [] : [{ key: "X-Frame-Options", value: "SAMEORIGIN" }, { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" }]),
     { key: "Content-Security-Policy", value: embeddable ? "frame-ancestors *" : "frame-ancestors 'self'" },
     ...(isProduction
-      ? [{ key: "Content-Security-Policy-Report-Only", value: cspDirectives(embeddable ? "*" : "'self'") }]
+      ? [
+          { key: "Content-Security-Policy-Report-Only", value: cspDirectives(embeddable ? "*" : "'self'") },
+          { key: "Reporting-Endpoints", value: CSP_REPORT_GROUP + '="' + CSP_REPORT_PATH + '"' },
+        ]
       : []),
   ];
 }

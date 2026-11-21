@@ -5,7 +5,8 @@ import prisma from "@/lib/prisma";
 import { normalizeEventImages } from "@/lib/eventImageUrl";
 import { prioritizeFeatured } from "@/lib/promotions";
 
-// Every nested account field is explicitly public.
+// Every nested account field is explicitly public. Reviewer identity (validator) is not public:
+// only the organizer's own event list loads the reviewer name.
 export const publicEventSelect = {
   id: true, nome: true, banner: true, carrossel: true, descricao: true,
   organizerName: true,
@@ -16,7 +17,6 @@ export const publicEventSelect = {
   validatedAt: true,
   aiImport: { select: { sourceUrl: true, sourceVerifiedAt: true } },
   user: { select: { id: true, name: true, image: true } },
-  validator: { select: { id: true, name: true, image: true } },
 } satisfies Prisma.EventsSelect;
 
 /**

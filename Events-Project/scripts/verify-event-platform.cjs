@@ -138,7 +138,8 @@ for(const route of ["/","/eventos/e1","/eventos/e1/conexoes","/EventsCreated",nu
   const approved=await validation.validateEvents([saved.evento.id],admin.id);assert.equal(approved.validatedEventIds.length,1);
   const publicEvent=await queries.getPublicEvent(saved.evento.id);assert.equal(publicEvent.status,"PUBLISHED");
   for(const [key,value] of Object.entries(practical))assert.equal(publicEvent[key],value);
-  for(const person of [publicEvent.user,publicEvent.validator])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
+  assert.equal(Object.hasOwn(publicEvent,"validator"),false,"reviewer identity is not public");
+  for(const person of [publicEvent.user])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
   activeUser=basic;const notices=await engagement.getNotifications();assert.ok(notices.some(item=>item.title==="Evento publicado"));assert.ok(notices.every(item=>!item.message.includes("Corrigir")));
   phase="favorites reminders and edits";assert.equal((await engagement.toggleFavorite(saved.evento.id)).saved,true);
   assert.equal((await engagement.setEventReminder(saved.evento.id,60)).success,true);

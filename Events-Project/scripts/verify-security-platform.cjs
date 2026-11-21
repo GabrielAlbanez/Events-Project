@@ -312,14 +312,24 @@ async function checkHeaders() {
     assert.match(headers["Permissions-Policy"], /geolocation=\(self\)/);
     assert.match(headers["Content-Security-Policy-Report-Only"], /frame-ancestors 'self'/);
     assert.match(headers["Content-Security-Policy-Report-Only"], /maps\.googleapis\.com/);
+    assert.match(headers["Content-Security-Policy-Report-Only"], /(?:^|; )report-uri \/api\/csp-report(?:;|$)/, "report-only CSP sends violation reports");
+    assert.match(headers["Content-Security-Policy-Report-Only"], /(?:^|; )report-to csp-endpoint(?:;|$)/);
+    assert.equal(headers["Reporting-Endpoints"], 'csp-endpoint="/api/csp-report"');
+    assert.equal(headers["Cross-Origin-Opener-Policy"], "same-origin-allow-popups", pathname);
+    assert.equal(headers["Cross-Origin-Resource-Policy"], undefined, "no CORP");
   }
   for (const pathname of ["/embed", "/embed/evento/abc", "/embed/mapa"]) {
     const headers = headersFor(pathname);
     assert.equal(headers["X-Frame-Options"], undefined, `${pathname} can be framed`);
     assert.equal(headers["Content-Security-Policy"], "frame-ancestors *", pathname);
     assert.match(headers["Content-Security-Policy-Report-Only"], /frame-ancestors \*/);
+    assert.match(headers["Content-Security-Policy-Report-Only"], /report-uri \/api\/csp-report/);
     assert.equal(headers["X-Content-Type-Options"], "nosniff");
+    assert.equal(headers["Cross-Origin-Opener-Policy"], undefined, `${pathname} keeps its embed behaviour`);
+    assert.equal(headers["Cross-Origin-Resource-Policy"], undefined);
   }
+  assert.equal(rules.some(rule => rule.headers.some(header => header.key === "Content-Security-Policy-Report-Only" && !/report-uri/.test(header.value))), false);
+  assert.equal(rules.some(rule => rule.headers.some(header => header.key === "Content-Security-Policy" && header.value !== "frame-ancestors 'self'" && header.value !== "frame-ancestors *")), false, "full CSP stays report-only");
   // HSTS only in production.
   process.env.NODE_ENV = "development";
   const devConfig = (await import(`${require("node:url").pathToFileURL(path.join(root, "next.config.mjs")).href}?dev=${Date.now()}`)).default;
@@ -332,26 +342,161 @@ async function checkHeaders() {
 async function checkHealth() {
   let fail = false, queries = 0;
   const prisma = { $queryRaw: async strings => { queries++; assert.equal(strings.join("?").trim(), "SELECT 1"); if (fail) throw new Error("password authentication failed for user admin at db.internal"); return [{ "?column?": 1 }]; } };
-  const route = loader({ "@/lib/prisma": { __esModule: true, default: prisma } })("app/api/health/route.ts");
+  let adminId = null, adminFails = false, adminRequests = [];
+  const adminAuth = { getAuthenticatedAdminId: async request => { adminRequests.push(request); if (adminFails) throw new Error("jwt secret missing"); return adminId; } };
+  const route = loader({ "@/lib/prisma": { __esModule: true, default: prisma }, "@/lib/adminAuth": adminAuth })("app/api/health/route.ts");
   assert.equal(route.dynamic, "force-dynamic");
-  let response = await route.GET();
+  const request = { headers: new Headers() };
+  let response = await route.GET(request);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("cache-control"), /no-store/);
   let body = await response.json();
-  assert.deepEqual(Object.keys(body).sort(), ["db", "payments", "status", "time"]);
+  assert.deepEqual(Object.keys(body).sort(), ["db", "status", "time"], "anonymous callers do not see payments");
+  assert.equal(adminRequests[0], request, "admin check uses the incoming request");
+  adminId = "admin-1";
+  body = await (await route.GET(request)).json();
+  assert.deepEqual(Object.keys(body).sort(), ["db", "payments", "status", "time"], "admins see the payments flag");
   assert.equal(typeof body.payments, "boolean", "payments is only a configured flag");
+  adminId = null; adminFails = true;
+  const quietWarn = console.warn; console.warn = () => {};
+  response = await route.GET(request);
+  console.warn = quietWarn;
+  assert.equal(response.status, 200, "auth lookup failure never breaks the probe");
+  body = await response.json();
+  assert.deepEqual(Object.keys(body).sort(), ["db", "status", "time"]);
+  adminFails = false;
+  queries = 0;
+  response = await route.GET(request);
+  assert.equal(response.status, 200);
+  body = await response.json();
   assert.equal(body.db, "ok"); assert.equal(body.status, "ok");
   assert.ok(!Number.isNaN(Date.parse(body.time)));
   fail = true;
   const warn = console.warn; let logged = "";
   console.warn = message => { logged += message; };
-  response = await route.GET();
+  response = await route.GET(request);
   console.warn = warn;
   body = await response.json();
   assert.equal(response.status, 503);
   assert.equal(body.db, "error");
   assert.equal(/db\.internal|password|admin/.test(JSON.stringify(body) + logged), false, "no sensitive details");
   assert.equal(queries, 2);
+}
+
+/** Captures every console channel so the CSP endpoint can be checked for exactly one fixed-shape line. */
+function captureConsole() {
+  const lines = [], saved = {};
+  for (const name of ["log", "info", "warn", "error", "debug"]) { saved[name] = console[name]; console[name] = (...args) => lines.push(args.map(String).join(" ")); }
+  return { lines, restore: () => Object.assign(console, saved) };
+}
+
+async function checkCspReport() {
+  const loadRoute = () => loader({})("app/api/csp-report/route.ts");
+  let route = loadRoute();
+  const post = (body, contentType, extraHeaders = {}) => route.POST(new Request("https://eventmap.example/api/csp-report", { method: "POST", headers: { "content-type": contentType, ...extraHeaders }, body }));
+  const expectEmpty = response => {
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  };
+
+  // Legacy report-uri format.
+  let console_ = captureConsole();
+  let response = await post(JSON.stringify({ "csp-report": {
+    "document-uri": "https://eventmap.example/eventos/abc?token=secret#frag",
+    "violated-directive": "script-src-elem",
+    "effective-directive": "script-src-elem",
+    "blocked-uri": "https://evil.example:8443/x.js?user=42&session=abc",
+    "referrer": "https://user:pw@ref.example/?q=1",
+  } }), "application/csp-report");
+  console_.restore();
+  expectEmpty(response);
+  assert.deepEqual(console_.lines, ["csp-violation directive=script-src-elem blocked=https://evil.example:8443 doc=/eventos/abc"]);
+
+  // Reporting API format (array, several reports).
+  console_ = captureConsole();
+  response = await post(JSON.stringify([
+    { type: "csp-violation", url: "https://eventmap.example/mapa?lat=1", body: { documentURL: "https://eventmap.example/mapa?lat=1", effectiveDirective: "img-src", blockedURL: "data:image/png;base64,AAAA" } },
+    { type: "csp-violation", body: { documentURL: "https://eventmap.example/", effectiveDirective: "script-src-elem", blockedURL: "inline" } },
+    { type: "deprecation", body: { message: "ignored" } },
+  ]), "application/reports+json");
+  console_.restore();
+  expectEmpty(response);
+  assert.deepEqual(console_.lines, [
+    "csp-violation directive=img-src blocked=data doc=/mapa",
+    "csp-violation directive=script-src-elem blocked=inline doc=/",
+  ]);
+
+  // Content type with parameters still accepted; long values are truncated; hostile strings are reduced.
+  console_ = captureConsole();
+  response = await post(JSON.stringify({ "csp-report": { "document-uri": "https://eventmap.example/" + "a".repeat(400), "effective-directive": "connect-src\nforged=1", "blocked-uri": "wss://socket.example/socket.io/?EIO=4&sid=xyz" } }), "application/csp-report; charset=utf-8");
+  console_.restore();
+  expectEmpty(response);
+  assert.equal(console_.lines.length, 1);
+  const [line] = console_.lines;
+  assert.match(line, /^csp-violation directive=\S+ blocked=wss:\/\/socket\.example doc=\/a+$/);
+  assert.doesNotMatch(line, /\n|forged=1 |sid=|EIO/);
+  const doc = line.split(" doc=")[1];
+  assert.ok(doc.length <= 120, "doc truncated to 120 chars");
+
+  // Rejections: wrong content type, malformed JSON, oversize body (declared or streamed), no useful fields.
+  console_ = captureConsole();
+  expectEmpty(await post(JSON.stringify({ "csp-report": { "effective-directive": "img-src", "blocked-uri": "https://a.example" } }), "application/json"));
+  expectEmpty(await post("{not json", "application/csp-report"));
+  expectEmpty(await post("null", "application/csp-report"));
+  expectEmpty(await post(JSON.stringify({ "csp-report": { "effective-directive": "img-src", "blocked-uri": "https://a.example", pad: "x".repeat(9000) } }), "application/csp-report"));
+  expectEmpty(await post("[]", "application/reports+json", { "content-length": "100000" }));
+  expectEmpty(await post(JSON.stringify({ "csp-report": "nope" }), "application/csp-report"));
+  console_.restore();
+  assert.deepEqual(console_.lines, [], "rejected reports never log");
+
+  // Per-instance cap: at most 50 log lines per minute.
+  route = loadRoute();
+  console_ = captureConsole();
+  const one = JSON.stringify({ "csp-report": { "document-uri": "https://eventmap.example/", "effective-directive": "img-src", "blocked-uri": "https://a.example/i.png" } });
+  for (let index = 0; index < 60; index++) expectEmpty(await post(one, "application/csp-report"));
+  console_.restore();
+  assert.equal(console_.lines.length, 50, "log volume is capped per instance");
+
+  // GET and other methods are not allowed.
+  response = await route.GET();
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "POST");
+  assert.equal(Object.keys(route).filter(key => /^(PUT|PATCH|DELETE)$/.test(key)).length, 0);
+
+  // Reachable without a session: the middleware does not run for it and the route has no auth guard.
+  const source = read("app/api/csp-report/route.ts");
+  assert.doesNotMatch(source, /getAuthenticated|getServerSession|getToken/);
+  const middleware = read("middleware.ts");
+  const matcher = JSON.parse(middleware.match(/matcher:\s*(\[[^\]]*\])/)[1]);
+  const { getPathMatch } = require("next/dist/shared/lib/router/utils/path-match");
+  for (const pattern of matcher) assert.equal(getPathMatch(pattern, { strict: true, removeUnnamedParams: true })("/api/csp-report"), false, `${pattern} does not intercept /api/csp-report`);
+}
+
+function checkRobots() {
+  const robots = loader({})("app/robots.ts").default();
+  const disallow = robots.rules.disallow;
+  for (const existing of ["/api/", "/admin", "/Profile", "/CriarEvento", "/myEvents", "/salvos", "/notificacoes", "/atividade", "/salas", "/perfil-conexoes", "/resultados", "/eventos/*/editar", "/eventos/*/chat", "/eventos/*/conexoes"]) assert.ok(disallow.includes(existing), `robots keeps ${existing}`);
+  assert.ok(disallow.includes("/ingressos"), "robots disallows /ingressos");
+  assert.ok(disallow.some(rule => "/myEvents/pagamentos".startsWith(rule)), "/myEvents/pagamentos is covered");
+  assert.equal(robots.rules.userAgent, "*");
+  assert.equal(Array.isArray(robots.rules), false, "no per-crawler rules were added");
+}
+
+async function checkMiddlewareRedirects() {
+  let token = null;
+  const middleware = loader({ "next-auth/jwt": { getToken: async () => token } })("middleware.ts");
+  const call = pathname => middleware.middleware(new (require("next/server").NextRequest)(`https://eventmap.example${pathname}`));
+  let response = await call("/salvos?x=1");
+  assert.equal(response.status, 307);
+  assert.match(response.headers.get("location"), /\/login\?/);
+  assert.equal(response.headers.get("cache-control"), "private, no-store", "guest redirect is never cached");
+  token = { id: "u1", role: "BASIC" };
+  response = await call("/admin");
+  assert.equal(response.status, 307);
+  assert.equal(new URL(response.headers.get("location")).pathname, "/");
+  assert.equal(response.headers.get("cache-control"), "private, no-store", "forbidden redirect is never cached");
+  response = await call("/salvos");
+  assert.equal(response.headers.get("location"), null);
 }
 
 async function checkUserAdministration() {
@@ -436,7 +581,10 @@ function checkLoginForm() {
   await checkMail();
   await checkHeaders();
   await checkHealth();
+  await checkCspReport();
+  checkRobots();
+  await checkMiddlewareRedirects();
   await checkUserAdministration();
   checkLoginForm();
-  console.log("PASS: security platform (rate limits, anti-enumeration, login errors, mail transport/templates, headers, health, safe user deletion)");
+  console.log("PASS: security platform (rate limits, anti-enumeration, login errors, mail transport/templates, headers, health, CSP reports, robots, middleware redirects, safe user deletion)");
 })().catch(error => { console.error(error); process.exitCode = 1; });

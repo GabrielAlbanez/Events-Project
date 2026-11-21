@@ -24,7 +24,7 @@ export async function getForEventsForUserById(idUser: string) {
     // Busca os eventos relacionados ao usuário
     const userEvents = await prisma.events.findMany({
       where: { userId: idUser },
-      select: { ...publicEventSelect, reviewNote: true },
+      select: { ...publicEventSelect, reviewNote: true, validator: { select: { name: true } } },
       orderBy: { updatedAt: "desc" },
     });
 
