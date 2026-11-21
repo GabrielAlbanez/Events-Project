@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useEventDraftRecovery } from "@/hooks/useEventDraftRecovery";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -44,6 +45,7 @@ type EventoFormData = {
   isFree: boolean;
   ticketsEnabled: boolean;
   ticketCapacity: string;
+  requiresApproval: boolean;
   startTime: string;
   endTime: string;
 };
@@ -74,7 +76,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "", ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "", ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "", requiresApproval: initialEvent?.requiresApproval ?? true },
   });
   // Selling through EventMap needs payments configured and the organizer's Mercado Pago connected (re-checked on the server).
   const [sellerStatus, setSellerStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
@@ -132,6 +134,11 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const ticketsOn = !isFree && form.watch("ticketsEnabled");
   const ticketPriceCents = priceCentsOf({ isFree, price: form.watch("price") });
   const canSellTickets = Boolean(sellerStatus?.configured && sellerStatus.connected);
+  // Imported events always keep the direct registration flow (the server ignores the switch for them).
+  const importedEvent = Boolean(initialEvent?.aiImport);
+  // On edit, the stored value must be loaded; otherwise only an explicit change is sent so the server keeps what it has.
+  const approvalLoaded = !initialEvent || typeof initialEvent.requiresApproval === "boolean";
+  const approvalTouched = useRef(false);
   const category = form.watch("category");
   const checklist = [
     { label: "Nome e descrição", ready: nome.trim().length >= 3 && hasUsefulDescription(descricao) },
@@ -218,6 +225,8 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         payload.append("capacity", values.capacity.trim());
         payload.append("ticketsEnabled", String(!values.isFree && values.ticketsEnabled));
         payload.append("ticketCapacity", !values.isFree && values.ticketsEnabled ? values.ticketCapacity.trim() : "");
+        // Recovered drafts saved before this field existed have no value: treat as the default (on).
+        if (approvalLoaded || approvalTouched.current) payload.append("requiresApproval", String(values.requiresApproval !== false));
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
         if (coordinates) {
@@ -423,6 +432,16 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             <SectionHeading number="03" title="Ingresso e imagens" description="Indique para onde o visitante deve ir e escolha uma imagem que represente o evento." id="event-tickets-title" />
             <div className="space-y-6">
               <FormField name="capacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma capacidade inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Vagas para confirmação <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Ao preencher todas as vagas, novas pessoas entram na lista de espera. Deixe vazio para aceitar confirmações sem limite.</FormDescription><FormMessage /></FormItem>} />
+              <FormField name="requiresApproval" render={({ field }) => <FormItem>
+                <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-muted/30 p-4">
+                  <div className="min-w-0">
+                    <label htmlFor="event-approval" className="cursor-pointer text-sm font-medium">Aprovar inscrições manualmente</label>
+                    <p id="event-approval-help" className="mt-1 text-sm leading-6 text-muted-foreground">{importedEvent ? "Eventos importados mantêm a inscrição direta, sem aprovação." : "Cada pessoa pede para participar e você aprova ou recusa. Em eventos pagos, a compra só é liberada depois da aprovação."}</p>
+                    {!importedEvent && !approvalLoaded && <p className="mt-1 text-xs text-muted-foreground">A configuração atual deste evento será mantida, a menos que você a altere aqui.</p>}
+                  </div>
+                  <Switch id="event-approval" checked={!importedEvent && field.value !== false} disabled={importedEvent} aria-describedby="event-approval-help" onCheckedChange={(checked) => { approvalTouched.current = true; field.onChange(checked); }} className="mt-0.5" />
+                </div>
+              </FormItem>} />
               <FormField name="isFree" render={({ field }) => <FormItem><div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-4"><input id="event-free" type="checkbox" checked={field.value} onChange={(event) => field.onChange(event.target.checked)} className="h-5 w-5 accent-primary" /><label htmlFor="event-free" className="cursor-pointer text-sm font-medium">Evento gratuito</label></div><FormDescription>Desmarque para informar o preço inicial do ingresso.</FormDescription></FormItem>} />
               {!isFree && <FormField name="price" rules={{ required: "Informe o preço do ingresso.", validate: (value) => !(Number.isFinite(Number(value.replace(",", "."))) && Number(value.replace(",", ".")) >= 0) ? "Informe um preço válido." : form.getValues("ticketsEnabled") && !isValidTicketPrice(Math.round(Number(value.replace(",", ".")) * 100)) ? `Para vender pelo EventMap, use um preço entre ${formatTicketAmount(TICKET_MIN_CENTS)} e ${formatTicketAmount(TICKET_MAX_CENTS)}.` : true }} render={({ field }) => <FormItem><FormLabel>Preço inicial (R$) <Required /></FormLabel><FormControl><Input inputMode="decimal" placeholder="Ex.: 25,00" {...field} /></FormControl><FormMessage /></FormItem>} />}
               {!isFree && <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">

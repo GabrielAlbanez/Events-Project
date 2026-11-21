@@ -50,6 +50,8 @@ export type Evento = {
   /** EventMap ticket sales (Pix via Mercado Pago); only loaded where the organizer edits the event. */
   ticketsEnabled?: boolean;
   ticketCapacity?: number | null;
+  /** Organizer approves each registration (EventMap-created events only); only loaded where the organizer edits the event. */
+  requiresApproval?: boolean;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;

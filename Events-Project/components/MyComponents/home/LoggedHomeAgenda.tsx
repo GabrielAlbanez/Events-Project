@@ -11,11 +11,11 @@ import type { Evento } from "@/types";
 import styles from "./LoggedHomeAgenda.module.css";
 import { LoggedHomeEventBanner } from "./LoggedHomePoster";
 
-type RegistrationStatus = "CONFIRMED" | "CHECKED_IN" | "WAITLISTED" | "CANCELLED";
+type RegistrationStatus = "CONFIRMED" | "CHECKED_IN" | "WAITLISTED" | "CANCELLED" | "PENDING" | "APPROVED" | "REJECTED";
 type RegistrationValue = RegistrationStatus | "LOADING" | "ERROR" | null;
 type RegistrationResponse = { registration?: { status?: RegistrationStatus } | null };
 type Props = { events: Evento[]; loading: boolean; error: boolean; onRetry: () => void; stackRef: RefObject<HTMLDivElement> };
-const labels: Record<RegistrationStatus, string> = { CONFIRMED: "Presença confirmada", CHECKED_IN: "Check-in realizado", WAITLISTED: "Na lista de espera", CANCELLED: "Inscrição cancelada" };
+const labels: Record<RegistrationStatus, string> = { CONFIRMED: "Presença confirmada", CHECKED_IN: "Check-in realizado", WAITLISTED: "Na lista de espera", CANCELLED: "Inscrição cancelada", PENDING: "Aguardando aprovação", APPROVED: "Aprovado · compre o ingresso", REJECTED: "Participação não aprovada" };
 
 function eventDate(event: Evento): string {
   const instant = eventInstant(event.dataInicio, event.startTime, event.timezone);

@@ -197,7 +197,7 @@ async function checkAttendeeNotices() {
   assert.ok(notices.rows.every((row) => row.type === "EVENT_CHANGE"));
   assert.equal(notices.rows.find((row) => row.userId === "owner").href, "/myEvents");
   const service = read("lib/services/events.ts");
-  assert.match(service, /eventRegistration\.updateMany\(\{ where: \{ eventId: changed\.id, status: \{ in: \["CONFIRMED", "WAITLISTED"\] \} \}, data: \{ status: "CANCELLED"/, "cancel closes open registrations");
+  assert.match(service, /eventRegistration\.updateMany\(\{ where: \{ eventId: changed\.id, status: \{ in: \["CONFIRMED", "WAITLISTED", "PENDING", "APPROVED"\] \} \}, data: \{ status: "CANCELLED"/, "cancel closes open registrations and approval requests");
   assert.match(read("app/(actions)/deleteEvents/action.ts"), /includeRegistrations: true/, "admin delete warns attendees before cascade");
   const worker = load("server/notificationWorker.mts");
   const start = new Date("2099-01-02T12:00:00Z");

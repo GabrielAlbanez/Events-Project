@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
-import { Ban, CheckCircle2, CircleDashed, Clock3, FilePen, Flag, Hourglass, TicketCheck, type LucideIcon } from "lucide-react";
+import { Ban, BadgeCheck, CheckCircle2, CircleDashed, CircleSlash, Clock3, FilePen, Flag, Hourglass, TicketCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { eventStatusLabels, type EventStatus } from "@/types/features";
 
 export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
-export type RegistrationStatus = "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED";
+/** PENDING/APPROVED/REJECTED: requests on events where the organizer approves each participant. */
+export type RegistrationStatus = "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED" | "PENDING" | "APPROVED" | "REJECTED";
 
 const toneClasses: Record<StatusTone, string> = {
   neutral: "border-border bg-muted text-muted-foreground",
@@ -28,6 +29,9 @@ export const registrationStatusLabels: Record<RegistrationStatus, string> = {
   WAITLISTED: "Lista de espera",
   CHECKED_IN: "Entrada registrada",
   CANCELLED: "Inscrição cancelada",
+  PENDING: "Aguardando aprovação",
+  APPROVED: "Aprovado · falta o ingresso",
+  REJECTED: "Participação não aprovada",
 };
 
 export const registrationStatusTone: Record<RegistrationStatus, { tone: StatusTone; icon: LucideIcon }> = {
@@ -35,6 +39,9 @@ export const registrationStatusTone: Record<RegistrationStatus, { tone: StatusTo
   WAITLISTED: { tone: "warning", icon: Clock3 },
   CHECKED_IN: { tone: "info", icon: CheckCircle2 },
   CANCELLED: { tone: "neutral", icon: Ban },
+  PENDING: { tone: "warning", icon: Hourglass },
+  APPROVED: { tone: "info", icon: BadgeCheck },
+  REJECTED: { tone: "neutral", icon: CircleSlash },
 };
 
 type StatusBadgeProps = {

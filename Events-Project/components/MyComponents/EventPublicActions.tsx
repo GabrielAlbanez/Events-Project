@@ -2,23 +2,27 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Bookmark, Share2, CalendarPlus, Flag, TicketCheck, Users, ExternalLink } from "lucide-react";
+import { Bookmark, Share2, CalendarPlus, CircleSlash, Flag, Hourglass, TicketCheck, Users, ExternalLink, BadgeCheck } from "lucide-react";
 import { getFavoriteState, toggleFavorite, setEventReminder, toggleFollow } from "@/app/(actions)/engagement/action";
 import CheckInPass from "./CheckInPass";
-import TicketPurchase from "./tickets/TicketPurchase";
+import TicketPurchase, { type TicketApproval } from "./tickets/TicketPurchase";
 import EventPeoplePreview from "./EventPeoplePreview";
 import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
-import { RegistrationStatusBadge } from "@/components/ui/status-badge";
+import { RegistrationStatusBadge, type RegistrationStatus } from "@/components/ui/status-badge";
 import { PopIcon } from "@/components/animations/PopIcon";
 import { toast } from "react-toastify";
 
-type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
-type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null; ticketSale?: boolean; ticketSalesPaused?: boolean };
+// PENDING / APPROVED / REJECTED exist only on events where the organizer approves each participant (requiresApproval).
+type Registration = { id: string; status: RegistrationStatus; createdAt: string; checkedInAt: string | null };
+type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null; requiresApproval?: boolean; ticketSale?: boolean; ticketSalesPaused?: boolean };
+type RequestStatus = Extract<RegistrationStatus, "PENDING" | "APPROVED" | "REJECTED">;
+const requestStatusOf = (status: RegistrationStatus | undefined): RequestStatus | null => status === "PENDING" || status === "APPROVED" || status === "REJECTED" ? status : null;
 type ApiError = { message?: string };
 // Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
 const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
 
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
+export const approvalPrivacyNotice = "Ao pedir para participar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
 type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean; /** Set when EventMap sells this event's tickets (Pix): replaces the free registration with the checkout. */ ticketSale?: { priceCents: number } };
 
@@ -33,6 +37,8 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const [registrationLoading, setRegistrationLoading] = useState(true);
   const [registrationPending, setRegistrationPending] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
+  // Bumped after a registration change so the ticket panel re-reads its purchase state (approval gate).
+  const [ticketRefresh, setTicketRefresh] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("INCORRECT_INFORMATION");
   const [reportDetails, setReportDetails] = useState("");
@@ -82,10 +88,15 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { method });
       const result = await response.json() as ApiError;
       if (!response.ok) throw new Error(result.message || "Não foi possível atualizar sua inscrição.");
+      const wasRequest = Boolean(registration?.requiresApproval);
       const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`);
       if (!latest.ok) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
-      setRegistration(await latest.json() as RegistrationState);
+      const next = await latest.json() as RegistrationState;
+      setRegistration(next);
+      setTicketRefresh(value => value + 1);
       if (method === "POST") setRegistrationPulse(value => value + 1);
+      if (wasRequest && method === "POST" && next.registration?.status === "PENDING") notify("Pedido enviado. Avisaremos quando a organização responder.", "success");
+      if (wasRequest && method === "DELETE") notify("Pedido cancelado.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.", "error");
     } finally {
@@ -128,16 +139,46 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   // EventMap sells this event but payments are paused: neither checkout nor free RSVP.
   const salesPaused = !ticketSale && Boolean(registration?.ticketSalesPaused);
   const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration && !sellsElsewhere && !salesPaused;
+  // Organizer approval: the visitor asks to participate; paid events unlock the purchase only after APPROVED.
+  const requiresApproval = Boolean(registration?.requiresApproval);
+  const requestStatus = requestStatusOf(registration?.registration?.status);
+  const joinLabel = requiresApproval ? "Pedir para participar" : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença";
+  const joiningLabel = requiresApproval ? "Enviando pedido..." : "Confirmando...";
+  const privacyNotice = requiresApproval ? approvalPrivacyNotice : null;
   const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
   // Mobile: equal-width two-column grid with short labels; from sm up the original inline buttons.
   const tile = `${button.replace(" px-4 ", " px-2 sm:px-4 ")} min-w-0 flex-1 basis-[calc(50%-0.25rem)] whitespace-nowrap sm:flex-none sm:basis-auto sm:whitespace-normal`;
   const iconButton = button.replace(" px-4 ", " w-11 shrink-0 px-0 ");
+  const primaryButton = `${button} border-primary bg-primary text-primary-foreground hover:bg-primary/90`;
+  const requestButton = <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={primaryButton}>{registrationPending ? joiningLabel : "Pedir para participar"}</button>;
+  const cancelRequestButton = <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar pedido"}</button>;
+  // Status of a request, paired with an icon and text (never color alone).
+  const requestNotice = requestStatus === "PENDING"
+    ? <div className="space-y-1"><p role="status" className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300"><PopIcon pulse={registrationPulse}><Hourglass aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /></PopIcon><span>Pedido enviado — aguardando aprovação da organização</span></p><p className="text-sm leading-6 text-muted-foreground">Você recebe um aviso quando a organização responder.</p></div>
+    : requestStatus === "REJECTED"
+      ? <p role="status" className="flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted-foreground"><CircleSlash aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span>Sua participação não foi aprovada pela organização deste evento.</span></p>
+      : requestStatus === "APPROVED"
+        ? <p role="status" className="flex items-start gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><BadgeCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span>Participação aprovada — compre seu ingresso</span></p>
+        : null;
+  // Paid approval events: the ticket panel shows this instead of the buy button until the request is approved.
+  const ticketApproval: TicketApproval | undefined = requiresApproval ? {
+    notice: requestStatus === "APPROVED" ? requestNotice : null,
+    action: registrationLoading && !registration ? <p role="status" className="text-sm text-muted-foreground">Consultando sua inscrição...</p>
+      : registrationError && !registration ? <p role="alert" className="text-sm text-destructive">{registrationError}</p>
+        : requestStatus === "PENDING" ? <>{requestNotice}{cancelRequestButton}</>
+          : requestStatus === "REJECTED" ? requestNotice
+            : <>
+              <p className="text-sm leading-6 text-muted-foreground">A organização aprova cada participante. Peça para participar: a compra do ingresso é liberada depois da aprovação.</p>
+              {requestButton}
+              <p className="text-xs leading-5 text-muted-foreground">{approvalPrivacyNotice} <Link href="/privacidade" className="font-medium text-brand underline-offset-4 hover:underline">Saiba mais</Link></p>
+            </>,
+  } : undefined;
   const stickyAction = ticketSale && registrationOpen
-    ? activeRegistration ? null : <a href="#ticket-title" className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso</a>
+    ? activeRegistration && requestStatus !== "APPROVED" ? null : <a href="#ticket-title" className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>{requiresApproval && requestStatus !== "APPROVED" ? "Pedir para participar" : "Comprar ingresso"}</a>
     : canRegister
     ? status === "authenticated"
-      ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
-      : status === "unauthenticated" ? <Link href={loginHref} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Confirmar presença</Link> : null
+      ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? joiningLabel : requiresApproval ? "Pedir para participar" : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
+      : status === "unauthenticated" ? <Link href={loginHref} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>{requiresApproval ? "Pedir para participar" : "Confirmar presença"}</Link> : null
     : registrationOpen && hasExternalTickets && !isFree
       ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
       : registrationOpen && hasExternalTickets
@@ -152,18 +193,18 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     return () => { rootStyle.removeProperty("--event-cta-space"); };
   }, [showStickyBar]);
   return <div ref={panelRef} className="space-y-3">
-    {ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} />}
-    {sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration ? "Ver meu ingresso" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
+    {ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} approval={ticketApproval} refreshKey={ticketRefresh} />}
+    {sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration && !requestStatus ? "Ver meu ingresso" : requiresApproval && requestStatus !== "APPROVED" ? requestStatus ? "Ver meu pedido" : "Pedir para participar" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
     {salesPaused && registrationOpen && !activeRegistration && <p role="status" className="flex items-start gap-2 rounded-2xl border bg-muted/30 p-4 text-sm leading-6"><TicketCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />As vendas deste evento estão pausadas no momento.</p>}
     {!ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-      <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
+      <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{requiresApproval ? `A organização aprova cada participante. Peça para participar e acompanhe a resposta aqui.${hasExternalTickets && !isFree ? " A compra e as regras do ingresso ficam no site do organizador." : ""}` : isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>
-        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><PopIcon pulse={registrationPulse}><TicketCheck className="h-4 w-4" /></PopIcon>{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : null}
+        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><PopIcon pulse={registrationPulse}><TicketCheck className="h-4 w-4" /></PopIcon>{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : requestNotice}
         {registration.registration?.status === "CONFIRMED" && <p className="text-sm leading-6 text-muted-foreground">{hasExternalTickets && !isFree ? "Próximo passo: confira e adquira seu ingresso no site do organizador. Você pode consultar sua presença e o passe do EventMap nesta página." : "Próximo passo: consulte seu passe abaixo e confira o local e o horário do evento. Volte a esta página para acompanhar sua inscrição."}</p>}
         {status === "authenticated" && registration.registration?.status === "CONFIRMED" && <CheckInPass key={session?.user?.id} eventId={eventId} />}
-        {status === "authenticated" ? registration.registration?.status === "CHECKED_IN" ? null : registration.registration && registration.registration.status !== "CANCELLED" ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar inscrição"}</button> : <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : registration.capacity !== null && registration.confirmedCount >= registration.capacity ? "Entrar na lista de espera" : "Confirmar presença"}</button> : <Link href={loginHref} className={`${button} bg-primary text-primary-foreground`}>Entre para confirmar presença</Link>}
-        {!activeRegistration && <p className="text-xs leading-5 text-muted-foreground">{registrationPrivacyNotice} <Link href="/privacidade" className="font-medium text-brand underline-offset-4 hover:underline">Saiba mais</Link></p>}
+        {status === "authenticated" ? registration.registration?.status === "CHECKED_IN" || requestStatus === "REJECTED" ? null : requestStatus ? cancelRequestButton : registration.registration && registration.registration.status !== "CANCELLED" ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar inscrição"}</button> : <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? joiningLabel : joinLabel}</button> : <Link href={loginHref} className={`${button} bg-primary text-primary-foreground`}>{requiresApproval ? "Entre para pedir para participar" : "Entre para confirmar presença"}</Link>}
+        {!activeRegistration && <p className="text-xs leading-5 text-muted-foreground">{privacyNotice ?? <>{registrationPrivacyNotice}</>} <Link href="/privacidade" className="font-medium text-brand underline-offset-4 hover:underline">Saiba mais</Link></p>}
       </div>}
       {registrationError && registration && <p role="alert" className="mt-3 text-sm text-destructive">{registrationError}</p>}
     </section>}
@@ -183,13 +224,13 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       <div className="mx-auto flex max-w-xl items-center gap-3">
         <div className="min-w-0 flex-1">
           {activeRegistration && registrationOpen ? <RegistrationStatusBadge status={activeRegistration.status} /> : priceLabel ? <p className="truncate text-sm font-semibold">{priceLabel}</p> : null}
-          {activeRegistration && registrationOpen ? <a href={ticketSale ? "#ticket-title" : "#registration-title"} className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">{ticketSale ? "Ver meu ingresso" : "Ver minha inscrição"}</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
+          {activeRegistration && registrationOpen ? <a href={ticketSale ? "#ticket-title" : "#registration-title"} className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">{requestStatus ? "Ver meu pedido" : ticketSale ? "Ver meu ingresso" : "Ver minha inscrição"}</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
         </div>
         {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Salvo na minha agenda" : "Salvar evento"} className={iconButton}><Bookmark aria-hidden="true" className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></button> : status === "unauthenticated" ? <Link href={loginHref} aria-label="Entrar para salvar" className={iconButton}><Bookmark aria-hidden="true" className="h-4 w-4" /></Link> : null}
         <button type="button" onClick={() => void share()} aria-label="Compartilhar evento" className={iconButton}><Share2 aria-hidden="true" className="h-4 w-4" /></button>
         {stickyAction}
       </div>
-      {canRegister && !ticketSale && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{registrationPrivacyNotice}</p>}
+      {canRegister && !ticketSale && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{privacyNotice ?? <>{registrationPrivacyNotice}</>}</p>}
     </div>}
   </div>;
 }

@@ -128,7 +128,7 @@ export async function getOwnedEvent(id: string, resolveCurrentUser: ResolveCurre
     const user = await actor(resolveCurrentUser);
     if (!user)
         return null;
-    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true, ticketsEnabled: true, ticketCapacity: true } });
+    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true, ticketsEnabled: true, ticketCapacity: true, requiresApproval: true } });
     return event ? { ...event, validate: event.validate ?? false } : null;
 }
 export async function duplicarEvento(eventId: string, resolveCurrentUser: ResolveCurrentUser) {

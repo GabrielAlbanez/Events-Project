@@ -9,6 +9,7 @@ import { FadeInView } from "@/components/animations/FadeInView";
 import { StaggerList } from "@/components/animations/StaggerList";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import RegistrationRequests from "@/components/MyComponents/checkin/RegistrationRequests";
 
 type Attendee = {
   id: string;
@@ -183,6 +184,8 @@ export default function CheckInPage() {
   const attendees = useMemo(() => overview?.attendees ?? [], [overview]);
   const counts = overview?.counts ?? { confirmed: 0, checkedIn: 0, waitlisted: 0 };
   const team = overview?.access.role === "TEAM";
+  // Owner/admin decide who attends; the check-in team never sees the requests (the API also refuses them).
+  const canManageRequests = Boolean(overview?.access.canExport);
   const filtered = useMemo(() => {
     const term = normalize(query);
     if (!term) return attendees;
@@ -192,6 +195,7 @@ export default function CheckInPage() {
   return <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"><div className="mx-auto max-w-5xl space-y-6">
     <header className="flex items-start gap-4"><div className="min-w-0"><Link href={team ? `/eventos/${encodeURIComponent(eventId)}/comunidade` : "/myEvents"} className="text-sm font-semibold text-brand hover:underline">{team ? "← Comunidade do evento" : "← Meus eventos"}</Link><FadeInView><h1 className="mt-2 text-3xl font-bold tracking-tight">Check-in do evento</h1>{overview && <p className="mt-1 break-words text-base font-medium">{overview.event.nome}</p>}<p className="mt-2 text-muted-foreground">Leia o QR Code apresentado pelo participante, insira o código ou busque pelo nome ou e-mail.</p>{team && <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-brand"><ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />Você está operando como equipe do evento</p>}</FadeInView></div></header>
     <StaggerList className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Confirmados aguardando</p><p className="mt-1 text-2xl font-bold">{counts.confirmed}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Entraram</p><p className="mt-1 text-2xl font-bold text-brand">{counts.checkedIn}{overview?.event.capacity ? <span className="ml-1 text-sm font-medium text-muted-foreground">de {overview.event.capacity} vagas</span> : null}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Lista de espera</p><p className="mt-1 text-2xl font-bold">{counts.waitlisted}</p></div></StaggerList>
+    {canManageRequests && <RegistrationRequests apiBase={apiBase} open={overview?.event.status === "PUBLISHED"} onChanged={() => void loadAttendees()} />}
     <section aria-labelledby="scanner-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><h2 id="scanner-title" className="text-xl font-semibold">Registrar entrada</h2><p className="mt-1 text-sm text-muted-foreground">O código expira em cinco minutos. Peça ao participante para abrir um novo se necessário.</p>
       {scanning ? <div className="mt-4 max-w-lg overflow-hidden rounded-xl border bg-black"><video ref={videoRef} playsInline muted className="aspect-video w-full object-cover" /><button type="button" onClick={stopCamera} className="flex min-h-11 w-full items-center justify-center gap-2 bg-card text-sm font-semibold"><X className="h-4 w-4" />Fechar câmera</button></div> : <button type="button" onClick={() => void startCamera()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Camera className="h-4 w-4" />Ler QR Code</button>}
       {cameraError && <p role="alert" className="mt-3 text-sm text-destructive">{cameraError}</p>}

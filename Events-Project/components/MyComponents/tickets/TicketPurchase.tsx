@@ -22,8 +22,17 @@ function formatRemaining(ms: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/** Events where the organizer approves each participant: the request UI lives with the registration (EventPublicActions). */
+export type TicketApproval = {
+  /** Shown instead of the buy button while the purchase state is "approval" (request button or request status). */
+  action: ReactNode;
+  /** Shown above the buy button once the participation is approved. */
+  notice: ReactNode | null;
+};
+type TicketPurchaseProps = { eventId: string; priceCents: number; approval?: TicketApproval; /** Changing it reloads the purchase state (e.g. after a request). */ refreshKey?: number };
+
 /** EventMap checkout: Pix QR + copy-and-paste, 30-minute countdown and automatic confirmation (status polled every ~4s). */
-export default function TicketPurchase({ eventId, priceCents }: { eventId: string; priceCents: number }) {
+export default function TicketPurchase({ eventId, priceCents, approval, refreshKey = 0 }: TicketPurchaseProps) {
   const { status: sessionStatus, data: session } = useSession();
   const [purchase, setPurchase] = useState<TicketPurchaseState | null>(null);
   const [order, setOrder] = useState<TicketOrderView | null>(null);
@@ -70,7 +79,7 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
   useEffect(() => {
     if (sessionStatus === "loading") return;
     void load();
-  }, [load, sessionStatus, session?.user?.id]);
+  }, [load, sessionStatus, session?.user?.id, refreshKey]);
 
   const refreshOrder = useCallback(async (orderId: string) => {
     if (checking.current) return;
@@ -187,23 +196,24 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
             <Link href="/ingressos" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Ver meus ingressos →</Link>
           </div>
             : order?.status === "PENDING" ? <Checkout order={order} remaining={remaining} onCopy={() => void copyCode()} />
-              : purchase && <PurchaseAction purchase={purchase} ended={Boolean(ended)} busy={busy} price={price} loginHref={loginHref} onBuy={() => void buy()} pendingCoupon={urlCoupon}
+              : purchase && <PurchaseAction purchase={purchase} approval={approval} ended={Boolean(ended)} busy={busy} price={price} loginHref={loginHref} onBuy={() => void buy()} pendingCoupon={urlCoupon}
                 coupon={<CouponField open={couponOpen} onOpen={() => setCouponOpen(true)} value={couponInput} onChange={(value) => { setCouponInput(value); if (couponError) setCouponError(""); }} applied={appliedCoupon} error={couponError} busy={couponBusy} disabled={busy} onSubmit={submitCoupon} onRemove={removeCoupon} />} />}
     </div>
   </section>;
 }
 
-type PurchaseActionProps = { purchase: TicketPurchaseState; ended: boolean; busy: boolean; price: string; loginHref: string; onBuy: () => void; coupon: ReactNode; pendingCoupon: string | null };
+type PurchaseActionProps = { purchase: TicketPurchaseState; approval?: TicketApproval; ended: boolean; busy: boolean; price: string; loginHref: string; onBuy: () => void; coupon: ReactNode; pendingCoupon: string | null };
 
-function PurchaseAction({ purchase, ended, busy, price, loginHref, onBuy, coupon, pendingCoupon }: PurchaseActionProps) {
+function PurchaseAction({ purchase, approval, ended, busy, price, loginHref, onBuy, coupon, pendingCoupon }: PurchaseActionProps) {
   const seats = purchase.seatsLeft;
   const seatsText = seats != null && seats > 0 ? <p className="text-xs text-muted-foreground">{seats === 1 ? "Último ingresso disponível" : `${seats} ingressos disponíveis`}</p> : null;
   switch (purchase.state) {
     case "login":
-      return <div className="space-y-2"><Link href={loginHref} className={primary}>Entre para comprar — {price}</Link>{pendingCoupon && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Tag aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /><span>O cupom <span className="font-mono font-semibold text-foreground">{pendingCoupon}</span> será conferido depois que você entrar.</span></p>}{seatsText}</div>;
+      return <div className="space-y-2"><Link href={loginHref} className={primary}>{approval ? "Entre para pedir para participar" : `Entre para comprar — ${price}`}</Link>{approval && <p className="text-sm text-muted-foreground">A organização aprova cada participante; a compra é liberada depois da aprovação.</p>}{pendingCoupon && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Tag aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /><span>O cupom <span className="font-mono font-semibold text-foreground">{pendingCoupon}</span> será conferido depois que você entrar.</span></p>}{seatsText}</div>;
     case "available":
     case "pending":
       return <div className="space-y-2">
+        {approval?.notice}
         {ended && <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">O Pix anterior expirou sem pagamento. Gere um novo para continuar.</p>}
         {coupon}
         <button type="button" disabled={busy} onClick={onBuy} className={primary}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Gerando Pix...</> : `Comprar ingresso — ${price}`}</button>
@@ -211,6 +221,9 @@ function PurchaseAction({ purchase, ended, busy, price, loginHref, onBuy, coupon
         {seatsText}
         <p className="text-xs leading-5 text-muted-foreground">Ao comprar, seu nome e e-mail ficam visíveis para a organização do evento. Reembolsos são feitos pelo organizador, inclusive no prazo de 7 dias para desistência. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Ver regras</Link></p>
       </div>;
+    case "approval":
+      // Organizer approval comes first: no buy button until the request is approved.
+      return approval ? <div className="space-y-3">{approval.action}</div> : <p role="status" className="text-sm text-muted-foreground">{purchase.message || "A organização precisa aprovar sua participação antes da compra."}</p>;
     case "sold_out":
       return <p role="status" className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold">Ingressos esgotados</p>;
     case "own_event":
