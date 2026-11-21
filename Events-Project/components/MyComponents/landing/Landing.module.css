@@ -1465,3 +1465,7 @@
   .btn, .textLink, .faqItem summary svg { transition: none; }
   .btnPrimary:hover { transform: none; }
 }
+
+:global(.dark) .tileFeature {
+  border-color: hsl(var(--border));
+}

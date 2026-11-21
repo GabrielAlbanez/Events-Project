@@ -103,7 +103,7 @@ export function DemoSection() {
           <ProductDemo />
         </div>
         <p className={styles.demoNote}>
-          <span>Simulação com dados fictícios — nada aqui chama a plataforma. Prefere explorar com calma?</span>
+          <span>Simulação com dados fictícios. Prefere explorar com calma?</span>
           <Link href="/demonstracao" className={styles.textLink}>Demonstração guiada <ArrowRight size={15} aria-hidden="true" /></Link>
         </p>
       </div>
