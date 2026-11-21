@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Ticket } from "lucide-react";
 import { listMyTickets } from "@/app/(actions)/tickets/action";
+import type { MyTicketView } from "@/lib/services/tickets";
 import { formatTicketAmount, ticketStatusLabels, type TicketOrderStatusValue } from "@/lib/tickets";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 
@@ -20,6 +21,16 @@ function eventDate(value: string, time: string | null): string {
   const date = parseEventDate(value);
   if (!date) return "Data a confirmar";
   return `${new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(date)}${time ? ` · ${time}` : ""}`;
+}
+
+/** Refunds go through the organizer (who receives the payment); the 7-day withdrawal right is explained in the Terms. */
+function RefundNote({ tickets }: { tickets: MyTicketView[] }) {
+  const organizers = Array.from(new Map(tickets.map((ticket) => [ticket.organizerId, ticket.organizerName])).entries());
+  return <section aria-labelledby="refund-title" className="rounded-2xl border bg-muted/20 p-5 text-sm leading-6">
+    <h2 id="refund-title" className="text-base font-semibold">Precisa de reembolso?</h2>
+    <p className="mt-1 text-muted-foreground">Fale com quem organiza o evento: é o organizador quem recebe o pagamento e faz o estorno pelo EventMap, com devolução integral pelo Mercado Pago. Em compras on-line você pode desistir em até 7 dias após a compra (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Regras de venda</Link></p>
+    <ul className="mt-3 flex flex-wrap gap-2" aria-label="Organizadores dos seus ingressos">{organizers.map(([id, name]) => <li key={id}><Link href={`/promotores/${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center rounded-xl border bg-card px-3 font-medium hover:border-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{name} <span aria-hidden="true" className="ml-1 text-brand">→</span><span className="sr-only"> (perfil do organizador)</span></Link></li>)}</ul>
+  </section>;
 }
 
 /** Tickets bought through EventMap. The entry QR lives on the event page (CheckInPass), so each item links there. */
@@ -50,6 +61,7 @@ export default async function MyTicketsPage() {
               </span>
             </Link>
           </li>)}</ul>}
+      {result.success && result.data.length > 0 && <RefundNote tickets={result.data} />}
     </div>
   </div>;
 }

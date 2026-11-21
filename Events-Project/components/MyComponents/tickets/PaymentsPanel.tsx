@@ -17,6 +17,7 @@ const connectMessages: Record<string, { text: string; type: "success" | "error" 
   invalid: { text: "Não foi possível validar a conexão. Entre na mesma conta e tente de novo.", type: "error" },
   error: { text: "O Mercado Pago não confirmou a conexão agora. Tente novamente em alguns minutos.", type: "error" },
   unavailable: { text: "Os pagamentos ainda não foram configurados no EventMap.", type: "info" },
+  account_mismatch: { text: "Essa é outra conta do Mercado Pago. Enquanto houver Pix em andamento ou ingressos pagos, reconecte a mesma conta usada nas vendas.", type: "error" },
 };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 const exampleCents = 5000;
@@ -109,11 +110,14 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                   <div className="min-w-0">
                     <h2 id="mp-account-title" className="text-xl font-semibold">Conta do Mercado Pago</h2>
                     {!overview.configured ? <p className="mt-1 text-sm text-muted-foreground">Pagamentos ainda não configurados no EventMap. Assim que forem ativados, você poderá conectar sua conta aqui.</p>
+                      : overview.account?.needsReconnect ? <p role="alert" className="mt-1 flex items-start gap-1.5 text-sm text-amber-800 dark:text-amber-300"><AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />Reconecte sua conta: o Mercado Pago encerrou a autorização do EventMap. Até lá, as vendas e os estornos ficam pausados.</p>
                       : overview.account ? <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />Conectada em {dateTime.format(new Date(overview.account.connectedAt))}</p>
                         : <p className="mt-1 text-sm text-muted-foreground">Conecte a conta que vai receber o dinheiro dos ingressos. Você autoriza no próprio site do Mercado Pago; o EventMap nunca vê sua senha.</p>}
                   </div>
                 </div>
-                {overview.configured && (overview.account
+                {overview.configured && (overview.account?.needsReconnect
+                  ? <Button type="button" onClick={() => void connect()} disabled={busy !== null}>{busy === "connect" ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}Reconectar Mercado Pago</Button>
+                  : overview.account
                   ? <Button type="button" variant="outline" onClick={() => setConfirmDisconnect(true)} disabled={busy !== null}><Unlink className="size-4" aria-hidden="true" />Desconectar</Button>
                   : <Button type="button" onClick={() => void connect()} disabled={busy !== null}>{busy === "connect" ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}Conectar Mercado Pago</Button>)}
               </div>

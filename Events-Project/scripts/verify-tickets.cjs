@@ -623,6 +623,7 @@ async function checkService() {
   const mine = await service.listMyTickets(as("buyer"), deps);
   assert.equal(mine.success, true);
   assert.deepEqual(mine.data.map((item) => item.status).sort(), ["PAID", "REFUNDED"]);
+  assert.deepEqual([mine.data[0].organizerId, mine.data[0].organizerName], ["seller", "Organizadora"], "refund contact: the organizer");
   assert.equal((await service.listMyTickets(anonymous, deps)).success, false);
 
   // Token refresh before expiry.
@@ -975,7 +976,6 @@ function checkWiring() {
   assert.match(fs.readFileSync("lib/services/attendance.ts", "utf8"), /ticketSale: Boolean\(event\.ticketsEnabled && !event\.isFree && ticketPaymentsConfigured\(\)\)/, "registration state exposes ticketSale");
   const actionsUi = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
   assert.match(actionsUi, /const sellsElsewhere = !ticketSale && Boolean\(registration\?\.ticketSale\)/, "overlays detect EventMap ticket sales");
-  assert.match(actionsUi, /!ticketSale && !sellsElsewhere && eventStatus !== "CANCELLED"/, "free RSVP hidden when EventMap sells tickets");
   const eventForm = fs.readFileSync("components/MyComponents/EventoForm.tsx", "utf8");
   assert.match(eventForm, /Vender ingressos pelo EventMap/);
   assert.match(eventForm, /conecte sua conta do Mercado Pago/, "disabled toggle links to the connect page");
@@ -1000,6 +1000,23 @@ function checkWiring() {
   const health = fs.readFileSync("app/api/health/route.ts", "utf8");
   assert.match(health, /payments: ticketPaymentsConfigured\(\)/);
   assert.doesNotMatch(health, /MP_|TICKETS_ENCRYPTION_KEY/, "health exposes no variable names");
+  // Copy and UI for the audit fixes.
+  const panelUi = fs.readFileSync("components/MyComponents/tickets/PaymentsPanel.tsx", "utf8");
+  assert.match(panelUi, /account_mismatch:/, "reconnect with another account explained");
+  assert.match(panelUi, /needsReconnect/);
+  assert.match(panelUi, /Reconectar Mercado Pago/);
+  assert.match(actionsUi, /registration\?\.ticketSalesPaused/);
+  assert.match(actionsUi, /As vendas deste evento estão pausadas no momento\./);
+  assert.match(actionsUi, /!ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED"/, "no free RSVP while sales are paused");
+  const myTickets = fs.readFileSync("app/(private)/ingressos/page.tsx", "utf8");
+  assert.match(myTickets, /Precisa de reembolso\?/);
+  assert.match(myTickets, /7 dias/);
+  assert.match(myTickets, /\/promotores\//, "links the organizer profile");
+  const organizers = fs.readFileSync("app/(publicRoutes)/para-organizadores/page.tsx", "utf8");
+  assert.doesNotMatch(organizers, /não vende ingressos|não processa pagamentos/, "organizer page reflects ticket sales");
+  assert.match(organizers, /20%/);
+  assert.match(fs.readFileSync("app/(publicRoutes)/privacidade/page.tsx", "utf8"), /Mercado Pago, que recebe seu nome, e-mail/);
+  assert.ok(fs.existsSync("docs/superpowers/specs/2026-11-21-ingressos-rollback.md"), "rollback notes");
   const envExample = fs.readFileSync(".env.example", "utf8");
   for (const name of ["MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_WEBHOOK_SECRET", "TICKETS_ENCRYPTION_KEY", "MP_REDIRECT_URI", "CRON_SECRET"]) assert.match(envExample, new RegExp(`^${name}=\\s*$`, "m"), name + " documented without value");
 }

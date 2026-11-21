@@ -45,7 +45,11 @@ export type PaymentsOverview = {
   events: SellerEventSales[];
   totals: { sold: number; grossCents: number; feeCents: number; netCents: number };
 };
-export type MyTicketView = { id: string; code: string; status: TicketOrderStatusValue; unitCents: number; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string };
+export type MyTicketView = {
+  id: string; code: string; status: TicketOrderStatusValue; unitCents: number; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string;
+  /** Refunds are requested from the organizer (seller), linked from /ingressos. */
+  organizerId: string; organizerName: string;
+};
 export type AdminTicketOverview = {
   paid: { count: number; grossCents: number; feeCents: number };
   refunded: { count: number; grossCents: number };
@@ -831,13 +835,14 @@ export async function listMyTickets(resolveViewer: ResolveCurrentUser, deps?: Ti
     const now = d.now();
     const rows = await prisma.ticketOrder.findMany({
       where: { buyerId: user.id, status: { in: ["PAID", "PENDING", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 100,
-      select: { id: true, status: true, unitCents: true, expiresAt: true, paidAt: true, createdAt: true, eventId: true, event: { select: { nome: true, dataInicio: true, startTime: true } } },
+      select: { id: true, status: true, unitCents: true, expiresAt: true, paidAt: true, createdAt: true, eventId: true, sellerId: true, seller: { select: { name: true } }, event: { select: { nome: true, dataInicio: true, startTime: true } } },
     });
     return {
       success: true, message: "",
       data: rows.filter((row) => row.status !== "PENDING" || isOpenTicketOrder(row, now)).map((row) => ({
         id: row.id, code: shortTicketCode(row.id), status: row.status, unitCents: row.unitCents, eventId: row.eventId, eventName: row.event.nome,
         dataInicio: row.event.dataInicio, startTime: row.event.startTime, paidAt: iso(row.paidAt), createdAt: new Date(row.createdAt).toISOString(),
+        organizerId: row.sellerId, organizerName: row.seller.name?.trim() || "Organizador",
       })),
     };
   } catch {

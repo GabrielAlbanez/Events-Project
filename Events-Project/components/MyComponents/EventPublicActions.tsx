@@ -13,7 +13,7 @@ import { PopIcon } from "@/components/animations/PopIcon";
 import { toast } from "react-toastify";
 
 type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
-type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null; ticketSale?: boolean };
+type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null; ticketSale?: boolean; ticketSalesPaused?: boolean };
 type ApiError = { message?: string };
 // Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
 const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
@@ -125,7 +125,9 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const waitlistOnly = Boolean(registration && registration.capacity !== null && registration.confirmedCount >= registration.capacity);
   // Drawers/modals don't pass ticketSale; when EventMap sells this event's tickets they link to the checkout instead of the free RSVP.
   const sellsElsewhere = !ticketSale && Boolean(registration?.ticketSale);
-  const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration && !sellsElsewhere;
+  // EventMap sells this event but payments are paused: neither checkout nor free RSVP.
+  const salesPaused = !ticketSale && Boolean(registration?.ticketSalesPaused);
+  const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration && !sellsElsewhere && !salesPaused;
   const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
   // Mobile: equal-width two-column grid with short labels; from sm up the original inline buttons.
   const tile = `${button.replace(" px-4 ", " px-2 sm:px-4 ")} min-w-0 flex-1 basis-[calc(50%-0.25rem)] whitespace-nowrap sm:flex-none sm:basis-auto sm:whitespace-normal`;
@@ -152,7 +154,8 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   return <div ref={panelRef} className="space-y-3">
     {ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} />}
     {sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration ? "Ver meu ingresso" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
-    {!ticketSale && !sellsElsewhere && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+    {salesPaused && registrationOpen && !activeRegistration && <p role="status" className="flex items-start gap-2 rounded-2xl border bg-muted/30 p-4 text-sm leading-6"><TicketCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />As vendas deste evento estão pausadas no momento.</p>}
+    {!ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
       <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>

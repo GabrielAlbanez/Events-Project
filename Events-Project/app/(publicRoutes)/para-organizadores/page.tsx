@@ -49,7 +49,7 @@ const highlightSteps = [
 
 const faq = [
   { q: "Quanto custa?", a: "Hoje o uso por organizadores é gratuito, em um piloto com organizadores selecionados. O único item pago é o destaque opcional de eventos, com preços informados nesta página antes de qualquer pedido. Planos pagos ainda estão em definição e, se forem criados, terão preço e condições informados antes de qualquer cobrança." },
-  { q: "O EventMap vende ingressos?", a: "Não. O EventMap não processa pagamentos de ingressos. Você pode informar o link da sua bilheteria, e a inscrição no EventMap funciona como confirmação de presença com controle de lotação e check-in." },
+  { q: "O EventMap vende ingressos?", a: "Sim, de forma opcional, por Pix: você conecta sua conta do Mercado Pago, o dinheiro cai direto nela e o EventMap retém uma taxa de 20% por ingresso vendido (o Mercado Pago também desconta a tarifa do Pix). Se preferir, informe o link da sua bilheteria; a inscrição gratuita no EventMap continua funcionando como confirmação de presença com controle de lotação e check-in." },
   { q: "Quanto tempo leva a análise do pedido?", a: "A equipe analisa os pedidos manualmente. Quando sua conta for liberada, você recebe um aviso na central de notificações e já pode criar eventos." },
   { q: "Meu evento já está no EventMap. Como assumo a administração?", a: "Alguns eventos são cadastrados pela equipe a partir de fontes oficiais. Na página do evento, use \"Sou o organizador deste evento\". Depois de confirmar sua identidade, a equipe transfere o evento para sua conta." },
   { q: "Quem pode ver os dados dos participantes?", a: "Nome e e-mail de quem se inscreve ficam visíveis para você, para a equipe que você adicionar ao evento e para a administração do EventMap, apenas para gestão daquele evento, conforme os Termos de Uso e a LGPD." },
@@ -75,7 +75,7 @@ export default async function ForOrganizersPage() {
             <a href="#pedir-acesso" className={primaryCta}><UserPlus className="h-4 w-4" aria-hidden="true" /> Pedir acesso de organizador</a>
             <a href="#como-funciona" className={secondaryCta}>Ver como funciona</a>
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">Gratuito no piloto. O EventMap não vende ingressos nem cobra taxa por inscrição.</p>
+          <p className="mt-4 text-sm text-muted-foreground">Gratuito no piloto e sem taxa por inscrição. Venda de ingressos por Pix é opcional, com taxa de 20% por ingresso vendido.</p>
         </div>
       </section>
 
