@@ -1,7 +1,7 @@
 .shell {
   position: relative;
   height: calc(100vh - var(--site-header-height, 76px));
-  height: calc(100dvh - var(--site-header-height, 76px));
+  height: calc(100dvh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
   overflow: hidden;
 }
 
@@ -15,10 +15,12 @@
 }
 
 .main {
-  height: calc(100dvh - var(--site-header-height, 76px));
+  height: calc(100dvh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
   flex: none;
   scroll-margin-top: 16px;
-  --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));
+  /* The mobile bottom nav already covers the safe area; only the uncovered remainder is added. */
+  --discovery-safe-area: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--mobile-nav-space, 0px)));
+  --discovery-sheet-height: calc(104px + var(--discovery-safe-area));
   overflow: hidden;
 }
 
@@ -28,7 +30,7 @@
 
 .sheet {
   height: var(--discovery-sheet-height);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--discovery-safe-area, env(safe-area-inset-bottom, 0px));
 }
 
 .sheetToggle {

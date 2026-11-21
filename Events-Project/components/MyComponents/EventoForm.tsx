@@ -2,13 +2,18 @@
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { FormProvider, useForm } from "react-hook-form";
-import { maximumUploadImageBytes } from "@/lib/uploadLimits";
+import { maximumUploadImageBytes, uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { getTicketSellerStatus } from "@/app/(actions)/tickets/action";
+import { TICKET_FEE_PERCENT, TICKET_MAX_CENTS, TICKET_MIN_CENTS, formatTicketAmount, isValidTicketPrice, ticketNetCents } from "@/lib/tickets";
 import { DateRangePicker } from "@heroui/react";
 import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
-import { Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ImagePlus, Info, MapPin, Sparkles, X } from "lucide-react";
 import { atualizarEvento, salvarEvento, salvarRascunho } from "@/app/(actions)/eventos/actions";
+import { sensitiveEventChanges, sensitiveFieldLabels, type SensitiveChange } from "@/lib/eventScheduleChanges";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { criarSerieRecorrente } from "@/app/(actions)/eventos/recurrence";
 import type { Evento } from "@/types";
 import { eventCategories } from "@/types/features";
@@ -22,10 +27,12 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { GoogleMapsPreference } from "./GoogleMapsPreference";
 
 type EventoFormData = {
   nome: string;
   descricao: string;
+  organizerName: string;
   ageRating: string;
   accessibilityInfo: string;
   participationInfo: string;
@@ -35,6 +42,8 @@ type EventoFormData = {
   price: string;
   capacity: string;
   isFree: boolean;
+  ticketsEnabled: boolean;
+  ticketCapacity: string;
   startTime: string;
   endTime: string;
 };
@@ -46,6 +55,17 @@ const sectionClass = "rounded-2xl border border-border bg-card p-5 shadow-surfac
 const descriptionOutline = "O que vai acontecer:\n\nPara quem é o evento:\n\nProgramação e atrações:\n\nInformações de entrada:";
 const hasUsefulDescription = (value: string) =>
   value.replace(/O que vai acontecer:|Para quem é o evento:|Programação e atrações:|Informações de entrada:/gi, "").trim().length >= 10;
+const priceCentsOf = (values: Pick<EventoFormData, "isFree" | "price">) => values.isFree ? 0 : Math.round(Number(values.price.replace(",", ".")) * 100);
+
+/** Same rule as the server (lib/services/events.ts): which edits send a published event back to review. */
+function publishedReviewReasons(initialEvent: Evento | undefined, values: EventoFormData, dateRange: EventDateRange | null, coordinates: { lat: number; lng: number } | null, newBanner: boolean): SensitiveChange[] {
+  if (initialEvent?.status !== "PUBLISHED") return [];
+  const coverChange: SensitiveChange[] = newBanner ? [sensitiveFieldLabels.banner] : [];
+  return [...sensitiveEventChanges(
+    { nome: initialEvent.nome, dataInicio: initialEvent.dataInicio, dataFim: initialEvent.dataFim, startTime: initialEvent.startTime ?? null, endTime: initialEvent.endTime ?? null, endereco: initialEvent.endereco, lat: initialEvent.lat ?? null, lng: initialEvent.lng ?? null, linkParaCompra: initialEvent.linkParaCompra, isFree: initialEvent.isFree ?? true, priceCents: initialEvent.priceCents ?? 0, capacity: initialEvent.capacity ?? null, organizerName: initialEvent.organizerName ?? "" },
+    { nome: values.nome.trim(), dataInicio: dateRange?.start.toString() ?? "", dataFim: dateRange?.end.toString() ?? "", startTime: values.startTime, endTime: values.endTime, endereco: values.endereco.trim(), lat: coordinates?.lat ?? null, lng: coordinates?.lng ?? null, linkParaCompra: values.LinkParaCompraIngresso.trim(), isFree: values.isFree, priceCents: priceCentsOf(values), capacity: values.capacity.trim() === "" ? null : Number(values.capacity.trim()), organizerName: values.organizerName.trim() },
+  ), ...coverChange];
+}
 
 type EventoFormProps = React.ComponentPropsWithoutRef<"form"> & { initialEvent?: Evento };
 
@@ -54,8 +74,15 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "" },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "", ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "" },
   });
+  // Selling through EventMap needs payments configured and the organizer's Mercado Pago connected (re-checked on the server).
+  const [sellerStatus, setSellerStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
+  useEffect(() => {
+    let active = true;
+    getTicketSellerStatus().then((result) => { if (active) setSellerStatus(result.success ? result.data : { configured: false, connected: false }); }).catch(() => { if (active) setSellerStatus({ configured: false, connected: false }); });
+    return () => { active = false; };
+  }, []);
   const { data } = useCurrentUser();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -79,7 +106,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
   const saveMode = useRef<"draft" | "submit">("submit");
+  const [reviewPrompt, setReviewPrompt] = useState<EventoFormData | null>(null);
   const allValues = form.watch();
+  const isPublishedEdit = initialEvent?.status === "PUBLISHED";
+  const reviewReasons = publishedReviewReasons(initialEvent, allValues, dateRange, coordinates, !!banner);
   const fingerprint = JSON.stringify({ values: allValues, dates: dateRange && [dateRange.start.toString(), dateRange.end.toString()], coordinates, recurrence, repeatEvery, occurrences });
   const initialFingerprint = useRef(fingerprint);
   const unsaved = useUnsavedChanges(fingerprint !== initialFingerprint.current || !!banner || galleryFiles.length > 0);
@@ -99,11 +129,14 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const endereco = form.watch("endereco");
   const link = form.watch("LinkParaCompraIngresso");
   const isFree = form.watch("isFree");
+  const ticketsOn = !isFree && form.watch("ticketsEnabled");
+  const ticketPriceCents = priceCentsOf({ isFree, price: form.watch("price") });
+  const canSellTickets = Boolean(sellerStatus?.configured && sellerStatus.connected);
   const category = form.watch("category");
   const checklist = [
     { label: "Nome e descrição", ready: nome.trim().length >= 3 && hasUsefulDescription(descricao) },
     { label: "Data e local", ready: Boolean(dateRange?.start && dateRange?.end && endereco.trim().length >= 3) },
-    { label: "Ingresso e banner", ready: /^https?:\/\/[^\s]+\.[^\s]+$/i.test(link.trim()) && Boolean(banner || initialEvent?.banner) && Boolean(category) },
+    { label: "Ingresso e banner", ready: (ticketsOn || /^https?:\/\/[^\s]+\.[^\s]+$/i.test(link.trim())) && Boolean(banner || initialEvent?.banner) && Boolean(category) },
   ];
   const completeCount = checklist.filter((item) => item.ready).length;
 
@@ -129,7 +162,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
-  const onSubmit = (values: EventoFormData) => {
+  const onSubmit = (values: EventoFormData, reviewConfirmed = false) => {
     const draft = saveMode.current === "draft";
     if (!draft && (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0)) {
       setDateError("Escolha uma data de início e uma data de fim válidas.");
@@ -160,12 +193,18 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       toast.error("Entre na sua conta para criar um evento.");
       return;
     }
+    // OPP-01: warn before a sensitive edit takes a published event offline for review.
+    if (!draft && !reviewConfirmed && publishedReviewReasons(initialEvent, values, dateRange, coordinates, !!banner).length > 0) {
+      setReviewPrompt(values);
+      return;
+    }
 
     startTransition(async () => {
       try {
         const payload = new FormData();
         payload.append("nome", values.nome.trim());
         payload.append("descricao", values.descricao.trim());
+        payload.append("organizerName", values.organizerName.trim());
         payload.append("ageRating", values.ageRating.trim());
         payload.append("accessibilityInfo", values.accessibilityInfo.trim());
         payload.append("participationInfo", values.participationInfo.trim());
@@ -175,8 +214,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         payload.append("endereco", values.endereco.trim());
         payload.append("category", values.category);
         payload.append("isFree", String(values.isFree));
-        payload.append("priceCents", values.isFree ? "0" : String(Math.round(Number(values.price.replace(",", ".")) * 100)));
+        payload.append("priceCents", String(priceCentsOf(values)));
         payload.append("capacity", values.capacity.trim());
+        payload.append("ticketsEnabled", String(!values.isFree && values.ticketsEnabled));
+        payload.append("ticketCapacity", !values.isFree && values.ticketsEnabled ? values.ticketCapacity.trim() : "");
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
         if (coordinates) {
@@ -185,6 +226,11 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         }
         if (banner) payload.append("banner", banner);
         galleryFiles.forEach((file) => payload.append("carrossel", file));
+
+        if (!uploadMultipartFits(payload)) {
+          toast.error(uploadMultipartLimitMessage);
+          return;
+        }
 
         const result = initialEvent
           ? await atualizarEvento(initialEvent.id, payload, !draft)
@@ -212,6 +258,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             return;
           }
           toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados para análise"}.`);
+        } else if (isPublishedEdit) {
+          // The server decides whether the event stayed online; its message says which.
+          toast.success(result.message || "Alterações salvas.");
         } else {
           toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
         }
@@ -231,6 +280,22 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   return (
     <FormProvider {...form}>
       {unsaved.dialog}
+      <Dialog open={reviewPrompt !== null} onOpenChange={(open) => { if (!open) setReviewPrompt(null); }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6 leading-snug"><AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />Enviar para nova revisão?</DialogTitle>
+            <DialogDescription>Isso enviará o evento para nova revisão e ele sairá do ar até a aprovação.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Alterações que exigem revisão: <strong>{reviewPrompt ? publishedReviewReasons(initialEvent, reviewPrompt, dateRange, coordinates, !!banner).join(", ") : ""}</strong>.</p>
+            <p className="text-muted-foreground">Inscritos e pessoas que salvaram o evento serão avisados. Para manter o evento no ar, desfaça essas alterações e salve apenas descrição, imagens ou informações práticas.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setReviewPrompt(null)}>Voltar e revisar</Button>
+            <Button type="button" variant="cta" disabled={isPending} onClick={() => { const values = reviewPrompt; setReviewPrompt(null); if (values) { saveMode.current = "submit"; onSubmit(values, true); } }}>Salvar e enviar para revisão</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           {draftRecovery.recovery && <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="Recuperar rascunho local"><h2 className="font-semibold">Você tem um rascunho neste navegador</h2><p className="mt-2 text-sm text-muted-foreground">Salvo em {new Date(draftRecovery.recovery.savedAt).toLocaleString("pt-BR")}. As imagens precisam ser selecionadas novamente. {draftRecovery.conflict ? "O evento foi atualizado desde este rascunho: recuperar substituirá os campos atuais. Confira antes de salvar." : "Recupere suas alterações ou descarte para continuar."}</p><div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={restoreDraft} disabled={fingerprint !== initialFingerprint.current || isPending}>Recuperar rascunho</Button><Button type="button" variant="ghost" onClick={draftRecovery.discard}>Descartar rascunho</Button></div>{fingerprint !== initialFingerprint.current && <p className="mt-2 text-xs text-muted-foreground">Você já editou o formulário. O rascunho anterior não substituirá essas alterações.</p>}</section>}
@@ -306,6 +371,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Inclui o primeiro evento. Até 52 edições dentro de um ano.</p>
                 </div>}
               </fieldset>}
+              <GoogleMapsPreference compact />
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
                   <span className="block text-sm font-medium">Endereço <Required /></span>
@@ -338,6 +404,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             <h2 id="event-practical-title" className="text-xl font-semibold tracking-tight">Antes de participar</h2>
             <p className="mt-1 text-sm text-muted-foreground">Informações opcionais para o público planejar a visita. Preencha apenas o que foi confirmado pela organização.</p>
             <div className="mt-6 space-y-5">
+              <FormField name="organizerName" rules={{ maxLength: { value: 160, message: "Use até 160 caracteres." } }} render={({ field }) => (
+                <FormItem><FormLabel>Organização responsável <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input maxLength={160} placeholder="Nome oficial de quem realiza o evento" {...field} /></FormControl><FormDescription>Informe somente a organização confirmada. Este dado é diferente da conta que publica no EventMap.</FormDescription><FormMessage /></FormItem>
+              )} />
               <FormField name="ageRating" rules={{ maxLength: { value: 80, message: "Use até 80 caracteres." } }} render={({ field }) => (
                 <FormItem><FormLabel>Classificação etária</FormLabel><FormControl><Input placeholder="Ex.: Livre ou 18 anos" maxLength={80} {...field} /></FormControl><FormDescription>Informe restrições de idade e, se aplicável, a necessidade de acompanhante.</FormDescription><FormMessage /></FormItem>
               )} />
@@ -355,12 +424,31 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             <div className="space-y-6">
               <FormField name="capacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma capacidade inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Vagas para confirmação <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Ao preencher todas as vagas, novas pessoas entram na lista de espera. Deixe vazio para aceitar confirmações sem limite.</FormDescription><FormMessage /></FormItem>} />
               <FormField name="isFree" render={({ field }) => <FormItem><div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-4"><input id="event-free" type="checkbox" checked={field.value} onChange={(event) => field.onChange(event.target.checked)} className="h-5 w-5 accent-primary" /><label htmlFor="event-free" className="cursor-pointer text-sm font-medium">Evento gratuito</label></div><FormDescription>Desmarque para informar o preço inicial do ingresso.</FormDescription></FormItem>} />
-              {!isFree && <FormField name="price" rules={{ required: "Informe o preço do ingresso.", validate: (value) => Number.isFinite(Number(value.replace(",", "."))) && Number(value.replace(",", ".")) >= 0 || "Informe um preço válido." }} render={({ field }) => <FormItem><FormLabel>Preço inicial (R$) <Required /></FormLabel><FormControl><Input inputMode="decimal" placeholder="Ex.: 25,00" {...field} /></FormControl><FormMessage /></FormItem>} />}
-              <FormField name="LinkParaCompraIngresso" rules={{ required: "Informe o link de ingressos.", pattern: { value: /^https?:\/\/[^\s]+\.[^\s]+$/i, message: "Use um link completo e válido começando com https://." } }} render={({ field }) => (
+              {!isFree && <FormField name="price" rules={{ required: "Informe o preço do ingresso.", validate: (value) => !(Number.isFinite(Number(value.replace(",", "."))) && Number(value.replace(",", ".")) >= 0) ? "Informe um preço válido." : form.getValues("ticketsEnabled") && !isValidTicketPrice(Math.round(Number(value.replace(",", ".")) * 100)) ? `Para vender pelo EventMap, use um preço entre ${formatTicketAmount(TICKET_MIN_CENTS)} e ${formatTicketAmount(TICKET_MAX_CENTS)}.` : true }} render={({ field }) => <FormItem><FormLabel>Preço inicial (R$) <Required /></FormLabel><FormControl><Input inputMode="decimal" placeholder="Ex.: 25,00" {...field} /></FormControl><FormMessage /></FormItem>} />}
+              {!isFree && <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+                <FormField name="ticketsEnabled" render={({ field }) => <FormItem>
+                  <div className="flex items-start gap-3">
+                    <input id="event-tickets" type="checkbox" checked={field.value} disabled={!field.value && !canSellTickets} aria-describedby="event-tickets-help" onChange={(event) => { field.onChange(event.target.checked); void form.trigger(["price", "LinkParaCompraIngresso"]); }} className="mt-0.5 h-5 w-5 shrink-0 accent-primary disabled:cursor-not-allowed disabled:opacity-50" />
+                    <div className="min-w-0">
+                      <label htmlFor="event-tickets" className="cursor-pointer text-sm font-medium">Vender ingressos pelo EventMap</label>
+                      <p id="event-tickets-help" className="mt-1 text-sm text-muted-foreground">Pix com confirmação automática. O valor vai direto para a sua conta do Mercado Pago e o ingresso vira o QR Code de entrada.</p>
+                    </div>
+                  </div>
+                </FormItem>} />
+                {sellerStatus === null ? <p role="status" className="text-sm text-muted-foreground">Consultando sua conta de pagamentos...</p>
+                  : !sellerStatus.configured ? <p className="text-sm text-muted-foreground">Pagamentos ainda não configurados no EventMap. Por enquanto, use um link de ingressos externo.</p>
+                    : !sellerStatus.connected ? <p className="text-sm text-muted-foreground">Para ativar, <Link href="/myEvents/pagamentos" className="font-medium text-brand underline-offset-4 hover:underline">conecte sua conta do Mercado Pago</Link>.</p>
+                      : null}
+                {ticketsOn && <>
+                  <p role="status" className="rounded-lg bg-background px-3 py-2 text-sm">{isValidTicketPrice(ticketPriceCents) ? <>Você recebe <strong className="tabular-nums">{formatTicketAmount(ticketNetCents(ticketPriceCents))}</strong> por ingresso (taxa de {TICKET_FEE_PERCENT}% do EventMap). O Mercado Pago também desconta a tarifa do Pix.</> : `Preço entre ${formatTicketAmount(TICKET_MIN_CENTS)} e ${formatTicketAmount(TICKET_MAX_CENTS)} para vender pelo EventMap.`}</p>
+                  <FormField name="ticketCapacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma lotação inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Ingressos à venda <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Pix aguardando pagamento reservam a vaga por até 30 minutos. Deixe vazio para vender sem limite.</FormDescription><FormMessage /></FormItem>} />
+                </>}
+              </div>}
+              <FormField name="LinkParaCompraIngresso" rules={{ required: ticketsOn ? false : "Informe o link de ingressos.", pattern: { value: /^https?:\/\/[^\s]+\.[^\s]+$/i, message: "Use um link completo e válido começando com https://." } }} render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Link de ingressos <Required /></FormLabel>
+                  <FormLabel>Link de ingressos {ticketsOn ? <span className="font-normal text-muted-foreground">(opcional)</span> : <Required />}</FormLabel>
                   <FormControl><Input type="url" inputMode="url" placeholder="https://exemplo.com/ingressos" {...field} /></FormControl>
-                  <FormDescription>Use a página oficial de compra ou inscrição, mesmo para eventos gratuitos.</FormDescription>
+                  <FormDescription>{ticketsOn ? "Com a venda pelo EventMap, o link externo não aparece para o público. Pode deixar vazio." : "Use a página oficial de compra ou inscrição, mesmo para eventos gratuitos."}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -398,15 +486,15 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                   setGalleryUrls([...galleryUrlsRef.current]);
                   setGalleryFiles((previous) => [...previous, ...files]);
                 }} />
-                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores. Até 4 MB por foto.</p>
+                <p id="event-gallery-help" className="mt-2 text-sm text-muted-foreground">Adicione fotos do espaço, atrações ou edições anteriores. Até 4 MB por foto, com limite de 4,4 MB para o envio completo.</p>
                 {galleryUrls.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{galleryUrls.map((url, index) => <div key={url} className="relative overflow-hidden rounded-lg border border-border"><img src={url} alt={`Prévia da foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => removeGalleryImage(index)} aria-label={`Remover foto ${index + 1}`} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-background p-2 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" /></button></div>)}</div>}
               </div>
             </div>
           </section>
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
-            <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>
-            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? "Enviando evento..." : "Enviar para análise"}</Button></div>
+            {isPublishedEdit ? <div className="flex items-start gap-3" aria-live="polite">{reviewReasons.length ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" /> : <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" />}<div className="space-y-1 text-sm text-foreground">{reviewReasons.length ? <><p className="font-semibold">Estas alterações exigem nova revisão: {reviewReasons.join(", ")}.</p><p className="text-muted-foreground">Ao salvar, o evento sairá do ar até a aprovação. Inscritos e quem salvou o evento serão avisados.</p></> : <><p className="font-semibold">O evento continua no ar.</p><p className="text-muted-foreground">Descrição, imagens, categoria, informações práticas e aumento de vagas são publicados na hora. Nome, data, horário, local, link de ingressos, preço e redução de vagas passam por nova revisão.</p></>}</div></div> : <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>}
+            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? (isPublishedEdit ? "Salvando alterações..." : "Enviando evento...") : isPublishedEdit ? (reviewReasons.length ? "Salvar e enviar para revisão" : "Publicar alterações") : "Enviar para análise"}</Button></div>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { publicCatalogUrl } from "./catalog";
+import { ticket360EventLinks } from "./sources";
 export { publicCatalogUrl } from "./catalog";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
@@ -26,9 +27,17 @@ export interface VerifiedEventImport {
 }
 type SourceDocument = { url: string; body: string };
 interface ProviderDependencies {
-  readSource?: (url: string) => Promise<SourceDocument>;
+  readSource?: (url: string, timeoutMs?: number) => Promise<SourceDocument>;
   now?: () => Date;
 }
+export interface DiscoveredSource { url: string; platform: string; verified?: VerifiedEventImport }
+export interface DiscoveryResult { sources: DiscoveredSource[]; sourceErrors: { platform: string; message: string }[]; partial: boolean }
+export interface DiscoveryOptions { alreadyKnown?: (url: string) => Promise<boolean>; deadline: number; concurrency?: number }
+/** Busca imediata: cada leitura tem 8 s, para caber no orçamento de 45 s da requisição. */
+const IMMEDIATE_TIMEOUT_MS = 8000;
+/** Limite de cada leitura: nunca passa do tempo restante da busca. */
+export const readBudget = (deadline: number): number => Math.max(1, Math.min(IMMEDIATE_TIMEOUT_MS, deadline - Date.now()));
+const TICKET360_MAX_PAGES = 20;
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 const normalized = (value: string): string => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g, "");
@@ -63,7 +72,7 @@ export function isPublicSourceAddress(address: string): boolean {
   return false;
 }
 
-async function readOfficialSource(initialUrl: string): Promise<SourceDocument> {
+async function readOfficialSource(initialUrl: string, timeoutMs: number = SOURCE_TIMEOUT_MS): Promise<SourceDocument> {
   let current = canonicalSourceUrl(initialUrl);
   for (let redirects = 0; redirects <= 3; redirects++) {
     const url = new URL(current);
@@ -72,7 +81,7 @@ async function readOfficialSource(initialUrl: string): Promise<SourceDocument> {
     try {
       addresses = await Promise.race([
         lookup(url.hostname, { all: true, verbatim: true }),
-        new Promise<never>((_, reject) => { dnsTimer = setTimeout(() => reject(new Error(SOURCE_ERROR)), SOURCE_TIMEOUT_MS); }),
+        new Promise<never>((_, reject) => { dnsTimer = setTimeout(() => reject(new Error(SOURCE_ERROR)), timeoutMs); }),
       ]) as unknown as Awaited<ReturnType<typeof lookup>>;
     } catch { throw new Error(SOURCE_ERROR); }
     finally { clearTimeout(dnsTimer); }
@@ -81,7 +90,7 @@ async function readOfficialSource(initialUrl: string): Promise<SourceDocument> {
     if (!resolved.length || resolved.some(item => !isPublicSourceAddress(item.address))) throw new Error(SOURCE_ERROR);
     const chosen = resolved[0];
     const result = await new Promise<{ body: string; location: string | null }>((resolve, reject) => {
-      const timeout = setTimeout(() => outgoing.destroy(new Error(SOURCE_ERROR)), SOURCE_TIMEOUT_MS);
+      const timeout = setTimeout(() => outgoing.destroy(new Error(SOURCE_ERROR)), timeoutMs);
       const outgoing = request(url, {
         method: "GET", family: chosen.family,
         // Pin the validated DNS address while preserving TLS hostname validation.
@@ -261,13 +270,75 @@ export function parsePublicEvent(body: string, sourceUrl: string, city: string |
 export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
   const now = dependencies.now ?? (() => new Date());
   const readSource = dependencies.readSource ?? readOfficialSource;
-  async function inspect(url: string, city?: string): Promise<VerifiedEventImport> {
+  async function inspect(url: string, city?: string, timeoutMs?: number): Promise<VerifiedEventImport> {
     const canonical = canonicalSourceUrl(url);
     let source: SourceDocument;
-    try { source = await readSource(canonical); } catch { throw new Error(SOURCE_ERROR); }
+    try { source = await readSource(canonical, timeoutMs); } catch { throw new Error(SOURCE_ERROR); }
     return parsePublicEvent(source.body, canonicalSourceUrl(source.url), city, now());
   }
+
+  /** Links candidatos por plataforma. Cada leitor falha sozinho, sem derrubar os demais. */
+  const catalogReaders: { platform: string; links: (city: string, deadline: number) => Promise<string[]> }[] = [
+    { platform: "Sympla", links: async (city, deadline) => {
+      const catalog = publicCatalogUrl(city), links: string[] = [];
+      for (let page = 1; page <= 4 && Date.now() < deadline; page++) {
+        let document: SourceDocument;
+        try { document = await readSource(page === 1 ? catalog : catalog + "?page=" + page, readBudget(deadline)); }
+        catch (error) { if (page === 1) throw error; break; }
+        const found = publicEventLinks(document.body, document.url).filter(url => !links.includes(url));
+        // Página 1 respondeu sem nenhum link: o layout mudou, não é "nenhum evento novo".
+        if (!found.length) { if (page === 1) throw new Error(SOURCE_ERROR); break; }
+        links.push(...found);
+      }
+      return links;
+    } },
+    { platform: "Ticket360", links: async (_city, deadline) => {
+      const pages = await Promise.allSettled(["https://www.ticket360.com.br/", "https://www.ticket360.com.br/explore"].map(url => readSource(url, readBudget(deadline))));
+      if (pages.every(page => page.status === "rejected")) throw new Error(SOURCE_ERROR);
+      const links: string[] = [];
+      for (const page of pages) if (page.status === "fulfilled") for (const url of ticket360EventLinks(page.value.body)) if (!links.includes(url)) links.push(url);
+      if (!links.length) throw new Error(SOURCE_ERROR);
+      // A Ticket360 não filtra por cidade: cada página aberta é conferida pelo endereço oficial.
+      return links.slice(0, TICKET360_MAX_PAGES);
+    } },
+  ];
+
+  async function discoverAllSources(city: string, max: number, options: DiscoveryOptions): Promise<DiscoveryResult> {
+    const limit = Math.min(5, Math.max(1, Math.floor(max)));
+    const sourceErrors: DiscoveryResult["sourceErrors"] = [];
+    let partial = false;
+    const expired = () => { if (Date.now() >= options.deadline) partial = true; return partial; };
+    const lists = await Promise.all(catalogReaders.map(async reader => {
+      try { return { platform: reader.platform, links: await reader.links(city, options.deadline) }; }
+      catch { sourceErrors.push({ platform: reader.platform, message: `${reader.platform} indisponível agora.` }); return { platform: reader.platform, links: [] as string[] }; }
+    }));
+    // Intercala as plataformas para que uma não ocupe todas as vagas.
+    const queue: DiscoveredSource[] = [];
+    for (let index = 0; lists.some(list => index < list.links.length); index++) {
+      for (const list of lists) if (index < list.links.length) queue.push({ url: list.links[index], platform: list.platform });
+    }
+    const found: DiscoveredSource[] = [];
+    const seen = new Set<string>();
+    let next = 0;
+    const worker = async () => {
+      while (found.length < limit && next < queue.length && !expired()) {
+        const item = queue[next++];
+        if (seen.has(item.url) || await options.alreadyKnown?.(item.url)) continue;
+        seen.add(item.url);
+        let event: VerifiedEventImport;
+        try { event = await inspect(item.url, city, readBudget(options.deadline)); } catch { continue; }
+        const known = await options.alreadyKnown?.(event.sourceUrl);
+        // Sem await entre a checagem e o push: leitores paralelos não ultrapassam o limite.
+        if (known || expired() || found.length >= limit || found.some(source => source.url === event.sourceUrl)) continue;
+        found.push({ url: event.sourceUrl, platform: item.platform, verified: event });
+      }
+    };
+    if (!expired()) await Promise.all(Array.from({ length: Math.max(1, options.concurrency ?? 4) }, worker));
+    return { sources: found, sourceErrors, partial };
+  }
+
   return {
+    discoverAllSources,
     // Compatibility with the existing API. Public catalogs require no credentials.
     aiConfigured: () => true,
     async discoverEventSources(city: string, max: number, alreadyKnown?: (url: string) => Promise<boolean>): Promise<string[]> {
@@ -309,3 +380,4 @@ const provider = createAiEventProvider();
 export const aiConfigured = provider.aiConfigured;
 export const discoverEventSources = provider.discoverEventSources;
 export const inspectEventSource = provider.inspectEventSource;
+export const discoverAllSources = provider.discoverAllSources;

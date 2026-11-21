@@ -23,7 +23,7 @@ export default function PromoterError({ reset }: ErrorProps) {
   }
 
   return (
-    <main className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         
         <section aria-labelledby="page-error-title" aria-busy={pending} className="rounded-3xl border bg-card p-6 shadow-sm sm:p-10">
@@ -47,6 +47,6 @@ export default function PromoterError({ reset }: ErrorProps) {
           <p role="status" className="sr-only">{pending ? "Carregando a página novamente." : ""}</p>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

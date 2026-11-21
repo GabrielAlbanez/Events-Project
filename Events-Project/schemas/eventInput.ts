@@ -7,6 +7,7 @@ const optionalInformation = (limit: number) => z.string().trim().max(limit, `Use
 const date = z.string().refine(value => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value, "Data inválida.");
 export const eventInputSchema = z.object({
   nome: z.string().trim().max(160), descricao: z.string().trim().max(10000),
+  organizerName: z.string().trim().max(160).default(""),
   ageRating: optionalInformation(80), accessibilityInfo: optionalInformation(2000), participationInfo: optionalInformation(2000),
   endereco: z.string().trim().max(500), linkParaCompra: optionalUrl,
   dataInicio: date, dataFim: date, category: z.string().trim().min(1).max(80),
@@ -28,6 +29,7 @@ export function parseEventInput(form: FormData, submit: boolean) {
   const coordinate = (key: string) => text(key) ? Number(text(key)) : null;
   const result = eventInputSchema.safeParse({
     nome: text("nome"), descricao: text("descricao"), endereco: text("endereco"),
+    organizerName: text("organizerName"),
     ageRating: text("ageRating"), accessibilityInfo: text("accessibilityInfo"), participationInfo: text("participationInfo"),
     linkParaCompra: text("LinkParaCompraIngresso") || text("linkParaCompra"),
     dataInicio: text("dataInicio"), dataFim: text("dataFim"), category: text("category") || "Outros",
@@ -38,6 +40,18 @@ export function parseEventInput(form: FormData, submit: boolean) {
   if (!result.success) return { success: false as const, message: result.error.issues[0].message };
   if (submit && (result.data.nome.length < 3 || result.data.descricao.length < 10 || result.data.endereco.length < 3 || !result.data.dataInicio || !result.data.dataFim))
     return { success: false as const, message: "Informe nome e endereço com pelo menos 3 caracteres, descrição com 10 caracteres e datas antes de enviar." };
-  if (submit && !result.data.isFree && !result.data.linkParaCompra) return { success: false as const, message: "Informe um link de ingressos para o evento pago." };
+  // Events sold through EventMap do not need an external ticket link (the settings are checked by the event service).
+  if (submit && !result.data.isFree && !result.data.linkParaCompra && text("ticketsEnabled") !== "true") return { success: false as const, message: "Informe um link de ingressos para o evento pago." };
   return { success: true as const, data: { ...result.data, priceCents: result.data.isFree ? 0 : result.data.priceCents } };
+}
+const ticketSettingsSchema = z.object({
+  ticketsEnabled: z.boolean(),
+  ticketCapacity: z.number().int().min(1, "Informe uma lotação de ingressos inteira e positiva.").max(1000000, "A lotação de ingressos pode ter até 1 milhão.").nullable(),
+});
+/** EventMap ticket sales settings. Null when the form does not send them (older clients keep the stored values). */
+export function parseTicketSettings(form: FormData) {
+  if (!form.has("ticketsEnabled")) return null;
+  const capacity = String(form.get("ticketCapacity") ?? "").trim();
+  const result = ticketSettingsSchema.safeParse({ ticketsEnabled: form.get("ticketsEnabled") === "true", ticketCapacity: capacity === "" ? null : Number(capacity) });
+  return result.success ? { success: true as const, data: result.data } : { success: false as const, message: result.error.issues[0].message };
 }

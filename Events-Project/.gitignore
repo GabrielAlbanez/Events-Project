@@ -18,6 +18,7 @@
 /build
 /dist/
 /.private-uploads/
+/.e2e-auditoria/
 /public/uploads/
 
 # misc

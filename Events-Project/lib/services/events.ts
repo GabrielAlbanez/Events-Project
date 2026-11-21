@@ -1,12 +1,15 @@
 import { Evento } from "@/types";
 import prisma from "@/lib/prisma";
 import type { ResolveCurrentUser } from "@/lib/services/authContext";
-import { eventUpdateNotice } from "@/lib/eventScheduleChanges";
+import { eventUpdateNotice, sensitiveEventChanges, sensitiveFieldLabels } from "@/lib/eventScheduleChanges";
+import { reconcileEventWaitlist } from "@/lib/services/attendance";
 import { notifyEventAudience } from "@/lib/eventNotifications";
 import { publicEventSelect } from "@/lib/eventQueries";
-import { parseEventInput } from "@/schemas/eventInput";
+import { parseEventInput, parseTicketSettings } from "@/schemas/eventInput";
+import { ticketSettingsProblem } from "@/lib/services/tickets";
 import { Prisma, EventHistoryAction } from "@prisma/client";
 import { saveEventImage, removeEventImages } from "@/lib/storage/eventImages";
+import { uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 async function actor(resolveCurrentUser: ResolveCurrentUser) {
     const user = await resolveCurrentUser();
     if (!user || (user.role !== "ADMIN" && user.role !== "PROMOTER"))
@@ -29,14 +32,26 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const user = await actor(resolveCurrentUser);
         if (!user || (userId && user.id !== userId))
             return { success: false, message: "Acesso negado." };
+        if (!uploadMultipartFits(formData))
+            return { success: false, message: uploadMultipartLimitMessage };
         const existing = eventId ? await prisma.events.findUnique({ where: { id: eventId } }) : null;
         if (eventId && (!existing || (existing.userId !== user.id && user.role !== "ADMIN")))
             return { success: false, message: "Evento não encontrado ou acesso negado." };
         if (existing?.status === "CANCELLED" || existing?.status === "ENDED")
             return { success: false, message: "Este evento já foi encerrado. Duplique-o para criar uma nova edição." };
-        const parsed = parseEventInput(formData, submit);
+        // A published event may stay online after the edit, so it must keep meeting the submission rules
+        // even when a client sends submit=false (server actions accept any argument).
+        const parsed = parseEventInput(formData, submit || existing?.status === "PUBLISHED");
         if (!parsed.success)
             return parsed;
+        // Ticket sales: older clients omit the fields and keep the stored settings; enabling is always re-checked here.
+        const ticketInput = parseTicketSettings(formData);
+        if (ticketInput && !ticketInput.success)
+            return ticketInput;
+        const ticketSettings = ticketInput?.data ?? { ticketsEnabled: existing?.ticketsEnabled ?? false, ticketCapacity: existing?.ticketCapacity ?? null };
+        const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents });
+        if (ticketProblem)
+            return { success: false, message: ticketProblem };
         const bannerFile = formData.get("banner");
         let banner = existing?.banner ?? "";
         if (bannerFile instanceof File && bannerFile.size) {
@@ -49,25 +64,54 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         if (files.length > 10)
             throw new Error("Adicione no máximo 10 imagens.");
         const carrossel = files.length ? await Promise.all(files.map(async (file) => { const url = await saveEventImage(file); savedFiles.push(url); return url; })) : existing?.carrossel ?? [];
-        const status = submit || existing?.status === "PUBLISHED" ? "PENDING" as const : "DRAFT" as const;
+        const wasPublished = existing?.status === "PUBLISHED";
+        // OPP-01: only sensitive changes take a published event back to review.
+        // A new cover is shown everywhere the event appears, so it is reviewed like the name.
+        const sensitive = existing && wasPublished
+            ? [...sensitiveEventChanges(existing, { ...parsed.data, organizerName: formData.has("organizerName") ? parsed.data.organizerName : undefined }), ...(banner !== existing.banner ? [sensitiveFieldLabels.banner] : [])]
+            : [];
+        const liveUpdate = wasPublished && sensitive.length === 0;
+        const status = liveUpdate ? "PUBLISHED" as const : submit || wasPublished ? "PENDING" as const : "DRAFT" as const;
+        const capacityGrew = liveUpdate && existing !== null && existing.capacity !== null && (parsed.data.capacity === null || parsed.data.capacity > existing.capacity);
         const evento = await prisma.$transaction(async (transaction) => {
-            const data = { ...parsed.data, banner, carrossel, status, validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
+            const reviewReset = liveUpdate ? {} : { validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
+            const data = { ...parsed.data, ...ticketSettings, banner, carrossel, status, ...reviewReset };
+            // Older clients omit these fields: preserve existing information until explicitly edited.
+            if (existing) {
+                if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
+                if (!formData.has("ageRating")) data.ageRating = existing.ageRating;
+                if (!formData.has("accessibilityInfo")) data.accessibilityInfo = existing.accessibilityInfo;
+                if (!formData.has("participationInfo")) data.participationInfo = existing.participationInfo;
+            }
             if (existing) {
                 const changed = await transaction.events.updateMany({ where: { id: existing.id, updatedAt: existing.updatedAt, status: existing.status }, data });
                 if (!changed.count)
                     throw new Error("CONCURRENT_EVENT_CHANGE");
             }
             const event = existing ? await transaction.events.findUniqueOrThrow({ where: { id: existing.id } }) : await transaction.events.create({ data: { ...data, userId: user.id } });
-            await record(transaction, event, user, existing ? status === "PENDING" ? "SUBMITTED" : "UPDATED" : "CREATED");
+            if (liveUpdate) {
+                await record(transaction, event, user, "UPDATED", "Alterações publicadas sem nova revisão (campos não sensíveis).");
+                await notifyEventAudience(transaction, event, { title: "Evento atualizado", message: event.nome + ": alterações publicadas sem sair do ar.", includeAdmins: true, includeFavorites: false });
+                return event;
+            }
+            await record(transaction, event, user, existing ? status === "PENDING" ? "SUBMITTED" : "UPDATED" : "CREATED", sensitive.length ? "Nova revisão por alteração de: " + sensitive.join(", ") + "." : undefined);
             if (status === "PENDING")
                 await notifyEventAudience(transaction, event, { title: "Evento em revisão", message: "O evento foi enviado para análise.", includeAdmins: true });
-            if (existing?.status === "PUBLISHED")
-                await notifyEventAudience(transaction, event, { ...eventUpdateNotice(existing, parsed.data), includeFavorites: true });
-            if (existing?.status === "PUBLISHED")
+            if (wasPublished && existing) {
+                await notifyEventAudience(transaction, event, { ...eventUpdateNotice(existing, parsed.data), includeFavorites: true, includeRegistrations: true });
                 await transaction.favorite.updateMany({ where: { eventId: event.id }, data: { reminderSentAt: null } });
+            }
             return event;
         });
-        return { success: true, message: status === "DRAFT" ? "Rascunho salvo." : "Evento enviado para revisão.", evento };
+        if (capacityGrew) {
+            try {
+                await reconcileEventWaitlist(evento.id);
+            }
+            catch {
+                console.error("Waitlist reconciliation failed after an event update.");
+            }
+        }
+        return { success: true, message: liveUpdate ? "Alterações publicadas. O evento continua no ar." : status === "DRAFT" ? "Rascunho salvo." : "Evento enviado para revisão.", evento, published: liveUpdate, reviewReasons: sensitive };
     }
     catch (error) {
         await removeEventImages(savedFiles);
@@ -81,7 +125,7 @@ export async function getOwnedEvent(id: string, resolveCurrentUser: ResolveCurre
     const user = await actor(resolveCurrentUser);
     if (!user)
         return null;
-    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true } });
+    const event = await prisma.events.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : { userId: user.id }) }, select: { ...publicEventSelect, reviewNote: true, ticketsEnabled: true, ticketCapacity: true } });
     return event ? { ...event, validate: event.validate ?? false } : null;
 }
 export async function duplicarEvento(eventId: string, resolveCurrentUser: ResolveCurrentUser) {
@@ -95,6 +139,7 @@ export async function duplicarEvento(eventId: string, resolveCurrentUser: Resolv
         const evento = await prisma.$transaction(async (transaction) => {
             const event = await transaction.events.create({ data: {
                     nome: source.nome + " (cópia)", descricao: source.descricao, endereco: source.endereco,
+                    organizerName: source.organizerName,
                     banner: source.banner, carrossel: source.carrossel, linkParaCompra: source.linkParaCompra,
                     dataInicio: "", dataFim: "", category: source.category, priceCents: source.priceCents,
                     isFree: source.isFree, lat: source.lat, lng: source.lng, startTime: source.startTime,
@@ -119,12 +164,20 @@ export async function cancelarEvento(eventId: string, resolveCurrentUser: Resolv
             const event = await transaction.events.findFirst({ where: { id: eventId, ...(user.role === "ADMIN" ? {} : { userId: user.id }) } });
             if (!event || event.status !== "PUBLISHED")
                 return null;
-            const changed = await transaction.events.update({ where: { id: event.id }, data: { status: "CANCELLED", validate: false } });
+            // Sold tickets must be refunded first (and open Pix payments must finish), so no buyer stays charged for a cancelled event.
+            const ticketsOutstanding = await transaction.ticketOrder.count({ where: { eventId: event.id, OR: [{ status: "PAID" }, { status: "PENDING", expiresAt: { gt: new Date() } }] } });
+            if (ticketsOutstanding)
+                return "TICKETS_OUTSTANDING" as const;
+            const changed = await transaction.events.update({ where: { id: event.id }, data: { status: "CANCELLED", validate: false, ticketsEnabled: false } });
             await record(transaction, changed, user, "CANCELLED");
-            await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: "O organizador cancelou este evento." });
+            // Notify attendees before closing their registrations (BE-02).
+            await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: changed.nome + " foi cancelado pelo organizador. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
+            await transaction.eventRegistration.updateMany({ where: { eventId: changed.id, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
             return changed;
         });
-        return { success: Boolean(evento), message: evento ? "Evento cancelado; a página e o histórico foram preservados." : "Evento indisponível.", evento };
+        if (evento === "TICKETS_OUTSTANDING")
+            return { success: false, message: "Este evento tem ingressos pagos ou Pix em andamento. Estorne os ingressos em Pagamentos (e aguarde até 30 minutos pelos Pix abertos) antes de cancelar." };
+        return { success: Boolean(evento), message: evento ? "Evento cancelado; inscritos foram avisados e a página e o histórico foram preservados." : "Evento indisponível.", evento };
     }
     catch {
         return { success: false, message: "Não foi possível cancelar o evento." };

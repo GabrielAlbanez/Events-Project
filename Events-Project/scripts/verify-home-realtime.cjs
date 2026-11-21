@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const ts = require("typescript");
-const source = fs.readFileSync("app/page.tsx", "utf8");
+const source = fs.readFileSync("components/MyComponents/home/HomeDiscoveryClient.tsx", "utf8");
 const parsed = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let effect;
 function visit(node) {

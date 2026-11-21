@@ -20,12 +20,12 @@ export function generateMetadata(): Metadata {
     title: { absolute: TITLE },
     description: DESCRIPTION,
     keywords: ["eventos", "plataforma para organizadores", "check-in QR", "comunidade de eventos", "mapa de eventos", "lista de espera", "agenda cultural"],
-    alternates: { canonical: "/produto" },
+    alternates: { canonical: "/conheca" },
     openGraph: {
       type: "website",
       locale: "pt_BR",
       siteName: "EventMap",
-      url: "/produto",
+      url: "/conheca",
       title: TITLE,
       description: DESCRIPTION,
       images: [OG_IMAGE],
@@ -37,7 +37,7 @@ export function generateMetadata(): Metadata {
 
 function structuredData() {
   const base = siteBase();
-  const url = base ? new URL("/produto", base).href : undefined;
+  const url = base ? new URL("/conheca", base).href : undefined;
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",

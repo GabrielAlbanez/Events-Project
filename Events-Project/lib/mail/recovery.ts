@@ -1,15 +1,16 @@
-import nodemailer from "nodemailer";
+import { sendMail } from "./transport";
+import { renderAccountEmail } from "./templates";
 
 export async function sendRecoveryEmail(email: string, link: string): Promise<void> {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  const { html, text } = renderAccountEmail({
+    preheader: "Use o link em até 30 minutos para criar uma nova senha.",
+    heading: "Redefina sua senha",
+    paragraphs: [
+      "Você pediu uma nova senha para sua conta no EventMap.",
+      "O link vale por 30 minutos e só pode ser usado uma vez. Ao trocar a senha, as outras sessões abertas serão encerradas.",
+    ],
+    action: { label: "Criar nova senha", url: link },
+    note: "Se não foi você, ignore esta mensagem. Sua senha atual continua valendo.",
   });
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER, to: email, subject: "Redefina sua senha no EventMap",
-    text: `Você solicitou uma nova senha. Abra ${link} em até 30 minutos. Se não foi você, ignore esta mensagem.`,
-  });
+  await sendMail({ to: email, subject: "Redefina sua senha no EventMap", text, html });
 }

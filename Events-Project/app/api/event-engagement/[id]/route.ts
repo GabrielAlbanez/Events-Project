@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import prisma from "@/lib/prisma";
+import { METRIC_CONSENT_COOKIE } from "@/lib/metricConsent";
 export async function POST(request:NextRequest,{params}:{params:{id:string}}){
  try {
  if(!isAllowedRequestOrigin(request))return NextResponse.json({success:false},{status:403});
+ if(request.cookies.get(METRIC_CONSENT_COOKIE)?.value!=="yes")return NextResponse.json({success:true,measured:false},{headers:{"Cache-Control":"no-store"}});
  const body:unknown=await request.json();
  if(!body||typeof body!=="object"||!("action" in body)||!["view","ticket"].includes(String(body.action)))return NextResponse.json({success:false},{status:400});
  const action=body.action as "view"|"ticket";

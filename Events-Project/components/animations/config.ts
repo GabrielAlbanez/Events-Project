@@ -11,9 +11,14 @@ export const animationConfig = {
   parallaxDistance: 12,
   parallaxPerspective: 800,
   parallaxSecondaryDepth: 0.5,
-  route: { duration: 0.35, peakOpacity: 0.7, initialScale: 0.94 },
+  route: { peakOpacity: 0.85, startScale: 0.08, pendingScale: 0.72, pendingDuration: 2.4, completeDuration: 0.35, completeHold: 0.6, safetyTimeoutMs: 6000 },
+  grid: { exitDuration: 0.2, exitScale: 0.97, reenterDuration: 0.25, layoutDuration: 0.3, layoutItemLimit: 36 },
+  hero: { duration: 0.4, initialScale: 1.04 },
+  pop: { duration: 0.32, scale: 1.3 },
   shimmer: { duration: 1.6, repeatDelay: 0.5, opacity: 0.5, staticOpacity: 0.12 },
   spring: { stiffness: 180, damping: 28, mass: 0.5 },
 };
 
 export const loadAnimationFeatures = () => import("framer-motion").then(module => module.domAnimation);
+/** Larger bundle (layout animations); load only where items reflow, never on the map. */
+export const loadLayoutFeatures = () => import("framer-motion").then(module => module.domMax);

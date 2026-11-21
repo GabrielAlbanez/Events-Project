@@ -5,6 +5,8 @@ import Link from "next/link";
 import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion } from "framer-motion";
 import { Bell, X } from "lucide-react";
 import type { NotificationDTO } from "@/types/features";
+import { safeNotificationHref } from "@/lib/notifications/catalog";
+import { NotificationIcon } from "./notifications/NotificationList";
 
 const DISPLAY_MS = 4000;
 const clock = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -48,9 +50,7 @@ function NotificationBanner({ item, onDismiss }: { item: NotificationDTO; onDism
     };
   }, [pressed]);
 
-  const href = /^\/(?![\/\\])/.test(item.href) && !/[\\\u0000-\u0020]/.test(item.href)
-    ? item.href
-    : "/notificacoes";
+  const href = safeNotificationHref(item.href);
 
   return (
     <motion.div

@@ -12,6 +12,7 @@ import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
 import { StaggerList } from "@/components/animations/StaggerList";
+import PendingPromotionReminder from "@/components/MyComponents/promotions/PendingPromotionReminder";
 
 type StatusFilter = "all" | EventStatus;
 type HistoryEntry = {
@@ -129,7 +130,7 @@ export default function MyEvents() {
   const pendingCount = events.filter((event) => event.status === "PENDING").length;
 
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="relative isolate flex flex-wrap items-start justify-between gap-5 overflow-hidden rounded-3xl border bg-card/80 p-5 shadow-sm sm:p-6">
           <ParallaxCard
@@ -150,10 +151,17 @@ export default function MyEvents() {
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
             </FadeInView>
           </div>
-          <Link href="/CriarEvento" className="relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            <Plus className="size-4" aria-hidden="true" /> Criar evento
-          </Link>
+          <div className="relative z-10 flex flex-wrap gap-2">
+            <Link href="/myEvents/pagamentos" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Pagamentos
+            </Link>
+            <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <Plus className="size-4" aria-hidden="true" /> Criar evento
+            </Link>
+          </div>
         </header>
+
+        {user?.id && <PendingPromotionReminder userId={user.id} />}
 
         {!isLoading && !error && events.length > 0 && (
           <StaggerList className="grid gap-3 sm:grid-cols-3" itemClassName="h-full">
@@ -214,6 +222,6 @@ export default function MyEvents() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

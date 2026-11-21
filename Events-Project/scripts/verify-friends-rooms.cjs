@@ -18,7 +18,7 @@ function load(relative) {
     if (name === "@/lib/prisma") return { __esModule: true, default: database };
     if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
     if (name.startsWith(".")) return load(path.join(path.dirname(filename), name + ".ts"));
-    return require(name);
+    return (name.includes("notifications/") ? require("./load-notification-module.cjs")(name) : require(name));
   };
   new Function("require", "module", "exports", source)(localRequire, module, module.exports);
   return module.exports;

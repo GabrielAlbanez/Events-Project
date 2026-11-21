@@ -43,6 +43,7 @@ export async function criarSerieRecorrente(sourceEventId: string, input: Recurre
       const copies = dates.slice(1).map((occurrence, offset) => ({
             id: randomUUID(),
             nome: source.nome,
+            organizerName: source.organizerName,
             descricao: source.descricao,
             endereco: source.endereco,
             banner: source.banner,

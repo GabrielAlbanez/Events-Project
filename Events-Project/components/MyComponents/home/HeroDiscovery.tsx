@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, MapPin, Search } from "lucide-react";
-import { motion } from "framer-motion";
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { m } from "framer-motion";
+import { useEffect, useId, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Evento } from "@/types";
 import type { DiscoveryPeriod } from "@/lib/discoveryPeriod";
 import { eventInstant } from "@/lib/eventTime";
@@ -13,6 +14,7 @@ import styles from "./HeroDiscovery.module.css";
 export type HeroSearchValues = { location: string; period: DiscoveryPeriod; category: string };
 
 export function HeroSearch({ events, period, searchValue, categoryValue, onSearch }: { events: Evento[]; period: DiscoveryPeriod; searchValue: string; categoryValue: string; onSearch: (values: HeroSearchValues) => void }) {
+  const fieldId = useId();
   const [location, setLocation] = useState(searchValue);
   const [selectedPeriod, setSelectedPeriod] = useState<DiscoveryPeriod>(period);
   const [category, setCategory] = useState(categoryValue);
@@ -26,8 +28,8 @@ export function HeroSearch({ events, period, searchValue, categoryValue, onSearc
   };
   return <form className={styles.search} onSubmit={submit} aria-label="Buscar eventos">
     <label className={styles.field}><span>Local ou cidade</span><input value={location} onChange={event => setLocation(event.target.value)} maxLength={100} placeholder="Onde você quer ir?" /></label>
-    <label className={styles.field}><span>Quando</span><select value={selectedPeriod} onChange={event => setSelectedPeriod(event.target.value as DiscoveryPeriod)}><option value="todos">Qualquer data</option><option value="hoje">Hoje</option><option value="fim-de-semana">Fim de semana</option><option value="mes">Este mês</option></select></label>
-    <label className={styles.field}><span>Categoria</span><select value={category} onChange={event => setCategory(event.target.value)}><option value="">Todas</option>{categories.map(value => <option key={value} value={value}>{value.trim()}</option>)}</select></label>
+    <div className={styles.field}><label htmlFor={`${fieldId}-period`}>Quando</label><Select value={selectedPeriod} onValueChange={value => setSelectedPeriod(value as DiscoveryPeriod)}><SelectTrigger id={`${fieldId}-period`} className={styles.selectTrigger}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem className={styles.selectItem} value="todos">Qualquer data</SelectItem><SelectItem className={styles.selectItem} value="hoje">Hoje</SelectItem><SelectItem className={styles.selectItem} value="fim-de-semana">Fim de semana</SelectItem><SelectItem className={styles.selectItem} value="mes">Este mês</SelectItem></SelectContent></Select></div>
+    <div className={styles.field}><label htmlFor={`${fieldId}-category`}>Categoria</label><Select value={category ? `category:${category}` : "all"} onValueChange={value => setCategory(value === "all" ? "" : value.slice("category:".length))}><SelectTrigger id={`${fieldId}-category`} className={styles.selectTrigger}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem className={styles.selectItem} value="all">Todas</SelectItem>{categories.map(value => <SelectItem className={styles.selectItem} key={value} value={`category:${value}`}>{value.trim()}</SelectItem>)}</SelectContent></Select></div>
     <button type="submit" className={styles.searchButton}><Search size={18} aria-hidden="true" />Buscar eventos</button>
   </form>;
 }
@@ -68,12 +70,12 @@ export function HeroCarousel({ events, loading, loadError, onExplore }: { events
   const active = events[Math.min(index, Math.max(0, count - 1))];
   const move = (delta: number) => setIndex(current => (current + delta + count) % count);
   return <div className={styles.carousel} role="region" aria-label="Eventos em destaque" aria-roledescription="carrossel" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }} onKeyDown={event => { if (count > 1 && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } }}>
-    {loading ? <div className={styles.placeholder} role="status"><span>Carregando eventos em destaque…</span></div> : active ? <motion.article className={styles.card} aria-label={`${index + 1} de ${count}: ${active.nome}`} whileHover={reduced ? undefined : { y: -4 }} whileTap={reduced ? undefined : { scale: .99 }} transition={{ duration: .2 }}>
+    {loading ? <div className={styles.placeholder} role="status"><span>Carregando eventos em destaque…</span></div> : active ? <m.article className={styles.card} aria-label={`${index + 1} de ${count}: ${active.nome}`} whileHover={reduced ? undefined : { y: -4 }} whileTap={reduced ? undefined : { scale: .99 }} transition={{ duration: .2 }}>
       <Link href={`/eventos/${encodeURIComponent(active.id)}`} className={styles.cardLink}>
         <div key={active.id} className={styles.artwork}><HomeEventImage banner={active.banner} category={active.category} index={index} priority={index === 0} sizes="(max-width: 767px) calc(100vw - 40px), (max-width: 1100px) 500px, 440px" className={styles.image} />{active.category && <span className={styles.badge}>{active.category}</span>}</div>
         <div className={styles.cardBody}><p className={styles.date}>{eventDate(active)}</p><h2>{active.nome}</h2><p className={styles.location}><MapPin size={16} aria-hidden="true" /><span>{shortAddress(active.endereco || "Local a confirmar")}</span></p><span className={styles.cardAction}>Conhecer o evento <span aria-hidden="true">↗</span></span></div>
       </Link>
-    </motion.article> : <div className={styles.placeholder}><p>{loadError ? "Não foi possível carregar os destaques agora." : "Os eventos em destaque aparecem aqui."}</p><a href="#home-discovery" onClick={onExplore}>Explorar no mapa</a></div>}
+    </m.article> : <div className={styles.placeholder}><p>{loadError ? "Não foi possível carregar os destaques agora." : "Os eventos em destaque aparecem aqui."}</p><a href="#home-discovery" onClick={onExplore}>Explorar no mapa</a></div>}
     {count > 1 && !loading && <div className={styles.controls} aria-label="Navegar entre eventos em destaque"><button type="button" onClick={() => move(-1)} aria-label="Evento anterior"><ChevronLeft size={18} aria-hidden="true" /></button><div className={styles.dots}>{events.map((event, item) => <button key={event.id} type="button" aria-label={`Mostrar evento ${item + 1}: ${event.nome}`} aria-current={item === index ? "true" : undefined} onClick={() => setIndex(item)}><span /></button>)}</div><button type="button" onClick={() => move(1)} aria-label="Próximo evento"><ChevronRight size={18} aria-hidden="true" /></button></div>}
   </div>;
 }

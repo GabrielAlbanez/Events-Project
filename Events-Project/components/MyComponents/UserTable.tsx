@@ -24,7 +24,6 @@ import {
 import { CalendarSearch, CheckCircleIcon, XCircleIcon } from "lucide-react";
 import { ChevronDownIcon, DeleteIcon } from "@/components/icons";
 import { Evento, User as UserType } from "@/types";
-import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { toast } from "react-toastify";
 import deleteUser from "@/app/(actions)/deleteUser/action";
@@ -228,7 +227,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
               src: undefined,
               showFallback: true,
               classNames: { fallback: "h-full w-full" },
-              fallback: <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
+              fallback: <ProfileAvatar preview src={user.image} name={user.name} size={40} className="h-full w-full rounded-lg object-cover" />,
               imgProps: { referrerPolicy: "no-referrer" },
             }}
             name={user.name}
@@ -320,7 +319,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
         {users.map(user => (
           <article key={user.id} role="listitem" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none">
             <div className="flex min-w-0 items-start gap-3">
-              <ProfileAvatar preview src={user.image || determineDefaultAvatar(user.name)} name={user.name} size={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              <ProfileAvatar preview src={user.image} name={user.name} size={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
                 <h3 className="break-words text-sm font-semibold text-foreground">{user.name || "Conta sem nome"}</h3>
                 <p className="mt-1 break-all text-xs text-muted-foreground">{user.email}</p>
@@ -383,7 +382,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                     src: undefined,
                     size: "lg",
                     showFallback: true,
-                    fallback: <ProfileAvatar src={selectedUser.image || determineDefaultAvatar(selectedUser.name)} name={selectedUser.name} size={56} className="h-full w-full rounded-full object-cover" />,
+                    fallback: <ProfileAvatar src={selectedUser.image} name={selectedUser.name} size={56} className="h-full w-full rounded-full object-cover" />,
                     imgProps: { referrerPolicy: "no-referrer" },
                   }}
                   name={selectedUser.name}
@@ -445,7 +444,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users, setUsers }) => {
                   src={
                     selectedUser.image
                       ? selectedUser.image
-                      : determineDefaultAvatar(selectedUser.name)
+                      : null
                   }
                   name={selectedUser.name}
                   size={80}

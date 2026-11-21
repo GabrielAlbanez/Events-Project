@@ -1,3 +1,5 @@
+import { createNotification } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
@@ -86,8 +88,8 @@ export async function mutateRoom(roomId: string, actor: Actor, input: unknown) {
       if (!exists) {
         if (await tx.friendsRoomMember.count({ where: { roomId } }) >= 50) throw new CommunityError(409, "A sala comporta até 50 membros.");
         await tx.friendsRoomMember.create({ data: { roomId, userId: target.id } });
-        await tx.notification.create({ data: { userId: target.id, title: "Você entrou em uma sala de amigos",
-          message: `Combine seu próximo evento na sala ${room.name}.`, href: `/salas/${roomId}` } });
+        await createNotification(tx, notificationCopy({ ...{ userId: target.id, title: "Você entrou em uma sala de amigos",
+          message: `Combine seu próximo evento na sala ${room.name}.`, href: `/salas/${roomId}` }, type: "COMMUNITY" }));
       }
       await signal(tx, `user:${target.id}`);
     } else if (action.action === "member.remove") {

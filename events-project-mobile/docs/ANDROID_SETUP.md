@@ -1,6 +1,6 @@
 # Android local
 
-Projeto: C:\Users\gabri\EventsApp\events-project-mobile.
+Projeto: events-project-mobile/ (a partir da raiz do repositório).
 
 ## Ambiente usado
 - Expo SDK 57, React Native 0.86.3.

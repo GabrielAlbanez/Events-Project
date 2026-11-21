@@ -77,6 +77,11 @@ export function RegisterForm({
           Encontre sua próxima experiência. Comece por aqui.
         </p>
       </div>
+      <p className="text-sm leading-6 text-muted-foreground">
+        Usamos nome, e-mail e dados de acesso para criar e proteger sua conta. Ao continuar com Google, recebemos os dados de perfil autorizados. Antes de continuar, consulte a{" "}
+        <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>{" "}
+        e saiba como <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">exercer seus direitos</Link>.
+      </p>
       <div className={styles.fields}>
         <div className={styles.field}>
           <Label htmlFor="name">Nome</Label>
@@ -130,7 +135,13 @@ export function RegisterForm({
             </p>
           )}
         </div>
-        <Button type="submit" variant="cta" className={styles.submit} disabled={isSubmitting}>
+        <p id="register-terms" className="text-xs leading-5 text-muted-foreground">
+          Ao criar sua conta, você concorda com os{" "}
+          <Link href="/termos" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Termos de Uso</Link>{" "}
+          e a{" "}
+          <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de Privacidade</Link>.
+        </p>
+        <Button type="submit" variant="cta" className={styles.submit} disabled={isSubmitting} aria-describedby="register-terms">
           {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Criando conta...</> : <>Criar minha conta<ArrowRight className="h-4 w-4" aria-hidden="true" /></>}
         </Button>
         <div className={styles.divider}><span aria-hidden="true" />ou continue com<span aria-hidden="true" /></div>

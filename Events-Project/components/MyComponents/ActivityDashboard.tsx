@@ -6,6 +6,8 @@ import { ArrowRight, BellRing, CalendarDays, CheckCheck, ClipboardCheck, Compass
 import type { ActivitySnapshot } from "@/types/activity";
 import { useActivityRealtime } from "@/hooks/useActivityRealtime";
 import { useActivityActions } from "@/hooks/useActivityActions";
+import { useToastMessage } from "@/hooks/useToastMessage";
+import { toast } from "react-toastify";
 import { useCommunityResource } from "./CommunityResource";
 import { CommunitySyncStatus } from "./CommunityUI";
 import { ActivityCard, ActivitySection } from "./ActivityDashboardCards";
@@ -35,6 +37,13 @@ export function ActivityDashboard() {
   useEffect(() => {
     if (!pendingAvailable) setPending(null);
   }, [pendingAvailable]);
+  // Failures while the confirmation dialog is open stay inside it; other action feedback becomes a toast.
+  const dialogOpenRef = useRef(false);
+  dialogOpenRef.current = !!pending && pendingAvailable;
+  useEffect(() => {
+    if (actions.error && !dialogOpenRef.current) toast.warning(actions.error, { toastId: `activity-error:${actions.error}` });
+  }, [actions.error]);
+  useToastMessage(actions.message, "success");
   const disabledActions = actions.busy || !resource.online || !resource.authenticated;
   const askConfirmation = (item: { eventId: string; id: string; title: string }, action: PendingAction["action"]) => {
     actionTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -55,7 +64,7 @@ export function ActivityDashboard() {
   const called = (data?.queues ?? []).filter(item => item.status === "CALLED" && item.state !== "CLOSED");
   const show = (id: Filter) => filter === "all" || filter === id;
 
-  return <main className="min-w-0 w-full px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl space-y-8">
+  return <div className="min-w-0 w-full px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl space-y-8">
     <header className="relative isolate overflow-hidden rounded-[28px] border border-border bg-card shadow-surface p-6 sm:p-8 lg:p-10">
       <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-20 -z-10 size-72 rounded-full border-[32px] border-border sm:size-96" />
       <div className="flex flex-wrap items-start justify-between gap-6"><FadeInView className="max-w-2xl"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-brand"><Sparkles className="size-4" aria-hidden="true" /> Sua experiência, organizada</p><h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Central de atividades</h1><p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">Acompanhe o que precisa da sua atenção e prepare o próximo encontro. Suas filas, compromissos e amigos, em um só lugar.</p></FadeInView><Link href="/EventsCreated" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-highlight transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Compass className="size-4" aria-hidden="true" /> Descobrir eventos <ArrowRight className="size-4" aria-hidden="true" /></Link></div>
@@ -68,7 +77,6 @@ export function ActivityDashboard() {
     <div className="flex flex-wrap items-center justify-between gap-3"><CommunitySyncStatus realtime={realtime} refreshing={resource.refreshing} error={resource.error} lastSuccessfulAt={resource.lastSuccessfulAt} /><Button type="button" variant="outline" disabled={resource.refreshing || !resource.online} onClick={() => void resource.refresh()} className="min-h-11 rounded-xl"><RefreshCw className="size-4" aria-hidden="true" />{resource.refreshing ? "Atualizando..." : "Atualizar"}</Button></div>
     <p className="text-xs leading-5 text-muted-foreground">Até 12 eventos e 6 salas recebem atualizações ao vivo. A central também confere suas atividades a cada 30 segundos enquanto esta página está visível e conectada.</p>
     {(!resource.online || resource.error) && <aside role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6"><p>{!resource.online ? "Você está sem conexão. Os últimos dados recebidos continuam disponíveis para consulta." : resource.error}</p>{data && <p className="mt-1 text-muted-foreground">Algumas atividades podem ter mudado. Atualize quando a conexão estiver disponível.</p>}</aside>}
-    {(actions.error || actions.message) && <aside role={actions.error ? "alert" : "status"} className={`flex items-start justify-between gap-3 rounded-2xl border p-4 text-sm leading-6 ${actions.error ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}><p>{actions.error || actions.message}</p><button type="button" onClick={actions.clearFeedback} aria-label="Fechar aviso" className="grid size-9 shrink-0 place-items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" aria-hidden="true" /></button></aside>}
 
     {!resource.authenticated && !resource.loading ? <section className="rounded-2xl border bg-card p-8 text-center"><h2 className="text-xl font-semibold">Suas atividades pertencem à sua conta</h2><p className="mt-2 text-sm text-muted-foreground">Entre para acompanhar seus eventos, filas e salas.</p><Link href="/login" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">Entrar na plataforma</Link></section> : resource.loading ? <div role="status" className="space-y-4"><p className="text-sm text-muted-foreground">Organizando suas atividades...</p><div aria-hidden="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map(id => <div key={id} className="h-48 rounded-2xl border bg-muted/50" />)}</div></div> : data && <>
       {called.length > 0 && <aside aria-labelledby="called-heading" className="rounded-2xl border border-primary/30 bg-primary/5 p-5"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"><BellRing className="size-5" aria-hidden="true" /></span><div className="min-w-0"><h2 id="called-heading" className="font-semibold">Chegou sua vez!</h2><p className="mt-1 text-sm text-muted-foreground">Você foi chamado em {called.length === 1 ? "uma fila. Confira o atendimento abaixo." : `${called.length} filas. Confira os atendimentos abaixo.`}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{called.map(item => <Link key={item.id} href={communityHref(item.eventId)} className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-xl border bg-background px-4 py-2 text-sm font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="break-words">{item.title} · {item.eventName}</span><ArrowRight className="size-4 shrink-0" aria-hidden="true" /></Link>)}</div></aside>}
@@ -91,5 +99,5 @@ export function ActivityDashboard() {
         <DialogFooter className="gap-2"><Button type="button" variant="outline" className="min-h-11 rounded-xl" onClick={() => setPending(null)}>Cancelar</Button><Button type="button" variant={pending?.action === "queue.leave" ? "destructive" : "default"} className="min-h-11 rounded-xl" disabled={disabledActions} onClick={() => void confirmAction()}>{actions.busy ? "Salvando..." : pending?.action === "queue.leave" ? "Confirmar saída" : "Confirmar conclusão"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
-  </div></main>;
+  </div></div>;
 }

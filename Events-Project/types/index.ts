@@ -26,6 +26,7 @@ export type Evento = {
   banner: string; // Banner principal
   carrossel: string[]; // Lista de URLs para imagens do carrossel
   descricao: string;
+  organizerName?: string;
   ageRating?: string | null;
   accessibilityInfo?: string | null;
   participationInfo?: string | null;
@@ -45,6 +46,9 @@ export type Evento = {
   isFree?: boolean;
   priceCents?: number;
   capacity?: number | null;
+  /** EventMap ticket sales (Pix via Mercado Pago); only loaded where the organizer edits the event. */
+  ticketsEnabled?: boolean;
+  ticketCapacity?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;
@@ -52,4 +56,6 @@ export type Evento = {
   views?: number;
   ticketClicks?: number;
   favoriteCount?: number;
+  /** Running paid highlight, computed on the server. Absent means not featured. */
+  featured?: boolean;
 };
