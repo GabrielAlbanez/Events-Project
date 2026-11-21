@@ -175,9 +175,10 @@ function Checkout({ order, remaining, onCopy }: { order: TicketOrderView; remain
       <img src={`data:image/png;base64,${order.pixQrBase64}`} alt={`QR Code do Pix para o pedido ${order.code}`} width={220} height={220} className="mx-auto block h-[220px] w-[220px] rounded-xl bg-white p-2" />
       <div className="space-y-2">
         <label htmlFor={`pix-code-${order.id}`} className="block text-sm font-medium">Pix copia e cola</label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input id={`pix-code-${order.id}`} readOnly value={order.pixCopyPaste ?? ""} onFocus={(event) => event.currentTarget.select()} className="min-h-11 min-w-0 flex-1 rounded-xl border bg-background px-3 font-mono text-xs" />
-          <button type="button" onClick={onCopy} className={primary}><Copy aria-hidden="true" className="h-4 w-4" />Copiar código</button>
+        {/* Always stacked: the checkout lives in a narrow column on desktop and the code is long. */}
+        <div className="flex flex-col gap-2">
+          <input id={`pix-code-${order.id}`} readOnly value={order.pixCopyPaste ?? ""} onFocus={(event) => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-xl border bg-background px-3 font-mono text-xs" />
+          <button type="button" onClick={onCopy} className={`${button} w-full bg-primary text-primary-foreground hover:bg-primary/90`}><Copy aria-hidden="true" className="h-4 w-4" />Copiar código</button>
         </div>
       </div>
     </> : <p className="text-sm text-muted-foreground">Gerando o QR Code do Pix...</p>}
