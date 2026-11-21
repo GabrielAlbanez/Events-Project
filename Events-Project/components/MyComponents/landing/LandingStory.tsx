@@ -46,15 +46,27 @@ type Band = {
 
 const BANDS: Band[] = [
   {
+    id: "mapa",
+    kicker: "Mapa",
+    title: "A cidade inteira, em um mapa.",
+    text: "Cada evento vira um pin. Toque em um cartão da lista e o mapa leva você até ele, com data, endereço e o caminho para chegar.",
+    shot: {
+      src: "/landing/descoberta-mapa.jpg",
+      alt: "Tela de descoberta do EventMap com a lista de eventos próximos em Campinas à esquerda e o Google Maps à direita, mostrando os pins e o cartão do evento Banda Trip no Alma Grey Bowl selecionado, com os botões Ver evento e Detalhes e rota",
+      width: 2000,
+      height: 1280,
+    },
+  },
+  {
     id: "evento",
     kicker: "Página do evento",
     title: "Tudo o que importa, logo no topo.",
     text: "Quando, onde, quanto custa e como chegar. Adicione à sua agenda, veja eventos parecidos e garanta seu lugar em poucos toques.",
     shot: {
-      src: "/landing/pagina-evento.jpg",
-      alt: "Página do evento Jazz no Terraço no computador, com foto do show, categoria Música, preço de R$ 60,00, descrição e quadro com data e horário",
-      width: 1770,
-      height: 1185,
+      src: "/landing/evento-detalhes.jpg",
+      alt: "Página do evento Banda Trip no Alma Grey Bowl no computador, com o cartaz do show acústico, a categoria e os quadros de data, endereço em Campinas e valor gratuito",
+      width: 2368,
+      height: 1440,
     },
   },
   {
@@ -63,23 +75,11 @@ const BANDS: Band[] = [
     title: "Do celular à porta do evento.",
     text: "Em eventos com venda pelo EventMap, você paga por Pix e o ingresso vira sua inscrição, com um QR Code para a entrada. Quando o organizador usa outra bilheteria, o link leva até ela.",
     shot: {
-      src: "/landing/evento-mobile.jpg",
-      alt: "Página do evento Festival Pôr do Sol no celular, com foto da festa, indicação de evento gratuito, data, horário e local no Parque Villa-Lobos",
+      src: "/landing/evento-celular.jpg",
+      alt: "Página do evento Bem da Madrugada Campinas no celular, com o cartaz da ação, o título e a barra fixa com o valor gratuito e os botões de salvar, compartilhar e ver acesso",
       width: 1170,
       height: 1992,
       variant: "phone",
-    },
-  },
-  {
-    id: "agenda",
-    kicker: "Agenda",
-    title: "Sua semana, sem esforço.",
-    text: "Busque por nome ou data, alterne entre lista e calendário e leve os eventos salvos para o calendário do seu celular.",
-    shot: {
-      src: "/landing/agenda.jpg",
-      alt: "Agenda de eventos do EventMap com busca, filtros, alternância entre eventos e calendário e cartões como Jazz no Terraço e Festival Pôr do Sol",
-      width: 1860,
-      height: 1185,
     },
   },
 ];
