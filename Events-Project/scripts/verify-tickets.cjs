@@ -1134,6 +1134,41 @@ async function checkCoupons() {
   assert.equal((await service.listTicketCoupons("event-1", as("buyer"), deps)).success, false, "buyers cannot list coupons");
 }
 
+// Promoter events with approval: no Pix until the organizer approves; the payment confirms the approved registration.
+async function checkApprovalPurchase() {
+  const sec = load("lib/ticketSecurity.ts");
+  const service = load("lib/services/tickets.ts");
+  const as = (id, role = "BASIC") => async () => ({ id, role });
+  const mp = mockMercadoPago();
+  const deps = { fetch: mp.fetch, now: clock, env: ENV, statusCheckIntervalMs: 0, reconcileIntervalMs: 0 };
+  db = freshDb();
+  current = NOW;
+  db.mercadoPagoAccount.rows.push({ id: "acc-1", userId: "seller", mpUserId: "555", accessTokenEnc: sec.encryptTicketToken("APP_USR-stored", ENV), refreshTokenEnc: sec.encryptTicketToken("TG-stored", ENV), expiresAt: new Date(NOW.getTime() + 100 * 24 * 60 * MIN), connectedAt: NOW });
+  const event = db.events.rows.find((row) => row.id === "event-1");
+  event.requiresApproval = true;
+  const state = await service.getTicketPurchaseState("event-1", as("buyer"), deps);
+  assert.equal(state.data.state, "approval", "no buy button before approval");
+  assert.match(state.data.message, /Peça para participar/);
+  const blocked = await service.createTicketOrder({ eventId: "event-1" }, as("buyer"), deps);
+  assert.equal(blocked.success, false);
+  assert.match(blocked.message, /aprovar sua participação/);
+  db.eventRegistration.rows.push({ id: "reg-p", eventId: "event-1", userId: "buyer", status: "PENDING", qrVersion: 0, checkedInAt: null });
+  assert.match((await service.getTicketPurchaseState("event-1", as("buyer"), deps)).data.message, /aguardando a aprovação/);
+  assert.equal((await service.createTicketOrder({ eventId: "event-1" }, as("buyer"), deps)).success, false, "pending request still cannot buy");
+  db.eventRegistration.rows[0].status = "APPROVED";
+  assert.equal((await service.getTicketPurchaseState("event-1", as("buyer"), deps)).data.state, "available");
+  const bought = await service.createTicketOrder({ eventId: "event-1" }, as("buyer"), deps);
+  assert.equal(bought.success, true, bought.message);
+  const order = db.ticketOrder.rows.find((row) => row.id === bought.data.id);
+  mp.payments.get(order.mpPaymentId).status = "approved";
+  await service.handleMercadoPagoWebhook(signedWebhook(order.mpPaymentId), deps);
+  assert.equal(order.status, "PAID");
+  assert.equal(db.eventRegistration.rows[0].status, "CONFIRMED", "payment confirms the approved registration");
+  // Imported events ignore the flag.
+  event.aiImport = { id: "cand-1" };
+  assert.notEqual((await service.getTicketPurchaseState("event-1", as("buyer2"), deps)).data.state, "approval", "imported events never wait for approval");
+}
+
 (async () => {
   checkPure(load("lib/tickets.ts"));
   checkCouponRules(load("lib/tickets.ts"));
@@ -1145,6 +1180,7 @@ async function checkCoupons() {
   await checkHardening();
   await checkFinancialRecords();
   await checkCoupons();
+  await checkApprovalPurchase();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -52,6 +52,9 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents });
         if (ticketProblem)
             return { success: false, message: ticketProblem };
+        // Approval of registrations: new events start with it on; older clients omit the field and keep the stored value.
+        const approvalField = formData.get("requiresApproval");
+        const requiresApproval = approvalField === null ? existing?.requiresApproval ?? true : approvalField === "true" || approvalField === "on";
         const bannerFile = formData.get("banner");
         let banner = existing?.banner ?? "";
         if (bannerFile instanceof File && bannerFile.size) {
@@ -75,7 +78,7 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const capacityGrew = liveUpdate && existing !== null && existing.capacity !== null && (parsed.data.capacity === null || parsed.data.capacity > existing.capacity);
         const evento = await prisma.$transaction(async (transaction) => {
             const reviewReset = liveUpdate ? {} : { validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
-            const data = { ...parsed.data, ...ticketSettings, banner, carrossel, status, ...reviewReset };
+            const data = { ...parsed.data, ...ticketSettings, requiresApproval, banner, carrossel, status, ...reviewReset };
             // Older clients omit these fields: preserve existing information until explicitly edited.
             if (existing) {
                 if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
@@ -143,7 +146,7 @@ export async function duplicarEvento(eventId: string, resolveCurrentUser: Resolv
                     banner: source.banner, carrossel: source.carrossel, linkParaCompra: source.linkParaCompra,
                     dataInicio: "", dataFim: "", category: source.category, priceCents: source.priceCents,
                     isFree: source.isFree, lat: source.lat, lng: source.lng, startTime: source.startTime,
-                    capacity: source.capacity, ageRating: source.ageRating, accessibilityInfo: source.accessibilityInfo, participationInfo: source.participationInfo,
+                    capacity: source.capacity, requiresApproval: source.requiresApproval, ageRating: source.ageRating, accessibilityInfo: source.accessibilityInfo, participationInfo: source.participationInfo,
                     endTime: source.endTime, userId: user.id, status: "DRAFT", validate: false,
                 } });
             await record(transaction, event, user, "DUPLICATED");
@@ -172,7 +175,7 @@ export async function cancelarEvento(eventId: string, resolveCurrentUser: Resolv
             await record(transaction, changed, user, "CANCELLED");
             // Notify attendees before closing their registrations (BE-02).
             await notifyEventAudience(transaction, changed, { title: "Evento cancelado", message: changed.nome + " foi cancelado pelo organizador. Inscrições e lista de espera foram encerradas.", includeRegistrations: true });
-            await transaction.eventRegistration.updateMany({ where: { eventId: changed.id, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
+            await transaction.eventRegistration.updateMany({ where: { eventId: changed.id, status: { in: ["CONFIRMED", "WAITLISTED", "PENDING", "APPROVED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
             return changed;
         });
         if (evento === "TICKETS_OUTSTANDING")

@@ -144,6 +144,8 @@ model Events {
   favorites          Favorite[]
   metrics            EventMetric[]
   capacity           Int?
+  /// Promoter-created events: registrations wait for the organizer. Ignored for imported events (aiImport).
+  requiresApproval   Boolean               @default(false)
   registrations      EventRegistration[]
   recurrenceSeriesId String?
   recurrenceSeries   EventSeries?          @relation(fields: [recurrenceSeriesId], references: [id], onDelete: SetNull)
@@ -192,6 +194,9 @@ enum RegistrationStatus {
   WAITLISTED
   CANCELLED
   CHECKED_IN
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model AiEventAutomation {

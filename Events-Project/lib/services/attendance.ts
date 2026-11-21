@@ -39,11 +39,16 @@ function assertOpen(event: { status: string; dataInicio: string; startTime: stri
 
 async function eventForRegistration(tx: Prisma.TransactionClient, eventId: string) {
   const event = await tx.events.findUnique({ where: { id: eventId }, select: {
-    id: true, status: true, dataInicio: true, startTime: true, timezone: true,
-    capacity: true, userId: true, ticketsEnabled: true, isFree: true,
+    id: true, nome: true, status: true, dataInicio: true, startTime: true, timezone: true,
+    capacity: true, userId: true, ticketsEnabled: true, isFree: true, requiresApproval: true, aiImport: { select: { id: true } },
   } });
   if (!event) throw new AttendanceError("Evento não encontrado.", 404);
   return event;
+}
+
+/** Organizer approval applies only to events created on EventMap; imported events keep the direct flow. */
+export function needsApproval(event: { requiresApproval: boolean; aiImport: { id: string } | null }): boolean {
+  return event.requiresApproval && !event.aiImport;
 }
 
 async function promoteWaiting(tx: Prisma.TransactionClient, eventId: string, freePlaces: number): Promise<number> {
@@ -80,7 +85,7 @@ export async function reconcileEventWaitlist(eventId: string): Promise<number> {
 
 export async function getRegistrationState(eventId: string, userId: string | null) {
   const event = await prisma.events.findUnique({ where: { id: eventId }, select: {
-    id: true, status: true, capacity: true, ticketsEnabled: true, isFree: true,
+    id: true, status: true, capacity: true, ticketsEnabled: true, isFree: true, requiresApproval: true, aiImport: { select: { id: true } },
   } });
   if (!event) throw new AttendanceError("Evento não encontrado.", 404);
   const [confirmedCount, waitingCount, registration] = await Promise.all([
@@ -91,7 +96,7 @@ export async function getRegistrationState(eventId: string, userId: string | nul
   const sellsTickets = Boolean(event.ticketsEnabled && !event.isFree);
   const configured = ticketPaymentsConfigured();
   // ticketSalesPaused: EventMap sells this event, but payments are not configured right now (no free RSVP either).
-  return { capacity: event.capacity, confirmedCount, waitingCount, registration, ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()), ticketSalesPaused: sellsTickets && !configured };
+  return { capacity: event.capacity, confirmedCount, waitingCount, registration, requiresApproval: needsApproval(event), ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()), ticketSalesPaused: sellsTickets && !configured };
 }
 
 export async function registerForEvent(eventId: string, userId: string) {
@@ -99,6 +104,7 @@ export async function registerForEvent(eventId: string, userId: string) {
     const event = await eventForRegistration(tx, eventId);
     assertOpen(event);
     if (event.userId === userId) throw new AttendanceError("O organizador não pode se inscrever no próprio evento.", 409);
+    if (needsApproval(event)) return requestApproval(tx, event, userId);
     // While EventMap sells the tickets, the registration (and its QR) comes only from a paid order.
     // Also while payments are not configured: a paid event never turns into a free RSVP.
     if (event.ticketsEnabled && !event.isFree) {
@@ -127,6 +133,7 @@ export async function cancelRegistration(eventId: string, userId: string) {
   return serializable(async (tx) => {
     const registration = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (!registration || registration.status === "CANCELLED") return { status: "CANCELLED" as const, promotedUserId: null };
+    if (registration.status === "REJECTED") throw new AttendanceError(rejectedMessage, 409);
     if (registration.status === "CHECKED_IN") throw new AttendanceError("Uma entrada já validada não pode ser cancelada.", 409);
     // A paid ticket is cancelled by the organizer with a refund, never silently by the buyer.
     const paid = await tx.ticketOrder.findFirst({ where: { eventId, buyerId: userId, status: "PAID" }, select: { id: true } });
@@ -147,6 +154,76 @@ export async function cancelRegistration(eventId: string, userId: string) {
       }
     }
     return { status: "CANCELLED" as const, promotedUserId };
+  });
+}
+
+const rejectedMessage = "Sua participação não foi aprovada pela organização deste evento.";
+type RegistrationEvent = Awaited<ReturnType<typeof eventForRegistration>>;
+
+/** Request to join (paid or free): waits for the organizer and takes no seat until approved. */
+async function requestApproval(tx: Prisma.TransactionClient, event: RegistrationEvent, userId: string) {
+  const existing = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId } } });
+  if (existing?.status === "REJECTED") throw new AttendanceError(rejectedMessage, 409);
+  if (existing && existing.status !== "CANCELLED") return { id: existing.id, status: existing.status };
+  const registration = existing
+    ? await tx.eventRegistration.update({ where: { id: existing.id }, data: { status: "PENDING", qrVersion: { increment: 1 }, checkedInAt: null, createdAt: new Date() } })
+    : await tx.eventRegistration.create({ data: { eventId: event.id, userId, status: "PENDING" } });
+  if (event.userId) {
+    await createNotification(tx, notificationCopy({
+      userId: event.userId, type: "SYSTEM" as const, href: `/myEvents/${encodeURIComponent(event.id)}/checkin`, groupKey: `registration-request:${event.id}`,
+      title: "Novo pedido de participação", message: `${event.nome}: alguém pediu para participar. Aprove ou recuse na lista de inscritos.`,
+    }));
+  }
+  return { id: registration.id, status: registration.status };
+}
+
+/** Owner/admin only: the check-in team operates the door but does not decide who attends. */
+async function assertManager(db: TeamStore, event: { id: string; userId: string | null; status: string }, actor: StaffActor): Promise<void> {
+  const access = await checkInAccess(db, event, actor).catch((error: unknown) => { throw error instanceof AttendanceError && error.status === 409 ? new AttendanceError("Acesso negado.", 403) : error; });
+  if (!access.canExport) throw new AttendanceError("Somente a organização do evento pode aprovar inscrições.", 403);
+}
+
+const requestStatuses: RegistrationStatus[] = ["PENDING", "APPROVED", "REJECTED"];
+
+/** Requests waiting for a decision plus the recent decisions (approved to buy, rejected). */
+export async function listRegistrationRequests(eventId: string, actor: StaffActor) {
+  const event = await rosterEvent(eventId);
+  await assertManager(prisma, event, actor);
+  return prisma.eventRegistration.findMany({ where: { eventId, status: { in: requestStatuses } }, select: rosterSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 500 });
+}
+
+export type RegistrationDecision = "APPROVE" | "REJECT";
+
+/** Approve: free event -> confirmed (or waiting list when full); paid event -> approved to buy. Reject: final. */
+export async function reviewRegistration(eventId: string, actor: StaffActor, registrationId: string, decision: RegistrationDecision) {
+  return serializable(async (tx) => {
+    const event = await eventForRegistration(tx, eventId);
+    await assertManager(tx, event, actor);
+    const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, userId: true, status: true } });
+    if (!registration || registration.eventId !== eventId) throw new AttendanceError("Inscrição não encontrada neste evento.", 404);
+    if (registration.status !== "PENDING") throw new AttendanceError("Este pedido já foi respondido.", 409);
+    if (event.status !== "PUBLISHED") throw new AttendanceError("As inscrições deste evento estão encerradas.", 409);
+    const href = `/eventos/${encodeURIComponent(eventId)}`;
+    let status: RegistrationStatus;
+    let notice: { title: string; message: string };
+    if (decision === "REJECT") {
+      status = "REJECTED";
+      notice = { title: "Pedido de participação", message: `${event.nome}: sua participação não foi aprovada pela organização.` };
+    } else if (event.ticketsEnabled && !event.isFree) {
+      status = "APPROVED";
+      notice = { title: "Participação aprovada", message: `${event.nome}: a organização aprovou sua participação. Compre seu ingresso para garantir a vaga.` };
+    } else {
+      const confirmed = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
+      status = event.capacity !== null && confirmed >= event.capacity ? "WAITLISTED" : "CONFIRMED";
+      notice = status === "CONFIRMED"
+        ? { title: "Participação aprovada", message: `${event.nome}: a organização aprovou sua participação. Sua presença está confirmada.` }
+        : { title: "Participação aprovada", message: `${event.nome}: você foi aprovado e está na lista de espera; avisaremos se abrir uma vaga.` };
+    }
+    const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status }, select: { id: true, status: true } });
+    await createNotification(tx, notificationCopy({ userId: registration.userId, type: (status === "REJECTED" ? "SYSTEM" : "CHECKIN") as "SYSTEM" | "CHECKIN", href, groupKey: `registration-review:${registration.id}`, ...notice }));
+    const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
+    await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: `Inscrição ${registration.id} ${decision === "REJECT" ? "recusada" : "aprovada"}.` } });
+    return changed;
   });
 }
 

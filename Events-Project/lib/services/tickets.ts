@@ -34,7 +34,7 @@ export type TicketOrderView = {
   expiresAt: string; paidAt: string | null; pixCopyPaste: string | null; pixQrBase64: string | null;
 };
 export type TicketPurchaseState = {
-  state: "available" | "login" | "pending" | "owned" | "sold_out" | "closed" | "own_event" | "unavailable";
+  state: "available" | "login" | "pending" | "owned" | "sold_out" | "closed" | "own_event" | "unavailable" | "approval";
   priceCents: number; seatsLeft: number | null; message: string | null; order: TicketOrderView | null;
 };
 export type SellerOrderView = { id: string; code: string; buyerName: string; status: TicketOrderStatusValue; unitCents: number; feeCents: number; paidAt: string | null; refundedAt: string | null };
@@ -60,6 +60,7 @@ const denied = { success: false as const, message: "Acesso negado." };
 const loginRequired = { success: false as const, message: "Entre na sua conta para comprar ingressos." };
 const notConfigured = "Os pagamentos ainda não foram configurados no EventMap.";
 const genericError = { success: false as const, message: "Não foi possível concluir agora. Tente novamente em alguns minutos." };
+const approvalRequired = "A organização precisa aprovar sua participação antes da compra. Peça para participar na página do evento.";
 const pixError = { success: false as const, message: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos." };
 const iso = (value: Date | null | undefined) => (value ? new Date(value).toISOString() : null);
 const REFRESH_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -138,7 +139,7 @@ function toView(row: OrderRow): TicketOrderView {
 
 const saleEventSelect = {
   id: true, nome: true, userId: true, status: true, dataInicio: true, startTime: true, timezone: true,
-  ticketsEnabled: true, ticketCapacity: true, isFree: true, priceCents: true,
+  ticketsEnabled: true, ticketCapacity: true, isFree: true, priceCents: true, requiresApproval: true, aiImport: { select: { id: true } },
 } satisfies Prisma.EventsSelect;
 
 type Store = Pick<Prisma.TransactionClient, "ticketOrder">;
@@ -379,6 +380,10 @@ export async function getTicketPurchaseState(eventId: string, resolveViewer: Res
       if (own && isOpenTicketOrder(own, now)) return { success: true, message: "", data: { ...base, seatsLeft, state: "pending", message: null, order: toView(own) } };
     }
     if (blocked && blocked.code !== "email_unverified") return { success: true, message: "", data: { ...base, seatsLeft, state: stateFor[blocked.code] ?? "unavailable", message: blocked.message } };
+    if (viewer && event.requiresApproval && !event.aiImport) {
+      const approval = await prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: viewer.id } }, select: { status: true } });
+      if (approval?.status !== "APPROVED") return { success: true, message: "", data: { ...base, seatsLeft, state: "approval", message: approvalMessage(approval?.status) } };
+    }
     if (seatsLeft === 0) return { success: true, message: "", data: { ...base, seatsLeft, state: "sold_out", message: "Ingressos esgotados." } };
     // Unverified e-mail: the button stays visible and the purchase explains what to do.
     return { success: true, message: "", data: { ...base, seatsLeft, state: viewer ? "available" : "login", message: blocked?.message ?? null } };
@@ -386,6 +391,13 @@ export async function getTicketPurchaseState(eventId: string, resolveViewer: Res
     console.warn("ticket-state-failed");
     return genericError;
   }
+}
+
+/** Purchase gate for promoter events with approval: what the buyer still has to do. */
+function approvalMessage(status: string | undefined): string {
+  if (status === "PENDING") return "Seu pedido está aguardando a aprovação da organização. Avisaremos quando a compra for liberada.";
+  if (status === "REJECTED") return "Sua participação não foi aprovada pela organização deste evento.";
+  return "A organização aprova cada participante. Peça para participar; a compra é liberada depois da aprovação.";
 }
 
 type CreateOutcome =
@@ -415,6 +427,10 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       const blocked = ticketEligibility({ event, buyerId: user.id, sellerConnected: await sellerConnected(tx, event.userId), buyerEmailVerified: buyer?.verified ?? false, now });
       if (blocked) return { kind: "blocked", message: blocked.message };
       if (!buyer?.email) return { kind: "blocked", message: "Cadastre um e-mail na sua conta para receber o Pix." };
+      if (event.requiresApproval && !event.aiImport) {
+        const approval = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: user.id } }, select: { status: true } });
+        if (approval?.status !== "APPROVED") return { kind: "blocked", message: approvalRequired };
+      }
       const recent = await tx.ticketOrder.count({ where: { buyerId: user.id, createdAt: { gte: new Date(now.getTime() - TICKET_ORDER_RATE_WINDOW_MS) } } });
       if (recent >= TICKET_ORDER_RATE_LIMIT) return { kind: "blocked", message: "Muitas tentativas de compra em pouco tempo. Aguarde alguns minutos e tente novamente." };
       if (event.ticketCapacity != null && await seatsTaken(tx, event.id, now) >= event.ticketCapacity) return { kind: "blocked", message: "Ingressos esgotados." };
@@ -622,7 +638,7 @@ type SyncContext = { config: MercadoPagoConfig; token: string; d: Resolved };
 async function grantTicket(tx: Prisma.TransactionClient, order: SyncOrder): Promise<void> {
   const registration = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: order.eventId, userId: order.buyerId } }, select: { id: true, status: true } });
   if (!registration) await tx.eventRegistration.create({ data: { eventId: order.eventId, userId: order.buyerId, status: "CONFIRMED" } });
-  else if (registration.status === "CANCELLED" || registration.status === "WAITLISTED") {
+  else if (registration.status === "CANCELLED" || registration.status === "WAITLISTED" || registration.status === "APPROVED" || registration.status === "PENDING") {
     await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CONFIRMED", ...(registration.status === "CANCELLED" ? { qrVersion: { increment: 1 }, checkedInAt: null } : {}) } });
   }
   await createNotification(tx, notificationCopy({
