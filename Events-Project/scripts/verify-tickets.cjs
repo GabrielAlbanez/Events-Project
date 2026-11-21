@@ -638,6 +638,11 @@ function checkWiring() {
   const publicActions = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
   assert.match(publicActions, /ticketSale && registrationOpen && <TicketPurchase/, "event page shows the checkout when EventMap sells tickets");
   assert.match(fs.readFileSync("app/eventos/[id]/page.tsx", "utf8"), /isTicketSaleActive\(/, "buy button hidden unless payments are configured");
+  // Drawers and modals don't receive ticketSale: the registration state must say the event sells tickets so they hide the free RSVP.
+  assert.match(fs.readFileSync("lib/services/attendance.ts", "utf8"), /ticketSale: Boolean\(event\.ticketsEnabled && !event\.isFree && ticketPaymentsConfigured\(\)\)/, "registration state exposes ticketSale");
+  const actionsUi = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
+  assert.match(actionsUi, /const sellsElsewhere = !ticketSale && Boolean\(registration\?\.ticketSale\)/, "overlays detect EventMap ticket sales");
+  assert.match(actionsUi, /!ticketSale && !sellsElsewhere && eventStatus !== "CANCELLED"/, "free RSVP hidden when EventMap sells tickets");
   const eventForm = fs.readFileSync("components/MyComponents/EventoForm.tsx", "utf8");
   assert.match(eventForm, /Vender ingressos pelo EventMap/);
   assert.match(eventForm, /conecte sua conta do Mercado Pago/, "disabled toggle links to the connect page");

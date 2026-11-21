@@ -80,7 +80,7 @@ export async function reconcileEventWaitlist(eventId: string): Promise<number> {
 
 export async function getRegistrationState(eventId: string, userId: string | null) {
   const event = await prisma.events.findUnique({ where: { id: eventId }, select: {
-    id: true, status: true, capacity: true,
+    id: true, status: true, capacity: true, ticketsEnabled: true, isFree: true,
   } });
   if (!event) throw new AttendanceError("Evento não encontrado.", 404);
   const [confirmedCount, waitingCount, registration] = await Promise.all([
@@ -88,7 +88,7 @@ export async function getRegistrationState(eventId: string, userId: string | nul
     prisma.eventRegistration.count({ where: { eventId, status: "WAITLISTED" } }),
     userId ? prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } }, select: { id: true, status: true, createdAt: true, checkedInAt: true } }) : Promise.resolve(null),
   ]);
-  return { capacity: event.capacity, confirmedCount, waitingCount, registration };
+  return { capacity: event.capacity, confirmedCount, waitingCount, registration, ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()) };
 }
 
 export async function registerForEvent(eventId: string, userId: string) {
