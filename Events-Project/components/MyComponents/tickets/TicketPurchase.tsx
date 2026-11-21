@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
-import { CheckCircle2, Clock3, Copy, Loader2, Ticket, TicketCheck } from "lucide-react";
-import { createTicketOrder, getTicketOrderStatus, getTicketPurchaseState } from "@/app/(actions)/tickets/action";
-import type { TicketOrderView, TicketPurchaseState } from "@/lib/services/tickets";
-import { formatTicketAmount } from "@/lib/tickets";
+import { CheckCircle2, Clock3, Copy, Loader2, Tag, Ticket, TicketCheck } from "lucide-react";
+import { createTicketOrder, getTicketOrderStatus, getTicketPurchaseState, previewTicketCoupon } from "@/app/(actions)/tickets/action";
+import type { TicketCouponPreview, TicketOrderView, TicketPurchaseState } from "@/lib/services/tickets";
+import { formatTicketAmount, normalizeCouponCode } from "@/lib/tickets";
+import { COUPON_QUERY_PARAM, couponCodeFromSearch } from "@/lib/ticketCoupons";
 import CheckInPass from "../CheckInPass";
 
 const POLL_MS = 4000;
@@ -31,8 +32,25 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const checking = useRef(false);
-  const price = formatTicketAmount(purchase?.priceCents ?? priceCents);
-  const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}`)}`;
+  // Coupon: previewed on the server; only an applied coupon is sent with the order.
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<TicketCouponPreview | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [urlCoupon, setUrlCoupon] = useState<string | null>(null);
+  const urlCouponTried = useRef(false);
+  const price = formatTicketAmount(appliedCoupon ? appliedCoupon.finalCents : purchase?.priceCents ?? priceCents);
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}${urlCoupon ? `?${COUPON_QUERY_PARAM}=${urlCoupon}` : ""}`)}`;
+
+  useEffect(() => {
+    // Shared links (?cupom=CODE) pre-fill the coupon. Read once on mount: no Suspense boundary needed for useSearchParams.
+    const code = couponCodeFromSearch(window.location.search);
+    if (!code) return;
+    setUrlCoupon(code);
+    setCouponInput(code);
+    setCouponOpen(true);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,10 +105,45 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
     if (expiredLocally && pendingId) void refreshOrder(pendingId);
   }, [expiredLocally, pendingId, refreshOrder]);
 
+  const applyCoupon = useCallback(async (raw: string) => {
+    const code = normalizeCouponCode(raw);
+    if (!code) { setCouponError("Confira o código: use de 3 a 20 letras, números, - ou _."); return; }
+    setCouponBusy(true);
+    setCouponError("");
+    try {
+      const result = await previewTicketCoupon({ eventId, code });
+      if (result.success) { setAppliedCoupon(result.data); setCouponInput(result.data.code); }
+      else { setAppliedCoupon(null); setCouponError(result.message || "Cupom inválido para este evento."); }
+    } catch {
+      setCouponError("Não foi possível validar o cupom agora. Tente novamente.");
+    } finally {
+      setCouponBusy(false);
+    }
+  }, [eventId]);
+
+  const canUseCoupon = purchase?.state === "available" || purchase?.state === "pending";
+  useEffect(() => {
+    // A shared coupon is applied once, as soon as this visitor can actually buy.
+    if (!urlCoupon || !canUseCoupon || urlCouponTried.current) return;
+    urlCouponTried.current = true;
+    void applyCoupon(urlCoupon);
+  }, [urlCoupon, canUseCoupon, applyCoupon]);
+
+  function submitCoupon(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!couponBusy) void applyCoupon(couponInput);
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null);
+    setCouponError("");
+    setCouponInput("");
+  }
+
   async function buy() {
     setBusy(true);
     try {
-      const result = await createTicketOrder({ eventId });
+      const result = await createTicketOrder({ eventId, ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}) });
       notify(result.message, result.success ? "info" : "error");
       if (result.success) { setNow(Date.now()); setOrder(result.data); }
       else void load();
@@ -119,7 +172,7 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
       <Ticket aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
       <div className="min-w-0 flex-1">
         <h2 id="ticket-title" className="font-semibold">Ingresso</h2>
-        <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{price}</p>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold tracking-tight tabular-nums">{appliedCoupon && <s className="text-base font-medium text-muted-foreground line-through"><span className="sr-only">De </span>{formatTicketAmount(appliedCoupon.priceCents)}</s>}<span>{appliedCoupon && <span className="sr-only">por </span>}{price}</span></p>
         <p className="mt-1 text-sm text-muted-foreground">Pagamento por Pix, processado pelo Mercado Pago. O ingresso é confirmado automaticamente e vira seu QR Code de entrada.</p>
       </div>
     </div>
@@ -134,21 +187,25 @@ export default function TicketPurchase({ eventId, priceCents }: { eventId: strin
             <Link href="/ingressos" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Ver meus ingressos →</Link>
           </div>
             : order?.status === "PENDING" ? <Checkout order={order} remaining={remaining} onCopy={() => void copyCode()} />
-              : purchase && <PurchaseAction purchase={purchase} ended={Boolean(ended)} busy={busy} price={price} loginHref={loginHref} onBuy={() => void buy()} />}
+              : purchase && <PurchaseAction purchase={purchase} ended={Boolean(ended)} busy={busy} price={price} loginHref={loginHref} onBuy={() => void buy()} pendingCoupon={urlCoupon}
+                coupon={<CouponField open={couponOpen} onOpen={() => setCouponOpen(true)} value={couponInput} onChange={(value) => { setCouponInput(value); if (couponError) setCouponError(""); }} applied={appliedCoupon} error={couponError} busy={couponBusy} disabled={busy} onSubmit={submitCoupon} onRemove={removeCoupon} />} />}
     </div>
   </section>;
 }
 
-function PurchaseAction({ purchase, ended, busy, price, loginHref, onBuy }: { purchase: TicketPurchaseState; ended: boolean; busy: boolean; price: string; loginHref: string; onBuy: () => void }) {
+type PurchaseActionProps = { purchase: TicketPurchaseState; ended: boolean; busy: boolean; price: string; loginHref: string; onBuy: () => void; coupon: ReactNode; pendingCoupon: string | null };
+
+function PurchaseAction({ purchase, ended, busy, price, loginHref, onBuy, coupon, pendingCoupon }: PurchaseActionProps) {
   const seats = purchase.seatsLeft;
   const seatsText = seats != null && seats > 0 ? <p className="text-xs text-muted-foreground">{seats === 1 ? "Último ingresso disponível" : `${seats} ingressos disponíveis`}</p> : null;
   switch (purchase.state) {
     case "login":
-      return <div className="space-y-2"><Link href={loginHref} className={primary}>Entre para comprar — {price}</Link>{seatsText}</div>;
+      return <div className="space-y-2"><Link href={loginHref} className={primary}>Entre para comprar — {price}</Link>{pendingCoupon && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Tag aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /><span>O cupom <span className="font-mono font-semibold text-foreground">{pendingCoupon}</span> será conferido depois que você entrar.</span></p>}{seatsText}</div>;
     case "available":
     case "pending":
       return <div className="space-y-2">
         {ended && <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">O Pix anterior expirou sem pagamento. Gere um novo para continuar.</p>}
+        {coupon}
         <button type="button" disabled={busy} onClick={onBuy} className={primary}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Gerando Pix...</> : `Comprar ingresso — ${price}`}</button>
         {purchase.message && <p className="text-sm text-muted-foreground">{purchase.message} <Link href="/Profile" className="font-medium text-brand underline-offset-4 hover:underline">Ir para minha conta</Link></p>}
         {seatsText}
@@ -188,5 +245,43 @@ function Checkout({ order, remaining, onCopy }: { order: TicketOrderView; remain
       <li className="flex gap-2"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />Pronto: esta página confirma sozinha em alguns segundos.</li>
     </ol>
     <p className="text-xs text-muted-foreground">Pedido <span className="font-mono">{order.code}</span> · o Pix vale por 30 minutos.</p>
+  </div>;
+}
+
+type CouponFieldProps = {
+  open: boolean; onOpen: () => void; value: string; onChange: (value: string) => void; applied: TicketCouponPreview | null;
+  error: string; busy: boolean; disabled: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onRemove: () => void;
+};
+
+/** Discreet coupon entry: behind a link, validated on the server, feedback announced politely. */
+function CouponField({ open, onOpen, value, onChange, applied, error, busy, disabled, onSubmit, onRemove }: CouponFieldProps) {
+  const ids = useId();
+  const inputId = `${ids}-coupon`;
+  const feedbackId = `${ids}-coupon-feedback`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const link = "inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-60";
+  return <div className="space-y-1">
+    {applied ? <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <p className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300"><Tag aria-hidden="true" className="h-4 w-4 shrink-0" /><span>Cupom <span className="font-mono">{applied.code}</span> aplicado</span></p>
+        <button type="button" onClick={onRemove} disabled={disabled} className={link}>Remover<span className="sr-only"> cupom {applied.code}</span></button>
+      </div>
+      <dl className="mt-1 grid grid-cols-3 gap-2 tabular-nums">
+        <div><dt className="text-xs text-muted-foreground">Preço</dt><dd className="text-muted-foreground line-through">{formatTicketAmount(applied.priceCents)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Desconto</dt><dd className="font-medium">−{formatTicketAmount(applied.discountCents)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Você paga</dt><dd className="font-semibold">{formatTicketAmount(applied.finalCents)}</dd></div>
+      </dl>
+    </div>
+      : !open ? <button type="button" onClick={() => { onOpen(); window.requestAnimationFrame(() => inputRef.current?.focus()); }} aria-expanded="false" className={link}>Tem um cupom?</button>
+        : <form onSubmit={onSubmit} noValidate className="space-y-1.5">
+          <label htmlFor={inputId} className="block text-sm font-medium">Cupom de desconto</label>
+          <div className="flex gap-2">
+            <input ref={inputRef} id={inputId} value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} placeholder="Ex.: AMIGOS10"
+              aria-invalid={error ? true : undefined} aria-describedby={feedbackId}
+              className="min-h-11 w-full min-w-0 flex-1 rounded-xl border bg-background px-3 font-mono text-sm uppercase placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive" />
+            <button type="submit" disabled={busy || disabled || !value.trim()} className={`${secondary} shrink-0`}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /><span className="sr-only">Validando cupom</span></> : "Aplicar"}</button>
+          </div>
+        </form>}
+    <p id={feedbackId} aria-live="polite" className={error ? "text-sm text-destructive" : "sr-only"}>{error || (applied ? `Cupom ${applied.code} aplicado. Você paga ${formatTicketAmount(applied.finalCents)}.` : "")}</p>
   </div>;
 }

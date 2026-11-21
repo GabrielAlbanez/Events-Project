@@ -9,6 +9,7 @@ import type { PaymentsOverview, SellerOrderView } from "@/lib/services/tickets";
 import { TICKET_FEE_PERCENT, formatTicketAmount, ticketFeeCents, ticketNetCents, ticketStatusLabels } from "@/lib/tickets";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import TicketCoupons from "./TicketCoupons";
 
 const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `payments:${text}` }); };
 const connectMessages: Record<string, { text: string; type: "success" | "error" | "info" }> = {
@@ -129,7 +130,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                   <div><dt className="text-muted-foreground">Taxa EventMap</dt><dd className="font-semibold tabular-nums">−{formatTicketAmount(ticketFeeCents(exampleCents))}</dd></div>
                   <div><dt className="text-muted-foreground">Você recebe</dt><dd className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(ticketNetCents(exampleCents))}</dd></div>
                 </dl>
-                <p className="mt-3 text-xs leading-5 text-muted-foreground">Para ativar a venda, abra um evento pago em Meus eventos e marque &quot;Vender ingressos pelo EventMap&quot;. Reembolsos são feitos aqui e devolvem o valor integral a quem comprou. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Regras de venda</Link></p>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">Para ativar a venda, abra um evento pago em Meus eventos e marque &quot;Vender ingressos pelo EventMap&quot;. Cupons de desconto ficam em cada evento abaixo e na página do evento (botão Cupons de desconto). Reembolsos são feitos aqui e devolvem o valor integral a quem comprou. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Regras de venda</Link></p>
               </div>
             </section>
 
@@ -142,7 +143,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                 : <ul className="space-y-4">{overview.events.map((event) => <li key={event.eventId} className="rounded-2xl border bg-card p-5 shadow-surface">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <h3 className="min-w-0 break-words font-semibold"><Link href={`/eventos/${encodeURIComponent(event.eventId)}`} className="hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{event.eventName}</Link></h3>
-                    {event.refunded > 0 && <span className="text-xs text-muted-foreground">{event.refunded} {event.refunded === 1 ? "estornado" : "estornados"}</span>}
+                    <div className="flex flex-wrap items-center gap-2">{event.refunded > 0 && <span className="text-xs text-muted-foreground">{event.refunded} {event.refunded === 1 ? "estornado" : "estornados"}</span>}<TicketCoupons eventId={event.eventId} eventName={event.eventName} /></div>
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                     <div><dt className="text-muted-foreground">Vendidos</dt><dd className="text-lg font-semibold tabular-nums">{event.sold}</dd></div>

@@ -19,6 +19,7 @@ const OFFLINE_EXTRA = [
   "verify-discovery-performance.cjs",
   "verify-geolocation-help.cjs",
   "verify-promo-kit.cjs",
+  "verify-ticket-coupons-ui.cjs",
 ];
 
 // Scripts test:* que exigem banco, servidor HTTP em execução ou serviços externos.
