@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "framer-motion";
@@ -31,6 +30,8 @@ import {
 import { loadLayoutFeatures } from "@/components/animations/config";
 import { cn } from "@/lib/utils";
 import { DemoQr } from "./DemoQr";
+import { LandingEventImage } from "./LandingEventImage";
+import type { LandingEvent } from "./landingData";
 import styles from "./Playground.module.css";
 
 type Audience = "participante" | "organizador";
@@ -113,7 +114,7 @@ function useArrowTabs<T extends string>(items: readonly T[], current: T, select:
 const AUDIENCES = ["participante", "organizador"] as const;
 const TOOL_IDS = TOOLS.map(tool => tool.id);
 
-export function AudienceSwitch() {
+export function AudienceSwitch({ promoEvent }: { promoEvent: LandingEvent | null }) {
   const ids = useId();
   const [audience, setAudience] = useState<Audience>("organizador");
   const [tool, setTool] = useState<ToolId>("aprovacao");
@@ -200,7 +201,7 @@ export function AudienceSwitch() {
                     >
                       {tool === "aprovacao" && <ApprovalPreview />}
                       {tool === "cupons" && <CouponPreview />}
-                      {tool === "kit" && <PromoPreview />}
+                      {tool === "kit" && <PromoPreview event={promoEvent} />}
                       {tool === "checkin" && <CheckinPreview />}
                       {tool === "resultados" && <ResultsPreview />}
                       {tool === "destaque" && <HighlightPreview />}
@@ -303,7 +304,8 @@ function CouponPreview() {
   );
 }
 
-function PromoPreview() {
+/** Com agenda real, a prévia usa um evento publicado (nome e banner verdadeiros); sem ela, um exemplo sem foto. */
+function PromoPreview({ event }: { event: LandingEvent | null }) {
   const [format, setFormat] = useState<"stories" | "feed">("stories");
   return (
     <div className={styles.previewCard}>
@@ -313,10 +315,10 @@ function PromoPreview() {
       </div>
       <div className={styles.promoStage}>
         <div className={cn(styles.promoImage, format === "feed" && styles.promoFeed)}>
-          <Image src="/branding/posters/poster-2.webp" alt="" fill sizes="200px" className={styles.cover} />
+          <LandingEventImage src={event?.image ?? null} category={event?.category ?? "Música"} sizes="200px" />
           <div className={styles.promoOverlay}>
-            <strong>Sarau da Vila</strong>
-            <span>Sáb · 20h · Vila Madalena</span>
+            <strong>{event?.name ?? "Sarau da Vila"}</strong>
+            <span>{event ? event.dateLabel : "Sáb · 20h · Vila Madalena"}</span>
             <DemoQr seed={77} className={styles.promoQr} />
           </div>
         </div>

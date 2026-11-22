@@ -943,7 +943,11 @@
   overflow: hidden;
   width: 100%;
   border-radius: 16px;
-  background: hsl(var(--night-raised, var(--muted)));
+  background: hsl(var(--stage-raised, var(--muted)));
+  box-shadow: 0 0 0 1px hsl(var(--on-stage, var(--foreground)) / 0.1), 0 40px 80px -44px hsl(var(--foreground) / 0.45);
+}
+
+:global(.dark) .showcaseFrame {
   box-shadow: 0 0 0 1px hsl(0 0% 100% / 0.1), 0 40px 80px -40px hsl(0 0% 0% / 0.8);
 }
 
@@ -1031,7 +1035,7 @@
   width: 24px;
   height: 3px;
   border-radius: 999px;
-  background: hsl(var(--on-night, 0 0% 100%) / 0.22);
+  background: hsl(var(--on-stage, 0 0% 100%) / 0.22);
   transition: background-color 200ms ease;
 }
 
@@ -1565,6 +1569,316 @@
 
 .ctaGhost:hover {
   background: hsl(var(--muted));
+}
+
+/* ---------- Imagem de evento: bloco neutro sem banner ---------- */
+.imageTile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px;
+  background:
+    radial-gradient(80% 80% at 30% 20%, hsl(var(--primary) / 0.16), transparent 70%),
+    hsl(var(--muted));
+  color: hsl(var(--brand));
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.imageTile span {
+  overflow: hidden;
+  max-width: 100%;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.calloutLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cardItem {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.cardItem .eventCard {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardOpen {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  background: hsl(var(--card));
+  color: hsl(var(--brand));
+}
+
+.cardOpen:hover {
+  border-color: hsl(var(--primary));
+}
+
+/* ---------- Agora na agenda: números reais + faixa em movimento ---------- */
+.live {
+  padding-block: clamp(48px, 6vw, 80px);
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+.live :is(a, button):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.liveHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px 48px;
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 5vw, 48px);
+}
+
+.liveEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--brand));
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: hsl(142 70% 40%);
+  box-shadow: 0 0 0 4px hsl(142 70% 40% / 0.2);
+}
+
+.liveTitle {
+  max-width: 22ch;
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.figures li {
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.figures strong {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.figures li > span {
+  max-width: 16ch;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground));
+}
+
+.marquee {
+  position: relative;
+  overflow: hidden;
+  margin-top: 32px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.marqueeTrack {
+  display: flex;
+  width: max-content;
+}
+
+.marqueeList {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 4px 14px 4px 0;
+  list-style: none;
+}
+
+.agendaCard {
+  display: grid;
+  gap: 4px;
+  width: 240px;
+  padding: 8px 8px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 18px;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+a.agendaCard:hover {
+  border-color: hsl(var(--primary));
+  transform: translateY(-2px);
+}
+
+.agendaThumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: hsl(var(--muted));
+}
+
+.agendaMeta {
+  padding-inline: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--brand));
+}
+
+.agendaName {
+  overflow: hidden;
+  padding-inline: 4px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agendaSub {
+  overflow: hidden;
+  padding-inline: 4px;
+  font-size: 12.5px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.liveFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding-inline: clamp(16px, 5vw, 48px);
+}
+
+.liveFoot .resultsLink {
+  margin-top: 0;
+}
+
+.marqueeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.marqueeToggle:hover {
+  background: hsl(var(--muted));
+}
+
+@keyframes landingMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Movimento só para quem aceita animação; pausa no hover, no foco, pelo botão e com a aba oculta. */
+@media (prefers-reduced-motion: no-preference) {
+  .marqueeTrack {
+    animation: landingMarquee var(--marquee-duration, 48s) linear infinite;
+  }
+
+  .marquee:hover .marqueeTrack,
+  .marquee:focus-within .marqueeTrack,
+  .marquee[data-paused="true"] .marqueeTrack {
+    animation-play-state: paused;
+  }
+}
+
+/* Poucos eventos: fileira parada e rolável, sem laço. */
+.marqueeStatic {
+  overflow-x: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+  padding-inline: clamp(16px, 5vw, 48px);
+  scrollbar-width: thin;
+}
+
+.marqueeStatic .marqueeTrack {
+  margin-inline: auto;
+  animation: none !important;
+}
+
+/* Sem movimento: lista rolável na horizontal, sem a cópia e sem o botão de pausa. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+    padding-inline: clamp(16px, 5vw, 48px);
+  }
+
+  .marqueeClone,
+  .marqueeToggle {
+    display: none;
+  }
+
+  a.agendaCard:hover {
+    transform: none;
+  }
 }
 
 /* ---------- Responsivo ---------- */

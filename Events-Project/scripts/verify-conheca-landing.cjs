@@ -55,7 +55,7 @@ check("FAQ items are complete and the FAQ section renders native details", () =>
 
 check("page renders every chapter and the interactive experiences", () => {
   const page = sources[PAGE];
-  for (const component of ["ScrollProgress", "LandingHero", "MapPlayground", "PhoneJourney", "ShowcaseDepth", "AudienceSwitch", "FaqSection", "FinalCta"]) {
+  for (const component of ["ScrollProgress", "LandingHero", "LiveAgenda", "MapPlayground", "PhoneJourney", "ShowcaseDepth", "AudienceSwitch", "FaqSection", "FinalCta"]) {
     match(page, new RegExp(`<${component}\\b`), `${component} rendered`);
   }
   for (const id of ["descobrir", "participar", "por-dentro", "organizar"]) match(page, new RegExp(`id="${id}"`), `chapter #${id}`);
@@ -189,6 +189,121 @@ check("copy stays truthful: demo data is labelled and no invented user counts", 
   noMatch(all, /\b\d[\d.]*\s*(mil\s+)?(usuários|usuárias|pessoas usam|downloads)\b/i, "no unbacked user numbers");
   match(all, /Mercado Pago/);
   match(all, /lista de espera/);
+});
+
+check("no purple generated artwork: real banners or a neutral tile", () => {
+  for (const [file, source] of Object.entries(sources)) {
+    noMatch(source, /\/branding\/posters|home-(jazz|live|sunset)-v1|login-(night|city)/, `${file} does not use generated artwork`);
+  }
+  const image = landing("LandingEventImage.tsx");
+  match(image, /unoptimized=\{\/\^https\?:\\\/\\\/\/i\.test\(src\)\}/, "remote banners are not optimized, like HomeEventImage");
+  match(image, /onError=\{\(\) => setFailed\(src\)\}/, "broken banners fall back");
+  match(image, /className=\{styles\.imageTile\}/, "neutral tile without a banner");
+  const data = landing("landingData.ts");
+  match(data, /export function safeImageUrl\(/);
+  match(data, /!url\.username && !url\.password/, "credentials in banner URLs are rejected");
+});
+
+check("page loads the real catalog with cache, timeout and fallback", () => {
+  const page = plain(sources[PAGE]);
+  match(page, /import \{ listPublicCatalog \} from "@\/lib\/eventQueries"/);
+  match(page, /unstable_cache\(/, "catalog summary is cached");
+  match(page, /\{ revalidate: CATALOG_REVALIDATE_SECONDS \}/);
+  match(page, /const CATALOG_REVALIDATE_SECONDS = 600;/);
+  match(page, /Promise\.race\(\[ loadCatalogSummary\(\), new Promise<null>/, "timeout race");
+  match(page, /const CATALOG_TIMEOUT_MS = 2500;/);
+  match(page, /catch \{[^}]*return null;/, "database errors fall back to example content");
+  match(page, /clearTimeout\(timer\)/);
+  match(page, /const catalog = buildLandingCatalog\(await loadLandingSummary\(\)\);/);
+  noMatch(sources[PAGE], /^export const revalidate/m, "revalidate export would be ignored on this dynamic route");
+  for (const component of ["LandingHero", "MapPlayground", "PhoneJourney"]) match(page, new RegExp(`<${component} events=\\{catalog\\.events\\} real=\\{catalog\\.real\\}`), `${component} receives real events`);
+  match(page, /<LiveAgenda catalog=\{catalog\} \/>/);
+});
+
+check("catalog summary: only upcoming validated events, real figures, fallback hides figures", () => {
+  const ts = require("typescript");
+  const output = ts.transpileModule(landing("landingData.ts"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2019 } }).outputText;
+  const mod = { exports: {} };
+  new Function("module", "exports", "require", output)(mod, mod.exports, require);
+  const { summarizeCatalog, buildLandingCatalog } = mod.exports;
+  const base = { banner: "https://img.example.com/a.jpg", category: "Música", startTime: "21:00", endereco: "Rua A, 1", isFree: false, priceCents: 5000, validate: true, status: "PUBLISHED" };
+  const now = new Date("2026-11-22T15:00:00Z");
+  const rows = [
+    { ...base, id: "hoje", nome: "Hoje", dataInicio: "2026-11-22", dataFim: "2026-11-22", isFree: true },
+    { ...base, id: "semana", nome: "Semana", dataInicio: "2026-11-27", dataFim: "2026-11-27", category: "Teatro" },
+    { ...base, id: "longe", nome: "Longe", dataInicio: "2027-01-10", dataFim: "2027-01-10" },
+    { ...base, id: "passado", nome: "Passado", dataInicio: "2026-11-01", dataFim: "2026-11-02" },
+    { ...base, id: "cancelado", nome: "Cancelado", dataInicio: "2026-11-23", dataFim: "2026-11-23", status: "CANCELLED" },
+    { ...base, id: "pendente", nome: "Pendente", dataInicio: "2026-11-23", dataFim: "2026-11-23", validate: false },
+    { ...base, id: "credencial", nome: "Sem banner", dataInicio: "2026-11-24", dataFim: "2026-11-24", banner: "https://u:p@x.com/a.jpg" },
+  ];
+  const summary = summarizeCatalog(rows, now);
+  assert.deepEqual(summary.picks.map(row => row.id), ["hoje", "semana", "longe"], "only upcoming, validated, non-cancelled events with a usable banner");
+  assert.deepEqual(summary.figures, { today: 1, nextWeek: 3, categories: 2, free: 1 });
+  const catalog = buildLandingCatalog(summary);
+  assert.equal(catalog.real, true);
+  assert.equal(catalog.events[0].href, "/eventos/hoje", "real events link to their page");
+  assert.equal(catalog.events[0].priceLabel, "Gratuito");
+  const fallback = buildLandingCatalog(null);
+  assert.equal(fallback.real, false);
+  assert.ok(fallback.events.length >= 3 && fallback.events.every(event => event.href === null && event.image === null), "fallback has no fake links or photos");
+  assert.deepEqual(fallback.figures, { today: 0, nextWeek: 0, categories: 0, free: 0 }, "no figures without real data");
+  assert.equal(buildLandingCatalog({ picks: [], figures: summary.figures }).real, false, "empty catalog falls back");
+});
+
+check("live agenda: figures only above zero, pausable marquee, reduced motion, links to events", () => {
+  const live = landing("LiveAgenda.tsx");
+  match(live, /if \(!catalog\.real\) return null;/, "hidden without the real catalog");
+  match(live, /FIGURES\.filter\(figure => catalog\.figures\[figure\.key\] >= figure\.min\)/, "figures shown only from their minimum");
+  const mins = [...live.matchAll(/min: (\d+) \}/g)].map(found => Number(found[1]));
+  assert.equal(mins.length, 4, "every figure declares a minimum");
+  assert.ok(mins.every(min => min >= 1), "a figure is never shown at zero");
+  match(live, /const loop = events\.length >= MIN_LOOP;/, "few events stay static instead of looping repeats");
+  match(live, /\{loop && <button type="button" className=\{styles\.marqueeToggle\} aria-pressed=\{userPaused\}/, "pause control whenever the strip moves");
+  match(live, /\{loop && <ul className=\{cn\(styles\.marqueeList, styles\.marqueeClone\)\} aria-hidden="true">/, "loop copy only when looping");
+  match(live, /visibilitychange/, "pauses when the tab is hidden");
+  match(live, /aria-hidden="true">\s*\{events\.map\(event => <li key=\{event\.id\}><AgendaCard event=\{event\} hidden \/>/, "duplicate loop copy is hidden from assistive tech");
+  match(live, /tabIndex=\{hidden \? -1 : undefined\}/);
+  match(live, /useMotionAllowed\(\)/, "counter respects reduced motion");
+  const css = read(`${LANDING_DIR}/Playground.module.css`);
+  match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.marqueeTrack \{\s*animation: landingMarquee/, "marquee only animates with motion allowed");
+  match(css, /\.marquee:focus-within \.marqueeTrack/, "pauses on keyboard focus");
+  match(css, /\.marquee\[data-paused="true"\] \.marqueeTrack/);
+  match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.marquee \{\s*overflow-x: auto;/, "static scrollable list under reduced motion");
+  const data = landing("landingData.ts");
+  match(data, /href: `\/eventos\/\$\{encodeURIComponent\(row\.id\)\}`/);
+  assert.ok(fs.existsSync(path.join(root, "app/eventos/[id]/page.tsx")), "/eventos/[id] route exists");
+});
+
+check("hero carousel rotates real events with pause, drag and reduced-motion gating", () => {
+  const hero = landing("LandingHero.tsx");
+  match(hero, /const autoplay = motionAllowed && !userPaused && !held && count > 1;/);
+  match(hero, /document\.visibilityState === "visible"/);
+  match(hero, /drag=\{count > 1 \? "x" : false\}/);
+  match(hero, /aria-roledescription="carrossel"/);
+  match(hero, /aria-live=\{autoplay \? "off" : "polite"\}/, "announces only when not auto-rotating");
+  match(hero, /aria-label="Próximo evento"/);
+  match(hero, /if \(dragged\.current\) event\.preventDefault\(\);/, "a drag does not open the event");
+  const map = landing("MapPlayground.tsx");
+  match(map, /categoriesOf\(pins\)/, "category chips come from the events shown");
+  match(map, /Mapa e distâncias ilustrativos · eventos reais da agenda/);
+  const phone = landing("PhoneJourney.tsx");
+  match(phone, /events\.find\(item => !item\.isFree && item\.priceCents > 0\) \?\? events\[0\]/, "phone uses a real event, preferring a real price");
+});
+
+check("theme: stage surfaces follow light and dark tokens", () => {
+  const css = read(`${LANDING_DIR}/Landing.module.css`);
+  const page = css.match(/\n\.page \{[\s\S]*?\n\}/)[0];
+  match(page, /--stage: 220 45% 97%;/, "light stage by default");
+  match(page, /--on-stage: var\(--foreground\);/);
+  match(css, /:global\(\.dark\) \.page \{[\s\S]*?--stage: 230 35% 7%;/, "night stage only in dark theme");
+  for (const selector of [".hero", ".chapterStage", ".final"]) {
+    const block = css.match(new RegExp(`\\n\\${selector} \\{[\\s\\S]*?\\n\\}`));
+    assert.ok(block, `${selector} block`);
+    noMatch(block[0], /hsl\(\d/, `${selector} uses theme tokens, not fixed colors`);
+    match(block[0], /hsl\(var\(--stage\)\)|hsl\(var\(--stage\)\) 0%/, `${selector} paints the themed stage`);
+  }
+  noMatch(css, /--night|Night\b/, "no leftover always-dark tokens");
 });
 
 let failed = 0;

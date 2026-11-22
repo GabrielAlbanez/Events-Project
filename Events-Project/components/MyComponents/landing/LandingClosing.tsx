@@ -56,13 +56,13 @@ export function FinalCta() {
     <section className={styles.final} aria-labelledby="cta-final-titulo">
       <div className={cn(styles.container, styles.finalInner, styles.reveal)}>
         <h2 id="cta-final-titulo" className={styles.h2Large}>Sua cidade está acontecendo agora.</h2>
-        <p className={styles.leadNight}>Abra o mapa e veja o que tem perto de você hoje.</p>
+        <p className={styles.leadStage}>Abra o mapa e veja o que tem perto de você hoje.</p>
         <div className={styles.actions}>
           <Link href="/" className={cn(styles.btn, styles.btnPrimary)}>
             Explorar eventos
             <ArrowRight size={18} aria-hidden="true" />
           </Link>
-          <Link href="/register" className={cn(styles.btn, styles.btnNight)}>Criar conta grátis</Link>
+          <Link href="/register" className={cn(styles.btn, styles.btnStage)}>Criar conta grátis</Link>
         </div>
       </div>
     </section>

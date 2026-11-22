@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "framer-motion";
 import {
@@ -21,6 +20,8 @@ import {
 import { loadAnimationFeatures } from "@/components/animations/config";
 import { cn } from "@/lib/utils";
 import { DemoQr } from "./DemoQr";
+import { LandingEventImage } from "./LandingEventImage";
+import type { LandingEvent } from "./landingData";
 import styles from "./Playground.module.css";
 import { useMediaQuery } from "./useLandingMotion";
 
@@ -57,14 +58,19 @@ const STEPS: Step[] = [
   },
 ];
 
-const PRICE = 60;
+/** Valor usado na simulação quando o evento escolhido não tem preço próprio. */
+const EXAMPLE_PRICE = 60;
 const COUPON_PERCENT = 10;
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 type PixState = "idle" | "pending" | "paid";
 type Mode = "livre" | "aprovacao";
 
-export function PhoneJourney() {
+export function PhoneJourney({ events, real }: { events: LandingEvent[]; real: boolean }) {
+  // Prefere um evento pago com preço definido, para o passo do Pix mostrar o valor verdadeiro.
+  const event = events.find(item => !item.isFree && item.priceCents > 0) ?? events[0];
+  const realPrice = !event.isFree && event.priceCents > 0;
+  const PRICE = realPrice ? event.priceCents / 100 : EXAMPLE_PRICE;
   const ids = useId();
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -183,11 +189,11 @@ export function PhoneJourney() {
           <div className={styles.phoneScreen} id={`${ids}-painel`} role="tabpanel" aria-labelledby={`${ids}-tab-${step}`}>
             <div className={styles.phoneEvent}>
               <div className={styles.phonePoster}>
-                <Image src="/branding/home-jazz-v1.webp" alt="Cartaz fictício do evento Jazz no Terraço" fill sizes="300px" className={styles.cover} />
+                <LandingEventImage src={event.image} category={event.category} sizes="300px" />
               </div>
-              <p className={styles.phoneKicker}>Música · Hoje, 21h</p>
-              <p className={styles.phoneTitle}>Jazz no Terraço</p>
-              <p className={styles.phonePlace}>Terraço Augusta · 1,2 km</p>
+              <p className={styles.phoneKicker}>{event.category}{event.dateLabel ? ` · ${event.dateLabel}` : ""}</p>
+              <p className={styles.phoneTitle}>{event.name}</p>
+              <p className={styles.phonePlace}>{event.place}</p>
             </div>
 
             <LazyMotion features={loadAnimationFeatures}>
@@ -263,12 +269,15 @@ export function PhoneJourney() {
                     {step === 2 && (
                       <>
                         <div className={styles.priceRow}>
-                          <span>1 ingresso</span>
+                          <span>{realPrice ? "1 ingresso" : "Exemplo de ingresso pago"}</span>
                           <span>
                             {coupon && <s className={styles.priceOld}>{money(PRICE)}</s>}
                             <strong>{money(total)}</strong>
                           </span>
                         </div>
+                        {!realPrice && (
+                          <p className={styles.phoneHint}>Este evento não tem ingresso pago: o valor acima é só um exemplo de como funciona a compra.</p>
+                        )}
                         {mode === "aprovacao" && !approved && (
                           <div className={cn(styles.phoneNote, styles.phoneNoteIdle)}>
                             <Hourglass size={15} aria-hidden="true" />
@@ -338,7 +347,7 @@ export function PhoneJourney() {
           </div>
           <p className="sr-only" aria-live="polite">{status}</p>
         </div>
-        <p className={styles.mapLegend}>Simulação com dados fictícios</p>
+        <p className={styles.mapLegend}>{real ? "Evento real da agenda · vagas, pagamento e check-in simulados" : "Simulação com dados fictícios"}</p>
       </div>
     </div>
   );

@@ -1,55 +1,57 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "framer-motion";
-import { ArrowRight, Car, MapPin, Navigation, RotateCcw } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MapPin, Navigation, RotateCcw } from "lucide-react";
 import { loadLayoutFeatures } from "@/components/animations/config";
 import { cn } from "@/lib/utils";
+import { LandingEventImage } from "./LandingEventImage";
 import styles from "./Playground.module.css";
 import {
   DISTANCE_OPTIONS,
-  LANDING_CATEGORIES,
-  LANDING_EVENTS,
   MAP_VIEWBOX,
-  WHEN_OPTIONS,
+  PRICE_OPTIONS,
+  categoriesOf,
   formatKm,
   mapRadius,
   type DistanceOption,
-  type LandingCategory,
-  type LandingWhen,
+  type LandingEvent,
+  type PriceFilter,
 } from "./landingData";
 
-type CategoryFilter = LandingCategory | "Todas";
-type WhenFilter = LandingWhen | "qualquer";
-
-const DEFAULTS = { category: "Todas" as CategoryFilter, distance: 5 as DistanceOption, when: "qualquer" as WhenFilter };
+const ALL = "Todas";
 const EASE = [0.22, 1, 0.36, 1] as const;
+const DEFAULT_DISTANCE: DistanceOption = 5;
 
-export function MapPlayground() {
+export function MapPlayground({ events, real }: { events: LandingEvent[]; real: boolean }) {
   const ids = useId();
-  const [category, setCategory] = useState<CategoryFilter>(DEFAULTS.category);
-  const [distance, setDistance] = useState<DistanceOption>(DEFAULTS.distance);
-  const [when, setWhen] = useState<WhenFilter>(DEFAULTS.when);
-  const [selectedId, setSelectedId] = useState<string>("jazz");
+  const pins = useMemo(() => events.slice(0, 8), [events]);
+  const categories = useMemo(() => categoriesOf(pins), [pins]);
+  const [category, setCategory] = useState<string>(ALL);
+  const [distance, setDistance] = useState<DistanceOption>(DEFAULT_DISTANCE);
+  const [price, setPrice] = useState<PriceFilter>("qualquer");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const matches = useMemo(
-    () => LANDING_EVENTS.filter(event => event.km <= distance && (category === "Todas" || event.category === category) && (when === "qualquer" || event.when === when)),
-    [category, distance, when],
+    () => pins.filter(event =>
+      event.km <= distance
+      && (category === ALL || event.category === category)
+      && (price === "qualquer" || (price === "gratuito" ? event.isFree : !event.isFree))),
+    [pins, category, distance, price],
   );
   const selected = matches.find(event => event.id === selectedId) ?? matches[0] ?? null;
   const ringScale = mapRadius(distance) / MAP_VIEWBOX.maxRadius;
 
   const reset = () => {
-    setCategory(DEFAULTS.category);
-    setDistance(DEFAULTS.distance);
-    setWhen(DEFAULTS.when);
+    setCategory(ALL);
+    setDistance(10);
+    setPrice("qualquer");
   };
 
   const summary = matches.length === 0
     ? "Nenhum evento com esses filtros."
-    : `${matches.length} ${matches.length === 1 ? "evento encontrado" : "eventos encontrados"} até ${distance} km`;
+    : `${matches.length} ${matches.length === 1 ? "evento" : "eventos"} no raio de ${distance} km`;
 
   return (
     <LazyMotion features={loadLayoutFeatures}>
@@ -57,9 +59,9 @@ export function MapPlayground() {
         <div className={styles.playground}>
           <div className={styles.controls} role="group" aria-label="Filtros da simulação">
             <fieldset className={styles.filterGroup}>
-              <legend>O que você curte?</legend>
+              <legend>{real ? "Categorias na agenda agora" : "O que você curte?"}</legend>
               <div className={styles.chips}>
-                {(["Todas", ...LANDING_CATEGORIES] as CategoryFilter[]).map(option => (
+                {[ALL, ...categories].map(option => (
                   <button key={option} type="button" className={styles.chip} aria-pressed={category === option} onClick={() => setCategory(option)}>
                     {option}
                   </button>
@@ -78,10 +80,10 @@ export function MapPlayground() {
                 </div>
               </fieldset>
               <fieldset className={styles.filterGroup}>
-                <legend>Quando?</legend>
+                <legend>Preço</legend>
                 <div className={styles.segmented}>
-                  {WHEN_OPTIONS.map(option => (
-                    <button key={option.value} type="button" aria-pressed={when === option.value} onClick={() => setWhen(option.value)}>
+                  {PRICE_OPTIONS.map(option => (
+                    <button key={option.value} type="button" aria-pressed={price === option.value} onClick={() => setPrice(option.value)}>
                       {option.label}
                     </button>
                   ))}
@@ -123,7 +125,7 @@ export function MapPlayground() {
                 <Navigation size={12} />
               </span>
 
-              {LANDING_EVENTS.map(event => {
+              {pins.map(event => {
                 const visible = matches.includes(event);
                 const active = selected?.id === event.id;
                 const position = { left: `${event.x}%`, top: `${event.y}%` };
@@ -135,7 +137,7 @@ export function MapPlayground() {
                     className={cn(styles.pin, active && styles.pinActive)}
                     style={position}
                     aria-pressed={active}
-                    aria-label={`${event.name}, ${event.category}, ${formatKm(event.km)}, ${event.price}`}
+                    aria-label={`${event.name}, ${event.category}, ${event.priceLabel}`}
                     onClick={() => setSelectedId(event.id)}
                   >
                     <MapPin size={active ? 20 : 16} aria-hidden="true" />
@@ -153,33 +155,36 @@ export function MapPlayground() {
                     exit={{ opacity: 0, y: 8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className={styles.calloutThumb}>
-                      <Image src={selected.image} alt="" fill sizes="56px" className={styles.cover} />
-                    </div>
-                    <div className={styles.calloutText}>
+                    <span className={styles.calloutThumb}>
+                      <LandingEventImage src={selected.image} category={selected.category} sizes="56px" />
+                    </span>
+                    <span className={styles.calloutText}>
                       <strong>{selected.name}</strong>
-                      <span>{selected.time} · {formatKm(selected.km)}</span>
-                      <span className={styles.calloutTravel}><Car size={13} aria-hidden="true" /> {selected.minutes} min de carro</span>
-                    </div>
-                    <span className={styles.calloutPrice}>{selected.price}</span>
+                      <span>{selected.dateLabel}</span>
+                      <span>{selected.priceLabel}</span>
+                    </span>
+                    {selected.href && (
+                      <Link href={selected.href} className={styles.calloutLink}>
+                        Ver evento <ArrowUpRight size={14} aria-hidden="true" />
+                      </Link>
+                    )}
                   </m.div>
                 )}
               </AnimatePresence>
             </div>
-            <p className={styles.mapLegend}>Mapa ilustrativo · eventos fictícios</p>
+            <p className={styles.mapLegend}>
+              {real ? "Mapa e distâncias ilustrativos · eventos reais da agenda" : "Mapa ilustrativo · eventos de exemplo"}
+            </p>
           </div>
 
           <div className={styles.results}>
             <p className={styles.resultsSummary} id={`${ids}-resumo`} aria-live="polite">{summary}</p>
             {matches.length === 0 ? (
               <div className={styles.empty}>
-                <p>Tente ampliar a distância ou escolher outro dia — no mapa real, a lista acompanha cada ajuste.</p>
+                <p>Tente ampliar a distância ou mudar o preço — no mapa de verdade, a lista acompanha cada ajuste.</p>
                 <div className={styles.emptyActions}>
-                  {distance < 10 && (
-                    <button type="button" className={styles.smallBtn} onClick={() => setDistance(10)}>Ampliar para 10 km</button>
-                  )}
-                  <button type="button" className={styles.smallBtnGhost} onClick={reset}>
-                    <RotateCcw size={14} aria-hidden="true" /> Limpar filtros
+                  <button type="button" className={styles.smallBtn} onClick={reset}>
+                    <RotateCcw size={14} aria-hidden="true" /> Mostrar todos
                   </button>
                 </div>
               </div>
@@ -192,24 +197,30 @@ export function MapPlayground() {
                       <m.li
                         key={event.id}
                         layout
+                        className={styles.cardItem}
                         initial={{ opacity: 0, scale: 0.97 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                       >
                         <button type="button" className={cn(styles.eventCard, active && styles.eventCardActive)} aria-pressed={active} onClick={() => setSelectedId(event.id)}>
                           <span className={styles.eventThumb}>
-                            <Image src={event.image} alt="" fill sizes="72px" className={styles.cover} />
+                            <LandingEventImage src={event.image} category={event.category} sizes="72px" />
                           </span>
                           <span className={styles.eventBody}>
-                            <span className={styles.eventMeta}>{event.category} · {event.time}</span>
+                            <span className={styles.eventMeta}>{event.category}{event.dateLabel ? ` · ${event.dateLabel}` : ""}</span>
                             <span className={styles.eventName}>{event.name}</span>
                             <span className={styles.eventPlace}>{event.place}</span>
                           </span>
                           <span className={styles.eventSide}>
                             <span className={styles.eventDistance}>{formatKm(event.km)}</span>
-                            <span className={styles.eventPrice}>{event.price}</span>
+                            <span className={styles.eventPrice}>{event.priceLabel}</span>
                           </span>
                         </button>
+                        {event.href && (
+                          <Link href={event.href} className={styles.cardOpen} aria-label={`Abrir a página de ${event.name}`}>
+                            <ArrowUpRight size={18} aria-hidden="true" />
+                          </Link>
+                        )}
                       </m.li>
                     );
                   })}
@@ -217,7 +228,7 @@ export function MapPlayground() {
               </ul>
             )}
             <Link href="/" className={styles.resultsLink}>
-              Ver os eventos de verdade no mapa
+              Ver todos os eventos no mapa
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>

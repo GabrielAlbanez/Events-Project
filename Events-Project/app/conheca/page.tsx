@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import { AudienceSwitch } from "@/components/MyComponents/landing/AudienceSwitch";
 import { FAQ_ITEMS, FaqSection, FinalCta } from "@/components/MyComponents/landing/LandingClosing";
 import { LandingChapter } from "@/components/MyComponents/landing/LandingChapter";
 import { LandingHero } from "@/components/MyComponents/landing/LandingHero";
+import { LiveAgenda } from "@/components/MyComponents/landing/LiveAgenda";
 import { MapPlayground } from "@/components/MyComponents/landing/MapPlayground";
 import { PhoneJourney } from "@/components/MyComponents/landing/PhoneJourney";
 import { ScrollProgress } from "@/components/MyComponents/landing/ScrollProgress";
 import { ShowcaseDepth } from "@/components/MyComponents/landing/ShowcaseDepth";
 import styles from "@/components/MyComponents/landing/Landing.module.css";
+import { buildLandingCatalog, summarizeCatalog, type CatalogSummary, type LandingCatalogSource } from "@/components/MyComponents/landing/landingData";
+import { listPublicCatalog } from "@/lib/eventQueries";
 import { publicSiteUrl } from "@/lib/publicUrl";
 
 const TITLE = "Como funciona o EventMap — descubra, participe e viva cada evento";
@@ -83,23 +87,73 @@ function faqStructuredData() {
   };
 }
 
+/*
+ * Agenda real na landing. O layout raiz lê cookies, então a rota já é dinâmica e `export const revalidate`
+ * não teria efeito aqui: o resumo do catálogo fica em unstable_cache por 10 minutos, então o banco é lido no
+ * máximo uma vez a cada 10 minutos. Um tempo limite protege o primeiro byte; sem banco, entra o conteúdo de exemplo.
+ */
+const CATALOG_TIMEOUT_MS = 2500;
+const CATALOG_REVALIDATE_SECONDS = 600;
+
+const loadCatalogSummary = unstable_cache(
+  async (): Promise<CatalogSummary> => {
+    const events = await listPublicCatalog();
+    const rows: LandingCatalogSource[] = events.map(event => ({
+      id: event.id,
+      nome: event.nome,
+      banner: event.banner,
+      category: event.category,
+      dataInicio: event.dataInicio,
+      dataFim: event.dataFim,
+      startTime: event.startTime,
+      endereco: event.endereco,
+      isFree: event.isFree,
+      priceCents: event.priceCents,
+      validate: event.validate,
+      status: event.status,
+    }));
+    return summarizeCatalog(rows, new Date());
+  },
+  ["conheca-landing-catalog-v1"],
+  { revalidate: CATALOG_REVALIDATE_SECONDS },
+);
+
+async function loadLandingSummary(): Promise<CatalogSummary | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      loadCatalogSummary(),
+      new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), CATALOG_TIMEOUT_MS); }),
+    ]);
+  } catch {
+    // Banco indisponível: a landing segue completa com o conteúdo de exemplo.
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 const jsonLd = (value: object) => ({ __html: JSON.stringify(value).replace(/</g, "\\u003c") });
 
-export default function ConhecaPage() {
+export default async function ConhecaPage() {
+  const catalog = buildLandingCatalog(await loadLandingSummary());
   return (
     <div className={styles.page}>
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(structuredData())} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(faqStructuredData())} />
       <ScrollProgress />
-      <LandingHero />
+      <LandingHero events={catalog.events} real={catalog.real} />
+      <LiveAgenda catalog={catalog} />
       <LandingChapter
         id="descobrir"
         index={1}
         label="Descobrir"
         title="Monte a sua noite em três toques."
-        lead="Escolha o que curte, até onde quer ir e quando. No EventMap, o mapa e a lista respondem na hora — experimente aqui."
+        lead={catalog.real
+          ? "Escolha a categoria, a distância e o preço. Os eventos abaixo vêm da agenda do EventMap — experimente filtrar."
+          : "Escolha a categoria, a distância e o preço. No EventMap, o mapa e a lista respondem na hora — experimente aqui."}
       >
-        <MapPlayground />
+        <MapPlayground events={catalog.events} real={catalog.real} />
       </LandingChapter>
       <LandingChapter
         id="participar"
@@ -109,7 +163,7 @@ export default function ConhecaPage() {
         lead="Toque no celular para viver o caminho completo: salvar, garantir o lugar, pagar por Pix e entrar com QR Code."
         tone="muted"
       >
-        <PhoneJourney />
+        <PhoneJourney events={catalog.events} real={catalog.real} />
       </LandingChapter>
       <LandingChapter
         id="por-dentro"
@@ -117,7 +171,7 @@ export default function ConhecaPage() {
         label="Por dentro"
         title="A interface de verdade."
         lead="Capturas do EventMap como ele é hoje, no computador e no celular."
-        tone="night"
+        tone="stage"
       >
         <ShowcaseDepth />
       </LandingChapter>
@@ -128,7 +182,7 @@ export default function ConhecaPage() {
         title="Dois lados do mesmo evento."
         lead="Quem vai encontra, participa e chega. Quem organiza publica, vende, aprova e acompanha cada resultado."
       >
-        <AudienceSwitch />
+        <AudienceSwitch promoEvent={catalog.real ? catalog.events[0] : null} />
       </LandingChapter>
       <FaqSection />
       <FinalCta />

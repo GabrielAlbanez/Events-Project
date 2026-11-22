@@ -8,7 +8,7 @@ type ChapterProps = {
   label: string;
   title: string;
   lead: string;
-  tone?: "default" | "muted" | "night";
+  tone?: "default" | "muted" | "stage";
   children: ReactNode;
 };
 
@@ -16,7 +16,7 @@ type ChapterProps = {
 export function LandingChapter({ id, index, label, title, lead, tone = "default", children }: ChapterProps) {
   const headingId = `${id}-titulo`;
   return (
-    <section id={id} className={cn(styles.chapter, tone === "muted" && styles.chapterMuted, tone === "night" && styles.chapterNight)} aria-labelledby={headingId}>
+    <section id={id} className={cn(styles.chapter, tone === "muted" && styles.chapterMuted, tone === "stage" && styles.chapterStage)} aria-labelledby={headingId}>
       <div className={styles.container}>
         <header className={cn(styles.chapterHead, styles.reveal)}>
           <p className={styles.chapterMark}>

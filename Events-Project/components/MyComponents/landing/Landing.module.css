@@ -1,17 +1,20 @@
 /*
  * /conheca — "Como funciona", contada como uma noite na cidade.
- * Tokens globais (marca azul, CTA lima, Geist) + faixas noturnas para os momentos imersivos.
+ * Tokens globais (marca azul, CTA lima, Geist). As faixas "palco" (hero, galeria, CTA final) seguem o tema do app:
+ * claras no tema claro e noturnas no tema escuro (classe .dark do next-themes).
  * Movimento: progressivo. Sem JS ou com movimento reduzido, todo o conteúdo fica visível e estático.
  */
 .page {
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --hairline: hsl(var(--border));
-  --night: 230 35% 7%;
-  --night-raised: 229 28% 12%;
-  --night-line: 228 26% 22%;
-  --on-night: 0 0% 98%;
-  --on-night-muted: 225 22% 76%;
-  --night-accent: 226 100% 76%;
+  /* Palco — tema claro: superfícies claras com tinta escura. */
+  --stage: 220 45% 97%;
+  --stage-deep: 222 50% 94%;
+  --stage-raised: 0 0% 100%;
+  --stage-line: var(--border);
+  --on-stage: var(--foreground);
+  --on-stage-muted: var(--muted-foreground);
+  --stage-accent: var(--brand);
   --text-muted: var(--muted-foreground);
   --accent-text: var(--brand);
   position: relative;
@@ -20,6 +23,17 @@
   overflow-x: clip;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+/* Palco — tema escuro: o visual noturno original. */
+:global(.dark) .page {
+  --stage: 230 35% 7%;
+  --stage-deep: 230 32% 9%;
+  --stage-raised: 229 28% 12%;
+  --stage-line: 228 26% 22%;
+  --on-stage: 0 0% 98%;
+  --on-stage-muted: 225 22% 76%;
+  --stage-accent: 226 100% 76%;
 }
 
 .container {
@@ -50,9 +64,13 @@
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
-  background: hsl(var(--cta));
+  background: hsl(var(--primary));
   transform: scaleX(0);
   transform-origin: left center;
+}
+
+:global(.dark) .progressBar {
+  background: hsl(var(--cta));
 }
 
 /* ---------- Tipografia ---------- */
@@ -67,7 +85,7 @@
 }
 
 .h1Soft {
-  color: hsl(var(--on-night-muted));
+  color: hsl(var(--on-stage-muted));
 }
 
 .h2 {
@@ -88,31 +106,31 @@
   text-wrap: balance;
 }
 
-.eyebrowNight {
+.eyebrowStage {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   margin: 0 0 22px;
   font-size: 14px;
-  font-weight: 500;
-  color: hsl(var(--night-accent));
+  font-weight: 550;
+  color: hsl(var(--stage-accent));
 }
 
-.eyebrowNight::before {
+.eyebrowStage::before {
   content: "";
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background: hsl(var(--cta));
-  box-shadow: 0 0 0 4px hsl(var(--cta) / 0.2);
+  box-shadow: 0 0 0 4px hsl(var(--cta) / 0.25);
 }
 
-.leadNight {
+.leadStage {
   max-width: 34rem;
   margin: 26px 0 0;
   font-size: clamp(1.0625rem, 1.5vw, 1.2rem);
   line-height: 1.6;
-  color: hsl(var(--on-night-muted));
+  color: hsl(var(--on-stage-muted));
   text-wrap: pretty;
 }
 
@@ -155,32 +173,31 @@
 .btnPrimary {
   background: hsl(var(--cta));
   color: hsl(var(--cta-foreground));
+  box-shadow: inset 0 0 0 1px hsl(var(--cta-foreground) / 0.08);
 }
 
 .btnPrimary:hover {
   background: hsl(var(--cta) / 0.88);
 }
 
-.btnNight {
-  border: 1px solid hsl(0 0% 100% / 0.22);
-  color: hsl(var(--on-night));
+.btnStage {
+  border: 1px solid hsl(var(--on-stage) / 0.22);
+  color: hsl(var(--on-stage));
 }
 
-.btnNight:hover {
-  background: hsl(0 0% 100% / 0.08);
-  border-color: hsl(0 0% 100% / 0.4);
+.btnStage:hover {
+  background: hsl(var(--on-stage) / 0.06);
+  border-color: hsl(var(--on-stage) / 0.4);
 }
 
 .btn:focus-visible,
 .chapterLink:focus-visible,
 .scrollCue:focus-visible,
+.posterLink:focus-visible,
+.heroControls button:focus-visible,
 .faqItem summary:focus-visible {
-  outline: 2px solid hsl(var(--cta));
+  outline: 2px solid hsl(var(--ring));
   outline-offset: 3px;
-}
-
-.faqItem summary:focus-visible {
-  outline-color: hsl(var(--ring));
 }
 
 /* ---------- Hero ---------- */
@@ -194,9 +211,15 @@
   padding-block: clamp(48px, 7vw, 88px) 72px;
   overflow: hidden;
   background:
+    radial-gradient(60% 50% at 78% 30%, hsl(var(--primary) / 0.14), transparent 70%),
+    linear-gradient(180deg, hsl(var(--stage)) 0%, hsl(var(--stage-deep)) 100%);
+  color: hsl(var(--on-stage));
+}
+
+:global(.dark) .hero {
+  background:
     radial-gradient(60% 50% at 78% 30%, hsl(var(--primary) / 0.22), transparent 70%),
-    linear-gradient(180deg, hsl(var(--night)) 0%, hsl(230 32% 9%) 100%);
-  color: hsl(var(--on-night));
+    linear-gradient(180deg, hsl(var(--stage)) 0%, hsl(var(--stage-deep)) 100%);
 }
 
 .hero::before {
@@ -205,8 +228,8 @@
   inset: 0;
   z-index: -1;
   background-image:
-    linear-gradient(hsl(0 0% 100% / 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(0 0% 100% / 0.035) 1px, transparent 1px);
+    linear-gradient(hsl(var(--on-stage) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--on-stage) / 0.05) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(80% 70% at 60% 40%, #000 30%, transparent 85%);
 }
@@ -218,7 +241,8 @@
   gap: clamp(32px, 5vw, 72px);
 }
 
-.heroCopy {
+.heroCopy,
+.stageColumn {
   min-width: 0;
 }
 
@@ -240,7 +264,7 @@
   border-radius: 999px;
   font-size: 14px;
   font-weight: 550;
-  color: hsl(var(--on-night-muted));
+  color: hsl(var(--on-stage-muted));
   text-decoration: none;
   transition: color 160ms var(--ease), background-color 160ms var(--ease);
 }
@@ -248,12 +272,12 @@
 .chapterLink span {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 12px;
-  color: hsl(var(--night-accent));
+  color: hsl(var(--stage-accent));
 }
 
 .chapterLink:hover {
-  color: hsl(var(--on-night));
-  background: hsl(0 0% 100% / 0.07);
+  color: hsl(var(--on-stage));
+  background: hsl(var(--on-stage) / 0.06);
 }
 
 .scrollCue {
@@ -268,13 +292,13 @@
   border-radius: 999px;
   font-size: 13px;
   font-weight: 550;
-  color: hsl(var(--on-night-muted));
+  color: hsl(var(--on-stage-muted));
   text-decoration: none;
   transform: translateX(-50%);
 }
 
 .scrollCue:hover {
-  color: hsl(var(--on-night));
+  color: hsl(var(--on-stage));
 }
 
 /* Palco em camadas. --mx/--my (ponteiro, -1…1) e --p (rolagem, 0…1) chegam por JS; sem eles, tudo fica parado. */
@@ -292,6 +316,7 @@
 .layer {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   transform: translate3d(calc(var(--mx, 0) * var(--depth) * var(--pointer-x)), calc(var(--my, 0) * var(--depth) * var(--pointer-y)), 0);
   transition: transform 600ms var(--ease);
 }
@@ -307,11 +332,15 @@
   position: absolute;
   inset: 8% 0 6%;
   overflow: hidden;
-  border: 1px solid hsl(0 0% 100% / 0.1);
+  border: 1px solid hsl(var(--on-stage) / 0.1);
   border-radius: 28px;
-  background: hsl(var(--night-raised));
-  box-shadow: 0 40px 80px -40px hsl(0 0% 0% / 0.8);
+  background: hsl(var(--stage-raised));
+  box-shadow: 0 40px 80px -44px hsl(var(--foreground) / 0.35);
   --rot: -4deg;
+}
+
+:global(.dark) .mapPlane {
+  box-shadow: 0 40px 80px -40px hsl(0 0% 0% / 0.8);
 }
 
 .mapSvg {
@@ -321,45 +350,49 @@
 
 .mapStreets path {
   fill: none;
-  stroke: hsl(0 0% 100% / 0.08);
+  stroke: hsl(var(--on-stage) / 0.07);
   stroke-width: 6;
 }
 
 .mapStreets path + path {
-  stroke: hsl(0 0% 100% / 0.12);
+  stroke: hsl(var(--on-stage) / 0.11);
   stroke-width: 10;
 }
 
 .mapRiver {
   fill: none;
-  stroke: hsl(var(--primary) / 0.32);
+  stroke: hsl(var(--primary) / 0.22);
   stroke-width: 18;
   stroke-linecap: round;
 }
 
 .mapPark {
-  fill: hsl(140 40% 40% / 0.22);
+  fill: hsl(140 40% 45% / 0.2);
 }
 
 .mapRing {
-  fill: hsl(var(--primary) / 0.06);
-  stroke: hsl(var(--night-accent) / 0.35);
+  fill: hsl(var(--primary) / 0.05);
+  stroke: hsl(var(--stage-accent) / 0.4);
   stroke-dasharray: 4 6;
 }
 
 .mapUser {
-  fill: hsl(var(--night-accent));
-  stroke: hsl(var(--night));
+  fill: hsl(var(--stage-accent));
+  stroke: hsl(var(--stage-raised));
   stroke-width: 3;
 }
 
 .mapRoute {
   fill: none;
-  stroke: hsl(var(--cta));
+  stroke: hsl(var(--primary));
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
+}
+
+:global(.dark) .mapRoute {
+  stroke: hsl(var(--cta));
 }
 
 .heroPin {
@@ -372,7 +405,7 @@
   background: hsl(var(--primary));
   color: #fff;
   transform: translate(-50%, -100%) rotate(-45deg);
-  box-shadow: 0 8px 18px -6px hsl(var(--primary) / 0.8);
+  box-shadow: 0 8px 18px -6px hsl(var(--primary) / 0.7);
 }
 
 .heroPin svg {
@@ -384,36 +417,68 @@
   height: 38px;
   background: hsl(var(--cta));
   color: hsl(var(--cta-foreground));
-  box-shadow: 0 0 0 6px hsl(var(--cta) / 0.18), 0 10px 22px -6px hsl(var(--cta) / 0.6);
+  box-shadow: 0 0 0 6px hsl(var(--cta) / 0.22), 0 10px 22px -6px hsl(var(--cta) / 0.6);
+}
+
+/* Cartazes: o slot recebe posição e profundidade; o cartão anima dentro dele. */
+.posterSlot {
+  position: absolute;
+  pointer-events: auto;
 }
 
 .poster {
-  position: absolute;
+  display: block;
   margin: 0;
   padding: 8px 8px 12px;
-  border: 1px solid hsl(0 0% 100% / 0.12);
+  border: 1px solid hsl(var(--on-stage) / 0.1);
   border-radius: 20px;
-  background: hsl(var(--night-raised) / 0.92);
+  background: hsl(var(--stage-raised) / 0.96);
+  color: hsl(var(--on-stage));
+  box-shadow: 0 30px 60px -32px hsl(var(--foreground) / 0.45);
+}
+
+:global(.dark) .poster {
   box-shadow: 0 30px 60px -28px hsl(0 0% 0% / 0.85);
-  backdrop-filter: blur(6px);
+}
+
+.posterLead {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.posterLead:active {
+  cursor: grabbing;
+}
+
+.posterLink {
+  display: block;
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+  -webkit-user-drag: none;
 }
 
 .posterArt {
   position: relative;
+  display: block;
   overflow: hidden;
   aspect-ratio: 4 / 5;
   border-radius: 13px;
-  background: hsl(var(--night-line));
+  background: hsl(var(--muted));
 }
 
-.poster figcaption {
+.posterArt img {
+  pointer-events: none;
+}
+
+.posterCaption {
   display: grid;
   gap: 2px;
   padding: 10px 4px 0;
   min-width: 0;
 }
 
-.poster strong {
+.posterCaption strong {
   overflow: hidden;
   font-size: 14px;
   font-weight: 650;
@@ -422,12 +487,15 @@
   text-overflow: ellipsis;
 }
 
-.poster figcaption span {
+.posterCaption span {
+  overflow: hidden;
   font-size: 12px;
-  color: hsl(var(--on-night-muted));
+  color: hsl(var(--on-stage-muted));
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.posterMain .poster {
+.posterMain .posterSlot {
   left: 31%;
   top: 2%;
   width: 40%;
@@ -437,7 +505,7 @@
   --rot: -7deg;
 }
 
-.posterLeft .poster {
+.posterLeft .posterSlot {
   left: 0;
   top: 34%;
   width: 31%;
@@ -447,7 +515,7 @@
   --rot: 6deg;
 }
 
-.posterRight .poster {
+.posterRight .posterSlot {
   right: 0;
   top: 40%;
   width: 30%;
@@ -464,16 +532,20 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px 12px 12px;
-  border: 1px solid hsl(0 0% 100% / 0.14);
+  border: 1px solid hsl(var(--border));
   border-radius: 16px;
-  background: hsl(0 0% 100% / 0.94);
-  color: hsl(var(--night));
-  box-shadow: 0 24px 48px -20px hsl(0 0% 0% / 0.7);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 24px 48px -24px hsl(var(--foreground) / 0.45);
 }
 
 .ticketChip svg {
   flex-shrink: 0;
   color: hsl(142 70% 32%);
+}
+
+:global(.dark) .ticketChip svg {
+  color: hsl(142 60% 60%);
 }
 
 .ticketChip span {
@@ -487,7 +559,52 @@
 
 .ticketChip small {
   font-size: 12px;
-  color: hsl(225 12% 38%);
+  color: hsl(var(--muted-foreground));
+}
+
+.heroControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+  margin-top: 12px;
+}
+
+.heroControls button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid hsl(var(--on-stage) / 0.16);
+  border-radius: 999px;
+  background: hsl(var(--stage-raised) / 0.7);
+  color: hsl(var(--on-stage));
+  transition: background-color 160ms var(--ease);
+}
+
+.heroControls button:hover {
+  background: hsl(var(--on-stage) / 0.08);
+}
+
+.heroControls button[aria-pressed="true"] {
+  border-color: hsl(var(--stage-accent));
+  color: hsl(var(--stage-accent));
+}
+
+.heroCount {
+  min-width: 52px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  text-align: center;
+  color: hsl(var(--on-stage-muted));
+}
+
+.heroSource {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  text-align: center;
+  color: hsl(var(--on-stage-muted));
 }
 
 /* ---------- Capítulos ---------- */
@@ -504,11 +621,11 @@
   background: hsl(var(--card) / 0.55);
 }
 
-.chapterNight {
-  --text-muted: var(--on-night-muted);
-  --accent-text: var(--night-accent);
-  background: hsl(var(--night));
-  color: hsl(var(--on-night));
+.chapterStage {
+  --text-muted: var(--on-stage-muted);
+  --accent-text: var(--stage-accent);
+  background: hsl(var(--stage));
+  color: hsl(var(--on-stage));
 }
 
 .chapterHead {
@@ -607,9 +724,15 @@
 .final {
   padding-block: clamp(88px, 11vw, 150px);
   background:
+    radial-gradient(50% 60% at 50% 100%, hsl(var(--primary) / 0.16), transparent 70%),
+    hsl(var(--stage));
+  color: hsl(var(--on-stage));
+}
+
+:global(.dark) .final {
+  background:
     radial-gradient(50% 60% at 50% 100%, hsl(var(--primary) / 0.25), transparent 70%),
-    hsl(var(--night));
-  color: hsl(var(--on-night));
+    hsl(var(--stage));
 }
 
 .finalInner {
@@ -619,7 +742,7 @@
   text-align: center;
 }
 
-.finalInner .leadNight {
+.finalInner .leadStage {
   margin-top: 20px;
 }
 
@@ -751,25 +874,25 @@
     border-radius: 15px;
   }
 
-  .poster strong {
+  .posterCaption strong {
     font-size: 12px;
   }
 
-  .poster figcaption span {
+  .posterCaption span {
     font-size: 11px;
   }
 
-  .posterMain .poster {
-    left: 29%;
-    width: 44%;
+  .posterMain .posterSlot {
+    left: 28%;
+    width: 46%;
   }
 
-  .posterLeft .poster {
-    width: 33%;
-  }
-
-  .posterRight .poster {
+  .posterLeft .posterSlot {
     width: 32%;
+  }
+
+  .posterRight .posterSlot {
+    width: 31%;
   }
 
   .ticketChipWrap .ticketChip {
@@ -798,6 +921,7 @@
   .btn,
   .btn svg,
   .chapterLink,
+  .heroControls button,
   .faqIcon {
     transition: none;
   }
