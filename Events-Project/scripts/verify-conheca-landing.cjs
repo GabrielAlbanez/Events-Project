@@ -149,7 +149,9 @@ check("CTAs and anchors point to routes and sections that exist", () => {
 
 check("landing components make no network, API, auth or database calls", () => {
   for (const [file, source] of Object.entries(sources)) {
-    noMatch(source, /\bfetch\(|axios|XMLHttpRequest|WebSocket|socket\.io|EventSource/, `${file} has no network calls`);
+    // Única exceção: a cena baixa os próprios quadros estáticos (fetch(frameUrl(...))) para decodificá-los fora da thread principal.
+    const withoutFrames = source.replace(/fetch\(frameUrl\(set, index\), \{ signal: abort\.signal \}\)/g, "");
+    noMatch(withoutFrames, /\bfetch\(|axios|XMLHttpRequest|WebSocket|socket\.io|EventSource/, `${file} has no network calls`);
     noMatch(source, /["'`]\/api\//, `${file} does not call API routes`);
     noMatch(source, /["']use server["']|\(actions\)|@\/lib\/prisma|next-auth|useSession/, `${file} does not touch actions, auth or the database`);
   }
@@ -365,12 +367,12 @@ check("scroll sequence: eased progress, cross-fade, lazy preload, reduced motion
   match(seq, /new IntersectionObserver\(/);
   match(seq, /root: getScrollParent\(section\)/);
   match(seq, /start\(\);\s*intersection\.disconnect\(\);/, "preload starts from the observer and only once");
-  match(seq, /index === 0 && typeof image\.decode === "function"/, "only the first frame is force-decoded (memory-safe)");
+  match(seq, /const frameUrl = \(set: SequenceManifest, index: number\) => `\$\{set\.path\}frame-/, "fetch only targets the static frame files");
   const ts = require("typescript");
   const load = (name, signature) => {
     const source = seq.match(new RegExp(`export function ${name}\\(${signature}[\\s\\S]*?\\n\\}`))[0];
     const js = ts.transpileModule(source.replace("export ", ""), { compilerOptions: { target: ts.ScriptTarget.ES2019 } }).outputText;
-    return new Function("OMEGA", `${js}; return ${name};`)(9);
+    return new Function("OMEGA", "MIN_WINDOW", "MAX_WINDOW", `${js}; return ${name};`)(12, 4, 16);
   };
   const preloadOrder = load("preloadOrder", "count");
   const order = preloadOrder(120);
@@ -384,26 +386,51 @@ check("scroll sequence: eased progress, cross-fade, lazy preload, reduced motion
     for (let t = 0; t < seconds; t += dt) { [offset, velocity] = springStep(offset, velocity, dt); min = Math.min(min, offset); }
     return { offset, min };
   };
-  const at60 = run(1 / 60, 0.5), at144 = run(1 / 144, 0.5), at30 = run(1 / 30, 0.5);
+  const at60 = run(1 / 60, 0.3), at144 = run(1 / 144, 0.3), at30 = run(1 / 30, 0.3);
   assert.ok(Math.abs(at60.offset - at144.offset) < 0.01 && Math.abs(at60.offset - at30.offset) < 0.01, "same motion at 30, 60 and 144 Hz");
   assert.ok(at60.min >= 0, "critically damped: never overshoots the scroll position");
-  assert.ok(run(1 / 60, 1.5).offset < 0.001, "settles");
+  assert.ok(run(1 / 60, 1).offset < 0.001, "settles");
+  match(seq, /const OMEGA = 12;/, "spring tuned to track the scroll closely");
   match(seq, /if \(settled\) \{\s*shown = target;\s*velocity = 0;/, "snaps exactly to the target when settled");
   match(seq, /if \(!settled && !cancelled\) loop = window\.requestAnimationFrame\(tick\);/, "the rAF loop stops when settled");
-  // Sub-frame interpolation: draws floor(i) and cross-fades ceil(i) by the fraction.
-  match(seq, /const i0 = Math\.floor\(index\);\s*const i1 = Math\.min\(set\.count - 1, i0 \+ 1\);/);
-  match(seq, /cover\(first, 1\);[\s\S]*?if \(second && f\) cover\(second, Number\(f\)\);/, "cross-fade between neighbouring frames");
-  match(seq, /const nearest = nearestLoaded\(Math\.round\(index\)\);/, "falls back to the nearest loaded frame");
-  match(seq, /if \(key === drawnKey\) return;/, "draws only when the blend changes");
-  match(seq, /context\.imageSmoothingQuality = "high";/);
+  // Sub-frame interpolation: shows floor(i) and cross-fades ceil(i) by the fraction.
+  match(seq, /let i0 = Math\.floor\(index\);/);
+  match(seq, /const i1 = Math\.min\(set\.count - 1, i0 \+ 1\);/);
+  match(seq, /base\.style\.opacity = "1";\s*if \(top\) \{\s*top\.style\.zIndex = "2";\s*top\.style\.opacity = f;/, "cross-fade between neighbouring frames");
+  match(seq, /if \(fraction > 1 - CROSSFADE_EPSILON\)[\s\S]*?else if \(fraction < CROSSFADE_EPSILON\) fraction = 0;/, "a single frame when the fraction is near 0 or 1");
+  match(seq, /const nearest = nearestReady\(Math\.round\(index\)\);/, "falls back to the nearest ready frame");
+  match(seq, /if \(key === drawnKey\) return;/, "touches the DOM only when the blend changes");
+  // 60 fps: decode-ahead window off the main thread into compositor layers, bounded by a memory budget, released on eviction.
+  match(seq, /image\.decode\(\)\.catch\(\(\) => undefined\)\.then\(\(\) => \{[\s\S]*?layer\.appendChild\(image\);/, "frames are decoded before entering the page (no decode while scrolling)");
+  match(seq, /const drop = \(index: number\) => \{[\s\S]*?entry\.image\.remove\(\);\s*URL\.revokeObjectURL\(entry\.url\);\s*frames\.delete\(index\);/, "evicted frames are removed and their memory released");
+  match(seq, /Array\.from\(frames\.keys\(\)\)\.forEach\(drop\);/, "all frames are released on unmount");
+  match(seq, /const DESKTOP_BITMAP_BUDGET = 150 \* 1024 \* 1024;\s*const MOBILE_BITMAP_BUDGET = 80 \* 1024 \* 1024;/);
+  match(seq, /windowSize = bitmapWindow\(Math\.round\(layer\.clientWidth \* ratio\), Math\.round\(layer\.clientHeight \* ratio\), budget\);/, "window sized from the raster size and the budget");
+  match(seq, /const ratio = Math\.min\(dpr, MAX_BACKING_WIDTH \/ Math\.max\(1, layer\.clientWidth\)\);/, "raster size capped at DPR 2 and 2560 px");
+  const bitmapWindow = load("bitmapWindow", "width");
+  assert.ok(bitmapWindow(2560, 1465, 150 * 1024 * 1024) * 2560 * 1465 * 4 <= 150 * 1024 * 1024, "desktop window fits 150 MB");
+  assert.ok(bitmapWindow(780, 1050, 80 * 1024 * 1024) * 780 * 1050 * 4 <= 80 * 1024 * 1024, "mobile window fits 80 MB");
+  assert.equal(bitmapWindow(10000, 10000, 150 * 1024 * 1024), 4, "never fewer than 4 frames");
+  const frameCss = css.match(/\n\.frame \{[\s\S]*?\n\}/)[0];
+  match(frameCss, /will-change: opacity;/, "each frame is its own compositor layer: switching frames is an opacity change");
+  match(css, /\.frames \{[\s\S]*?contain: strict;/, "the frame stack is isolated from page layout");
+  // Scroll: passive listener that only stores the target; measurements cached and refreshed by ResizeObserver.
+  match(seq, /source\.addEventListener\("scroll", onScroll, \{ passive: true \}\);/);
+  const onScroll = seq.match(/const onScroll = \(\) => \{[\s\S]*?\n {4}\};/)[0];
+  noMatch(onScroll, /getBoundingClientRect|getComputedStyle|offsetTop|offsetWidth|clientHeight/, "the scroll handler reads only scrollTop");
+  const tick = seq.match(/const tick = \(now: number\) => \{[\s\S]*?\n {4}\};/)[0];
+  const renderUi = seq.match(/const renderUi = \(progress: number\) => \{[\s\S]*?\n {4}\};/)[0];
+  for (const body of [tick, renderUi]) noMatch(body, /getBoundingClientRect|getComputedStyle|offsetWidth|offsetHeight|clientWidth|setState|setReady|setFailed/, "the rAF loop does no layout reads and no React state updates");
+  match(renderUi, /card\.style\.transform = `translate\(/, "the card moves with transform written directly (no inherited variables per frame)");
+  match(seq, /card\.style\.willChange = visible \? "transform, opacity" : "";/, "will-change only while the card is visible");
   match(seq, /Math\.min\(window\.devicePixelRatio \|\| 1, MAX_DPR\)/);
-  match(seq, /Math\.max\(width \/ set\.width, height \/ set\.height\)/, "cover fit");
   // Captions, bar and card follow the eased progress, writing to the DOM only on change.
   match(seq, /drawFrames\(shown\);\s*renderUi\(shown\);/);
   match(seq, /if \(bar !== barValue && barRef\.current\)/);
-  match(seq, /if \(cardValues\[k\] !== text\)/);
+  match(seq, /if \(cardValues\[k\] === text\) return;/, "card writes only when a value changes");
   // Accessibility.
-  match(seq, /<canvas ref=\{canvasRef\}[^>]*aria-hidden="true"/, "canvas is hidden from assistive tech");
+  match(seq, /<div ref=\{framesRef\} className=\{styles\.frames\}[^>]*aria-hidden="true" \/>/, "the frame stack is hidden from assistive tech");
+  match(seq, /image\.alt = "";/, "frame images are decorative");
   match(seq, /className=\{styles\.media\} aria-hidden="true"/);
   noMatch(seq, /aria-live="(polite|assertive)"/, "captions do not announce on every scroll step");
   for (const title of ["Encontre no mapa", "Abra o evento", "Garanta o lugar", "Entre com o QR"]) match(seq, new RegExp(`title: "${title}"`), `caption "${title}"`);
@@ -412,19 +439,19 @@ check("scroll sequence: eased progress, cross-fade, lazy preload, reduced motion
   noMatch(seq, /useState\(0\)|setStep\(/, "scroll does not re-render React: captions are updated on the DOM");
   match(seq, /<h2 id="mapa-porta-titulo"/);
   // Reduced motion: no scrubbing, static final frame with the static ticket, no tall section.
-  match(seq, /if \(!motionAllowed \|\| !section \|\| !canvas \|\| !context\) return;/, "no loading or drawing without motion");
-  match(seq, /enabled: motionAllowed && !failed, mode: "sticky"/);
+  match(seq, /if \(!motionAllowed \|\| !section \|\| !layer\) return;/, "no loading or drawing without motion");
+  match(seq, /if \(!motionAllowed \|\| failed \|\| !section\) return;/, "no scroll tracking without motion or after a failure");
   match(seq, /if \(!card \|\| \(motionAllowed && !failed\)\) return;\s*finalCard\(/, "reduced motion or failure pins the card to the final ticket");
   match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.sequence \{\s*height: 280vh;/, "tall scroll track only with motion allowed");
   const reduced = (css.match(/\n@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}\r?\n/) || [""])[0];
-  match(reduced, /\.canvas \{\s*display: none;/, "reduced motion hides the canvas");
+  match(reduced, /\.frames \{\s*display: none;/, "reduced motion hides the frame stack");
   match(reduced, /\.poster\[data-kind="start"\] \{\s*display: none !important;/, "reduced motion shows the final frame");
   match(reduced, /\.sticky \{\s*height: auto;/, "reduced motion lets the band grow instead of clipping the steps");
   // Errors and cleanup.
-  match(seq, /image\.onerror = \(\) => \{[\s\S]*?setFailed\(true\);/, "load errors fall back");
+  match(seq, /if \(!response\.ok\) throw new Error[\s\S]*?catch \{[\s\S]*?setFailed\(true\);/, "load errors fall back");
   match(seq, /data-poster=\{failed \? "end" : "start"\}/, "failure shows the static final frame");
   match(seq, /intersection\.disconnect\(\);\s*resizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(loop\);/, "observers and loop are cleaned up");
-  match(seq, /image\.onload = null;/, "pending loads are cancelled");
+  match(seq, /abort\.abort\(\);/, "pending downloads are cancelled");
   noMatch(seq, /<img\b/, "poster uses next/image");
 });
 
@@ -444,7 +471,7 @@ check("scroll sequence: real featured event over the card, generic fallback with
   const globals = new Set([...read("app/globals.css").matchAll(/(--[\w-]+):/g)].map(found => found[1]));
   for (const name of cardVars) assert.ok(!globals.has(name), `card variable ${name} does not shadow a global theme token`);
   match(seq, /<div ref=\{setCardRef\} className=\{styles\.liveCard\} style=\{cardStyle\(layout\)\} aria-hidden="true">\s*<GenericCardContent \/>/, "without an event: the generic card, decorative only");
-  match(seq, /const visibility = values\[5\] < 0\.02 \? "hidden" : "";/, "an invisible card is not focusable");
+  match(seq, /card\.style\.visibility = visible \? "" : "hidden";/, "an invisible card is not focusable");
   // Alignment: frame box mirrors the canvas cover fit; the card is driven by transform/opacity only.
   match(css, /\.frameBox \{[\s\S]*?width: max\(100cqw, calc\(100cqh \/ var\(--ar\)\)\);/);
   const liveCard = css.match(/\n\.liveCard \{[\s\S]*?\n\}/)[0];
