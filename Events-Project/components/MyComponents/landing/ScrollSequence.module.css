@@ -1,0 +1,378 @@
+/*
+ * "Do mapa à porta do evento" — sequência de quadros controlada pela rolagem.
+ * Usa os tokens de palco de Landing.module.css (--stage, --on-stage…), herdados de .page.
+ * Padrão (sem JS ou com movimento reduzido): faixa de uma tela com o quadro final e os quatro passos.
+ * Com movimento permitido: a seção fica alta e o palco gruda no topo enquanto o canvas troca os quadros.
+ */
+.sequence {
+  position: relative;
+  background: hsl(var(--stage));
+  color: hsl(var(--on-stage));
+}
+
+.sticky {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: calc(100svh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
+  min-height: 540px;
+  overflow: hidden;
+}
+
+.media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: hsl(var(--stage));
+}
+
+/* Véu do lado do texto: os quadros têm o mesmo fundo do palco, então a emenda some. */
+.media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, hsl(var(--stage)) 0%, hsl(var(--stage) / 0.86) 26%, hsl(var(--stage) / 0) 52%);
+}
+
+.poster {
+  display: none;
+  object-fit: cover;
+  object-position: center;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.canvas[data-ready="true"] {
+  opacity: 1;
+}
+
+/* Pôster certo para o tema e a orientação; o JS escolhe o mesmo conjunto de quadros. */
+@media (orientation: landscape) {
+  .poster[data-size="desktop"][data-variant="light"] { display: block; }
+  :global(.dark) .poster[data-size="desktop"][data-variant="light"] { display: none; }
+  :global(.dark) .poster[data-size="desktop"][data-variant="dark"] { display: block; }
+}
+
+@media (orientation: portrait) {
+  .poster[data-size="mobile"][data-variant="light"] { display: block; }
+  :global(.dark) .poster[data-size="mobile"][data-variant="light"] { display: none; }
+  :global(.dark) .poster[data-size="mobile"][data-variant="dark"] { display: block; }
+}
+
+/* ---------- Texto ---------- */
+.copy {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 5vw, 48px);
+}
+
+.copy > * {
+  max-width: min(27rem, 40vw);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-size: 14px;
+  font-weight: 550;
+  color: hsl(var(--stage-accent));
+}
+
+.eyebrow::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: hsl(var(--cta));
+  box-shadow: 0 0 0 4px hsl(var(--cta) / 0.25);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.875rem, 3.6vw, 3rem);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.steps {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+  transition: opacity 0.3s var(--ease, ease);
+}
+
+.stepNumber {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--stage-line));
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--on-stage-muted));
+  background: hsl(var(--stage-raised));
+  transition: background-color 0.3s var(--ease, ease), color 0.3s var(--ease, ease), border-color 0.3s var(--ease, ease);
+}
+
+.step[data-active="true"] .stepNumber {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+:global(.dark) .step[data-active="true"] .stepNumber {
+  border-color: hsl(var(--cta));
+  background: hsl(var(--cta));
+  color: hsl(var(--cta-foreground));
+}
+
+.stepBody {
+  display: grid;
+  gap: 2px;
+  padding-top: 3px;
+}
+
+.stepBody strong {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.stepText {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: hsl(var(--on-stage-muted));
+}
+
+.progress {
+  display: none;
+  height: 3px;
+  margin-top: 22px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: hsl(var(--on-stage) / 0.12);
+}
+
+.progressBar {
+  display: block;
+  height: 100%;
+  background: hsl(var(--primary));
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+:global(.dark) .progressBar {
+  background: hsl(var(--cta));
+}
+
+.note {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  color: hsl(var(--on-stage-muted));
+}
+
+/* ---------- Retrato (celular): cena em cima, passos embaixo ---------- */
+@media (orientation: portrait) {
+  .sticky {
+    justify-content: flex-start;
+    min-height: 600px;
+  }
+
+  .media {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .media::after {
+    background: linear-gradient(0deg, hsl(var(--stage)) 0%, hsl(var(--stage) / 0) 22%);
+  }
+
+  .copy {
+    flex: none;
+    padding-block: 4px 18px;
+  }
+
+  .copy > * {
+    max-width: 34rem;
+  }
+
+  .eyebrow {
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .title {
+    font-size: clamp(1.5rem, 6.4vw, 2rem);
+  }
+
+  .steps {
+    margin-top: 14px;
+    gap: 0;
+  }
+
+  .step {
+    padding: 5px 0;
+    align-items: center;
+  }
+
+  .stepNumber {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .stepBody {
+    padding-top: 0;
+  }
+
+  .stepBody strong {
+    font-size: 0.975rem;
+  }
+
+  .note {
+    margin-top: 10px;
+  }
+}
+
+/* ---------- Com movimento: seção alta, palco grudado e passos sincronizados ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .sequence {
+    height: 280vh;
+  }
+
+  .sticky {
+    position: sticky;
+    top: var(--site-header-height, 76px);
+  }
+
+  .canvas {
+    transition: opacity 0.25s ease;
+  }
+
+  .step[data-active="false"] {
+    opacity: 0.42;
+  }
+
+  .progress {
+    display: block;
+  }
+
+  .sequence[data-poster="start"] .poster[data-kind="end"],
+  .sequence[data-poster="end"] .poster[data-kind="start"] {
+    display: none !important;
+  }
+
+  /*
+   * No celular, a cena ganha a maior parte da tela: só o passo ativo aparece; os outros continuam no DOM
+   * (leitores de tela leem a lista inteira), apenas fora da área visível.
+   */
+  @media (orientation: portrait) {
+    .step[data-active="false"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .step {
+      align-items: flex-start;
+      min-height: 4.6em;
+    }
+
+    .stepBody {
+      padding-top: 1px;
+    }
+
+    .eyebrow,
+    .note {
+      display: none;
+    }
+
+    .progress {
+      margin-top: 10px;
+    }
+  }
+}
+
+/* ---------- Movimento reduzido: sem rolagem controlada, quadro final estático ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .canvas {
+    display: none;
+  }
+
+  /* Sem trilha de rolagem: a faixa cresce com o conteúdo em vez de cortar a lista. */
+  .sticky {
+    height: auto;
+    min-height: calc(100svh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
+    padding-block: 48px;
+  }
+
+  .poster[data-kind="start"] {
+    display: none !important;
+  }
+
+  .step,
+  .stepNumber {
+    transition: none;
+  }
+
+  .step[data-active="true"] .stepNumber {
+    border-color: hsl(var(--stage-line));
+    background: hsl(var(--stage-raised));
+    color: hsl(var(--on-stage-muted));
+  }
+
+  :global(.dark) .step[data-active="true"] .stepNumber {
+    border-color: hsl(var(--stage-line));
+    background: hsl(var(--stage-raised));
+    color: hsl(var(--on-stage-muted));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (orientation: portrait) {
+  .sticky {
+    min-height: 0;
+    padding-block: 0 32px;
+  }
+
+  .media {
+    flex: none;
+    aspect-ratio: 3 / 4;
+    max-height: 70svh;
+  }
+}

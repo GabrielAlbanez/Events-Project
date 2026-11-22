@@ -55,7 +55,7 @@ check("FAQ items are complete and the FAQ section renders native details", () =>
 
 check("page renders every chapter and the interactive experiences", () => {
   const page = sources[PAGE];
-  for (const component of ["ScrollProgress", "LandingHero", "LiveAgenda", "MapPlayground", "PhoneJourney", "ShowcaseDepth", "AudienceSwitch", "FaqSection", "FinalCta"]) {
+  for (const component of ["ScrollProgress", "LandingHero", "LiveAgenda", "ScrollSequence", "MapPlayground", "PhoneJourney", "ShowcaseDepth", "AudienceSwitch", "FaqSection", "FinalCta"]) {
     match(page, new RegExp(`<${component}\\b`), `${component} rendered`);
   }
   for (const id of ["descobrir", "participar", "por-dentro", "organizar"]) match(page, new RegExp(`id="${id}"`), `chapter #${id}`);
@@ -304,6 +304,86 @@ check("theme: stage surfaces follow light and dark tokens", () => {
     match(block[0], /hsl\(var\(--stage\)\)|hsl\(var\(--stage\)\) 0%/, `${selector} paints the themed stage`);
   }
   noMatch(css, /--night|Night\b/, "no leftover always-dark tokens");
+});
+
+check("scroll sequence: frame sets exist, match their manifests and stay under budget", () => {
+  const budgets = { desktop: 5 * 1024 * 1024, mobile: 1.5 * 1024 * 1024 };
+  for (const variant of ["light", "dark"]) {
+    for (const size of ["desktop", "mobile"]) {
+      const dir = path.join(root, "public/landing/sequence", variant, size);
+      const manifestFile = path.join(dir, "manifest.json");
+      assert.ok(fs.existsSync(manifestFile), `${variant}/${size}/manifest.json exists`);
+      const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+      const frames = fs.readdirSync(dir).filter(file => /^frame-\d{3}\.webp$/.test(file)).sort();
+      assert.equal(frames.length, manifest.count, `${variant}/${size}: frame count matches the manifest`);
+      frames.forEach((file, index) => assert.equal(file, `frame-${String(index).padStart(3, "0")}.webp`, `${variant}/${size}: frames are sequential`));
+      assert.equal(manifest.path, `/landing/sequence/${variant}/${size}/`, `${variant}/${size}: manifest path`);
+      assert.ok(manifest.width > 0 && manifest.height > 0, `${variant}/${size}: manifest has dimensions`);
+      if (size === "desktop") assert.ok(manifest.width > manifest.height && manifest.count >= 100, "desktop set is landscape with ~120 frames");
+      else assert.ok(manifest.height > manifest.width && manifest.count >= 50, "mobile set is portrait with ~60 frames");
+      const bytes = frames.reduce((sum, file) => sum + fs.statSync(path.join(dir, file)).size, 0);
+      assert.ok(bytes <= budgets[size], `${variant}/${size}: ${(bytes / 1048576).toFixed(2)} MB within budget`);
+      const head = fs.readFileSync(path.join(dir, frames[0])).subarray(0, 12).toString("latin1");
+      assert.ok(head.startsWith("RIFF") && head.endsWith("WEBP"), `${variant}/${size}: frames are WebP`);
+    }
+  }
+  const scene = read("scripts/scroll-scene/scene.html") + read("scripts/scroll-scene/scene.js");
+  noMatch(scene, /(src|href)=["']https?:|import\s.*https?:/, "authoring scene loads nothing from a CDN");
+  match(scene, /window\.renderFrame = function/);
+  const render = read("scripts/scroll-scene/render-frames.cjs");
+  match(render, /Page\.captureScreenshot/);
+  match(render, /require\("ws"\)/, "drives Edge over the DevTools Protocol with ws");
+  match(render, /"webp"/);
+  match(render, /manifest\.json/);
+});
+
+check("scroll sequence: lazy preload, canvas drawing, reduced motion, captions and cleanup", () => {
+  const seq = landing("ScrollSequence.tsx");
+  const css = read(`${LANDING_DIR}/ScrollSequence.module.css`);
+  match(sources[PAGE], /<LiveAgenda catalog=\{catalog\} \/>\s*<ScrollSequence \/>/, "placed right after the hero and live agenda");
+  for (const set of ["light/desktop", "light/mobile", "dark/desktop", "dark/mobile"]) match(seq, new RegExp(`from "@/public/landing/sequence/${set}/manifest\.json"`), `imports the ${set} manifest`);
+  match(seq, /useTheme\(\)/, "follows the next-themes theme");
+  match(seq, /useMediaQuery\("\(orientation: portrait\)"\)/, "picks the portrait set on phones");
+  // Lazy preload only near the viewport, in the scroll container.
+  match(seq, /new IntersectionObserver\(/);
+  match(seq, /root: getScrollParent\(section\)/);
+  match(seq, /start\(\);\s*intersection\.disconnect\(\);/, "preload starts from the observer and only once");
+  const fnSource = seq.match(/export function preloadOrder\(count: number\): number\[\] \{[\s\S]*?\n\}/)[0];
+  const ts = require("typescript");
+  const js = ts.transpileModule(fnSource.replace("export ", ""), { compilerOptions: { target: ts.ScriptTarget.ES2019 } }).outputText;
+  const preloadOrder = new Function(`${js}; return preloadOrder;`)();
+  const order = preloadOrder(120);
+  assert.equal(order.length, 120, "every frame is scheduled");
+  assert.equal(new Set(order).size, 120, "no frame twice");
+  assert.deepEqual(order.slice(0, 4), [0, 119, 8, 16], "first frame, last frame, then every 8th");
+  // Drawing: rAF only when the frame index changes, DPR-aware cover fit.
+  match(seq, /if \(index < 0 \|\| index === lastDrawn\) return;/, "draws only when the frame changes");
+  match(seq, /window\.requestAnimationFrame\(draw\)/);
+  match(seq, /Math\.min\(window\.devicePixelRatio \|\| 1, MAX_DPR\)/);
+  match(seq, /Math\.max\(width \/ set\.width, height \/ set\.height\)/, "cover fit");
+  // Accessibility.
+  match(seq, /<canvas ref=\{canvasRef\}[^>]*aria-hidden="true"/, "canvas is hidden from assistive tech");
+  match(seq, /className=\{styles\.media\} aria-hidden="true"/);
+  noMatch(seq, /aria-live="(polite|assertive)"/, "captions do not announce on every scroll step");
+  for (const title of ["Encontre no mapa", "Abra o evento", "Garanta o lugar", "Entre com o QR"]) match(seq, new RegExp(`title: "${title}"`), `caption "${title}"`);
+  match(seq, /<ol ref=\{listRef\} className=\{styles\.steps\}>/, "captions are a real ordered list");
+  match(seq, /item\.setAttribute\("aria-current", "step"\)/, "the active caption is marked as the current step");
+  noMatch(seq, /useState\(0\)|setStep\(/, "scroll does not re-render React: captions are updated on the DOM");
+  match(seq, /<h2 id="mapa-porta-titulo"/);
+  // Reduced motion: no scrubbing, static final frame, no tall section.
+  match(seq, /if \(!motionAllowed \|\| !section \|\| !canvas \|\| !context\) return;/, "no loading or drawing without motion");
+  match(seq, /enabled: motionAllowed && !failed, mode: "sticky"/);
+  match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.sequence \{\s*height: 280vh;/, "tall scroll track only with motion allowed");
+  const reduced = (css.match(/\n@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}\r?\n/) || [""])[0];
+  match(reduced, /\.canvas \{\s*display: none;/, "reduced motion hides the canvas");
+  match(reduced, /\.poster\[data-kind="start"\] \{\s*display: none !important;/, "reduced motion shows the final frame");
+  match(reduced, /\.sticky \{\s*height: auto;/, "reduced motion lets the band grow instead of clipping the steps");
+  // Errors and cleanup.
+  match(seq, /image\.onerror = \(\) => \{[\s\S]*?fail\(\);/, "load errors fall back");
+  match(seq, /data-poster=\{failed \? "end" : "start"\}/, "failure shows the static final frame");
+  match(seq, /intersection\.disconnect\(\);\s*resizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(frame\);/, "observers and frame are cleaned up");
+  match(seq, /image\.onload = null;/, "pending loads are cancelled");
+  noMatch(seq, /<img\b/, "poster uses next/image");
 });
 
 let failed = 0;

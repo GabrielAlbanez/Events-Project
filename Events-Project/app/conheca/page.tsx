@@ -8,6 +8,7 @@ import { LiveAgenda } from "@/components/MyComponents/landing/LiveAgenda";
 import { MapPlayground } from "@/components/MyComponents/landing/MapPlayground";
 import { PhoneJourney } from "@/components/MyComponents/landing/PhoneJourney";
 import { ScrollProgress } from "@/components/MyComponents/landing/ScrollProgress";
+import { ScrollSequence } from "@/components/MyComponents/landing/ScrollSequence";
 import { ShowcaseDepth } from "@/components/MyComponents/landing/ShowcaseDepth";
 import styles from "@/components/MyComponents/landing/Landing.module.css";
 import { buildLandingCatalog, summarizeCatalog, type CatalogSummary, type LandingCatalogSource } from "@/components/MyComponents/landing/landingData";
@@ -144,6 +145,7 @@ export default async function ConhecaPage() {
       <ScrollProgress />
       <LandingHero events={catalog.events} real={catalog.real} />
       <LiveAgenda catalog={catalog} />
+      <ScrollSequence />
       <LandingChapter
         id="descobrir"
         index={1}
