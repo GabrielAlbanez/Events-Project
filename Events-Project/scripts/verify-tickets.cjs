@@ -949,6 +949,12 @@ function checkWiring() {
   const migrate = fs.readFileSync("scripts/migrate-on-production.cjs", "utf8");
   assert.match(fs.readFileSync("lib/prisma.ts", "utf8"), /EVENTMAP_PRODUCTION_DATABASE_URL/);
   assert.match(migrate, /DATABASE_URL: process\.env\.EVENTMAP_PRODUCTION_DATABASE_URL/, "migrations run against the runtime production database");
+  const { schemaUpToDate } = require(path.resolve("scripts/migrate-on-production.cjs"));
+  assert.equal(schemaUpToDate({ status: 0, stdout: ["19 migrations found in prisma/migrations", "", "Database schema is up to date!"].join("\n") }), true, "nothing pending: skip migrate deploy (no advisory lock)");
+  assert.equal(schemaUpToDate({ status: 1, stdout: ["Following migration have not yet been applied:", "20990101_x"].join("\n") }), false, "pending migrations still run");
+  assert.equal(schemaUpToDate({ status: 1, stderr: "Error: P1001: Can't reach database server" }), false, "errors fall through to migrate deploy");
+  assert.equal(schemaUpToDate({ error: new Error("ETIMEDOUT"), status: null, stdout: "Database schema is up to date!" }), false, "timeouts never skip");
+  assert.match(migrate, /require\.main === module/, "script only runs when executed, so tests can load it");
   const { canAccessPath, isPublicPath } = load("lib/authPolicy.ts");
   for (const role of ["PROMOTER", "ADMIN"]) assert.equal(canAccessPath(role, "/myEvents/pagamentos"), true, role + " pagamentos");
   for (const role of ["BASIC", "GUEST"]) assert.equal(canAccessPath(role, "/myEvents/pagamentos"), false);
