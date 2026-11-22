@@ -1,7 +1,19 @@
-/* /conheca — página "Como funciona". Minimalista: tokens globais, muito respiro, acentos só em CTA e detalhes. */
+/*
+ * /conheca — "Como funciona", contada como uma noite na cidade.
+ * Tokens globais (marca azul, CTA lima, Geist) + faixas noturnas para os momentos imersivos.
+ * Movimento: progressivo. Sem JS ou com movimento reduzido, todo o conteúdo fica visível e estático.
+ */
 .page {
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --hairline: hsl(var(--border));
+  --night: 230 35% 7%;
+  --night-raised: 229 28% 12%;
+  --night-line: 228 26% 22%;
+  --on-night: 0 0% 98%;
+  --on-night-muted: 225 22% 76%;
+  --night-accent: 226 100% 76%;
+  --text-muted: var(--muted-foreground);
+  --accent-text: var(--brand);
   position: relative;
   width: 100%;
   min-width: 0;
@@ -12,45 +24,42 @@
 
 .container {
   width: 100%;
-  max-width: 1160px;
+  max-width: 1200px;
   margin-inline: auto;
   padding-inline: clamp(16px, 5vw, 48px);
 }
 
 .section {
-  padding-block: clamp(88px, 11vw, 152px);
+  padding-block: clamp(80px, 10vw, 140px);
   scroll-margin-top: 90px;
 }
 
-/* ---------- Tipografia ---------- */
-.eyebrow,
-.kicker {
-  margin: 0 0 20px;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  color: hsl(var(--brand));
+.cover {
+  object-fit: cover;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+/* ---------- Barra de leitura ---------- */
+.progressTrack {
+  position: sticky;
+  top: var(--site-header-height, 76px);
+  z-index: 30;
+  height: 0;
 }
 
-.eyebrow::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
+.progressBar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
   background: hsl(var(--cta));
-  box-shadow: 0 0 0 3px hsl(var(--cta) / 0.25);
+  transform: scaleX(0);
+  transform-origin: left center;
 }
 
+/* ---------- Tipografia ---------- */
 .h1 {
-  max-width: 15ch;
+  max-width: 14ch;
   margin: 0;
-  font-size: clamp(2.5rem, 6.4vw, 5.25rem);
+  font-size: clamp(2.5rem, 6vw, 5rem);
   line-height: 1.02;
   letter-spacing: -0.05em;
   font-weight: 650;
@@ -58,61 +67,53 @@
 }
 
 .h1Soft {
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--on-night-muted));
 }
 
 .h2 {
   margin: 0;
-  font-size: clamp(1.875rem, 3.6vw, 2.875rem);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.875rem, 4vw, 3.125rem);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
   font-weight: 650;
   text-wrap: balance;
 }
 
 .h2Large {
   margin: 0;
-  font-size: clamp(2.25rem, 5.4vw, 4.25rem);
-  line-height: 1.04;
+  font-size: clamp(2.25rem, 5.6vw, 4.5rem);
+  line-height: 1.03;
   letter-spacing: -0.05em;
   font-weight: 650;
   text-wrap: balance;
 }
 
-.h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
-  font-weight: 600;
+.eyebrowNight {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 22px;
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--night-accent));
 }
 
-.lead {
+.eyebrowNight::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: hsl(var(--cta));
+  box-shadow: 0 0 0 4px hsl(var(--cta) / 0.2);
+}
+
+.leadNight {
   max-width: 34rem;
-  margin: 28px 0 0;
-  font-size: clamp(1.0625rem, 1.5vw, 1.25rem);
+  margin: 26px 0 0;
+  font-size: clamp(1.0625rem, 1.5vw, 1.2rem);
   line-height: 1.6;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--on-night-muted));
   text-wrap: pretty;
-}
-
-.body,
-.bodyLarge {
-  margin: 12px 0 0;
-  color: hsl(var(--muted-foreground));
-  text-wrap: pretty;
-}
-
-.body {
-  font-size: 1rem;
-  line-height: 1.65;
-}
-
-.bodyLarge {
-  max-width: 30rem;
-  margin-top: 20px;
-  font-size: 1.0625rem;
-  line-height: 1.7;
 }
 
 /* ---------- Ações ---------- */
@@ -121,7 +122,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-top: 40px;
+  margin-top: 36px;
 }
 
 .btn {
@@ -129,8 +130,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 22px;
+  min-height: 50px;
+  padding: 0 24px;
   border-radius: 999px;
   font-size: 15px;
   font-weight: 600;
@@ -144,7 +145,11 @@
 }
 
 .btn:hover svg {
-  transform: translateX(2px);
+  transform: translateX(3px);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btnPrimary {
@@ -156,216 +161,391 @@
   background: hsl(var(--cta) / 0.88);
 }
 
-.btnGhost {
-  border: 1px solid var(--hairline);
-  color: hsl(var(--foreground));
+.btnNight {
+  border: 1px solid hsl(0 0% 100% / 0.22);
+  color: hsl(var(--on-night));
 }
 
-.btnGhost:hover {
-  background: hsl(var(--muted));
+.btnNight:hover {
+  background: hsl(0 0% 100% / 0.08);
+  border-color: hsl(0 0% 100% / 0.4);
 }
 
 .btn:focus-visible,
-.textLink:focus-visible,
+.chapterLink:focus-visible,
+.scrollCue:focus-visible,
 .faqItem summary:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid hsl(var(--cta));
   outline-offset: 3px;
 }
 
-.textLink {
-  display: inline-block;
-  padding-block: 11px;
-  line-height: 22px;
-  margin-top: 16px;
-  border-radius: 6px;
-  font-weight: 600;
-  color: hsl(var(--foreground));
-  text-decoration: underline;
-  text-decoration-color: hsl(var(--foreground) / 0.25);
-  text-underline-offset: 6px;
-  transition: text-decoration-color 160ms var(--ease);
+.faqItem summary:focus-visible {
+  outline-color: hsl(var(--ring));
 }
 
-.nowrap {
-  white-space: nowrap;
-}
-
-.textLink:hover {
-  text-decoration-color: hsl(var(--brand));
-}
-
-.textLink svg {
-  display: inline-block;
-  margin-left: 6px;
-  vertical-align: -3px;
-  color: hsl(var(--brand));
-  transition: transform 160ms var(--ease);
-}
-
-.textLink:hover svg {
-  transform: translateX(2px);
-}
-
-/* ---------- Hero + demonstração ---------- */
+/* ---------- Hero ---------- */
 .hero {
-  padding-top: clamp(72px, 10vw, 136px);
-  padding-bottom: clamp(48px, 6vw, 72px);
-}
-
-.heroInner {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.heroInner .h1 {
-  max-width: 17ch;
-}
-
-.heroInner .lead {
-  margin-inline: auto;
-}
-
-.heroInner .actions {
   justify-content: center;
+  min-height: calc(100dvh - var(--site-header-height, 76px));
+  padding-block: clamp(48px, 7vw, 88px) 72px;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 50% at 78% 30%, hsl(var(--primary) / 0.22), transparent 70%),
+    linear-gradient(180deg, hsl(var(--night)) 0%, hsl(230 32% 9%) 100%);
+  color: hsl(var(--on-night));
 }
 
-.demo {
-  padding-bottom: clamp(40px, 6vw, 80px);
-  scroll-margin-top: 90px;
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(80% 70% at 60% 40%, #000 30%, transparent 85%);
 }
 
-/* ---------- Três passos ---------- */
-.steps {
+.heroGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(32px, 5vw, 64px);
-  margin: clamp(40px, 5vw, 56px) 0 0;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.chapterNav ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 36px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.step {
-  min-width: 0;
-  padding-top: 24px;
-  border-top: 1px solid var(--hairline);
-}
-
-.stepIndex {
-  display: block;
-  margin-bottom: 28px;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  color: hsl(var(--muted-foreground));
-}
-
-.step:first-child .stepIndex {
-  color: hsl(var(--brand));
-}
-
-/* ---------- Faixas texto + captura ---------- */
-.showcase {
-  padding-bottom: clamp(32px, 5vw, 64px);
-}
-
-.showcase .band:first-child {
-  padding-top: 0;
-}
-
-.band {
-  padding-block: clamp(56px, 8vw, 104px);
-  scroll-margin-top: 90px;
-}
-
-.bandGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+.chapterLink {
+  display: inline-flex;
   align-items: center;
-  gap: clamp(40px, 6vw, 88px);
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 550;
+  color: hsl(var(--on-night-muted));
+  text-decoration: none;
+  transition: color 160ms var(--ease), background-color 160ms var(--ease);
 }
 
-.bandGridPhone {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+.chapterLink span {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: hsl(var(--night-accent));
 }
 
-.bandReverse .bandCopy {
-  order: 2;
+.chapterLink:hover {
+  color: hsl(var(--on-night));
+  background: hsl(0 0% 100% / 0.07);
 }
 
-.bandCopy {
-  min-width: 0;
+.scrollCue {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 550;
+  color: hsl(var(--on-night-muted));
+  text-decoration: none;
+  transform: translateX(-50%);
 }
 
-.bandShot {
-  min-width: 0;
+.scrollCue:hover {
+  color: hsl(var(--on-night));
 }
 
-/* ---------- Capturas ---------- */
-.figure {
+/* Palco em camadas. --mx/--my (ponteiro, -1…1) e --p (rolagem, 0…1) chegam por JS; sem eles, tudo fica parado. */
+.stage {
+  --pointer-x: 22px;
+  --pointer-y: 16px;
+  --scroll-lift: 150px;
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 1 / 0.92;
+  margin-inline: auto;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  transform: translate3d(calc(var(--mx, 0) * var(--depth) * var(--pointer-x)), calc(var(--my, 0) * var(--depth) * var(--pointer-y)), 0);
+  transition: transform 600ms var(--ease);
+}
+
+.layerScroll {
+  transform:
+    translate3d(0, calc(var(--p, 0) * var(--depth) * var(--scroll-lift) * -1), 0)
+    rotate(var(--rot, 0deg))
+    scale(calc(1 + var(--p, 0) * var(--depth) * 0.06));
+}
+
+.mapPlane {
+  position: absolute;
+  inset: 8% 0 6%;
+  overflow: hidden;
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  border-radius: 28px;
+  background: hsl(var(--night-raised));
+  box-shadow: 0 40px 80px -40px hsl(0 0% 0% / 0.8);
+  --rot: -4deg;
+}
+
+.mapSvg {
+  width: 100%;
+  height: 100%;
+}
+
+.mapStreets path {
+  fill: none;
+  stroke: hsl(0 0% 100% / 0.08);
+  stroke-width: 6;
+}
+
+.mapStreets path + path {
+  stroke: hsl(0 0% 100% / 0.12);
+  stroke-width: 10;
+}
+
+.mapRiver {
+  fill: none;
+  stroke: hsl(var(--primary) / 0.32);
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+
+.mapPark {
+  fill: hsl(140 40% 40% / 0.22);
+}
+
+.mapRing {
+  fill: hsl(var(--primary) / 0.06);
+  stroke: hsl(var(--night-accent) / 0.35);
+  stroke-dasharray: 4 6;
+}
+
+.mapUser {
+  fill: hsl(var(--night-accent));
+  stroke: hsl(var(--night));
+  stroke-width: 3;
+}
+
+.mapRoute {
+  fill: none;
+  stroke: hsl(var(--cta));
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.heroPin {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px 999px 999px 4px;
+  background: hsl(var(--primary));
+  color: #fff;
+  transform: translate(-50%, -100%) rotate(-45deg);
+  box-shadow: 0 8px 18px -6px hsl(var(--primary) / 0.8);
+}
+
+.heroPin svg {
+  transform: rotate(45deg);
+}
+
+.heroPinActive {
+  width: 38px;
+  height: 38px;
+  background: hsl(var(--cta));
+  color: hsl(var(--cta-foreground));
+  box-shadow: 0 0 0 6px hsl(var(--cta) / 0.18), 0 10px 22px -6px hsl(var(--cta) / 0.6);
+}
+
+.poster {
+  position: absolute;
   margin: 0;
-  min-width: 0;
+  padding: 8px 8px 12px;
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  border-radius: 20px;
+  background: hsl(var(--night-raised) / 0.92);
+  box-shadow: 0 30px 60px -28px hsl(0 0% 0% / 0.85);
+  backdrop-filter: blur(6px);
 }
 
-.frame {
+.posterArt {
   position: relative;
   overflow: hidden;
-  border-radius: 14px;
-  background: hsl(var(--muted));
-  box-shadow:
-    0 0 0 1px hsl(var(--foreground) / 0.08),
-    0 24px 48px -32px hsl(var(--foreground) / 0.28);
+  aspect-ratio: 4 / 5;
+  border-radius: 13px;
+  background: hsl(var(--night-line));
 }
 
-:global(.dark) .frame {
-  box-shadow:
-    0 0 0 1px hsl(0 0% 100% / 0.1),
-    0 24px 48px -28px hsl(0 0% 0% / 0.7);
+.poster figcaption {
+  display: grid;
+  gap: 2px;
+  padding: 10px 4px 0;
+  min-width: 0;
 }
 
-.frameImage {
-  object-fit: cover;
-  object-position: top center;
+.poster strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-:global(.dark) .frameImage {
-  filter: brightness(0.92);
+.poster figcaption span {
+  font-size: 12px;
+  color: hsl(var(--on-night-muted));
 }
 
-.figurePhone {
-  display: flex;
-  flex-direction: column;
+.posterMain .poster {
+  left: 31%;
+  top: 2%;
+  width: 40%;
+}
+
+.posterLeft {
+  --rot: -7deg;
+}
+
+.posterLeft .poster {
+  left: 0;
+  top: 34%;
+  width: 31%;
+}
+
+.posterRight {
+  --rot: 6deg;
+}
+
+.posterRight .poster {
+  right: 0;
+  top: 40%;
+  width: 30%;
+}
+
+.ticketChipWrap .ticketChip {
+  position: absolute;
+  left: 22%;
+  bottom: 2%;
+}
+
+.ticketChip {
+  display: inline-flex;
   align-items: center;
+  gap: 10px;
+  padding: 12px 16px 12px 12px;
+  border: 1px solid hsl(0 0% 100% / 0.14);
+  border-radius: 16px;
+  background: hsl(0 0% 100% / 0.94);
+  color: hsl(var(--night));
+  box-shadow: 0 24px 48px -20px hsl(0 0% 0% / 0.7);
 }
 
-.framePhone {
-  width: min(100%, 300px);
-  aspect-ratio: 9 / 17;
-  border-radius: 36px;
-  border: 8px solid hsl(var(--foreground) / 0.92);
-  box-shadow: 0 32px 64px -36px hsl(var(--foreground) / 0.45);
+.ticketChip svg {
+  flex-shrink: 0;
+  color: hsl(142 70% 32%);
 }
 
-:global(.dark) .framePhone {
-  border-color: hsl(220 18% 18%);
-  box-shadow:
-    0 0 0 1px hsl(0 0% 100% / 0.1),
-    0 32px 64px -32px hsl(0 0% 0% / 0.8);
+.ticketChip span {
+  display: grid;
 }
 
-.caption {
-  margin-top: 14px;
-  font-size: 12.5px;
-  color: hsl(var(--muted-foreground));
+.ticketChip strong {
+  font-size: 13px;
+  font-weight: 650;
 }
 
-/* ---------- Organizadores ---------- */
-.organizers {
-  background: hsl(var(--secondary) / 0.6);
+.ticketChip small {
+  font-size: 12px;
+  color: hsl(225 12% 38%);
 }
 
-:global(.dark) .organizers {
-  background: hsl(var(--card) / 0.6);
+/* ---------- Capítulos ---------- */
+.chapter {
+  padding-block: clamp(80px, 10vw, 140px);
+  scroll-margin-top: 76px;
+}
+
+.chapterMuted {
+  background: hsl(var(--secondary) / 0.7);
+}
+
+:global(.dark) .chapterMuted {
+  background: hsl(var(--card) / 0.55);
+}
+
+.chapterNight {
+  --text-muted: var(--on-night-muted);
+  --accent-text: var(--night-accent);
+  background: hsl(var(--night));
+  color: hsl(var(--on-night));
+}
+
+.chapterHead {
+  max-width: 44rem;
+  margin-bottom: clamp(40px, 5vw, 64px);
+}
+
+.chapterMark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 20px;
+  font-size: 14px;
+  font-weight: 550;
+  color: hsl(var(--accent-text));
+}
+
+.chapterNumber {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.chapterTrail {
+  width: 44px;
+  height: 0;
+  border-top: 2px dashed currentColor;
+  opacity: 0.55;
+  transform-origin: left center;
+}
+
+.chapterLead {
+  max-width: 36rem;
+  margin: 18px 0 0;
+  font-size: clamp(1.0625rem, 1.4vw, 1.1875rem);
+  line-height: 1.65;
+  color: hsl(var(--text-muted));
+  text-wrap: pretty;
 }
 
 /* ---------- FAQ ---------- */
@@ -425,7 +605,11 @@
 
 /* ---------- CTA final ---------- */
 .final {
-  padding-top: clamp(64px, 8vw, 112px);
+  padding-block: clamp(88px, 11vw, 150px);
+  background:
+    radial-gradient(50% 60% at 50% 100%, hsl(var(--primary) / 0.25), transparent 70%),
+    hsl(var(--night));
+  color: hsl(var(--on-night));
 }
 
 .finalInner {
@@ -435,7 +619,7 @@
   text-align: center;
 }
 
-.finalInner .lead {
+.finalInner .leadNight {
   margin-top: 20px;
 }
 
@@ -443,25 +627,112 @@
   justify-content: center;
 }
 
+/* ---------- Capturas (DeviceFrames) ---------- */
+.figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: hsl(var(--muted));
+  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.08), 0 24px 48px -32px hsl(var(--foreground) / 0.28);
+}
+
+.frameImage {
+  object-fit: cover;
+  object-position: top center;
+}
+
+.figurePhone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.framePhone {
+  width: min(100%, 300px);
+  aspect-ratio: 9 / 17;
+  border-radius: 36px;
+  border: 8px solid hsl(var(--foreground) / 0.92);
+}
+
+.caption {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---------- Revelação progressiva (apenas CSS; navegadores sem scroll-timeline mostram tudo direto) ---------- */
+@keyframes landingReveal {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landingTrail {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes landingRoute {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mapRoute {
+    animation: landingRoute 1.6s 0.5s var(--ease) both;
+  }
+
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: landingReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 22%;
+    }
+
+    .chapterTrail {
+      animation: landingTrail linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 30%;
+    }
+  }
+}
+
 /* ---------- Responsivo ---------- */
-@media (max-width: 860px) {
-  .steps {
+@media (max-width: 959px) {
+  .hero {
+    min-height: 0;
+    padding-bottom: 88px;
+  }
+
+  .heroGrid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 40px;
   }
 
-  .stepIndex {
-    margin-bottom: 20px;
+  .stage {
+    --scroll-lift: 60px;
+    max-width: 480px;
   }
 
-  .bandGrid,
-  .bandGridPhone,
   .faqGrid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .bandReverse .bandCopy {
-    order: 0;
   }
 }
 
@@ -469,32 +740,70 @@
   .actions {
     flex-direction: column;
     align-items: stretch;
-    width: 100%;
   }
 
-  .heroInner .actions,
-  .finalInner .actions {
-    max-width: 340px;
+  .stage {
+    aspect-ratio: 1 / 1.02;
   }
 
-  .framePhone {
-    width: min(100%, 260px);
-    border-width: 6px;
-    border-radius: 30px;
+  .poster {
+    padding: 6px 6px 9px;
+    border-radius: 15px;
+  }
+
+  .poster strong {
+    font-size: 12px;
+  }
+
+  .poster figcaption span {
+    font-size: 11px;
+  }
+
+  .posterMain .poster {
+    left: 29%;
+    width: 44%;
+  }
+
+  .posterLeft .poster {
+    width: 33%;
+  }
+
+  .posterRight .poster {
+    width: 32%;
+  }
+
+  .ticketChipWrap .ticketChip {
+    left: 8%;
+  }
+
+  .faqItem p {
+    padding-right: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .layer,
+  .layerScroll {
+    transition: none;
+  }
+
+  .layer {
+    transform: none;
+  }
+
+  .layerScroll {
+    transform: rotate(var(--rot, 0deg));
+  }
+
   .btn,
   .btn svg,
-  .textLink,
-  .textLink svg,
+  .chapterLink,
   .faqIcon {
     transition: none;
   }
 
   .btn:hover svg,
-  .textLink:hover svg {
+  .btn:active {
     transform: none;
   }
 }
