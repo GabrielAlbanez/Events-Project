@@ -21,10 +21,20 @@
   overflow: hidden;
 }
 
-.media {
+/* Palco da cena: contêiner de tamanho para o quadro "cover" e o cartão em DOM. */
+.stage {
+  --ar: var(--ar-d);
+  --cw: var(--cw-d);
+  --car: var(--car-d);
   position: absolute;
   inset: 0;
   z-index: 0;
+  container-type: size;
+}
+
+.media {
+  position: absolute;
+  inset: 0;
   background: hsl(var(--stage));
 }
 
@@ -65,6 +75,14 @@
   :global(.dark) .poster[data-size="desktop"][data-variant="dark"] { display: block; }
 }
 
+/* Telas grandes ou retina: o pôster 2560×1440, como o conjunto HD escolhido pelo JS. */
+@media (orientation: landscape) and (min-resolution: 1.5dppx), (orientation: landscape) and (min-width: 1700px) {
+  .poster[data-size="desktop"] { display: none !important; }
+  .poster[data-size="desktop-hd"][data-variant="light"] { display: block; }
+  :global(.dark) .poster[data-size="desktop-hd"][data-variant="light"] { display: none; }
+  :global(.dark) .poster[data-size="desktop-hd"][data-variant="dark"] { display: block; }
+}
+
 @media (orientation: portrait) {
   .poster[data-size="mobile"][data-variant="light"] { display: block; }
   :global(.dark) .poster[data-size="mobile"][data-variant="light"] { display: none; }
@@ -75,6 +93,7 @@
 .copy {
   position: relative;
   z-index: 3;
+  pointer-events: none;
   width: 100%;
   max-width: 1200px;
   margin-inline: auto;
@@ -83,6 +102,7 @@
 
 .copy > * {
   max-width: min(27rem, 40vw);
+  pointer-events: auto;
 }
 
 .eyebrow {
@@ -209,7 +229,10 @@
     min-height: 600px;
   }
 
-  .media {
+  .stage {
+    --ar: var(--ar-m);
+    --cw: var(--cw-m);
+    --car: var(--car-m);
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
@@ -370,9 +393,241 @@
     padding-block: 0 32px;
   }
 
-  .media {
+  .stage {
     flex: none;
     aspect-ratio: 3 / 4;
     max-height: 70svh;
+  }
+}
+
+/* ---------- Cartão em DOM sobre a superfície vazia dos quadros ----------
+ * .frameBox reproduz o "cover" do canvas (mesmo centro e escala); o cartão usa a geometria exportada pela cena
+ * (frações do quadro), então fica exatamente sobre o cartão/ingresso desenhado. Só transform e opacity mudam.
+ */
+.frameBox {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: max(100cqw, calc(100cqh / var(--ar)));
+  aspect-ratio: 1 / var(--ar);
+  transform: translate(-50%, -50%);
+  container-type: inline-size;
+  pointer-events: none;
+}
+
+.liveCard {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: calc(var(--cw) * 100cqw);
+  aspect-ratio: var(--car);
+  container-type: inline-size;
+  border-radius: 7cqw;
+  color: hsl(var(--on-stage));
+  text-decoration: none;
+  pointer-events: auto;
+  transform: translate(calc(var(--x) * 100cqw - 50%), calc(var(--y) * var(--ar) * 100cqw - 50%)) scale(var(--sx), var(--sy));
+  opacity: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.liveCard:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 6px;
+}
+
+.liveCover {
+  position: absolute;
+  inset: 0 0 auto;
+  height: calc(42cqw / var(--car));
+  overflow: hidden;
+  border-radius: 7cqw 7cqw 0 0;
+  background: hsl(var(--stage-deep));
+  transform: scaleY(var(--cover));
+  transform-origin: top center;
+}
+
+.liveCoverImage {
+  object-fit: cover;
+}
+
+/* Sombra da dobra, como a da capa nos quadros. */
+.liveCoverShade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: calc((1 - var(--cover)) * 0.45);
+}
+
+.liveBody {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2.6cqw;
+  padding: 7.5cqw;
+  transform: translateY(calc(var(--cover) * 42cqw / var(--car)));
+}
+
+.liveChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.9cqw 3.2cqw;
+  border: 1px solid hsl(var(--stage-line));
+  border-radius: 999px;
+  font-size: max(10px, 3.6cqw);
+  font-weight: 550;
+  color: hsl(var(--on-stage-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveName {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: max(13px, 7.4cqw);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.liveMeta {
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  max-width: 100%;
+  font-size: max(10.5px, 4.3cqw);
+  color: hsl(var(--on-stage-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveMetaText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveMeta svg {
+  flex: none;
+  width: max(12px, 4.6cqw);
+  height: max(12px, 4.6cqw);
+  color: hsl(var(--stage-accent));
+}
+
+.livePrice {
+  font-size: max(11px, 4.8cqw);
+  font-weight: 650;
+  color: hsl(var(--stage-accent));
+}
+
+.liveCta {
+  position: absolute;
+  left: 7.5cqw;
+  right: 7.5cqw;
+  bottom: 7.5cqw;
+  display: grid;
+  place-items: center;
+  height: max(26px, calc(8.5cqw / var(--car)));
+  border-radius: 999px;
+  background: hsl(var(--cta));
+  color: hsl(var(--cta-foreground));
+  font-size: max(11px, 4.6cqw);
+  font-weight: 600;
+  opacity: var(--cta-a);
+}
+
+.liveNote {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.2cqw;
+  text-align: center;
+  font-size: max(9.5px, 3.3cqw);
+  color: hsl(var(--on-stage-muted));
+  opacity: var(--note);
+}
+
+/* Cartão genérico (sem agenda real): capa azul da marca e blocos, como os quadros anteriores. */
+.genericCover {
+  background: linear-gradient(135deg, hsl(226 100% 62%), hsl(228 74% 43%));
+}
+
+.genericPin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 17cqw;
+  height: 17cqw;
+  border-radius: 50% 50% 50% 0;
+  background: hsl(var(--cta));
+  transform: translate(-50%, -60%) rotate(-45deg);
+}
+
+.genericBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.6cqw;
+  font-size: max(11px, 5cqw);
+  font-weight: 600;
+  color: hsl(var(--on-stage-muted));
+}
+
+.genericBrandPin {
+  width: 3.6cqw;
+  height: 3.6cqw;
+  border-radius: 50% 50% 50% 0;
+  background: hsl(var(--primary));
+  transform: rotate(-45deg);
+}
+
+.genericBar {
+  height: 4.3cqw;
+  border-radius: 999px;
+  background: hsl(var(--on-stage) / 0.16);
+}
+
+.genericMeta {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  width: 100%;
+}
+
+.genericMeta > span {
+  height: 2cqw;
+  border-radius: 999px;
+  background: hsl(var(--on-stage) / 0.09);
+}
+
+.genericMeta > span:first-child {
+  flex: none;
+  width: 4.8cqw;
+  height: 4.8cqw;
+  border-radius: 1.3cqw;
+  background: hsl(var(--primary) / 0.16);
+}
+
+/* Com movimento: o cartão só aparece quando o JS assume (data-driven) e segue o progresso suavizado. */
+@media (prefers-reduced-motion: no-preference) {
+  .liveCard {
+    opacity: 0;
+  }
+
+  .liveCard[data-driven="true"] {
+    opacity: var(--a);
+  }
+
+  .sequence[data-poster="end"] .liveCard {
+    opacity: 1;
   }
 }

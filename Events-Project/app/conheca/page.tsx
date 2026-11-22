@@ -138,6 +138,11 @@ const jsonLd = (value: object) => ({ __html: JSON.stringify(value).replace(/</g,
 
 export default async function ConhecaPage() {
   const catalog = buildLandingCatalog(await loadLandingSummary());
+  // Evento real em destaque na cena do mapa ao ingresso: o mais próximo com banner utilizável (a agenda já vem ordenada).
+  const featuredSource = catalog.real ? catalog.events.find(event => event.href && event.image) ?? null : null;
+  const featured = featuredSource?.href
+    ? { id: featuredSource.id, href: featuredSource.href, name: featuredSource.name, category: featuredSource.category, image: featuredSource.image, dateLabel: featuredSource.dateLabel, priceLabel: featuredSource.priceLabel, place: featuredSource.place }
+    : null;
   return (
     <div className={styles.page}>
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(structuredData())} />
@@ -145,7 +150,7 @@ export default async function ConhecaPage() {
       <ScrollProgress />
       <LandingHero events={catalog.events} real={catalog.real} />
       <LiveAgenda catalog={catalog} />
-      <ScrollSequence />
+      <ScrollSequence featured={featured} />
       <LandingChapter
         id="descobrir"
         index={1}

@@ -10,6 +10,10 @@
   const params = new URLSearchParams(location.search);
   const VARIANT = params.get("variant") === "dark" ? "dark" : "light";
   const LAYOUT = params.get("layout") === "mobile" ? "mobile" : "desktop";
+  // live (padrão): cartão e ingresso vazios — o conteúdo real entra por cima, em DOM. generic: versão com barras.
+  const GENERIC = params.get("mode") === "generic";
+  // Superamostragem: desenha em SS× e o navegador reduz ao capturar, com bordas suaves em prédios, pins e QR.
+  const SS = Math.min(3, Math.max(1, Number(params.get("ss")) || 2));
 
   // ---------- Paletas (derivadas dos tokens do app: --stage, --brand, --cta, --card) ----------
   const PALETTES = {
@@ -190,8 +194,8 @@
   function resize() {
     W = Math.round(window.innerWidth);
     H = Math.round(window.innerHeight);
-    canvas.width = W;
-    canvas.height = H;
+    canvas.width = Math.round(W * SS);
+    canvas.height = Math.round(H * SS);
   }
 
   const L = LAYOUT === "mobile"
@@ -366,6 +370,18 @@
     g.addColorStop(1, rgb(color, 0));
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(hx, hy, glowR, 0, Math.PI * 2); ctx.fill();
+    // Bloom: halo largo e fraco somado à luz da cena (no escuro) para os pins "acenderem" sem estourar.
+    {
+      const bloomR = r * (hot ? 7.5 : 5);
+      const bloom = ctx.createRadialGradient(hx, hy, 0, hx, hy, bloomR);
+      bloom.addColorStop(0, rgb(color, VARIANT === "dark" ? (hot ? 0.26 : 0.16) : (hot ? 0.16 : 0.08)));
+      bloom.addColorStop(1, rgb(color, 0));
+      ctx.save();
+      if (VARIANT === "dark") ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = bloom;
+      ctx.beginPath(); ctx.arc(hx, hy, bloomR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     // Gota: círculo + cauda até a ponta.
     const ang = Math.atan2(ty - hy, tx - hx);
     ctx.beginPath();
@@ -394,6 +410,18 @@
       items.push({ z, b });
     }
     for (const pin of pins) items.push({ z: toCam([pin.x, pin.y, 0])[2] - 20, pin });
+    // Oclusão de ambiente suave: duas sombras de contato em volta da base de cada prédio, antes das fachadas.
+    const ao = VARIANT === "dark" ? [0, 0, 0] : [52, 70, 130];
+    for (const item of items) {
+      if (!item.b) continue;
+      const { x, y, w, d } = item.b;
+      const k = 1 - fogK(item.z);
+      if (k <= 0.05) continue;
+      for (const [e, a] of [[11, VARIANT === "dark" ? 0.16 : 0.05], [4, VARIANT === "dark" ? 0.22 : 0.07]]) {
+        const poly = projectPoly([[x - e, y - e, 0.5], [x + w + e, y - e, 0.5], [x + w + e, y + d + e, 0.5], [x - e, y + d + e, 0.5]]);
+        if (poly) fillPoly(poly, rgb(ao, a * k));
+      }
+    }
     items.sort((a, b) => b.z - a.z);
     for (const item of items) {
       if (item.pin) { drawPin(item.pin, t, cardOpen); continue; }
@@ -408,6 +436,12 @@
     haze.addColorStop(1, rgb(P.bg, 0));
     ctx.fillStyle = haze;
     ctx.fillRect(0, 0, W, H * 0.55);
+    // Brilho de horizonte bem leve na cor da marca: dá profundidade à névoa.
+    const glow = ctx.createRadialGradient(cam.cx, H * 0.08, 0, cam.cx, H * 0.08, Math.max(W, H) * 0.7);
+    glow.addColorStop(0, rgb(BRAND, VARIANT === "dark" ? 0.1 : 0.05));
+    glow.addColorStop(1, rgb(BRAND, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
     const vig = ctx.createRadialGradient(cam.cx, cam.cy, Math.min(W, H) * 0.35, cam.cx, cam.cy, Math.max(W, H) * 0.85);
     vig.addColorStop(0, rgb(P.bg, 0));
     vig.addColorStop(1, rgb(P.bg, VARIANT === "dark" ? 0.7 : 0.55));
@@ -465,7 +499,17 @@
     const x = cx - w / 2, y = cy - h / 2;
     const radius = lerp(pr, Math.min(26, cw * 0.07), open);
     const content = smooth(0.55, 0.64, t);
-    const ink = rgb(P.ink), soft = rgb(P.inkSoft);
+    const soft = rgb(P.inkSoft);
+    {
+      // Geometria exportada para o overlay em DOM (frações do quadro), lida por render-frames.cjs.
+      const scaleNow = Math.min(w / fw, h / fh);
+      window.__card = {
+        x: cx / W, y: cy / H, sx: (scaleNow * fw) / cw, sy: (scaleNow * fh) / ch,
+        cover: Math.cos((smooth(0, 0.6, fold) * Math.PI) / 2), alpha: content,
+        cta: 1 - smooth(0.72, 0.8, t), note: smooth(0.6, 0.9, fold),
+        cw: cw / W, ch: ch / H,
+      };
+    }
     const pad = cw * 0.075;
 
     // Escurece o mapa por trás para dar foco (névoa de cena, sem blur caro).
@@ -509,8 +553,8 @@
     // Sombra e corpo.
     ctx.save();
     ctx.shadowColor = P.shadow;
-    ctx.shadowBlur = 50 * open;
-    ctx.shadowOffsetY = 24 * open;
+    ctx.shadowBlur = 50 * open * SS;
+    ctx.shadowOffsetY = 24 * open * SS;
     roundRect(x, y, w, h, radius);
     ctx.fillStyle = rgb(P.card);
     ctx.fill();
@@ -537,7 +581,7 @@
       const spread = Math.sin(ang) * w * 0.07;
       const cyTop = y;
       const cyBottom = y + visibleH;
-      if (visibleH > 0.5) {
+      if (GENERIC && visibleH > 0.5) {
         ctx.save();
         ctx.beginPath();
         ctx.moveTo(x, cyTop); ctx.lineTo(x + w, cyTop);
@@ -565,6 +609,7 @@
       // Corpo: acompanha a borda de baixo da capa enquanto ela dobra.
       const bodyTop = cyBottom + pad;
       const lineH = Math.max(8, cw * 0.032);
+      if (GENERIC) {
       wordmark(x + pad - cw * 0.01, bodyTop + lineH * 0.9, Math.max(11, cw * 0.05), soft);
       bar(x + pad, bodyTop + lineH * 2.6, (w - pad * 2) * 0.82, lineH * 1.35, rgb(P.barStrong));
       bar(x + pad, bodyTop + lineH * 4.6, (w - pad * 2) * 0.56, lineH * 1.35, rgb(P.barStrong));
@@ -591,10 +636,11 @@
       ctx.strokeStyle = rgb(P.barStrong); ctx.lineWidth = 1.5; ctx.stroke();
       ctx.restore();
       bar(x + w - pad - cw * 0.26 + lineH * 0.8, bodyTop + lineH * 0.85, cw * 0.26 - lineH * 1.6, lineH * 0.5, rgb(P.barStrong));
+      }
 
       // CTA "Garantir lugar": some quando o ingresso nasce.
       const ctaA = 1 - smooth(0.72, 0.8, t);
-      if (ctaA > 0.01) {
+      if (GENERIC && ctaA > 0.01) {
         const bh = Math.max(34, ch * 0.085);
         const by = y + h - pad - bh;
         ctx.save();
@@ -632,7 +678,8 @@
         for (const m of qr) {
           const k = clamp((show * 1.25 - m.order) / 0.25);
           if (k <= 0) continue;
-          const s = cell * (0.5 + 0.5 * k) * 1.02;
+          // Módulos completos se sobrepõem meio pixel: sem frestas entre eles depois da superamostragem.
+          const s = k >= 1 ? cell + 0.6 : cell * (0.5 + 0.5 * k);
           ctx.globalAlpha = content * k;
           ctx.fillRect(qx + m.x * cell + (cell - s) / 2, qy + m.y * cell + (cell - s) / 2, s, s);
         }
@@ -648,6 +695,10 @@
   // ---------- API ----------
   function draw(t) {
     t = clamp(Number(t) || 0);
+    ctx.setTransform(SS, 0, 0, SS, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    window.__card = null;
     setupCamera(t);
     const open = smoother(0.48, 0.68, t);
     drawCity(t, open);

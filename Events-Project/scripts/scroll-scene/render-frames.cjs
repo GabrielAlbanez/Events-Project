@@ -30,10 +30,13 @@ const PORT = Number(process.env.CDP_PORT || 9333);
 
 // Conjuntos: desktop 16:9 e mobile retrato recomposto. Qualidade calibrada para o orçamento de bytes.
 const SETS = [
-  { variant: "light", size: "desktop", width: 1600, height: 900, count: 120, quality: 72 },
-  { variant: "dark", size: "desktop", width: 1600, height: 900, count: 120, quality: 72 },
-  { variant: "light", size: "mobile", width: 810, height: 1080, count: 60, quality: 68 },
-  { variant: "dark", size: "mobile", width: 810, height: 1080, count: 60, quality: 68 },
+  // desktop: telas comuns; desktop-hd: telas grandes ou retina (escolhido pelo tamanho real em pixels); mobile: retrato.
+  { variant: "light", size: "desktop", layout: "desktop", width: 1600, height: 900, count: 120, quality: 82 },
+  { variant: "dark", size: "desktop", layout: "desktop", width: 1600, height: 900, count: 120, quality: 82 },
+  { variant: "light", size: "desktop-hd", layout: "desktop", width: 2560, height: 1440, count: 120, quality: 82 },
+  { variant: "dark", size: "desktop-hd", layout: "desktop", width: 2560, height: 1440, count: 120, quality: 82 },
+  { variant: "light", size: "mobile", layout: "mobile", width: 1080, height: 1440, count: 90, quality: 74 },
+  { variant: "dark", size: "mobile", layout: "mobile", width: 1080, height: 1440, count: 90, quality: 74 },
 ];
 
 const args = Object.fromEntries(process.argv.slice(2).map(arg => {
@@ -96,7 +99,7 @@ async function evaluate(cdp, expression) {
 
 async function loadScene(cdp, set) {
   await cdp.send("Emulation.setDeviceMetricsOverride", { width: set.width, height: set.height, deviceScaleFactor: 1, mobile: false });
-  const url = `${pathToFileURL(SCENE).href}?variant=${set.variant}&layout=${set.size}&t=0`;
+  const url = `${pathToFileURL(SCENE).href}?variant=${set.variant}&layout=${set.layout}&ss=${set.ss || 2}&t=0`;
   await cdp.send("Page.navigate", { url });
   for (let i = 0; i < 100; i++) {
     const ready = await evaluate(cdp, "typeof window.sceneReady === 'object' ? window.sceneReady.then(() => true) : false").catch(() => false);
@@ -119,9 +122,17 @@ async function renderSet(cdp, set) {
   for (const file of fs.readdirSync(dir)) if (/^frame-\d+\.webp$|^manifest\.json$/.test(file)) fs.unlinkSync(path.join(dir, file));
   await loadScene(cdp, set);
   let bytes = 0;
+  const cards = [];
+  let cardBox = null;
+  const r4 = (value) => Math.round(value * 10000) / 10000;
   for (let i = 0; i < set.count; i++) {
     const t = set.count === 1 ? 0 : i / (set.count - 1);
     await evaluate(cdp, `window.renderFrame(${t.toFixed(6)})`);
+    const card = await evaluate(cdp, "window.__card");
+    if (card) {
+      cardBox = { w: r4(card.cw), h: r4(card.ch) };
+      cards.push([card.x, card.y, card.sx, card.sy, card.cover, card.alpha, card.cta, card.note].map(r4));
+    } else cards.push(null);
     const buffer = await capture(cdp, set, "webp", set.quality);
     bytes += buffer.length;
     fs.writeFileSync(path.join(dir, `frame-${String(i).padStart(3, "0")}.webp`), buffer);
@@ -135,6 +146,11 @@ async function renderSet(cdp, set) {
     bytes,
   };
   fs.writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  // Geometria do cartão por quadro (igual nos dois temas e nas duas resoluções do mesmo layout): alimenta o overlay.
+  if (set.variant === "light" && set.size === set.layout) {
+    const geometry = { count: set.count, aspect: set.width / set.height, card: cardBox, fields: ["x", "y", "sx", "sy", "cover", "alpha", "cta", "note"], frames: cards };
+    fs.writeFileSync(path.join(OUT_ROOT, `card-${set.layout}.json`), `${JSON.stringify(geometry)}\n`);
+  }
   console.log(`${set.variant}/${set.size}: ${set.count} quadros ${set.width}×${set.height}, ${(bytes / 1024 / 1024).toFixed(2)} MB`);
 }
 
