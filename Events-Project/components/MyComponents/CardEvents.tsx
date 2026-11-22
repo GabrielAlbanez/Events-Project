@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Inbox, Loader2, MapPin, Sparkles, TriangleAlert } from "lucide-react";
 import { Image, Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/react";
 import { Evento } from "@/types";
 import { getEventHistory } from "@/app/(actions)/eventHistory/action";
@@ -13,6 +13,7 @@ import { eventStatusLabels, type EventHistoryAction, type EventStatus } from "@/
 import { useSocket } from "@/context/SocketContext";
 import { isPromotable } from "@/lib/promoKit";
 import EventPromoKit from "@/components/MyComponents/promo/EventPromoKit";
+import TicketCoupons from "@/components/MyComponents/tickets/TicketCoupons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -29,6 +30,10 @@ interface CardEventsProps {
 }
 type HistoryEntry = { id: string; eventName: string; actorName: string | null; action: EventHistoryAction; note?: string | null; createdAt: string };
 const historyLabels: Record<EventHistoryAction, string> = { CREATED: "Criado", VALIDATED: "Publicado", DELETED: "Excluído", UPDATED: "Atualizado", CHANGES_REQUESTED: "Correção solicitada", CANCELLED: "Cancelado", SUBMITTED: "Enviado para análise", DUPLICATED: "Duplicado" };
+
+function pendingRequestsLabel(count: number) {
+  return count === 1 ? "1 pedido de participação aguardando aprovação" : `${count} pedidos de participação aguardando aprovação`;
+}
 
 function formatDate(value?: string) {
   if (!value) return "Data não definida";
@@ -134,7 +139,7 @@ export default function CardEvents({ events }: CardEventsProps) {
                 Ver detalhes
               </button>
               <Link href={`/eventos/${event.id}/comunidade`} className="em-motion-waypoint mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Comunidade e equipe <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-lg border px-3 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-lg border border-primary/30 bg-primary/5 px-3 font-medium text-brand hover:bg-primary/10">Check-in</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${encodeURIComponent(event.id)}/destaque`} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-cta-foreground/15 bg-cta px-3 font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Sparkles className="size-3.5" aria-hidden="true" />Destacar evento</Link>}{isPromotable(event.status) && <EventPromoKit event={event} />}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-lg border px-3 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-lg border border-destructive/30 px-3 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-lg border px-3 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-lg border border-primary/30 bg-primary/5 px-3 font-medium text-brand hover:bg-primary/10">Check-in</Link>}{event.status === "PUBLISHED" && (event.pendingRequests ?? 0) > 0 && <Link href={`/myEvents/${encodeURIComponent(event.id)}/checkin#solicitacoes`} aria-label={pendingRequestsLabel(event.pendingRequests ?? 0)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 font-semibold text-amber-900 hover:bg-amber-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:text-amber-200"><Inbox className="size-3.5 shrink-0" aria-hidden="true" />Solicitações<span aria-hidden="true" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-xs font-bold leading-5 text-white dark:bg-amber-400 dark:text-amber-950">{event.pendingRequests}</span></Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${encodeURIComponent(event.id)}/destaque`} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-cta-foreground/15 bg-cta px-3 font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Sparkles className="size-3.5" aria-hidden="true" />Destacar evento</Link>}{isPromotable(event.status) && <EventPromoKit event={event} />}{event.ticketsEnabled && !event.isFree && event.status !== "CANCELLED" && event.status !== "ENDED" && <TicketCoupons eventId={event.id} eventName={event.nome} priceCents={event.priceCents ?? null} />}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-lg border px-3 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-lg border border-destructive/30 px-3 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
             </div>
           </article>
         ))}

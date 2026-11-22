@@ -52,6 +52,8 @@ export type Evento = {
   ticketCapacity?: number | null;
   /** Organizer approves each registration (EventMap-created events only); only loaded where the organizer edits the event. */
   requiresApproval?: boolean;
+  /** Requests waiting for the organizer; only loaded in the organizer's own event list. */
+  pendingRequests?: number;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;

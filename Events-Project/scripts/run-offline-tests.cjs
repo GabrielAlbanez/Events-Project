@@ -13,6 +13,7 @@ const root = path.resolve(__dirname, "..");
 const OFFLINE_EXTRA = [
   "verify-organizer-ops.cjs",
   "verify-registration-approval.cjs",
+  "verify-my-events-requests.cjs",
   "verify-organizer-insights.cjs",
   "verify-security-platform.cjs",
   "verify-commercial-growth.cjs",

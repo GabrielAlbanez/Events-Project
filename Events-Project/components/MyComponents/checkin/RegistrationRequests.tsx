@@ -170,7 +170,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
   const visible = useMemo(() => (requests ?? []).filter((item) => item.status === filter), [requests, filter]);
   const busy = busyId !== null || bulk !== null;
 
-  return <section aria-labelledby="requests-title" aria-busy={busy} className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+  return <section id="solicitacoes" aria-labelledby="requests-title" aria-busy={busy} className="scroll-mt-24 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <h2 id="requests-title" className="flex flex-wrap items-center gap-2 text-xl font-semibold">
