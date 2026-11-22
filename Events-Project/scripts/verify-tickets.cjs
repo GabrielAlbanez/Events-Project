@@ -1169,6 +1169,102 @@ async function checkApprovalPurchase() {
   assert.notEqual((await service.getTicketPurchaseState("event-1", as("buyer2"), deps)).data.state, "approval", "imported events never wait for approval");
 }
 
+// Full payment journey, end to end through the real services (tickets + attendance + check-in) with a simulated
+// Mercado Pago: promoter connects, creates a coupon; buyer asks to join, is approved, pays the Pix with the coupon;
+// the signed webhook confirms; the QR is scanned at the door (once); the organizer refunds and the seat is released.
+async function checkFullJourney() {
+  const service = load("lib/services/tickets.ts");
+  const attendance = load("lib/services/attendance.ts");
+  const as = (id, role = "BASIC") => async () => ({ id, role });
+  const promoter = { id: "seller", role: "PROMOTER" };
+  const mp = mockMercadoPago();
+  const deps = { fetch: mp.fetch, now: clock, env: ENV, statusCheckIntervalMs: 0, reconcileIntervalMs: 0 };
+  const savedEnv = { ...process.env };
+  Object.assign(process.env, ENV);
+  try {
+    db = freshDb();
+    db.communityTeamMember = table("team", []);
+    current = NOW;
+    const event = db.events.rows.find((row) => row.id === "event-1");
+    Object.assign(event, { requiresApproval: true, aiImport: null, capacity: null, priceCents: 5000 });
+
+    // 1. Promoter connects Mercado Pago (OAuth); the event can then sell tickets.
+    const start = await service.startMercadoPagoConnect(as("seller", "PROMOTER"), deps);
+    assert.equal(start.success, true, start.message);
+    const authorize = new URL(start.data.url);
+    assert.equal(authorize.searchParams.get("client_id"), ENV.MP_CLIENT_ID);
+    assert.match(authorize.searchParams.get("redirect_uri"), /\/api\/mercadopago\/callback$/);
+    const state = authorize.searchParams.get("state");
+    assert.equal(await service.completeMercadoPagoConnect({ code: "good-code", state }, as("seller", "PROMOTER"), deps), "connected");
+    assert.deepEqual((await service.getTicketSellerStatus(as("seller", "PROMOTER"), deps)).data, { configured: true, connected: true });
+    assert.equal(await service.ticketSettingsProblem(db, "seller", { ticketsEnabled: true, isFree: false, priceCents: 5000 }, ENV), null);
+
+    // 2. Promoter creates a 20% coupon.
+    const coupon = await service.createTicketCoupon({ eventId: "event-1", code: "amigos20", percentOff: 20 }, as("seller", "PROMOTER"), deps);
+    assert.equal(coupon.success, true, coupon.message);
+
+    // 3. Buyer cannot buy before approval; asks to participate; promoter approves.
+    assert.equal((await service.getTicketPurchaseState("event-1", as("buyer"), deps)).data.state, "approval");
+    assert.equal((await service.createTicketOrder({ eventId: "event-1" }, as("buyer"), deps)).success, false);
+    const request = await attendance.registerForEvent("event-1", "buyer");
+    assert.equal(request.status, "PENDING");
+    assert.ok(db.notification.rows.some((row) => row.userId === "seller" && /Aprove ou recuse/.test(row.message)), "promoter notified");
+    assert.equal((await attendance.reviewRegistration("event-1", promoter, request.id, "APPROVE")).status, "APPROVED");
+    assert.equal((await service.getTicketPurchaseState("event-1", as("buyer"), deps)).data.state, "available");
+
+    // 4. Coupon preview and Pix order: R$ 50,00 - 20% = R$ 40,00; EventMap fee 20% = R$ 8,00 via application_fee.
+    const preview = await service.previewTicketCoupon({ eventId: "event-1", code: "AMIGOS20" }, as("buyer"), deps);
+    assert.equal(preview.success, true, preview.message);
+    const order = await service.createTicketOrder({ eventId: "event-1", couponCode: "amigos20" }, as("buyer"), deps);
+    assert.equal(order.success, true, order.message);
+    const row = db.ticketOrder.rows.find((item) => item.id === order.data.id);
+    assert.deepEqual([row.unitCents, row.discountCents, row.feeCents, row.status], [4000, 1000, 800, "PENDING"]);
+    const pixCall = mp.calls.find((call) => call.url.endsWith("/v1/payments") && call.method === "POST");
+    assert.equal(pixCall.body.transaction_amount, 40);
+    assert.equal(pixCall.body.application_fee, 8, "EventMap's 20% goes to the platform account");
+    assert.equal(pixCall.body.payment_method_id, "pix");
+    assert.match(pixCall.headers.authorization, /^Bearer APP_USR-access-/, "charged with the promoter's own token");
+    assert.ok(row.pixCopyPaste && row.pixQrBase64, "buyer receives Pix copy-and-paste and QR");
+
+    // 5. Buyer pays; Mercado Pago sends the signed webhook: order PAID, registration CONFIRMED.
+    mp.payments.get(row.mpPaymentId).status = "approved";
+    assert.equal(await service.handleMercadoPagoWebhook({ ...signedWebhook(row.mpPaymentId), xSignature: "ts=1,v1=forged" }, deps) >= 400, true, "forged webhook refused");
+    assert.equal(row.status, "PENDING");
+    assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(row.mpPaymentId), deps), 200);
+    assert.equal(row.status, "PAID");
+    const registration = db.eventRegistration.rows.find((item) => item.eventId === "event-1" && item.userId === "buyer");
+    assert.equal(registration.status, "CONFIRMED");
+    const mine = await service.listMyTickets(as("buyer"), deps);
+    assert.ok(mine.success && mine.data.some((ticket) => ticket.eventId === "event-1" || ticket.event?.id === "event-1"), "ticket listed for the buyer");
+    const overview = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+    assert.equal(overview.success, true);
+    assert.equal(/APP_USR|TG-/.test(JSON.stringify(overview)), false, "no token reaches the organizer screen");
+
+    // 6. Door: QR issued to the buyer, scanned by the promoter once.
+    const qr = await attendance.issueCheckInToken("event-1", "buyer");
+    assert.equal((await attendance.checkInAttendee("event-1", promoter, qr.token)).status, "CHECKED_IN");
+    const first = db.eventRegistration.rows.find((item) => item.eventId === "event-1" && item.userId === "buyer").checkedInAt;
+    const again = await attendance.checkInAttendee("event-1", promoter, qr.token);
+    assert.equal(again.alreadyCheckedIn, true, "a second scan of the same QR is flagged, not shown as a new entry");
+    assert.equal(again.checkedInAt, first, "keeps the time of the first entry");
+    const door = fs.readFileSync("app/(private)/myEvents/[id]/checkin/page.tsx", "utf8");
+    assert.match(door, /data\.alreadyCheckedIn/, "door screen checks the reused-QR flag");
+    assert.match(door, /QR já utilizado/, "door screen warns about a reused QR");
+    await assert.rejects(attendance.checkInAttendee("event-1", { id: "buyer2", role: "BASIC" }, qr.token), (error) => error.status === 403, "only staff scans");
+
+    // 7. Refund by the organizer: full amount back through Mercado Pago, order REFUNDED, seat released.
+    assert.equal((await service.refundTicketOrder({ orderId: row.id }, as("buyer"), deps)).success, false, "buyer cannot refund");
+    const refund = await service.refundTicketOrder({ orderId: row.id }, as("seller", "PROMOTER"), deps);
+    assert.equal(refund.success, true, refund.message);
+    assert.equal(row.status, "REFUNDED");
+    assert.ok(mp.calls.some((call) => call.url.endsWith(`/v1/payments/${row.mpPaymentId}/refunds`)), "refund sent to Mercado Pago");
+    assert.ok(db.notification.rows.some((item) => item.userId === "buyer"), "buyer notified along the way");
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
+    Object.assign(process.env, savedEnv);
+  }
+}
+
 (async () => {
   checkPure(load("lib/tickets.ts"));
   checkCouponRules(load("lib/tickets.ts"));
@@ -1181,6 +1277,7 @@ async function checkApprovalPurchase() {
   await checkFinancialRecords();
   await checkCoupons();
   await checkApprovalPurchase();
+  await checkFullJourney();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

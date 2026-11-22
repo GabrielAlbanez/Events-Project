@@ -90,8 +90,16 @@ export default function CheckInPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await response.json().catch(() => ({})) as ApiError & { user?: { name?: string | null } };
+      const data = await response.json().catch(() => ({})) as ApiError & { user?: { name?: string | null }; alreadyCheckedIn?: boolean; checkedInAt?: string | null };
       if (!response.ok) throw new Error(data.message || "Não foi possível registrar a entrada.");
+      if (data.alreadyCheckedIn) {
+        // A reused QR (e.g. a shared screenshot) must never look like a new entry at the door.
+        const at = data.checkedInAt ? new Date(data.checkedInAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null;
+        const warning = `QR já utilizado${data.user?.name ? ` por ${data.user.name}` : ""}${at ? ` às ${at}` : ""}. Não libere uma nova entrada.`;
+        toast.warning(warning, { toastId: `checkin-reused:${warning}`, autoClose: 8000 });
+        if ("token" in body) setToken("");
+        return;
+      }
       const success = `Entrada registrada${data.user?.name ? ` para ${data.user.name}` : ""}.`;
       toast.success(success, { toastId: `checkin:${success}` });
       if ("token" in body) setToken("");

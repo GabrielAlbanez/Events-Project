@@ -359,10 +359,11 @@ export async function checkInAttendee(eventId: string, actor: StaffActor, token:
     if (claims.eventId !== eventId) throw new AttendanceError("QR Code pertence a outro evento.", 400);
     const registration = await tx.eventRegistration.findUnique({ where: { id: claims.registrationId }, select: { id: true, eventId: true, status: true, qrVersion: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     if (!registration || registration.eventId !== eventId || registration.qrVersion !== claims.qrVersion) throw new AttendanceError("QR Code inválido.", 400);
-    if (registration.status === "CHECKED_IN") return { id: registration.id, status: registration.status, checkedInAt: registration.checkedInAt, user: registration.user };
+    // Idempotent (network retries never fail), but flagged so the door never shows a reused QR as a new entry.
+    if (registration.status === "CHECKED_IN") return { id: registration.id, status: registration.status, checkedInAt: registration.checkedInAt, user: registration.user, alreadyCheckedIn: true as const };
     if (registration.status !== "CONFIRMED") throw new AttendanceError("Esta inscrição não está confirmada.", 409);
     const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CHECKED_IN", checkedInAt: new Date() }, select: { id: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
-    return changed;
+    return { ...changed, alreadyCheckedIn: false as const };
   });
 }
 
