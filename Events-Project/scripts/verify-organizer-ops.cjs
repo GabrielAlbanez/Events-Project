@@ -129,6 +129,7 @@ async function checkTeamCheckIn() {
     events: { findUnique: async () => ({ ...event }) },
     eventRegistration: registrations,
     communityTeamMember: table([{ eventId: "event", userId: "staff" }]),
+    ticketPass: { count: async () => 0 },
     eventHistory: history,
     user: { findUnique: async (q) => ({ id: q.where.id, name: "Equipe" }) },
     notification: table([]),

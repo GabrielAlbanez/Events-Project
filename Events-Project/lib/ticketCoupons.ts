@@ -40,7 +40,7 @@ export function couponDiscountLabel(coupon: TicketCouponDiscount): string {
   return coupon.percentOff != null ? `${coupon.percentOff}% off` : `${formatTicketAmount(coupon.amountOffCents ?? 0)} off`;
 }
 
-/** What the buyer pays and what the organizer receives (20% fee over the discounted price, before Mercado Pago's fee). */
+/** What the buyer pays and what the organizer receives (platform fee over the discounted price, before Mercado Pago's fee). */
 export function couponExample(priceCents: number, coupon: TicketCouponDiscount): { priceCents: number; finalCents: number; netCents: number } {
   const finalCents = discountedTicketCents(priceCents, coupon);
   return { priceCents, finalCents, netCents: ticketNetCents(finalCents) };

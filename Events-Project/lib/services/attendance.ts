@@ -1,8 +1,9 @@
-import { createNotification } from "@/lib/notifications/create";
+import { createNotification, createNotificationOnce } from "@/lib/notifications/create";
 import { notificationCopy } from "@/lib/notifications/catalog";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, RegistrationStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { withEventLock } from "@/lib/eventLock";
 import { eventInstant } from "@/lib/eventTime";
 import { ticketPaymentsConfigured } from "@/lib/ticketSecurity";
 
@@ -100,7 +101,7 @@ export async function getRegistrationState(eventId: string, userId: string | nul
 }
 
 export async function registerForEvent(eventId: string, userId: string) {
-  return serializable(async (tx) => {
+  return withEventLock(eventId, async (tx) => {
     const event = await eventForRegistration(tx, eventId);
     assertOpen(event);
     if (event.userId === userId) throw new AttendanceError("O organizador não pode se inscrever no próprio evento.", 409);
@@ -130,7 +131,7 @@ export async function registerForEvent(eventId: string, userId: string) {
 }
 
 export async function cancelRegistration(eventId: string, userId: string) {
-  return serializable(async (tx) => {
+  return withEventLock(eventId, async (tx) => {
     const registration = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (!registration || registration.status === "CANCELLED") return { status: "CANCELLED" as const, promotedUserId: null };
     if (registration.status === "REJECTED") throw new AttendanceError(rejectedMessage, 409);
@@ -169,10 +170,11 @@ async function requestApproval(tx: Prisma.TransactionClient, event: Registration
     ? await tx.eventRegistration.update({ where: { id: existing.id }, data: { status: "PENDING", qrVersion: { increment: 1 }, checkedInAt: null, createdAt: new Date() } })
     : await tx.eventRegistration.create({ data: { eventId: event.id, userId, status: "PENDING" } });
   if (event.userId) {
-    await createNotification(tx, notificationCopy({
+    // One unread notice per event: asking, withdrawing and asking again never floods the organizer.
+    await createNotificationOnce(tx, { ...notificationCopy({
       userId: event.userId, type: "SYSTEM" as const, href: `/myEvents/${encodeURIComponent(event.id)}/checkin`, groupKey: `registration-request:${event.id}`,
-      title: "Novo pedido de participação", message: `${event.nome}: alguém pediu para participar. Aprove ou recuse na lista de inscritos.`,
-    }));
+      title: "Novo pedido de participação", message: `${event.nome}: há pedidos para participar. Aprove ou recuse na lista de inscritos.`,
+    }), groupKey: `registration-request:${event.id}` }, "unread");
   }
   return { id: registration.id, status: registration.status };
 }
@@ -196,7 +198,7 @@ export type RegistrationDecision = "APPROVE" | "REJECT";
 
 /** Approve: free event -> confirmed (or waiting list when full); paid event -> approved to buy. Reject: final. */
 export async function reviewRegistration(eventId: string, actor: StaffActor, registrationId: string, decision: RegistrationDecision) {
-  return serializable(async (tx) => {
+  return withEventLock(eventId, async (tx) => {
     const event = await eventForRegistration(tx, eventId);
     await assertManager(tx, event, actor);
     const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, userId: true, status: true } });
@@ -237,7 +239,8 @@ function signature(payload: string, secret = signingSecret()): string {
   return createHmac("sha256", secret).update(`eventmap-checkin-v1:${payload}`).digest("base64url");
 }
 
-type CheckInClaims = { registrationId: string; eventId: string; qrVersion: number; expiresAt: number };
+type CheckInClaims = { registrationId: string; eventId: string; qrVersion: number; expiresAt: number; passId?: undefined };
+type PassClaims = { passId: string; eventId: string; expiresAt: number };
 
 export async function issueCheckInToken(eventId: string, userId: string) {
   const event = await prisma.events.findUnique({ where: { id: eventId }, select: { status: true } });
@@ -249,7 +252,18 @@ export async function issueCheckInToken(eventId: string, userId: string) {
   return { token: `${payload}.${signature(payload)}`, expiresAt: claims.expiresAt };
 }
 
-function verifyCheckInToken(token: string): CheckInClaims {
+/** QR Code of an extra ticket (2..N) of the buyer's own paid order. */
+export async function issueTicketPassToken(eventId: string, userId: string, passId: string) {
+  const pass = await prisma.ticketPass.findUnique({ where: { id: passId }, select: { id: true, eventId: true, status: true, order: { select: { buyerId: true, status: true } } } });
+  if (!pass || pass.eventId !== eventId || pass.order.buyerId !== userId) throw new AttendanceError("Ingresso não encontrado.", 404);
+  if (pass.status === "USED") throw new AttendanceError("Este ingresso já foi utilizado na entrada.", 409);
+  if (pass.status !== "VALID" || pass.order.status !== "PAID") throw new AttendanceError("Este ingresso não está mais válido.", 409);
+  const claims: PassClaims = { passId: pass.id, eventId, expiresAt: Date.now() + tokenLifetimeMs };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  return { token: `${payload}.${signature(payload)}`, expiresAt: claims.expiresAt };
+}
+
+function verifyCheckInToken(token: string): CheckInClaims | PassClaims {
   if (token.length > 1000) throw new AttendanceError("QR Code inválido.", 400);
   const [payload, signed, extra] = token.split(".");
   if (!payload || !signed || extra) throw new AttendanceError("QR Code inválido.", 400);
@@ -265,6 +279,10 @@ function verifyCheckInToken(token: string): CheckInClaims {
     const claims: unknown = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!claims || typeof claims !== "object") throw new Error("invalid");
     const value = claims as Record<string, unknown>;
+    if (typeof value.passId === "string") {
+      if (typeof value.eventId !== "string" || typeof value.expiresAt !== "number" || !Number.isSafeInteger(value.expiresAt) || value.expiresAt <= Date.now()) throw new Error("invalid");
+      return { passId: value.passId, eventId: value.eventId, expiresAt: value.expiresAt };
+    }
     if (typeof value.registrationId !== "string" || typeof value.eventId !== "string" || typeof value.qrVersion !== "number" || typeof value.expiresAt !== "number" || !Number.isSafeInteger(value.qrVersion) || !Number.isSafeInteger(value.expiresAt) || value.expiresAt <= Date.now()) throw new Error("invalid");
     return { registrationId: value.registrationId, eventId: value.eventId, qrVersion: value.qrVersion, expiresAt: value.expiresAt };
   } catch {
@@ -338,8 +356,13 @@ export function attendanceCounts(entries: Array<{ status: RegistrationStatus | s
 export async function getCheckInOverview(eventId: string, actor: StaffActor) {
   const event = await rosterEvent(eventId);
   const access = await checkInAccess(prisma, event, actor);
-  const attendees = rosterFor(access, await readRoster(eventId));
-  return { event: { id: event.id, nome: event.nome, status: event.status, capacity: event.capacity }, access, counts: attendanceCounts(attendees), attendees };
+  const [roster, extraTotal, extraUsed] = await Promise.all([
+    readRoster(eventId),
+    prisma.ticketPass.count({ where: { eventId, status: { in: ["VALID", "USED"] } } }),
+    prisma.ticketPass.count({ where: { eventId, status: "USED" } }),
+  ]);
+  const attendees = rosterFor(access, roster);
+  return { event: { id: event.id, nome: event.nome, status: event.status, capacity: event.capacity }, access, counts: attendanceCounts(attendees), extraTickets: { total: extraTotal, checkedIn: extraUsed }, attendees };
 }
 
 /** Owner/admin only: team members operate the door but do not receive personal data exports. */
@@ -357,6 +380,7 @@ export async function checkInAttendee(eventId: string, actor: StaffActor, token:
     if (event.status !== "PUBLISHED" && event.status !== "ENDED") throw new AttendanceError("Check-in indisponível para este evento.", 409);
     const claims = verifyCheckInToken(token);
     if (claims.eventId !== eventId) throw new AttendanceError("QR Code pertence a outro evento.", 400);
+    if (claims.passId !== undefined) return checkInPass(tx, eventId, claims.passId);
     const registration = await tx.eventRegistration.findUnique({ where: { id: claims.registrationId }, select: { id: true, eventId: true, status: true, qrVersion: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     if (!registration || registration.eventId !== eventId || registration.qrVersion !== claims.qrVersion) throw new AttendanceError("QR Code inválido.", 400);
     // Idempotent (network retries never fail), but flagged so the door never shows a reused QR as a new entry.
@@ -365,6 +389,18 @@ export async function checkInAttendee(eventId: string, actor: StaffActor, token:
     const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CHECKED_IN", checkedInAt: new Date() }, select: { id: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     return { ...changed, alreadyCheckedIn: false as const };
   });
+}
+
+/** Extra ticket of a paid order: valid once, even when the same person shows several QR Codes. */
+async function checkInPass(tx: Prisma.TransactionClient, eventId: string, passId: string) {
+  const pass = await tx.ticketPass.findUnique({ where: { id: passId }, select: { id: true, eventId: true, position: true, status: true, checkedInAt: true, order: { select: { status: true, quantity: true, buyer: { select: { id: true, name: true } } } } } });
+  if (!pass || pass.eventId !== eventId) throw new AttendanceError("QR Code inválido.", 400);
+  const base = { id: pass.id, status: "CHECKED_IN" as const, user: pass.order.buyer, ticketLabel: `Ingresso ${pass.position} de ${pass.order.quantity}` };
+  if (pass.status === "USED") return { ...base, checkedInAt: pass.checkedInAt, alreadyCheckedIn: true as const };
+  if (pass.status !== "VALID" || pass.order.status !== "PAID") throw new AttendanceError("Este ingresso não está mais válido.", 409);
+  const checkedInAt = new Date();
+  await tx.ticketPass.update({ where: { id: pass.id }, data: { status: "USED", checkedInAt } });
+  return { ...base, checkedInAt, alreadyCheckedIn: false as const };
 }
 
 /** Door check-in for attendees without a phone: same rules as the QR flow, audited in EventHistory. */

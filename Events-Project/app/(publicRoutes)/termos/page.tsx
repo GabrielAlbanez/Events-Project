@@ -6,7 +6,7 @@ import { privacyConfig } from "@/lib/privacy";
 export const metadata: Metadata = { title: "Termos de Uso", description: "Regras de uso do EventMap para quem descobre eventos e para quem os organiza: conteúdo, moderação, responsabilidades e privacidade." };
 
 /** Version label shown to users. Update it whenever the text changes in a relevant way. */
-const termsVersion = { label: "Versão 0.2 — para validação jurídica", updatedAt: "20 de novembro de 2026" } as const;
+const termsVersion = { label: "Versão 0.2 — para validação jurídica", updatedAt: "23 de novembro de 2026" } as const;
 
 const linkClass = "rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const sections = [
@@ -91,7 +91,7 @@ export default function TermsPage() {
       <Section id="ingressos" title={sections[5].title}>
         <p>Quando o organizador ativa a venda pelo EventMap, a compra é feita por Pix gerado no site e processado pelo Mercado Pago. O EventMap atua como intermediador: o valor é pago diretamente na conta do Mercado Pago do organizador, que é o vendedor do ingresso e o responsável pelo evento.</p>
         <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-          <li><strong className="text-foreground">Taxa da plataforma:</strong> o EventMap retém 20% do valor de cada ingresso vendido, descontados do valor do organizador. Quem compra paga o preço anunciado, sem acréscimo. O Mercado Pago pode cobrar do organizador a própria tarifa sobre o Pix.</li>
+          <li><strong className="text-foreground">Taxa da plataforma:</strong> o EventMap retém 10% do valor de cada ingresso vendido, descontados do valor do organizador. Quem compra paga o preço anunciado, sem acréscimo. O Mercado Pago pode cobrar do organizador a própria tarifa sobre o Pix.</li>
           <li><strong className="text-foreground">Confirmação:</strong> o ingresso é confirmado depois que o Mercado Pago aprova o pagamento e vira a inscrição com QR Code usada no check-in. O Pix vale por 30 minutos; depois disso, o pedido expira e a vaga é liberada.</li>
           <li><strong className="text-foreground">Um ingresso por pessoa:</strong> nesta fase, cada conta compra um ingresso por evento, pessoal e intransferível.</li>
           <li><strong className="text-foreground">Cancelamento e reembolso:</strong> o reembolso é feito pelo organizador, pelo painel de pagamentos, com estorno integral pelo Mercado Pago (incluindo a taxa da plataforma). Em compras pela internet, quem compra pode desistir em até 7 dias a partir da compra (direito de arrependimento, art. 49 do Código de Defesa do Consumidor); peça o estorno ao organizador por esse prazo. Se o evento for cancelado, o organizador deve estornar os ingressos antes do cancelamento.</li>

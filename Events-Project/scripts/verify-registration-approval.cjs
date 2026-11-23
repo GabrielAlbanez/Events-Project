@@ -12,7 +12,7 @@ const cache = new Map();
 class PrismaKnownError extends Error { constructor(code) { super("prisma " + code); this.code = code; } }
 const stubs = {
   "@prisma/client": { Prisma: { PrismaClientKnownRequestError: PrismaKnownError, TransactionIsolationLevel: { Serializable: "Serializable" } } },
-  "@/lib/notifications/create": { createNotification: async (store, input) => store.notification.create({ data: input }) },
+  "@/lib/notifications/create": { createNotification: async (store, input) => store.notification.create({ data: input }), createNotificationOnce: async (store, input, scope = "ever") => (store.notification.rows.find((row) => row.userId === input.userId && row.groupKey === input.groupKey && (scope === "ever" || !row.readAt)) ?? store.notification.create({ data: input })) },
   "@/lib/notifications/catalog": { notificationCopy: (input) => input },
   "@/lib/ticketSecurity": { ticketPaymentsConfigured: () => true },
 };
@@ -85,6 +85,7 @@ function freshDb() {
     communityTeamMember: table("team", [{ eventId: "ev-approval", userId: "team" }]),
   };
   store.eventRegistration = table("reg", [], { user: (row) => users.find((user) => user.id === row.userId) ?? null });
+  store.$queryRaw = async () => [];
   store.$transaction = async (fn) => fn(store);
   return store;
 }
@@ -143,6 +144,7 @@ function freshDb() {
   assert.equal((await attendance.cancelRegistration("ev-approval", "caio")).status, "CANCELLED");
   assert.equal(reg("ev-approval", "caio").status, "CANCELLED");
   assert.equal((await attendance.registerForEvent("ev-approval", "caio")).status, "PENDING", "can ask again after withdrawing");
+  assert.equal(db.notification.rows.filter((row) => row.userId === "promoter" && row.groupKey === "registration-request:ev-approval").length, 1, "asking again never floods the organizer while a notice is unread");
 
   // Paid promoter event: request first, approval unlocks the purchase (APPROVED), payment confirms later.
   const paid = await attendance.registerForEvent("ev-paid", "ana");

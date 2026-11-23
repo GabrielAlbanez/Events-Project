@@ -48,13 +48,15 @@ const ENV = {
 };
 
 function checkPure(lib) {
-  assert.equal(lib.TICKET_FEE_PERCENT, 20);
-  assert.equal(lib.ticketFeeCents(5000), 1000);
-  assert.equal(lib.ticketFeeCents(1234), 247, "246.8 rounds to 247");
-  assert.equal(lib.ticketFeeCents(1232), 246, "246.4 rounds to 246");
-  assert.equal(lib.ticketFeeCents(502), 100, "100.4 rounds to 100");
-  assert.equal(lib.ticketFeeCents(503), 101, "100.6 rounds to 101");
-  assert.equal(lib.ticketNetCents(1234), 987);
+  assert.equal(lib.TICKET_FEE_PERCENT, 10);
+  assert.equal(lib.ticketFeeCents(10000), 1000, "R$ 100 -> R$ 10 for EventMap");
+  assert.equal(lib.ticketNetCents(10000), 9000, "R$ 100 -> R$ 90 for the organizer");
+  assert.equal(lib.ticketFeeCents(5000), 500);
+  assert.equal(lib.ticketFeeCents(1237), 124, "123.7 rounds to 124");
+  assert.equal(lib.ticketFeeCents(1234), 123, "123.4 rounds to 123");
+  assert.equal(lib.ticketFeeCents(504), 50, "50.4 rounds to 50");
+  assert.equal(lib.ticketFeeCents(506), 51, "50.6 rounds to 51");
+  assert.equal(lib.ticketNetCents(1234), 1111);
   assert.ok(Number.isInteger(lib.ticketFeeCents(999)), "integer cents");
   assert.equal(lib.isValidTicketPrice(500), true, "R$ 5,00 is the minimum");
   assert.equal(lib.isValidTicketPrice(499), false);
@@ -343,10 +345,22 @@ function table(name, rows, defaults = () => ({}), relations = {}) {
     updateMany: async (q) => { const hit = rows.filter((row) => matches(row, q.where)); for (const row of hit) applyData(row, q.data); return { count: hit.length }; },
     upsert: async (q) => { const row = rows.find((item) => matches(item, q.where)); if (row) { applyData(row, q.update); return hydrate(row); } return api.create({ data: q.create }); },
     deleteMany: async (q) => { const before = rows.length; for (let i = rows.length - 1; i >= 0; i--) if (matches(rows[i], q.where)) rows.splice(i, 1); return { count: before - rows.length }; },
+    groupBy: async (q) => {
+      const groups = new Map();
+      for (const row of rows.filter((item) => matches(item, q.where))) {
+        const values = Object.fromEntries(q.by.map((field) => [field, row[field] ?? (field === "quantity" ? 1 : null)]));
+        const key = JSON.stringify(values);
+        const group = groups.get(key) ?? { ...values, _count: { _all: 0 }, _sum: Object.fromEntries(Object.keys(q._sum || {}).map((field) => [field, 0])) };
+        group._count._all++;
+        for (const field of Object.keys(q._sum || {})) group._sum[field] += row[field] ?? 0;
+        groups.set(key, group);
+      }
+      return Array.from(groups.values());
+    },
     aggregate: async (q) => {
       const list = rows.filter((row) => matches(row, q.where));
       const sum = {};
-      for (const field of Object.keys(q._sum || {})) sum[field] = list.length ? list.reduce((total, row) => total + row[field], 0) : null;
+      for (const field of Object.keys(q._sum || {})) sum[field] = list.length ? list.reduce((total, row) => total + (row[field] ?? (field === "quantity" ? 1 : 0)), 0) : null;
       return { _sum: sum, _count: { _all: list.length } };
     },
   };
@@ -378,15 +392,22 @@ function freshDb() {
     eventHistory: table("history", []), aiEventCandidate: table("candidate", []),
     eventRegistration: table("registration", [], () => ({ status: "CONFIRMED", qrVersion: 0, checkedInAt: null })),
     mercadoPagoAccount: table("mpaccount", [], () => ({ connectedAt: current })),
+    communityTeamMember: table("team", []),
     ticketCoupon: table("coupon", [], () => ({ percentOff: null, amountOffCents: null, maxUses: null, expiresAt: null, active: true })),
   };
+  store.ticketPass = table("pass", [], () => ({ status: "VALID", checkedInAt: null }), {
+    order: (row) => { const order = store.ticketOrder.rows.find((item) => item.id === row.orderId); return order ? { ...order, quantity: order.quantity ?? 1, buyer: users.find((user) => user.id === order.buyerId) ?? null } : null; },
+  });
   store.ticketOrder = table("order", [], () => ({ status: "PENDING", mpPaymentId: null, pixCopyPaste: null, pixQrBase64: null, paidAt: null, refundedAt: null }), {
+    quantity: (row) => row.quantity ?? 1,
+    passes: (row) => store.ticketPass.rows.filter((pass) => pass.orderId === row.id).sort((a, b) => a.position - b.position).map(({ id, position, status }) => ({ id, position, status })),
     event: (row) => events.find((event) => event.id === row.eventId) ?? null,
     buyer: (row) => users.find((user) => user.id === row.buyerId) ?? null,
     seller: (row) => users.find((user) => user.id === row.sellerId) ?? null,
   });
   // Serializes transactions like Postgres SERIALIZABLE would for these conflicting rows.
   let queue = Promise.resolve();
+  store.$queryRaw = async () => [];
   store.$transaction = (fn) => { const run = queue.then(() => fn(store)); queue = run.catch(() => undefined); return run; };
   return store;
 }
@@ -469,13 +490,13 @@ async function checkService() {
   const created = await service.createTicketOrder({ eventId: "event-1" }, as("buyer"), deps);
   assert.equal(created.success, true, created.message);
   const order = db.ticketOrder.rows[0];
-  assert.deepEqual([order.unitCents, order.feeCents, order.sellerId, order.buyerId, order.status], [2500, 500, "seller", "buyer", "PENDING"]);
+  assert.deepEqual([order.unitCents, order.feeCents, order.sellerId, order.buyerId, order.status], [2500, 250, "seller", "buyer", "PENDING"]);
   assert.equal(order.expiresAt.getTime(), NOW.getTime() + 30 * MIN, "30 minute Pix");
   const payCall = mp.calls.filter((call) => call.url.endsWith("/v1/payments") && call.method === "POST");
   assert.equal(payCall.length, 1);
   assert.equal(payCall[0].headers["x-idempotency-key"], order.id);
   assert.equal(payCall[0].headers.authorization, `Bearer ${sec.decryptTicketToken(account.accessTokenEnc, ENV)}`, "payment created with the seller token");
-  assert.deepEqual([payCall[0].body.transaction_amount, payCall[0].body.application_fee, payCall[0].body.external_reference, payCall[0].body.payer.email], [25, 5, order.id, "buyer@example.test"]);
+  assert.deepEqual([payCall[0].body.transaction_amount, payCall[0].body.application_fee, payCall[0].body.external_reference, payCall[0].body.payer.email], [25, 2.5, order.id, "buyer@example.test"]);
   assert.equal(payCall[0].body.notification_url, "https://eventmap.test/api/webhooks/mercadopago");
   assert.deepEqual([created.data.pixCopyPaste, created.data.pixQrBase64, created.data.status], ["00020126pix-9001", "iVBORw0KGgo9001", "PENDING"]);
   assert.equal(order.mpPaymentId, "9001");
@@ -547,7 +568,7 @@ async function checkService() {
   const openOrder = await service.createTicketOrder({ eventId: "event-open" }, as("buyer"), deps);
   assert.equal(openOrder.success, true);
   const openRow = db.ticketOrder.rows.find((row) => row.id === openOrder.data.id);
-  assert.equal(openRow.feeCents, 247, "fee rounding at order time");
+  assert.equal(openRow.feeCents, 123, "fee rounding at order time");
   current = new Date(NOW.getTime() + 31 * MIN);
   const expired = await service.getTicketOrderStatus({ orderId: openRow.id }, as("buyer"), deps);
   assert.equal(expired.data.status, "EXPIRED");
@@ -585,7 +606,7 @@ async function checkService() {
   // Seller summary: per-event count, gross, fee and net.
   const summary = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
   const show = summary.data.events.find((item) => item.eventId === "event-1");
-  assert.deepEqual([show.sold, show.grossCents, show.feeCents, show.netCents], [2, 5000, 1000, 4000]);
+  assert.deepEqual([show.sold, show.grossCents, show.feeCents, show.netCents], [2, 5000, 500, 4500]);
   assert.equal(JSON.stringify(summary).includes("@example.test"), false, "buyer e-mails are not exposed in the sales summary");
   assert.equal((await service.getPaymentsOverview(as("buyer"), deps)).data.events.length, 0, "only own sales");
 
@@ -618,7 +639,7 @@ async function checkService() {
   // Admin fee totals.
   assert.equal((await service.getAdminTicketOverview(notAdmin, deps)).success, false);
   const adminOverview = await service.getAdminTicketOverview(admin, deps);
-  assert.deepEqual([adminOverview.data.paid.count, adminOverview.data.paid.grossCents, adminOverview.data.paid.feeCents], [1, 1234, 247]);
+  assert.deepEqual([adminOverview.data.paid.count, adminOverview.data.paid.grossCents, adminOverview.data.paid.feeCents], [1, 1234, 123]);
   assert.deepEqual([adminOverview.data.refunded.count, adminOverview.data.refunded.grossCents], [2, 5000]);
 
   // Buyer tickets list.
@@ -729,7 +750,7 @@ async function checkHardening() {
   await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps);
   assert.equal(usd.status, "PENDING", "marketplace fee different from the order fee never confirms");
   mp.payments.get(usd.mpPaymentId).id = 424242;
-  mp.payments.get(usd.mpPaymentId).application_fee = 2.47;
+  mp.payments.get(usd.mpPaymentId).application_fee = 1.23;
   await service.handleMercadoPagoWebhook(signedWebhook(usd.mpPaymentId), deps);
   assert.equal(usd.status, "PENDING", "payment id different from the stored one never confirms");
   mp.payments.get(usd.mpPaymentId).id = Number(usd.mpPaymentId);
@@ -997,7 +1018,7 @@ function checkWiring() {
   assert.match(purchase, /4000/, "status polling every ~4s");
   assert.match(purchase, /clearInterval|clearTimeout/, "polling is cleaned up");
   const terms = fs.readFileSync("app/(publicRoutes)/termos/page.tsx", "utf8");
-  assert.match(terms, /20%/);
+  assert.match(terms, /10%/);
   assert.match(terms, /art\. 49/);
   const publicActions = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
   assert.match(publicActions, /ticketSale && registrationOpen && <TicketPurchase/, "event page shows the checkout when EventMap sells tickets");
@@ -1044,7 +1065,7 @@ function checkWiring() {
   assert.match(myTickets, /\/promotores\//, "links the organizer profile");
   const organizers = fs.readFileSync("app/(publicRoutes)/para-organizadores/page.tsx", "utf8");
   assert.doesNotMatch(organizers, /não vende ingressos|não processa pagamentos/, "organizer page reflects ticket sales");
-  assert.match(organizers, /20%/);
+  assert.match(organizers, /10%/);
   assert.match(fs.readFileSync("app/(publicRoutes)/privacidade/page.tsx", "utf8"), /Mercado Pago, que recebe seu nome, e-mail/);
   assert.ok(fs.existsSync("docs/superpowers/specs/2026-11-21-ingressos-rollback.md"), "rollback notes");
   const envExample = fs.readFileSync(".env.example", "utf8");
@@ -1104,9 +1125,9 @@ async function checkCoupons() {
   const bought = await service.createTicketOrder({ eventId: "event-1", couponCode: "amigo10" }, as("buyer"), deps);
   assert.equal(bought.success, true, bought.message);
   const order = db.ticketOrder.rows.find((row) => row.id === bought.data.id);
-  assert.deepEqual([order.unitCents, order.feeCents, order.discountCents, order.couponId], [2250, 450, 250, created.data.id]);
+  assert.deepEqual([order.unitCents, order.feeCents, order.discountCents, order.couponId], [2250, 225, 250, created.data.id]);
   const pixCall = mp.calls.filter((call) => call.url.endsWith("/v1/payments") && call.method === "POST").at(-1);
-  assert.deepEqual([pixCall.body.transaction_amount, pixCall.body.application_fee], [22.5, 4.5]);
+  assert.deepEqual([pixCall.body.transaction_amount, pixCall.body.application_fee], [22.5, 2.25]);
   // Usage limit counts paid and still-open orders.
   const limited = await service.createTicketOrder({ eventId: "event-1", couponCode: "AMIGO10" }, as("buyer2"), deps);
   assert.equal(limited.success, false);
@@ -1128,7 +1149,7 @@ async function checkCoupons() {
   const full = await service.createTicketOrder({ eventId: "event-1" }, as("buyer2"), deps);
   assert.equal(full.success, true, full.message);
   const fullRow = db.ticketOrder.rows.find((row) => row.id === full.data.id);
-  assert.deepEqual([fullRow.unitCents, fullRow.feeCents, fullRow.discountCents ?? 0, fullRow.couponId ?? null], [2500, 500, 0, null]);
+  assert.deepEqual([fullRow.unitCents, fullRow.feeCents, fullRow.discountCents ?? 0, fullRow.couponId ?? null], [2500, 250, 0, null]);
   assert.equal((await service.createTicketOrder({ eventId: "event-1", unitCents: 1 }, as("google"), deps)).success, false, "unknown fields rejected");
 
   // Owner listing with uses.
@@ -1218,16 +1239,16 @@ async function checkFullJourney() {
     assert.equal((await attendance.reviewRegistration("event-1", promoter, request.id, "APPROVE")).status, "APPROVED");
     assert.equal((await service.getTicketPurchaseState("event-1", as("buyer"), deps)).data.state, "available");
 
-    // 4. Coupon preview and Pix order: R$ 50,00 - 20% = R$ 40,00; EventMap fee 20% = R$ 8,00 via application_fee.
+    // 4. Coupon preview and Pix order: R$ 50,00 - 20% = R$ 40,00; EventMap fee 10% = R$ 4,00 via application_fee.
     const preview = await service.previewTicketCoupon({ eventId: "event-1", code: "AMIGOS20" }, as("buyer"), deps);
     assert.equal(preview.success, true, preview.message);
     const order = await service.createTicketOrder({ eventId: "event-1", couponCode: "amigos20" }, as("buyer"), deps);
     assert.equal(order.success, true, order.message);
     const row = db.ticketOrder.rows.find((item) => item.id === order.data.id);
-    assert.deepEqual([row.unitCents, row.discountCents, row.feeCents, row.status], [4000, 1000, 800, "PENDING"]);
+    assert.deepEqual([row.unitCents, row.discountCents, row.feeCents, row.status], [4000, 1000, 400, "PENDING"]);
     const pixCall = mp.calls.find((call) => call.url.endsWith("/v1/payments") && call.method === "POST");
     assert.equal(pixCall.body.transaction_amount, 40);
-    assert.equal(pixCall.body.application_fee, 8, "EventMap's 20% goes to the platform account");
+    assert.equal(pixCall.body.application_fee, 4, "EventMap's 10% goes to the platform account");
     assert.equal(pixCall.body.payment_method_id, "pix");
     assert.match(pixCall.headers.authorization, /^Bearer APP_USR-access-/, "charged with the promoter's own token");
     assert.ok(row.pixCopyPaste && row.pixQrBase64, "buyer receives Pix copy-and-paste and QR");
@@ -1271,6 +1292,71 @@ async function checkFullJourney() {
   }
 }
 
+// Several tickets in one Pix: fee on the total, seats held, one unique QR per ticket, refund cancels them all.
+async function checkMultiTicketOrder() {
+  const lib = load("lib/tickets.ts");
+  assert.deepEqual(lib.ticketOrderTotals(10000, 3), { grossCents: 30000, feeCents: 3000, netCents: 27000 });
+  const service = load("lib/services/tickets.ts");
+  const attendance = load("lib/services/attendance.ts");
+  const as = (id, role = "BASIC") => async () => ({ id, role });
+  const promoter = { id: "seller", role: "PROMOTER" };
+  const mp = mockMercadoPago();
+  const deps = { fetch: mp.fetch, now: clock, env: ENV, statusCheckIntervalMs: 0, reconcileIntervalMs: 0 };
+  const savedEnv = { ...process.env };
+  Object.assign(process.env, ENV);
+  try {
+    db = freshDb();
+    current = NOW;
+    const event = db.events.rows.find((row) => row.id === "event-1");
+    Object.assign(event, { priceCents: 10000, ticketCapacity: 4, requiresApproval: false, aiImport: null, capacity: null });
+    const start = await service.startMercadoPagoConnect(as("seller", "PROMOTER"), deps);
+    await service.completeMercadoPagoConnect({ code: "good-code", state: new URL(start.data.url).searchParams.get("state") }, as("seller", "PROMOTER"), deps);
+    assert.equal((await service.createTicketOrder({ eventId: "event-1", quantity: 7 }, as("buyer"), deps)).success, false, "over the per-order limit");
+    assert.equal((await service.createTicketOrder({ eventId: "event-1", quantity: 0 }, as("buyer"), deps)).success, false);
+    const tooMany = await service.createTicketOrder({ eventId: "event-1", quantity: 5 }, as("buyer"), deps);
+    assert.match(tooMany.message, /Restam só 4/);
+    const created = await service.createTicketOrder({ eventId: "event-1", quantity: 3 }, as("buyer"), deps);
+    assert.equal(created.success, true, created.message);
+    assert.deepEqual([created.data.quantity, created.data.totalCents], [3, 30000]);
+    const row = db.ticketOrder.rows.find((item) => item.id === created.data.id);
+    assert.deepEqual([row.unitCents, row.quantity, row.feeCents], [10000, 3, 3000]);
+    const pix = mp.calls.find((call) => call.url.endsWith("/v1/payments") && call.method === "POST");
+    assert.deepEqual([pix.body.transaction_amount, pix.body.application_fee], [300, 30], "R$ 300 charged, R$ 30 for EventMap, R$ 270 for the organizer");
+    const other = await service.getTicketPurchaseState("event-1", as("buyer2"), deps);
+    assert.deepEqual([other.data.seatsLeft, other.data.maxQuantity], [1, 1], "the open Pix holds all 3 seats");
+    assert.equal(db.ticketPass.rows.length, 0, "no ticket before the payment is confirmed");
+    mp.payments.get(row.mpPaymentId).status = "approved";
+    assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(row.mpPaymentId), deps), 200);
+    assert.equal(await service.handleMercadoPagoWebhook(signedWebhook(row.mpPaymentId, "req-repeat"), deps), 200);
+    assert.deepEqual(db.ticketPass.rows.map((pass) => pass.position), [2, 3], "tickets 2 and 3 issued once");
+    assert.equal(db.notification.rows.filter((item) => item.groupKey === `ticket-paid:${row.id}`).length, 1, "repeated webhook notifies once");
+    const mine = await service.listMyTickets(as("buyer"), deps);
+    assert.deepEqual(mine.data[0].passes.map((pass) => pass.position), [2, 3]);
+    const pass = db.ticketPass.rows[0];
+    await assert.rejects(attendance.issueTicketPassToken("event-1", "buyer2", pass.id), (error) => error.status === 404, "only the buyer gets the QR");
+    const qr = await attendance.issueTicketPassToken("event-1", "buyer", pass.id);
+    await assert.rejects(attendance.checkInAttendee("event-1", { id: "buyer2", role: "BASIC" }, qr.token), (error) => error.status === 403);
+    const entered = await attendance.checkInAttendee("event-1", promoter, qr.token);
+    assert.deepEqual([entered.status, entered.alreadyCheckedIn, entered.ticketLabel], ["CHECKED_IN", false, "Ingresso 2 de 3"]);
+    assert.equal((await attendance.checkInAttendee("event-1", promoter, qr.token)).alreadyCheckedIn, true, "same QR flagged on a second scan");
+    assert.equal(db.eventRegistration.rows.find((item) => item.userId === "buyer").status, "CONFIRMED", "ticket 1 is independent");
+    assert.deepEqual((await attendance.getCheckInOverview("event-1", promoter)).extraTickets, { total: 2, checkedIn: 1 });
+    const overview = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+    assert.deepEqual([overview.data.totals.sold, overview.data.totals.grossCents, overview.data.totals.feeCents, overview.data.totals.netCents], [3, 30000, 3000, 27000]);
+    const admin = await service.getAdminTicketOverview(async () => "admin", deps);
+    assert.deepEqual([admin.data.paid.count, admin.data.paid.grossCents, admin.data.paid.feeCents], [3, 30000, 3000]);
+    assert.equal((await service.refundTicketOrder({ orderId: row.id }, as("seller", "PROMOTER"), deps)).success, true);
+    assert.deepEqual(db.ticketPass.rows.map((item) => item.status), ["USED", "CANCELLED"], "refund cancels unused tickets, keeps the check-in record");
+    const after = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+    assert.deepEqual([after.data.totals.sold, after.data.totals.refunded, after.data.totals.refundedCents], [0, 3, 30000]);
+    const unused = await attendance.issueTicketPassToken("event-1", "buyer", db.ticketPass.rows[1].id).catch((error) => error);
+    assert.equal(unused.status, 409, "a refunded ticket has no QR");
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
+    Object.assign(process.env, savedEnv);
+  }
+}
+
 (async () => {
   checkPure(load("lib/tickets.ts"));
   checkCouponRules(load("lib/tickets.ts"));
@@ -1284,6 +1370,7 @@ async function checkFullJourney() {
   await checkCoupons();
   await checkApprovalPurchase();
   await checkFullJourney();
+  await checkMultiTicketOrder();
   checkWiring();
   console.log("PASS tickets: fee, bounds, capacity race, idempotent orders, rate limit, webhook signature and validation, expiry, refunds, OAuth state, token encryption, routes.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

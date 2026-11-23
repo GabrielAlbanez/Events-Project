@@ -40,9 +40,9 @@ function checkHelpers(lib) {
   assert.equal(plain(lib.couponDiscountLabel({ percentOff: 10, amountOffCents: null })), "10% off");
   assert.equal(plain(lib.couponDiscountLabel({ percentOff: null, amountOffCents: 1500 })), "R$ 15,00 off");
 
-  // The example the organizer sees: R$ 50,00 with 10% -> buyer pays 45,00, organizer gets 36,00 (fee on the discounted value).
+  // The example the organizer sees: R$ 50,00 with 10% -> buyer pays 45,00, organizer gets 40,50 (fee on the discounted value).
   const example = lib.couponExample(5000, { percentOff: 10, amountOffCents: null });
-  assert.deepEqual(example, { priceCents: 5000, finalCents: 4500, netCents: 3600 });
+  assert.deepEqual(example, { priceCents: 5000, finalCents: 4500, netCents: 4050 });
   assert.equal(lib.couponExample(5000, { percentOff: null, amountOffCents: 10_000 }).finalCents, 100, "never below R$ 1,00");
 
   // Form parsing mirrors the server rules and returns the server action input.

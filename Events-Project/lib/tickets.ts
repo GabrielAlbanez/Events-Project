@@ -4,7 +4,9 @@ import { eventInstant } from "@/lib/eventTime";
  * Pure rules for ticket sales (Pix + Mercado Pago marketplace split). Safe to import from client components:
  * no crypto, no I/O, no clock. Secrets and signatures live in lib/ticketSecurity.ts (server only).
  */
-export const TICKET_FEE_PERCENT = 20;
+export const TICKET_FEE_PERCENT = 10;
+/** Tickets in one Pix order; each one gets its own QR Code. */
+export const TICKET_MAX_PER_ORDER = 6;
 export const TICKET_MIN_CENTS = 500;
 export const TICKET_MAX_CENTS = 500_000;
 export const TICKET_ORDER_TTL_MS = 30 * 60 * 1000;
@@ -21,7 +23,7 @@ export const ticketStatusLabels: Record<TicketOrderStatusValue, string> = {
   REFUNDED: "Estornado",
 };
 
-/** Platform fee in integer cents (20%, rounded half up). It comes out of the organizer's amount. */
+/** Platform fee in integer cents (TICKET_FEE_PERCENT, rounded half up). It comes out of the organizer's amount. */
 export function ticketFeeCents(unitCents: number): number {
   return Math.round((unitCents * TICKET_FEE_PERCENT) / 100);
 }
@@ -29,6 +31,13 @@ export function ticketFeeCents(unitCents: number): number {
 /** What the organizer receives per ticket before Mercado Pago's own Pix fee. */
 export function ticketNetCents(unitCents: number): number {
   return unitCents - ticketFeeCents(unitCents);
+}
+
+/** Order amounts in integer cents. The fee is computed on the order total, so rounding happens once. */
+export function ticketOrderTotals(unitCents: number, quantity: number): { grossCents: number; feeCents: number; netCents: number } {
+  const grossCents = unitCents * quantity;
+  const feeCents = ticketFeeCents(grossCents);
+  return { grossCents, feeCents, netCents: grossCents - feeCents };
 }
 
 export function isValidTicketPrice(cents: unknown): cents is number {

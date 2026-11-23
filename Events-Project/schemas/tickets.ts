@@ -3,7 +3,7 @@ import { z } from "zod";
 const id = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
 
 /** Only ids are accepted: price, fee and seller always come from the server. */
-export const createTicketOrderSchema = z.object({ eventId: id, couponCode: z.string().trim().max(40).optional() }).strict();
+export const createTicketOrderSchema = z.object({ eventId: id, couponCode: z.string().trim().max(40).optional(), quantity: z.number().int().min(1).max(6).optional() }).strict();
 /** Coupon fields are validated again by the service (code format, percent cap, exactly one discount kind). */
 export const createTicketCouponSchema = z.object({
   eventId: id,

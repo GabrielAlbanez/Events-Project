@@ -1,11 +1,12 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { createNotification } from "@/lib/notifications/create";
+import { withEventLock } from "@/lib/eventLock";
+import { createNotification, createNotificationOnce } from "@/lib/notifications/create";
 import { notificationCopy } from "@/lib/notifications/catalog";
 import type { ResolveAdminId, ResolveCurrentUser } from "@/lib/services/authContext";
 import {
-  TICKET_FEE_PERCENT, TICKET_ORDER_RATE_LIMIT, TICKET_ORDER_RATE_WINDOW_MS, TICKET_ORDER_TTL_MS,
-  discountedTicketCents, isOpenTicketOrder, normalizeCouponCode, shortTicketCode, ticketEligibility, ticketFeeCents, ticketSeatsLeft, ticketSettingsError,
+  TICKET_FEE_PERCENT, TICKET_MAX_PER_ORDER, TICKET_ORDER_RATE_LIMIT, TICKET_ORDER_RATE_WINDOW_MS, TICKET_ORDER_TTL_MS,
+  discountedTicketCents, isOpenTicketOrder, normalizeCouponCode, shortTicketCode, ticketEligibility, ticketOrderTotals, ticketSeatsLeft, ticketSettingsError,
   type TicketBlockCode, type TicketOrderStatusValue,
 } from "@/lib/tickets";
 import { eventInstant } from "@/lib/eventTime";
@@ -30,23 +31,23 @@ const resolveDeps = (deps: TicketDeps = {}): Resolved => ({
 
 export type TicketResult<T = undefined> = { success: true; message: string; data: T } | { success: false; message: string };
 export type TicketOrderView = {
-  id: string; code: string; eventId: string; eventName: string; status: TicketOrderStatusValue; unitCents: number;
+  id: string; code: string; eventId: string; eventName: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; totalCents: number;
   expiresAt: string; paidAt: string | null; pixCopyPaste: string | null; pixQrBase64: string | null;
 };
 export type TicketPurchaseState = {
   state: "available" | "login" | "pending" | "owned" | "sold_out" | "closed" | "own_event" | "unavailable" | "approval";
-  priceCents: number; seatsLeft: number | null; message: string | null; order: TicketOrderView | null;
+  priceCents: number; seatsLeft: number | null; maxQuantity: number; message: string | null; order: TicketOrderView | null;
 };
-export type SellerOrderView = { id: string; code: string; buyerName: string; status: TicketOrderStatusValue; unitCents: number; feeCents: number; paidAt: string | null; refundedAt: string | null };
-export type SellerEventSales = { eventId: string; eventName: string; sold: number; refunded: number; grossCents: number; feeCents: number; netCents: number; orders: SellerOrderView[] };
+export type SellerOrderView = { id: string; code: string; buyerName: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; totalCents: number; feeCents: number; paidAt: string | null; refundedAt: string | null };
+export type SellerEventSales = { eventId: string; eventName: string; sold: number; refunded: number; refundedCents: number; grossCents: number; feeCents: number; netCents: number; orders: SellerOrderView[] };
 export type PaymentsOverview = {
   configured: boolean; feePercent: number;
   account: { mpUserId: string; connectedAt: string; needsReconnect: boolean } | null;
   events: SellerEventSales[];
-  totals: { sold: number; grossCents: number; feeCents: number; netCents: number };
+  totals: { sold: number; refunded: number; refundedCents: number; grossCents: number; feeCents: number; netCents: number };
 };
 export type MyTicketView = {
-  id: string; code: string; status: TicketOrderStatusValue; unitCents: number; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string;
+  id: string; code: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; totalCents: number; passes: { id: string; position: number; status: "VALID" | "USED" | "CANCELLED" }[]; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string;
   /** Refunds are requested from the organizer (seller), linked from /ingressos. */
   organizerId: string; organizerName: string;
 };
@@ -122,7 +123,7 @@ function notificationUrl(env: Env): string | null {
 }
 
 const orderSelect = {
-  id: true, eventId: true, buyerId: true, sellerId: true, unitCents: true, feeCents: true, status: true, mpPaymentId: true,
+  id: true, eventId: true, buyerId: true, sellerId: true, unitCents: true, quantity: true, feeCents: true, status: true, mpPaymentId: true,
   pixCopyPaste: true, pixQrBase64: true, expiresAt: true, paidAt: true, refundedAt: true, createdAt: true,
   event: { select: { nome: true } },
 } satisfies Prisma.TicketOrderSelect;
@@ -131,7 +132,7 @@ type OrderRow = Prisma.TicketOrderGetPayload<{ select: typeof orderSelect }>;
 function toView(row: OrderRow): TicketOrderView {
   const open = row.status === "PENDING";
   return {
-    id: row.id, code: shortTicketCode(row.id), eventId: row.eventId, eventName: row.event.nome, status: row.status, unitCents: row.unitCents,
+    id: row.id, code: shortTicketCode(row.id), eventId: row.eventId, eventName: row.event.nome, status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity,
     expiresAt: new Date(row.expiresAt).toISOString(), paidAt: iso(row.paidAt),
     pixCopyPaste: open ? row.pixCopyPaste : null, pixQrBase64: open ? row.pixQrBase64 : null,
   };
@@ -145,10 +146,10 @@ const saleEventSelect = {
 type Store = Pick<Prisma.TransactionClient, "ticketOrder">;
 async function seatsTaken(db: Store, eventId: string, now: Date): Promise<number> {
   const [paid, pending] = await Promise.all([
-    db.ticketOrder.count({ where: { eventId, status: "PAID" } }),
-    db.ticketOrder.count({ where: { eventId, status: "PENDING", expiresAt: { gt: now } } }),
+    db.ticketOrder.aggregate({ where: { eventId, status: "PAID" }, _sum: { quantity: true } }),
+    db.ticketOrder.aggregate({ where: { eventId, status: "PENDING", expiresAt: { gt: now } }, _sum: { quantity: true } }),
   ]);
-  return paid + pending;
+  return (paid._sum.quantity ?? 0) + (pending._sum.quantity ?? 0);
 }
 
 /** Google verifies the address it hands over, so Google accounts count as verified (their emailVerified stays null). */
@@ -366,7 +367,7 @@ export async function getTicketPurchaseState(eventId: string, resolveViewer: Res
   try {
     const event = await prisma.events.findUnique({ where: { id: eventId }, select: saleEventSelect });
     if (!event) return { success: false, message: "Evento não encontrado." };
-    const base = { priceCents: event.priceCents, seatsLeft: null, order: null };
+    const base = { priceCents: event.priceCents, seatsLeft: null, maxQuantity: TICKET_MAX_PER_ORDER, order: null };
     if (!ticketPaymentsConfigured(d.env)) return { success: true, message: "", data: { ...base, state: "unavailable", message: "Pagamentos ainda não configurados." } };
     const viewer = await resolveViewer();
     const now = d.now();
@@ -374,19 +375,20 @@ export async function getTicketPurchaseState(eventId: string, resolveViewer: Res
     const blocked = ticketEligibility({ event, buyerId: viewer?.id ?? null, sellerConnected: await sellerConnected(prisma, event.userId), buyerEmailVerified: buyer?.verified ?? false, now });
     const taken = await seatsTaken(prisma, event.id, now);
     const seatsLeft = ticketSeatsLeft(event.ticketCapacity, taken);
+    const maxQuantity = seatsLeft === null ? TICKET_MAX_PER_ORDER : Math.min(TICKET_MAX_PER_ORDER, seatsLeft);
     if (viewer) {
       const own = await prisma.ticketOrder.findFirst({ where: { eventId: event.id, buyerId: viewer.id, status: { in: ["PAID", "PENDING"] } }, orderBy: { createdAt: "desc" }, select: orderSelect });
-      if (own?.status === "PAID") return { success: true, message: "", data: { ...base, seatsLeft, state: "owned", message: null, order: toView(own) } };
-      if (own && isOpenTicketOrder(own, now)) return { success: true, message: "", data: { ...base, seatsLeft, state: "pending", message: null, order: toView(own) } };
+      if (own?.status === "PAID") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "owned", message: null, order: toView(own) } };
+      if (own && isOpenTicketOrder(own, now)) return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "pending", message: null, order: toView(own) } };
     }
-    if (blocked && blocked.code !== "email_unverified") return { success: true, message: "", data: { ...base, seatsLeft, state: stateFor[blocked.code] ?? "unavailable", message: blocked.message } };
+    if (blocked && blocked.code !== "email_unverified") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: stateFor[blocked.code] ?? "unavailable", message: blocked.message } };
     if (viewer && event.requiresApproval && !event.aiImport) {
       const approval = await prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: viewer.id } }, select: { status: true } });
-      if (approval?.status !== "APPROVED") return { success: true, message: "", data: { ...base, seatsLeft, state: "approval", message: approvalMessage(approval?.status) } };
+      if (approval?.status !== "APPROVED") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "approval", message: approvalMessage(approval?.status) } };
     }
-    if (seatsLeft === 0) return { success: true, message: "", data: { ...base, seatsLeft, state: "sold_out", message: "Ingressos esgotados." } };
+    if (seatsLeft === 0) return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "sold_out", message: "Ingressos esgotados." } };
     // Unverified e-mail: the button stays visible and the purchase explains what to do.
-    return { success: true, message: "", data: { ...base, seatsLeft, state: viewer ? "available" : "login", message: blocked?.message ?? null } };
+    return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: viewer ? "available" : "login", message: blocked?.message ?? null } };
   } catch {
     console.warn("ticket-state-failed");
     return genericError;
@@ -415,7 +417,7 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
   if (!config) return { success: false, message: notConfigured };
   let outcome: CreateOutcome;
   try {
-    outcome = await serializable(async (tx): Promise<CreateOutcome> => {
+    outcome = await withEventLock(parsed.data.eventId, async (tx): Promise<CreateOutcome> => {
       const now = d.now();
       const event = await tx.events.findUnique({ where: { id: parsed.data.eventId }, select: saleEventSelect });
       if (!event) return { kind: "blocked", message: "Evento não encontrado." };
@@ -433,7 +435,12 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       }
       const recent = await tx.ticketOrder.count({ where: { buyerId: user.id, createdAt: { gte: new Date(now.getTime() - TICKET_ORDER_RATE_WINDOW_MS) } } });
       if (recent >= TICKET_ORDER_RATE_LIMIT) return { kind: "blocked", message: "Muitas tentativas de compra em pouco tempo. Aguarde alguns minutos e tente novamente." };
-      if (event.ticketCapacity != null && await seatsTaken(tx, event.id, now) >= event.ticketCapacity) return { kind: "blocked", message: "Ingressos esgotados." };
+      const quantity = parsed.data.quantity ?? 1;
+      if (event.ticketCapacity != null) {
+        const left = event.ticketCapacity - await seatsTaken(tx, event.id, now);
+        if (left <= 0) return { kind: "blocked", message: "Ingressos esgotados." };
+        if (quantity > left) return { kind: "blocked", message: left === 1 ? "Resta só 1 ingresso." : `Restam só ${left} ingressos.` };
+      }
       let unitCents = event.priceCents;
       let coupon: { id: string; discountCents: number } | null = null;
       if (parsed.data.couponCode) {
@@ -444,7 +451,7 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       }
       const order = await tx.ticketOrder.create({
         data: {
-          eventId: event.id, buyerId: user.id, sellerId: event.userId!, unitCents, feeCents: ticketFeeCents(unitCents),
+          eventId: event.id, buyerId: user.id, sellerId: event.userId!, unitCents, quantity, feeCents: ticketOrderTotals(unitCents, quantity).feeCents,
           expiresAt: new Date(now.getTime() + TICKET_ORDER_TTL_MS),
           ...(coupon ? { couponId: coupon.id, discountCents: coupon.discountCents } : {}),
         },
@@ -473,7 +480,7 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
   try {
     token = await sellerAccessToken(order.sellerId, config, d);
     pix = await createMercadoPagoPixPayment(config.apiBase, token, {
-      orderId: order.id, amountCents: order.unitCents, feeCents: order.feeCents, description: `Ingresso: ${outcome.eventName}`,
+      orderId: order.id, amountCents: order.unitCents * order.quantity, feeCents: order.feeCents, description: `${order.quantity > 1 ? `${order.quantity} ingressos` : "Ingresso"}: ${outcome.eventName}`,
       payerEmail: outcome.payerEmail, notificationUrl: notificationUrl(d.env), expiresAt: order.expiresAt,
     }, d.fetch);
   } catch {
@@ -628,7 +635,7 @@ export async function previewTicketCoupon(rawInput: unknown, resolveViewer: Reso
 // ---------- Confirmation (webhook + live check) ----------
 
 type SyncOrder = {
-  id: string; eventId: string; buyerId: string; sellerId: string; status: TicketOrderStatusValue; unitCents: number; feeCents: number;
+  id: string; eventId: string; buyerId: string; sellerId: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; feeCents: number;
   mpPaymentId: string | null; event: { nome: string };
 };
 /** What a sync may need besides the payment: the seller token (late-approval refund) and the clock. */
@@ -641,16 +648,19 @@ async function grantTicket(tx: Prisma.TransactionClient, order: SyncOrder): Prom
   else if (registration.status === "CANCELLED" || registration.status === "WAITLISTED" || registration.status === "APPROVED" || registration.status === "PENDING") {
     await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CONFIRMED", ...(registration.status === "CANCELLED" ? { qrVersion: { increment: 1 }, checkedInAt: null } : {}) } });
   }
-  await createNotification(tx, notificationCopy({
+  if (order.quantity > 1) {
+    await tx.ticketPass.createMany({ data: Array.from({ length: order.quantity - 1 }, (_, index) => ({ orderId: order.id, eventId: order.eventId, position: index + 2, status: "VALID" as const })), skipDuplicates: true });
+  }
+  await createNotificationOnce(tx, { ...notificationCopy({
     userId: order.buyerId, type: "CHECKIN" as const, href: `/eventos/${encodeURIComponent(order.eventId)}`, groupKey: `ticket-paid:${order.id}`,
     title: "Ingresso confirmado", message: `${order.event.nome}: pagamento recebido. Mostre o QR Code do seu ingresso na entrada.`,
-  }));
+  }), groupKey: `ticket-paid:${order.id}` });
   await tx.communitySignal.create({ data: { room: `user:${order.buyerId}` } });
 }
 
 /** Mercado Pago's payment must match the stored order exactly; anything else is ignored (logged with a fixed code). */
 function paymentMatchesOrder(order: SyncOrder, payment: MercadoPagoPayment): boolean {
-  if (payment.externalReference !== order.id || payment.amountCents !== order.unitCents || payment.currencyId !== "BRL"
+  if (payment.externalReference !== order.id || payment.amountCents !== order.unitCents * order.quantity || payment.currencyId !== "BRL"
     || (order.mpPaymentId !== null && payment.id !== order.mpPaymentId)) {
     console.warn("ticket-payment-mismatch");
     return false;
@@ -674,12 +684,12 @@ async function syncOrderWithPayment(order: SyncOrder, payment: MercadoPagoPaymen
   if (!paymentMatchesOrder(order, payment)) return;
   const now = ctx.d.now();
   if (payment.status === "approved") {
-    const outcome = await serializable(async (tx): Promise<"none" | "paid" | "oversold"> => {
+    const outcome = await withEventLock(order.eventId, async (tx): Promise<"none" | "paid" | "oversold"> => {
       const current = await tx.ticketOrder.findUnique({ where: { id: order.id }, select: { status: true, event: { select: { ticketCapacity: true } } } });
       // EXPIRED is accepted too: a Pix approved at the deadline was paid and is honored while a seat is left.
       if (!current || (current.status !== "PENDING" && current.status !== "EXPIRED")) return "none";
       const capacity = current.event.ticketCapacity;
-      const oversold = current.status === "EXPIRED" && capacity != null && await seatsTaken(tx, order.eventId, now) >= capacity;
+      const oversold = current.status === "EXPIRED" && capacity != null && await seatsTaken(tx, order.eventId, now) + order.quantity > capacity;
       const changed = await tx.ticketOrder.updateMany({ where: { id: order.id, status: current.status }, data: { status: "PAID", paidAt: now } });
       if (!changed.count) return "none";
       // Sold out meanwhile: the money is recorded (PAID) and refunded right after, outside this transaction.
@@ -717,15 +727,16 @@ async function markRefunded(order: SyncOrder, now: Date, reason: "refund" | "sol
     if (!changed.count) return false;
     // A ticket already used at the door keeps its check-in record.
     await tx.eventRegistration.updateMany({ where: { eventId: order.eventId, userId: order.buyerId, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
+    await tx.ticketPass.updateMany({ where: { orderId: order.id, status: "VALID" }, data: { status: "CANCELLED" } });
     const buyerNotice = reason === "sold_out"
       ? { title: "Ingressos esgotados", message: `${order.event.nome}: os ingressos esgotaram antes da confirmação; seu Pix foi devolvido.` }
       : { title: "Ingresso estornado", message: `${order.event.nome}: o valor do ingresso foi devolvido pelo Mercado Pago.` };
-    await createNotification(tx, notificationCopy({ userId: order.buyerId, type: "SYSTEM" as const, href: "/ingressos", groupKey: `ticket-refund:${order.id}`, ...buyerNotice }));
+    await createNotificationOnce(tx, { ...notificationCopy({ userId: order.buyerId, type: "SYSTEM" as const, href: "/ingressos", groupKey: `ticket-refund:${order.id}`, ...buyerNotice }), groupKey: `ticket-refund:${order.id}` });
     if (reason === "sold_out") {
-      await createNotification(tx, notificationCopy({
+      await createNotificationOnce(tx, { ...notificationCopy({
         userId: order.sellerId, type: "SYSTEM" as const, href: "/myEvents/pagamentos", groupKey: `ticket-oversell:${order.id}`,
         title: "Pix devolvido automaticamente", message: `${order.event.nome}: um Pix aprovado depois do prazo chegou com os ingressos esgotados e foi devolvido.`,
-      }));
+      }), groupKey: `ticket-oversell:${order.id}` });
     }
     await tx.communitySignal.create({ data: { room: `user:${order.buyerId}` } });
     return true;
@@ -965,8 +976,8 @@ export async function refundTicketOrder(rawInput: unknown, resolveAccountHolder:
   }
 }
 
-function sellerOrder(row: { id: string; status: TicketOrderStatusValue; unitCents: number; feeCents: number; paidAt: Date | null; refundedAt: Date | null; buyer: { name: string | null } }): SellerOrderView {
-  return { id: row.id, code: shortTicketCode(row.id), buyerName: row.buyer.name?.trim() || "Participante", status: row.status, unitCents: row.unitCents, feeCents: row.feeCents, paidAt: iso(row.paidAt), refundedAt: iso(row.refundedAt) };
+function sellerOrder(row: { id: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; feeCents: number; paidAt: Date | null; refundedAt: Date | null; buyer: { name: string | null } }): SellerOrderView {
+  return { id: row.id, code: shortTicketCode(row.id), buyerName: row.buyer.name?.trim() || "Participante", status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity, feeCents: row.feeCents, paidAt: iso(row.paidAt), refundedAt: iso(row.refundedAt) };
 }
 
 export async function getPaymentsOverview(resolveViewer: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<PaymentsOverview>> {
@@ -987,23 +998,26 @@ export async function getPaymentsOverview(resolveViewer: ResolveCurrentUser, dep
       prisma.mercadoPagoAccount.findUnique({ where: { userId: user.id }, select: { mpUserId: true, connectedAt: true, expiresAt: true } }),
       prisma.ticketOrder.findMany({
         where: { sellerId: user.id, status: { in: ["PAID", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 500,
-        select: { id: true, eventId: true, status: true, unitCents: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } } },
+        select: { id: true, eventId: true, status: true, unitCents: true, quantity: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } } },
       }),
     ]);
     const byEvent = new Map<string, SellerEventSales>();
     for (const row of rows) {
-      const entry = byEvent.get(row.eventId) ?? { eventId: row.eventId, eventName: row.event.nome, sold: 0, refunded: 0, grossCents: 0, feeCents: 0, netCents: 0, orders: [] };
+      const entry = byEvent.get(row.eventId) ?? { eventId: row.eventId, eventName: row.event.nome, sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0, orders: [] };
       if (row.status === "PAID") {
-        entry.sold += 1;
-        entry.grossCents += row.unitCents;
+        entry.sold += row.quantity;
+        entry.grossCents += row.unitCents * row.quantity;
         entry.feeCents += row.feeCents;
-        entry.netCents += row.unitCents - row.feeCents;
-      } else entry.refunded += 1;
+        entry.netCents += row.unitCents * row.quantity - row.feeCents;
+      } else {
+        entry.refunded += row.quantity;
+        entry.refundedCents += row.unitCents * row.quantity;
+      }
       entry.orders.push(sellerOrder(row));
       byEvent.set(row.eventId, entry);
     }
     const events = Array.from(byEvent.values());
-    const totals = events.reduce((sum, item) => ({ sold: sum.sold + item.sold, grossCents: sum.grossCents + item.grossCents, feeCents: sum.feeCents + item.feeCents, netCents: sum.netCents + item.netCents }), { sold: 0, grossCents: 0, feeCents: 0, netCents: 0 });
+    const totals = events.reduce((sum, item) => ({ sold: sum.sold + item.sold, refunded: sum.refunded + item.refunded, refundedCents: sum.refundedCents + item.refundedCents, grossCents: sum.grossCents + item.grossCents, feeCents: sum.feeCents + item.feeCents, netCents: sum.netCents + item.netCents }), { sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0 });
     return {
       success: true, message: "",
       data: { configured, feePercent: TICKET_FEE_PERCENT, account: account ? { mpUserId: account.mpUserId, connectedAt: new Date(account.connectedAt).toISOString(), needsReconnect: accountNeedsReconnect(account.expiresAt, now) } : null, events, totals },
@@ -1023,12 +1037,12 @@ export async function listMyTickets(resolveViewer: ResolveCurrentUser, deps?: Ti
     const now = d.now();
     const rows = await prisma.ticketOrder.findMany({
       where: { buyerId: user.id, status: { in: ["PAID", "PENDING", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 100,
-      select: { id: true, status: true, unitCents: true, expiresAt: true, paidAt: true, createdAt: true, eventId: true, sellerId: true, seller: { select: { name: true } }, event: { select: { nome: true, dataInicio: true, startTime: true } } },
+      select: { id: true, status: true, unitCents: true, quantity: true, passes: { select: { id: true, position: true, status: true }, orderBy: { position: "asc" } }, expiresAt: true, paidAt: true, createdAt: true, eventId: true, sellerId: true, seller: { select: { name: true } }, event: { select: { nome: true, dataInicio: true, startTime: true } } },
     });
     return {
       success: true, message: "",
       data: rows.filter((row) => row.status !== "PENDING" || isOpenTicketOrder(row, now)).map((row) => ({
-        id: row.id, code: shortTicketCode(row.id), status: row.status, unitCents: row.unitCents, eventId: row.eventId, eventName: row.event.nome,
+        id: row.id, code: shortTicketCode(row.id), status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity, passes: row.passes, eventId: row.eventId, eventName: row.event.nome,
         dataInicio: row.event.dataInicio, startTime: row.event.startTime, paidAt: iso(row.paidAt), createdAt: new Date(row.createdAt).toISOString(),
         organizerId: row.sellerId, organizerName: row.seller.name?.trim() || "Organizador",
       })),
@@ -1043,18 +1057,18 @@ export async function getAdminTicketOverview(resolveAdminId: ResolveAdminId, _de
   if (!await resolveAdminId()) return denied;
   try {
     const [paid, refunded, recent] = await Promise.all([
-      prisma.ticketOrder.aggregate({ where: { status: "PAID" }, _sum: { unitCents: true, feeCents: true }, _count: { _all: true } }),
-      prisma.ticketOrder.aggregate({ where: { status: "REFUNDED" }, _sum: { unitCents: true }, _count: { _all: true } }),
+      prisma.ticketOrder.groupBy({ by: ["unitCents", "quantity"], where: { status: "PAID" }, _sum: { feeCents: true }, _count: { _all: true } }),
+      prisma.ticketOrder.groupBy({ by: ["unitCents", "quantity"], where: { status: "REFUNDED" }, _count: { _all: true } }),
       prisma.ticketOrder.findMany({
         where: { status: { in: ["PAID", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 30,
-        select: { id: true, eventId: true, status: true, unitCents: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } }, seller: { select: { name: true } } },
+        select: { id: true, eventId: true, status: true, unitCents: true, quantity: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } }, seller: { select: { name: true } } },
       }),
     ]);
     return {
       success: true, message: "",
       data: {
-        paid: { count: paid._count._all, grossCents: paid._sum.unitCents ?? 0, feeCents: paid._sum.feeCents ?? 0 },
-        refunded: { count: refunded._count._all, grossCents: refunded._sum.unitCents ?? 0 },
+        paid: { count: paid.reduce((n, g) => n + g.quantity * g._count._all, 0), grossCents: paid.reduce((n, g) => n + g.unitCents * g.quantity * g._count._all, 0), feeCents: paid.reduce((n, g) => n + (g._sum.feeCents ?? 0), 0) },
+        refunded: { count: refunded.reduce((n, g) => n + g.quantity * g._count._all, 0), grossCents: refunded.reduce((n, g) => n + g.unitCents * g.quantity * g._count._all, 0) },
         recent: recent.map((row) => ({ ...sellerOrder(row), eventId: row.eventId, eventName: row.event.nome, sellerName: row.seller.name?.trim() || "Organizador" })),
       },
     };

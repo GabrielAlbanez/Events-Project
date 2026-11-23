@@ -163,6 +163,7 @@ model Events {
   aiImport AiEventCandidate?
   promotions EventPromotion[]
   ticketOrders TicketOrder[]
+  ticketPasses       TicketPass[]
   ticketCoupons TicketCoupon[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
@@ -708,6 +709,30 @@ model MercadoPagoAccount {
   @@map("mercado_pago_accounts")
 }
 
+/// Tickets 2..N of a paid order, each with its own QR Code. Ticket 1 is the buyer's EventRegistration.
+model TicketPass {
+  id          String           @id @default(uuid())
+  orderId     String
+  eventId     String
+  position    Int
+  status      TicketPassStatus @default(VALID)
+  checkedInAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  order       TicketOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  event       Events           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, position])
+  @@index([eventId, status])
+  @@map("ticket_passes")
+}
+
+enum TicketPassStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
 enum TicketOrderStatus {
   PENDING
   PAID
@@ -722,7 +747,9 @@ model TicketOrder {
   eventId      String
   buyerId      String
   sellerId     String
+  /// Price of one ticket. Order total = unitCents * quantity; feeCents is the fee of the whole order.
   unitCents    Int
+  quantity     Int               @default(1)
   feeCents     Int
   status       TicketOrderStatus @default(PENDING)
   mpPaymentId  String?           @unique
@@ -739,6 +766,7 @@ model TicketOrder {
   event        Events            @relation(fields: [eventId], references: [id], onDelete: Restrict)
   buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
   seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  passes       TicketPass[]
 
   @@index([eventId, status])
   @@index([buyerId, createdAt])
