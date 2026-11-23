@@ -316,11 +316,10 @@ export async function disconnectMercadoPago(resolveAccountHolder: ResolveCurrent
     const open = await prisma.ticketOrder.count({ where: { sellerId: user.id, status: "PENDING", expiresAt: { gt: now } } });
     if (open) return { success: false, message: `Há ${open} ${open === 1 ? "Pix em andamento" : "Pix em andamento"}. Tente desconectar em até 30 minutos, quando ${open === 1 ? "ele terminar" : "eles terminarem"}.` };
     // Paid tickets for upcoming events may still need a refund, which only this account can do.
-    const paid = await prisma.ticketOrder.findMany({
-      where: { sellerId: user.id, status: "PAID" }, take: 2000,
-      select: { event: { select: { dataInicio: true, dataFim: true, endTime: true, timezone: true } } },
-    });
-    const upcoming = paid.filter((order) => !eventHasEnded(order.event, now)).length;
+    const paid = await prisma.ticketOrder.groupBy({ by: ["eventId", "quantity"], where: { sellerId: user.id, status: "PAID" }, _count: { _all: true } });
+    const paidEvents = paid.length ? await prisma.events.findMany({ where: { id: { in: Array.from(new Set(paid.map((group) => group.eventId))) } }, select: { id: true, dataInicio: true, dataFim: true, endTime: true, timezone: true } }) : [];
+    const upcomingEvents = new Set(paidEvents.filter((event) => !eventHasEnded(event, now)).map((event) => event.id));
+    const upcoming = paid.reduce((total, group) => total + (upcomingEvents.has(group.eventId) ? group.quantity * group._count._all : 0), 0);
     if (upcoming) return { success: false, message: `Há ${upcoming} ${upcoming === 1 ? "ingresso pago" : "ingressos pagos"} para eventos que ainda não terminaram. Mantenha a conta conectada até o fim desses eventos para poder estornar se for preciso.` };
     await prisma.$transaction(async (tx) => {
       await tx.mercadoPagoAccount.deleteMany({ where: { userId: user.id } });

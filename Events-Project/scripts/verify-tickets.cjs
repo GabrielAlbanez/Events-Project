@@ -662,6 +662,14 @@ async function checkService() {
   const blocked = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
   assert.equal(blocked.success, false, "pending Pix blocks disconnect");
   current = new Date(NOW.getTime() + 45 * MIN);
+  // A long sales history on past events must not hide a paid ticket for an upcoming one.
+  db.events.rows.push({ id: "event-past", nome: "Antigo", userId: "seller", status: "ENDED", dataInicio: "2000-01-01", dataFim: "2000-01-01", endTime: "23:00", startTime: "20:00", timezone: "America/Sao_Paulo", ticketsEnabled: false, ticketCapacity: null, isFree: false, priceCents: 1000 });
+  const history = Array.from({ length: 2000 }, (_, index) => ({ id: `history-${index}`, eventId: "event-past", sellerId: "seller", buyerId: "buyer", status: "PAID", unitCents: 1000, quantity: 1, feeCents: 100, mpPaymentId: null }));
+  db.ticketOrder.rows.unshift(...history);
+  const historyBlocked = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
+  db.ticketOrder.rows.splice(0, history.length);
+  db.events.rows.pop();
+  assert.equal(historyBlocked.success, false, "paid tickets stay protected beyond 2000 orders");
   const paidBlocked = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
   assert.equal(paidBlocked.success, false, "paid tickets for an upcoming event block disconnect");
   assert.match(paidBlocked.message, /ingresso pago/);

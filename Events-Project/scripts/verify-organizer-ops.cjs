@@ -186,6 +186,9 @@ async function checkAttendeeNotices() {
     eventRegistration: table([
       { eventId: "event", userId: "u1", status: "CONFIRMED" },
       { eventId: "event", userId: "u2", status: "WAITLISTED" },
+      { eventId: "event", userId: "u4", status: "PENDING" },
+      { eventId: "event", userId: "u5", status: "APPROVED" },
+      { eventId: "event", userId: "u6", status: "REJECTED" },
       { eventId: "event", userId: "u3", status: "CANCELLED" },
       { eventId: "event", userId: "owner", status: "CONFIRMED" },
     ]),
@@ -194,7 +197,7 @@ async function checkAttendeeNotices() {
   const { notifyEventAudience } = load("lib/eventNotifications.ts");
   await notifyEventAudience(db, { id: "event", nome: "Festival", userId: "owner", status: "CANCELLED" }, { title: "Evento cancelado", message: "Festival foi cancelado.", includeRegistrations: true });
   const recipients = notices.rows.map((row) => row.userId).sort();
-  assert.deepEqual(recipients, ["fan", "owner", "u1", "u2"], "confirmed + waitlisted + favorites, one notice per person, cancelled excluded");
+  assert.deepEqual(recipients, ["fan", "owner", "u1", "u2", "u4", "u5"], "every open registration + favorites, one notice per person, cancelled and rejected excluded");
   assert.ok(notices.rows.every((row) => row.type === "EVENT_CHANGE"));
   assert.equal(notices.rows.find((row) => row.userId === "owner").href, "/myEvents");
   const service = read("lib/services/events.ts");
@@ -210,7 +213,7 @@ async function checkAttendeeNotices() {
   const workerSource = read("server/notificationWorker.mts");
   assert.match(workerSource, /reminderMinutes:\{not:null\}/, "favorites with their own reminder are deduplicated");
   assert.match(workerSource, /type:"EVENT_REMINDER"/);
-  console.log("PASS organizer-ops: cancellation/schedule/delete notices reach confirmed + waitlisted attendees once; registrant reminders are windowed, deduplicated and re-armed");
+  console.log("PASS organizer-ops: cancellation/schedule/delete notices reach every open registration once; registrant reminders are windowed, deduplicated and re-armed");
 }
 
 async function checkAnnouncements() {

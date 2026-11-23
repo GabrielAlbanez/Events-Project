@@ -30,7 +30,8 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
    Conexão do Mercado Pago dentro do formulário (nova aba, sem perder dados) e dashboard do promotor publicados no commit `5e0b27c`. OAuth real ainda não testado.
 2. Compra real de R$ 5 (preço mínimo) para confirmar Pix, webhook, split, QR e estorno.
 3. Teste em iPhone e Android reais, incluindo Google Places e leitura do QR pela câmera.
-4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela e avisos de alteração ou cancelamento de evento.
+4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela, com conta real.
+5. Corrigido na branch, aguardando OK para deploy: avisos de alteração, cancelamento e remoção agora chegam também a inscrições pendentes e aprovadas; a trava de desconexão do Mercado Pago não perde ingressos futuros em contas com mais de 2.000 pedidos.
 
 ## Riscos e dependências externas
 

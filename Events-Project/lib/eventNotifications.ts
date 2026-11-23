@@ -3,7 +3,7 @@ import { notificationCopy } from "./notifications/catalog";
 import type { Prisma, RegistrationStatus } from "@prisma/client";
 type EventAudience = { id: string; nome: string; userId: string | null; status?: string };
 /** Registration statuses that still expect news about the event. */
-export const attentiveRegistrationStatuses: RegistrationStatus[] = ["CONFIRMED", "WAITLISTED"];
+export const attentiveRegistrationStatuses: RegistrationStatus[] = ["CONFIRMED", "WAITLISTED", "PENDING", "APPROVED"];
 export async function notifyEventAudience(tx: Prisma.TransactionClient, event: EventAudience, notice: { title: string; message: string; includeFollowers?: boolean; includeAdmins?: boolean; includeFavorites?: boolean; includeRegistrations?: boolean }) {
   const publicStatus = ["PUBLISHED", "CANCELLED", "ENDED"].includes(event.status ?? "");
   const recipients = new Map<string, string>();
@@ -13,7 +13,7 @@ export async function notifyEventAudience(tx: Prisma.TransactionClient, event: E
     const favorites = await tx.favorite.findMany({where:{eventId:event.id},select:{userId:true}});
     for (const favorite of favorites) recipients.set(favorite.userId, publicHref);
   }
-  // Opt-in: confirmed and waitlisted attendees (BE-02). A Map keeps one notice per person.
+  // Opt-in: everyone with an open registration, including approval requests (BE-02). A Map keeps one notice per person.
   if (notice.includeRegistrations) {
     const registrations = await tx.eventRegistration.findMany({where:{eventId:event.id,status:{in:attentiveRegistrationStatuses}},select:{userId:true}});
     for (const registration of registrations) if (registration.userId !== event.userId) recipients.set(registration.userId, publicHref);
