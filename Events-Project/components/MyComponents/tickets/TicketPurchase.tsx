@@ -230,6 +230,7 @@ function PurchaseAction({ purchase, approval, ended, busy, price, quantity, maxQ
         <QuantityStepper value={quantity} max={maxQuantity} seatsLeft={seats} disabled={busy} onChange={onQuantity} />
         {coupon}
         <button type="button" disabled={busy} onClick={onBuy} className={primary}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Gerando Pix...</> : `Comprar ${quantity > 1 ? ticketCount(quantity) : "ingresso"} — ${price}`}</button>
+        <p className="text-sm leading-6 text-muted-foreground">Basta escanear o QR Code ou copiar o código Pix no app do seu banco. Você não precisa de conta no Mercado Pago.</p>
         {purchase.message && <p className="text-sm text-muted-foreground">{purchase.message} <Link href="/Profile" className="font-medium text-brand underline-offset-4 hover:underline">Ir para minha conta</Link></p>}
         {seatsText}
         <p className="text-xs leading-5 text-muted-foreground">Ao comprar, seu nome e e-mail ficam visíveis para a organização do evento. Reembolsos são feitos pelo organizador, inclusive no prazo de 7 dias para desistência. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Ver regras</Link></p>
@@ -272,6 +273,7 @@ function Checkout({ order, remaining, onCopy }: { order: TicketOrderView; remain
       <p className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-sm font-semibold tabular-nums text-amber-800 dark:text-amber-300"><Clock3 aria-hidden="true" className="h-4 w-4" /><span className="sr-only">Tempo restante para pagar:</span>{formatRemaining(remaining)}</p>
     </div>
     {ready ? <>
+      <p className="text-center text-sm font-medium leading-6">Basta escanear o QR Code ou copiar o código Pix no app do seu banco. Você não precisa de conta no Mercado Pago.</p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from Mercado Pago, not optimizable */}
       <img src={`data:image/png;base64,${order.pixQrBase64}`} alt={`QR Code do Pix para o pedido ${order.code}`} width={220} height={220} className="mx-auto block h-[220px] w-[220px] rounded-xl bg-white p-2" />
       <div className="space-y-2">

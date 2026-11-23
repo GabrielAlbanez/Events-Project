@@ -994,27 +994,42 @@ export async function getPaymentsOverview(resolveViewer: ResolveCurrentUser, dep
       try { await sellerAccessToken(user.id, config, d); } catch { /* surfaced below as needsReconnect */ }
     }
     await reconcileOpportunistically(`seller:${user.id}`, { sellerId: user.id }, d);
-    const [account, rows] = await Promise.all([
+    const [account, rows, sales] = await Promise.all([
       prisma.mercadoPagoAccount.findUnique({ where: { userId: user.id }, select: { mpUserId: true, connectedAt: true, expiresAt: true } }),
       prisma.ticketOrder.findMany({
         where: { sellerId: user.id, status: { in: ["PAID", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 500,
         select: { id: true, eventId: true, status: true, unitCents: true, quantity: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } } },
       }),
+      // The list of orders is capped; the money totals never are.
+      prisma.ticketOrder.groupBy({ by: ["eventId", "status", "unitCents", "quantity"], where: { sellerId: user.id, status: { in: ["PAID", "REFUNDED"] } }, _sum: { feeCents: true }, _count: { _all: true } }),
     ]);
     const byEvent = new Map<string, SellerEventSales>();
-    for (const row of rows) {
-      const entry = byEvent.get(row.eventId) ?? { eventId: row.eventId, eventName: row.event.nome, sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0, orders: [] };
-      if (row.status === "PAID") {
-        entry.sold += row.quantity;
-        entry.grossCents += row.unitCents * row.quantity;
-        entry.feeCents += row.feeCents;
-        entry.netCents += row.unitCents * row.quantity - row.feeCents;
+    const entryFor = (eventId: string, eventName: string): SellerEventSales => {
+      const entry = byEvent.get(eventId) ?? { eventId, eventName, sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0, orders: [] };
+      byEvent.set(eventId, entry);
+      return entry;
+    };
+    for (const row of rows) entryFor(row.eventId, row.event.nome).orders.push(sellerOrder(row));
+    // Events whose orders are all older than the capped list still count in the totals.
+    const unlisted = Array.from(new Set(sales.map((group) => group.eventId))).filter((eventId) => !byEvent.has(eventId));
+    if (unlisted.length) {
+      const names = await prisma.events.findMany({ where: { id: { in: unlisted } }, select: { id: true, nome: true } });
+      for (const event of names) entryFor(event.id, event.nome);
+    }
+    for (const group of sales) {
+      const entry = entryFor(group.eventId, "Evento");
+      const tickets = group.quantity * group._count._all;
+      const amount = group.unitCents * tickets;
+      if (group.status === "PAID") {
+        const fee = group._sum.feeCents ?? 0;
+        entry.sold += tickets;
+        entry.grossCents += amount;
+        entry.feeCents += fee;
+        entry.netCents += amount - fee;
       } else {
-        entry.refunded += row.quantity;
-        entry.refundedCents += row.unitCents * row.quantity;
+        entry.refunded += tickets;
+        entry.refundedCents += amount;
       }
-      entry.orders.push(sellerOrder(row));
-      byEvent.set(row.eventId, entry);
     }
     const events = Array.from(byEvent.values());
     const totals = events.reduce((sum, item) => ({ sold: sum.sold + item.sold, refunded: sum.refunded + item.refunded, refundedCents: sum.refundedCents + item.refundedCents, grossCents: sum.grossCents + item.grossCents, feeCents: sum.feeCents + item.feeCents, netCents: sum.netCents + item.netCents }), { sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0 });

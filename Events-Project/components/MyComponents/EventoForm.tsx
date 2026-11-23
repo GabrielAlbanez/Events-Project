@@ -5,8 +5,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { maximumUploadImageBytes, uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { getTicketSellerStatus } from "@/app/(actions)/tickets/action";
+import MercadoPagoConnectCard, { useMercadoPagoConnect } from "@/components/MyComponents/tickets/MercadoPagoConnectCard";
 import { TICKET_FEE_PERCENT, TICKET_MAX_CENTS, TICKET_MIN_CENTS, formatTicketAmount, isValidTicketPrice, ticketNetCents } from "@/lib/tickets";
 import { DateRangePicker } from "@heroui/react";
 import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
@@ -80,12 +79,14 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: normalizeEventTime(initialEvent?.startTime), endTime: normalizeEventTime(initialEvent?.endTime), ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "", requiresApproval: initialEvent?.requiresApproval ?? true },
   });
   // Selling through EventMap needs payments configured and the organizer's Mercado Pago connected (re-checked on the server).
-  const [sellerStatus, setSellerStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
-  useEffect(() => {
-    let active = true;
-    getTicketSellerStatus().then((result) => { if (active) setSellerStatus(result.success ? result.data : { configured: false, connected: false }); }).catch(() => { if (active) setSellerStatus({ configured: false, connected: false }); });
-    return () => { active = false; };
-  }, []);
+  const mercadoPago = useMercadoPagoConnect(() => {
+    // Only the sale switch changes; every other field stays exactly as typed.
+    if (form.getValues("isFree")) return;
+    form.setValue("ticketsEnabled", true, { shouldDirty: true });
+    form.clearErrors("LinkParaCompraIngresso");
+    if (form.getValues("price").trim()) void form.trigger("price");
+  });
+  const sellerStatus = mercadoPago.status;
   const { data } = useCurrentUser();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -490,10 +491,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                     </div>
                   </div>
                 </FormItem>} />
-                {sellerStatus === null ? <p role="status" className="text-sm text-muted-foreground">Consultando sua conta de pagamentos...</p>
-                  : !sellerStatus.configured ? <p className="text-sm text-muted-foreground">Pagamentos ainda não configurados no EventMap. Por enquanto, use um link de ingressos externo.</p>
-                    : !sellerStatus.connected ? <p className="text-sm text-muted-foreground">Para ativar, <Link href="/myEvents/pagamentos" className="font-medium text-brand underline-offset-4 hover:underline">conecte sua conta do Mercado Pago</Link>.</p>
-                      : null}
+                <MercadoPagoConnectCard connection={mercadoPago} />
                 {ticketsOn && <>
                   <p role="status" className="rounded-lg bg-background px-3 py-2 text-sm">{isValidTicketPrice(ticketPriceCents) ? <>Você recebe <strong className="tabular-nums">{formatTicketAmount(ticketNetCents(ticketPriceCents))}</strong> por ingresso (taxa de {TICKET_FEE_PERCENT}% do EventMap). O Mercado Pago também desconta a tarifa do Pix.</> : `Preço entre ${formatTicketAmount(TICKET_MIN_CENTS)} e ${formatTicketAmount(TICKET_MAX_CENTS)} para vender pelo EventMap.`}</p>
                   <FormField name="ticketCapacity" rules={{ validate: (value) => !value.trim() || (/^[1-9]\d*$/.test(value.trim()) && Number(value) <= 1000000) || "Informe uma lotação inteira positiva de até 1 milhão." }} render={({ field }) => <FormItem><FormLabel>Ingressos à venda <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel><FormControl><Input type="number" min={1} max={1000000} step={1} inputMode="numeric" placeholder="Sem limite" {...field} /></FormControl><FormDescription>Pix aguardando pagamento reservam a vaga por até 30 minutos. Deixe vazio para vender sem limite.</FormDescription><FormMessage /></FormItem>} />

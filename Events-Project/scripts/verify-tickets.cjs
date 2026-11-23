@@ -1029,7 +1029,7 @@ function checkWiring() {
   assert.match(actionsUi, /const sellsElsewhere = !ticketSale && Boolean\(registration\?\.ticketSale\)/, "overlays detect EventMap ticket sales");
   const eventForm = fs.readFileSync("components/MyComponents/EventoForm.tsx", "utf8");
   assert.match(eventForm, /Vender ingressos pelo EventMap/);
-  assert.match(eventForm, /conecte sua conta do Mercado Pago/, "disabled toggle links to the connect page");
+  assert.match(fs.readFileSync("components/MyComponents/tickets/MercadoPagoConnectCard.tsx", "utf8"), /conecte sua conta do Mercado Pago/, "disabled toggle explains the connect step");
   assert.match(eventForm, /payload\.append\("ticketsEnabled"/);
   const sidebar = fs.readFileSync("components/ui/app-sidebar.tsx", "utf8");
   for (const href of ["/ingressos", "/myEvents/pagamentos", "/admin/ingressos"]) assert.match(sidebar, new RegExp(`href: "${href.replace(/\//g, "\/")}"`), href + " in navigation");
@@ -1358,6 +1358,10 @@ async function checkMultiTicketOrder() {
     assert.deepEqual([after.data.totals.sold, after.data.totals.refunded, after.data.totals.refundedCents], [0, 3, 30000]);
     const unused = await attendance.issueTicketPassToken("event-1", "buyer", db.ticketPass.rows[1].id).catch((error) => error);
     assert.equal(unused.status, 409, "a refunded ticket has no QR");
+    // Totals cover every order, even when the list of orders on screen is capped.
+    for (let index = 0; index < 600; index++) db.ticketOrder.rows.push({ ...row, id: `bulk-${index}`, status: "PAID", unitCents: 1000, quantity: 1, feeCents: 100, mpPaymentId: null });
+    const large = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+    assert.deepEqual([large.data.totals.sold, large.data.totals.grossCents, large.data.totals.feeCents, large.data.totals.netCents, large.data.totals.refunded], [600, 600000, 60000, 540000, 3], "dashboard totals are not limited to the listed orders");
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
     Object.assign(process.env, savedEnv);
