@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type Sale = AdminTicketOverview["recent"][number];
 const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `admin-tickets:${text}` }); };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
+const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}`;
+const card = "rounded-2xl border bg-card p-5 shadow-surface";
 
 /** Platform fee totals and the latest sales; admins may refund on behalf of an organizer. */
 export default function AdminTickets() {
@@ -60,10 +62,12 @@ export default function AdminTickets() {
       {loading && !data ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Carregando...</p>
         : failed && !data ? <div role="alert" className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5"><p className="text-sm">Não foi possível carregar as vendas agora.</p><Button type="button" variant="outline" onClick={() => void load()}>Tentar novamente</Button></div>
           : data && <>
-            <dl className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border bg-card p-5 shadow-surface"><dt className="text-sm text-muted-foreground">Taxa arrecadada</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(data.paid.feeCents)}</dd></div>
-              <div className="rounded-2xl border bg-card p-5 shadow-surface"><dt className="text-sm text-muted-foreground">Ingressos pagos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{data.paid.count}</dd><dd className="text-xs text-muted-foreground">Bruto {formatTicketAmount(data.paid.grossCents)}</dd></div>
-              <div className="rounded-2xl border bg-card p-5 shadow-surface"><dt className="text-sm text-muted-foreground">Estornados</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{data.refunded.count}</dd><dd className="text-xs text-muted-foreground">Devolvido {formatTicketAmount(data.refunded.grossCents)}</dd></div>
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className={card}><dt className="text-sm text-muted-foreground">Ingressos vendidos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{data.paid.count}</dd></div>
+              <div className={card}><dt className="text-sm text-muted-foreground">Bruto</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{formatTicketAmount(data.paid.grossCents)}</dd></div>
+              <div className={card}><dt className="text-sm text-muted-foreground">Comissão EventMap</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(data.paid.feeCents)}</dd></div>
+              <div className={card}><dt className="text-sm text-muted-foreground">Líquido dos organizadores</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{formatTicketAmount(data.paid.grossCents - data.paid.feeCents)}</dd><dd className="text-xs text-muted-foreground">antes da tarifa do Mercado Pago</dd></div>
+              <div className={card}><dt className="text-sm text-muted-foreground">Estornos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{formatTicketAmount(data.refunded.grossCents)}</dd><dd className="text-xs text-muted-foreground">{ticketCount(data.refunded.count)}</dd></div>
             </dl>
             <section aria-labelledby="recent-sales-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
               <h2 id="recent-sales-title" className="text-xl font-semibold">Vendas recentes</h2>
@@ -71,10 +75,10 @@ export default function AdminTickets() {
                 : <ul className="mt-3 divide-y">{data.recent.map((sale) => <li key={sale.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                   <div className="min-w-0">
                     <p className="break-words font-medium"><Link href={`/eventos/${encodeURIComponent(sale.eventId)}`} className="hover:underline">{sale.eventName}</Link></p>
-                    <p className="text-xs text-muted-foreground">{sale.buyerName} · organizador {sale.sellerName} · <span className="font-mono">{sale.code}</span> · {formatTicketAmount(sale.unitCents)} (taxa {formatTicketAmount(sale.feeCents)}){sale.paidAt ? ` · ${dateTime.format(new Date(sale.paidAt))}` : ""}</p>
+                    <p className="text-xs text-muted-foreground">{sale.buyerName} · organizador {sale.sellerName} · <span className="font-mono">{sale.code}</span> · {ticketCount(sale.quantity)} · Total {formatTicketAmount(sale.totalCents)} (comissão {formatTicketAmount(sale.feeCents)}){sale.paidAt ? ` · ${dateTime.format(new Date(sale.paidAt))}` : ""}</p>
                   </div>
                   {sale.status === "PAID"
-                    ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setTarget(sale)}>Estornar</Button>
+                    ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setTarget(sale)}>Estornar<span className="sr-only"> pedido {sale.code}</span></Button>
                     : <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">{ticketStatusLabels[sale.status]}</span>}
                 </li>)}</ul>}
             </section>
@@ -83,12 +87,12 @@ export default function AdminTickets() {
     <Dialog open={target !== null} onOpenChange={(open) => { if (!open && !busy) setTarget(null); }}>
       <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 pr-6"><AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />Estornar este ingresso?</DialogTitle>
-          <DialogDescription>{target ? `${target.buyerName} recebe ${formatTicketAmount(target.unitCents)} de volta e o ingresso de ${target.eventName} deixa de valer. O estorno usa a conta do organizador no Mercado Pago e não pode ser desfeito.` : ""}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2 pr-6"><AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />Estornar este pedido?</DialogTitle>
+          <DialogDescription>{target ? `${target.buyerName} recebe ${formatTicketAmount(target.totalCents)} de volta e ${target.quantity === 1 ? "o ingresso" : `os ${target.quantity} ingressos do pedido`} de ${target.eventName} ${target.quantity === 1 ? "deixa" : "deixam"} de valer. O estorno usa a conta do organizador no Mercado Pago e não pode ser desfeito.` : ""}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => setTarget(null)} disabled={busy}>Voltar</Button>
-          <Button type="button" variant="destructive" onClick={() => void refund()} disabled={busy}>{busy && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}Estornar ingresso</Button>
+          <Button type="button" variant="destructive" onClick={() => void refund()} disabled={busy}>{busy && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}Estornar pedido</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

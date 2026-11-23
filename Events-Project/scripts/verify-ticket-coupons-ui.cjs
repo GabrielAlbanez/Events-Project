@@ -73,7 +73,7 @@ function checkHelpers(lib) {
 function checkCheckout() {
   const source = read("components/MyComponents/tickets/TicketPurchase.tsx");
   assert.match(source, /previewTicketCoupon\(/, "checkout previews the coupon on the server");
-  assert.match(source, /createTicketOrder\(\{ eventId, \.\.\.\(appliedCoupon \? \{ couponCode: appliedCoupon\.code \} : \{\}\) \}\)/, "couponCode only when a coupon was applied");
+  assert.match(source, /createTicketOrder\(\{ eventId, quantity: selectedQuantity, \.\.\.\(appliedCoupon \? \{ couponCode: appliedCoupon\.code \} : \{\}\) \}\)/, "couponCode only when a coupon was applied");
   assert.match(source, /Tem um cupom\?/, "discreet toggle");
   assert.match(source, /aria-live="polite"/, "coupon feedback is announced");
   assert.match(source, /aria-describedby=/, "error associated with the input");

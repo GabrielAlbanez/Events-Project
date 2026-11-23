@@ -22,6 +22,8 @@ const connectMessages: Record<string, { text: string; type: "success" | "error" 
 };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 const exampleCents = 5000;
+const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}`;
+const netNote = "antes da tarifa do Mercado Pago";
 
 export default function PaymentsPanel({ connectStatus }: { connectStatus?: string }) {
   const [overview, setOverview] = useState<PaymentsOverview | null>(null);
@@ -128,7 +130,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                 <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
                   <div><dt className="text-muted-foreground">Ingresso</dt><dd className="font-semibold tabular-nums">{formatTicketAmount(exampleCents)}</dd></div>
                   <div><dt className="text-muted-foreground">Taxa EventMap</dt><dd className="font-semibold tabular-nums">−{formatTicketAmount(ticketFeeCents(exampleCents))}</dd></div>
-                  <div><dt className="text-muted-foreground">Você recebe</dt><dd className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(ticketNetCents(exampleCents))}</dd></div>
+                  <div><dt className="text-muted-foreground">Líquido <span className="block text-xs">{netNote}</span></dt><dd className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(ticketNetCents(exampleCents))}</dd></div>
                 </dl>
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">Para ativar a venda, abra um evento pago em Meus eventos e marque &quot;Vender ingressos pelo EventMap&quot;. Cupons de desconto ficam em cada evento abaixo e na página do evento (botão Cupons de desconto). Reembolsos são feitos aqui e devolvem o valor integral a quem comprou. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Regras de venda</Link></p>
               </div>
@@ -137,29 +139,40 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
             <section aria-labelledby="sales-title" className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <h2 id="sales-title" className="text-xl font-semibold">Vendas</h2>
-                {overview.totals.sold > 0 && <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground tabular-nums">{overview.totals.sold}</span> {overview.totals.sold === 1 ? "ingresso pago" : "ingressos pagos"} · você recebe <span className="font-semibold text-foreground tabular-nums">{formatTicketAmount(overview.totals.netCents)}</span></p>}
               </div>
+              {(overview.totals.sold > 0 || overview.totals.refunded > 0) && <div className="rounded-2xl border bg-card p-5 shadow-surface">
+                <h3 className="text-sm font-semibold">Resumo financeiro</h3>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+                  <div><dt className="text-muted-foreground">Ingressos vendidos</dt><dd className="text-lg font-semibold tabular-nums">{overview.totals.sold}</dd></div>
+                  <div><dt className="text-muted-foreground">Bruto</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(overview.totals.grossCents)}</dd></div>
+                  <div><dt className="text-muted-foreground">Comissão EventMap</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(overview.totals.feeCents)}</dd></div>
+                  <div><dt className="text-muted-foreground">Líquido</dt><dd className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(overview.totals.netCents)}</dd><dd className="text-xs text-muted-foreground">{netNote}</dd></div>
+                  <div><dt className="text-muted-foreground">Estornos</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(overview.totals.refundedCents)}</dd><dd className="text-xs text-muted-foreground">{ticketCount(overview.totals.refunded)}</dd></div>
+                </dl>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">Bruto, comissão e líquido consideram só pedidos pagos; estornos já ficam de fora. Este resumo não é saldo disponível: confira recebimentos e saques no Mercado Pago.</p>
+              </div>}
               {overview.events.length === 0 ? <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum ingresso vendido ainda. As vendas aparecem aqui assim que o primeiro Pix for confirmado.</p>
                 : <ul className="space-y-4">{overview.events.map((event) => <li key={event.eventId} className="rounded-2xl border bg-card p-5 shadow-surface">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <h3 className="min-w-0 break-words font-semibold"><Link href={`/eventos/${encodeURIComponent(event.eventId)}`} className="hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{event.eventName}</Link></h3>
-                    <div className="flex flex-wrap items-center gap-2">{event.refunded > 0 && <span className="text-xs text-muted-foreground">{event.refunded} {event.refunded === 1 ? "estornado" : "estornados"}</span>}<TicketCoupons eventId={event.eventId} eventName={event.eventName} /></div>
+                    <div className="flex flex-wrap items-center gap-2"><TicketCoupons eventId={event.eventId} eventName={event.eventName} /></div>
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
                     <div><dt className="text-muted-foreground">Vendidos</dt><dd className="text-lg font-semibold tabular-nums">{event.sold}</dd></div>
                     <div><dt className="text-muted-foreground">Bruto</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(event.grossCents)}</dd></div>
-                    <div><dt className="text-muted-foreground">Taxa ({TICKET_FEE_PERCENT}%)</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(event.feeCents)}</dd></div>
-                    <div><dt className="text-muted-foreground">Líquido</dt><dd className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(event.netCents)}</dd></div>
+                    <div><dt className="text-muted-foreground">Comissão ({TICKET_FEE_PERCENT}%)</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(event.feeCents)}</dd></div>
+                    <div><dt className="text-muted-foreground">Líquido</dt><dd className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatTicketAmount(event.netCents)}</dd><dd className="text-xs text-muted-foreground">{netNote}</dd></div>
+                    <div><dt className="text-muted-foreground">Estornos</dt><dd className="text-lg font-semibold tabular-nums">{formatTicketAmount(event.refundedCents)}</dd><dd className="text-xs text-muted-foreground">{ticketCount(event.refunded)}</dd></div>
                   </dl>
                   <details className="mt-4 border-t pt-3">
-                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-brand">Ver compradores ({event.orders.length})</summary>
+                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-brand">Ver pedidos ({event.orders.length})</summary>
                     <ul className="divide-y">{event.orders.map((order) => <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                       <div className="min-w-0">
                         <p className="break-words font-medium">{order.buyerName}</p>
-                        <p className="text-xs text-muted-foreground"><span className="font-mono">{order.code}</span> · {formatTicketAmount(order.unitCents)}{order.paidAt ? ` · pago em ${dateTime.format(new Date(order.paidAt))}` : ""}</p>
+                        <p className="text-xs text-muted-foreground"><span className="font-mono">{order.code}</span> · {ticketCount(order.quantity)} · Total {formatTicketAmount(order.totalCents)} · comissão {formatTicketAmount(order.feeCents)}{order.paidAt ? ` · pago em ${dateTime.format(new Date(order.paidAt))}` : ""}</p>
                       </div>
                       {order.status === "PAID"
-                        ? <Button type="button" size="sm" variant="outline" onClick={() => setRefundTarget({ ...order, eventName: event.eventName })} disabled={busy !== null}>Estornar</Button>
+                        ? <Button type="button" size="sm" variant="outline" onClick={() => setRefundTarget({ ...order, eventName: event.eventName })} disabled={busy !== null}>Estornar<span className="sr-only"> pedido {order.code}</span></Button>
                         : <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">{ticketStatusLabels[order.status]}</span>}
                     </li>)}</ul>
                   </details>
@@ -184,12 +197,12 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
     <Dialog open={refundTarget !== null} onOpenChange={(open) => { if (!open && busy !== "refund") setRefundTarget(null); }}>
       <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 pr-6"><AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />Estornar este ingresso?</DialogTitle>
-          <DialogDescription>{refundTarget ? `${refundTarget.buyerName} recebe ${formatTicketAmount(refundTarget.unitCents)} de volta pelo Mercado Pago e o ingresso de ${refundTarget.eventName} deixa de valer. A taxa do EventMap também é devolvida. Esta ação não pode ser desfeita.` : ""}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2 pr-6"><AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />Estornar este pedido?</DialogTitle>
+          <DialogDescription>{refundTarget ? `${refundTarget.buyerName} recebe ${formatTicketAmount(refundTarget.totalCents)} de volta pelo Mercado Pago e ${refundTarget.quantity === 1 ? "o ingresso" : `os ${refundTarget.quantity} ingressos do pedido`} de ${refundTarget.eventName} ${refundTarget.quantity === 1 ? "deixa" : "deixam"} de valer. A taxa do EventMap também é devolvida. Esta ação não pode ser desfeita.` : ""}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => setRefundTarget(null)} disabled={busy === "refund"}>Voltar</Button>
-          <Button type="button" variant="destructive" onClick={() => void refund()} disabled={busy === "refund"}>{busy === "refund" && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}Estornar ingresso</Button>
+          <Button type="button" variant="destructive" onClick={() => void refund()} disabled={busy === "refund"}>{busy === "refund" && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}Estornar pedido</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -3,7 +3,7 @@
 Worktree: `eventmap-main-20261118/Events-Project`, branch `codex/animacoes-20261119`. Base: `ddc4e3e`.
 Deploy só com OK explícito do dono. O `.env` local aponta para o banco de produção: nunca rodar fluxos de escrita nem carga contra ele.
 
-## Concluído (validado offline, ainda sem commit)
+## Concluído (validado offline, na branch, ainda não publicado)
 
 - Comissão de 10% no Back-end (`lib/tickets.ts`), Termos e página de organizadores. Pedidos antigos mantêm a taxa gravada.
 - Vários ingressos por Pix (até 6): `TicketOrder.quantity`, `TicketPass` (ingressos 2..N com QR próprio), lotação por ingresso, taxa sobre o total, estorno cancela os não usados.
@@ -21,14 +21,15 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 | 500 | 2.701 ms | 4.668 ms | 2.055 ms | 0 | 0 | 0 |
 | 1.000 | 5.607 ms | 9.632 ms | 3.944 ms | 0 | 0 | 0 |
 
-## Em andamento
-
 - Front-end: horários no mobile, autocomplete do Google e visão do organizador.
+- Telas de múltiplos ingressos: seletor de quantidade, QR por ingresso com estado (válido, utilizado, cancelado), portaria com contador de extras, painéis do organizador e do admin com vendidos, bruto, comissão, líquido e estornos. Renderizadas com dados simulados em 390×844 e 1440×900, claro e escuro.
 
 ## Pendente
 
-1. UI: seletor de quantidade, QR de cada ingresso, leitura na portaria, painéis com os novos totais.
-2. Validação completa, commits e OK para deploy.
+1. OK do dono para publicar.
+2. Depois de publicar: compra real de R$ 5 (preço mínimo) para confirmar Pix, webhook, split, QR e estorno.
+3. Teste em iPhone e Android reais, incluindo Google Places e leitura do QR pela câmera.
+4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela e avisos de alteração ou cancelamento de evento.
 
 ## Riscos e dependências externas
 

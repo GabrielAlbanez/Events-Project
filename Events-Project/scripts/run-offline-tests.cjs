@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, "..");
 // Suítes verify-*.cjs adicionais que ainda não estão em nenhum script test:* do package.json.
 const OFFLINE_EXTRA = [
   "verify-organizer-ops.cjs",
+  "verify-multi-ticket-ui.cjs",
   "verify-registration-approval.cjs",
   "verify-my-events-requests.cjs",
   "verify-event-reminders.cjs",

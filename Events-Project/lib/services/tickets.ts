@@ -47,7 +47,7 @@ export type PaymentsOverview = {
   totals: { sold: number; refunded: number; refundedCents: number; grossCents: number; feeCents: number; netCents: number };
 };
 export type MyTicketView = {
-  id: string; code: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; totalCents: number; passes: { id: string; position: number; status: "VALID" | "USED" | "CANCELLED" }[]; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string;
+  id: string; code: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; totalCents: number; passes: { id: string; position: number; status: "VALID" | "USED" | "CANCELLED" }[]; ownTicketStatus: "VALID" | "USED" | "CANCELLED"; eventId: string; eventName: string; dataInicio: string; startTime: string | null; paidAt: string | null; createdAt: string;
   /** Refunds are requested from the organizer (seller), linked from /ingressos. */
   organizerId: string; organizerName: string;
 };
@@ -1039,10 +1039,18 @@ export async function listMyTickets(resolveViewer: ResolveCurrentUser, deps?: Ti
       where: { buyerId: user.id, status: { in: ["PAID", "PENDING", "REFUNDED"] } }, orderBy: { createdAt: "desc" }, take: 100,
       select: { id: true, status: true, unitCents: true, quantity: true, passes: { select: { id: true, position: true, status: true }, orderBy: { position: "asc" } }, expiresAt: true, paidAt: true, createdAt: true, eventId: true, sellerId: true, seller: { select: { name: true } }, event: { select: { nome: true, dataInicio: true, startTime: true } } },
     });
+    // Ticket 1 is the buyer's registration, so its state lives there and not in the passes.
+    const registrations = await prisma.eventRegistration.findMany({ where: { userId: user.id, eventId: { in: Array.from(new Set(rows.map((row) => row.eventId))) } }, select: { eventId: true, status: true } });
+    const registrationStatus = new Map(registrations.map((row) => [row.eventId, row.status]));
+    const ownTicketStatus = (eventId: string): MyTicketView["ownTicketStatus"] => {
+      const status = registrationStatus.get(eventId);
+      if (status === "CHECKED_IN") return "USED";
+      return !status || status === "CANCELLED" ? "CANCELLED" : "VALID";
+    };
     return {
       success: true, message: "",
       data: rows.filter((row) => row.status !== "PENDING" || isOpenTicketOrder(row, now)).map((row) => ({
-        id: row.id, code: shortTicketCode(row.id), status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity, passes: row.passes, eventId: row.eventId, eventName: row.event.nome,
+        id: row.id, code: shortTicketCode(row.id), status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity, passes: row.passes, ownTicketStatus: ownTicketStatus(row.eventId), eventId: row.eventId, eventName: row.event.nome,
         dataInicio: row.event.dataInicio, startTime: row.event.startTime, paidAt: iso(row.paidAt), createdAt: new Date(row.createdAt).toISOString(),
         organizerId: row.sellerId, organizerName: row.seller.name?.trim() || "Organizador",
       })),

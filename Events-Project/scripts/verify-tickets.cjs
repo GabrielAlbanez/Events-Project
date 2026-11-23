@@ -1332,6 +1332,13 @@ async function checkMultiTicketOrder() {
     assert.equal(db.notification.rows.filter((item) => item.groupKey === `ticket-paid:${row.id}`).length, 1, "repeated webhook notifies once");
     const mine = await service.listMyTickets(as("buyer"), deps);
     assert.deepEqual(mine.data[0].passes.map((pass) => pass.position), [2, 3]);
+    assert.equal(mine.data[0].ownTicketStatus, "VALID", "ticket 1 is ready before the entrance");
+    const buyerSeat = db.eventRegistration.rows.find((item) => item.userId === "buyer");
+    buyerSeat.status = "CHECKED_IN";
+    assert.equal((await service.listMyTickets(as("buyer"), deps)).data[0].ownTicketStatus, "USED", "ticket 1 shows as used after the entrance");
+    buyerSeat.status = "CANCELLED";
+    assert.equal((await service.listMyTickets(as("buyer"), deps)).data[0].ownTicketStatus, "CANCELLED", "ticket 1 shows as cancelled");
+    buyerSeat.status = "CONFIRMED";
     const pass = db.ticketPass.rows[0];
     await assert.rejects(attendance.issueTicketPassToken("event-1", "buyer2", pass.id), (error) => error.status === 404, "only the buyer gets the QR");
     const qr = await attendance.issueTicketPassToken("event-1", "buyer", pass.id);
