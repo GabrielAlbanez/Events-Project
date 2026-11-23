@@ -327,12 +327,12 @@ section("queue", () => {
   const read = file => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
   assert.match(read("lib/eventQueries.ts"), /aiImport: \{ select: \{ sourceUrl: true/, "a fila recebe a origem do evento importado");
   assert.match(read("app/api/admin/events/route.ts"), /publicEventSelect/);
-  const page = read("app/(publicRoutes)/EventsCreated/page.tsx");
-  assert.match(page, /get\("importados"\) === "pendentes"/);
-  assert.match(page, /status === "PENDING" && event\.aiImport/);
-  assert.ok(page.includes("Importados aguardando validação") && page.includes("Ver todos"));
-  const table = read("components/MyComponents/TableEventsAdmin.tsx");
-  assert.match(table, /importedBadge\(event\.aiImport\.sourceUrl\)/);
+  const workspace = read("components/MyComponents/admin/AdminReviewWorkspace.tsx");
+  assert.match(workspace, /get\("importados"\) === "pendentes"/);
+  assert.match(read("lib/adminReviewQueue.ts"), /matchesTab\(event, tab\) && \(!importedOnly \|\| Boolean\(event\.aiImport\)\)/);
+  assert.ok(workspace.includes("Importados aguardando validação") && workspace.includes("Ver todos"));
+  const row = read("components/MyComponents/admin/AdminReviewQueue.tsx");
+  assert.match(row, /importedBadge\(event\.aiImport\.sourceUrl\)/);
 });
 
 (async () => {
