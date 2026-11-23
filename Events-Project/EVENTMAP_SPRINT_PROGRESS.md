@@ -26,8 +26,8 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 
 ## Pendente
 
-1. OK do dono para publicar.
-2. Depois de publicar: compra real de R$ 5 (preço mínimo) para confirmar Pix, webhook, split, QR e estorno.
+1. Publicado em produção no commit `2be4c88` (23/11/2026), com a migração aplicada. Aprovação de inscrições validada antes do deploy: 52/52 checagens com servidor e navegador reais em banco descartável. Não foi testada com contas reais em produção.
+2. Compra real de R$ 5 (preço mínimo) para confirmar Pix, webhook, split, QR e estorno.
 3. Teste em iPhone e Android reais, incluindo Google Places e leitura do QR pela câmera.
 4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela e avisos de alteração ou cancelamento de evento.
 
