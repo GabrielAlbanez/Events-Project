@@ -190,7 +190,7 @@ export default function DrawerEventos({ evento, onClose, onTraceRoute, isRouteTr
           </FadeInView>}
 
           {evento.id && <FadeInView delay={step * 3}>
-            <EventPublicActions eventId={evento.id} ticketUrl={status === "CANCELLED" ? undefined : evento.linkParaCompra} eventStatus={status} isFree={evento.isFree} priceLabel={priceLabel} googleCalendarUrl={googleCalendarUrl} stickyBar={false} />
+            <EventPublicActions ownerId={evento.userId} eventId={evento.id} ticketUrl={status === "CANCELLED" ? undefined : evento.linkParaCompra} eventStatus={status} isFree={evento.isFree} priceLabel={priceLabel} googleCalendarUrl={googleCalendarUrl} stickyBar={false} />
           </FadeInView>}
 
           {gallery.length > 0 && <section aria-labelledby={galleryTitleId}>

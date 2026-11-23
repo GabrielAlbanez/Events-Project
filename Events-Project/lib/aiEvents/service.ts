@@ -47,6 +47,8 @@ function validatedEvent(value: VerifiedEventImport, now: Date) {
   for (const [key, field] of Object.entries(value.event)) {
     if (key !== "carrossel" && key !== "banner") form.set(key, field === null ? "" : String(field));
   }
+  // Some sources publish only a closing time; it is not a valid schedule without a start, so the import keeps the date alone.
+  if (!form.get("startTime")) form.set("endTime", "");
   const result = parseEventInput(form, true);
   if (!result.success) throw new AiEventsError(422, "As informações oficiais estão incompletas para publicação.");
   const timezone = value.event.timezone || "America/Sao_Paulo";

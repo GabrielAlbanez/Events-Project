@@ -24,10 +24,14 @@ const notify = (text: string, type: "success" | "error") => { if (text) toast(te
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 export const approvalPrivacyNotice = "Ao pedir para participar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
-type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean; /** Set when EventMap sells this event's tickets (Pix): replaces the free registration with the checkout. */ ticketSale?: { priceCents: number } };
+type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean; /** Set when EventMap sells this event's tickets (Pix): replaces the free registration with the checkout. */ ticketSale?: { priceCents: number }; /** Resolved on the server by the event page, so participation actions never flash for the organizer. */ viewerIsOwner?: boolean; /** For client-only surfaces: compared with the session user once it loads. */ ownerId?: string | null };
 
-export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true, ticketSale }: EventPublicActionsProps) {
+export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true, ticketSale, viewerIsOwner, ownerId }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
+  const isOwner = viewerIsOwner ?? (status === "authenticated" && Boolean(ownerId) && session?.user?.id === ownerId);
+  // Without a server answer, participation stays hidden until the session says who is viewing.
+  const ownershipPending = viewerIsOwner === undefined && Boolean(ownerId) && status === "loading";
+  const showParticipation = !isOwner && !ownershipPending;
   const [saved, setSaved] = useState(false);
   // Incremented only after a confirmed user action, so loading the saved state never animates.
   const [savePulse, setSavePulse] = useState(0);
@@ -70,6 +74,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     return () => { active = false; };
   }, [eventId, status, session?.user?.id]);
   useEffect(() => {
+    if (!showParticipation) { setRegistrationLoading(false); return; }
     const controller = new AbortController();
     setRegistrationLoading(true);
     fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { signal: controller.signal })
@@ -81,7 +86,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       .catch(() => { if (!controller.signal.aborted) setRegistrationError("Não foi possível consultar as vagas. Tente atualizar a página."); })
       .finally(() => { if (!controller.signal.aborted) setRegistrationLoading(false); });
     return () => controller.abort();
-  }, [eventId, status, session?.user?.id]);
+  }, [eventId, status, session?.user?.id, showParticipation]);
   async function changeRegistration(method: "POST" | "DELETE") {
     setRegistrationPending(true);
     try {
@@ -184,7 +189,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       : registrationOpen && hasExternalTickets
         ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Ver acesso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
         : null;
-  const showStickyBar = stickyBar && panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
+  const showStickyBar = showParticipation && stickyBar && panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
   useEffect(() => {
     // The global footer reads this variable to stay clear of the fixed bar (mobile only, see ClientProviders).
     if (!showStickyBar) return;
@@ -193,10 +198,11 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     return () => { rootStyle.removeProperty("--event-cta-space"); };
   }, [showStickyBar]);
   return <div ref={panelRef} className="space-y-3">
-    {ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} approval={ticketApproval} refreshKey={ticketRefresh} />}
-    {sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration && !requestStatus ? "Ver meu ingresso" : requiresApproval && requestStatus !== "APPROVED" ? requestStatus ? "Ver meu pedido" : "Pedir para participar" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
-    {salesPaused && registrationOpen && !activeRegistration && <p role="status" className="flex items-start gap-2 rounded-2xl border bg-muted/30 p-4 text-sm leading-6"><TicketCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />As vendas deste evento estão pausadas no momento.</p>}
-    {!ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+    {showParticipation && ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} approval={ticketApproval} refreshKey={ticketRefresh} />}
+    {showParticipation && sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration && !requestStatus ? "Ver meu ingresso" : requiresApproval && requestStatus !== "APPROVED" ? requestStatus ? "Ver meu pedido" : "Pedir para participar" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
+    {showParticipation && salesPaused && registrationOpen && !activeRegistration && <p role="status" className="flex items-start gap-2 rounded-2xl border bg-muted/30 p-4 text-sm leading-6"><TicketCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />As vendas deste evento estão pausadas no momento.</p>}
+    {ownershipPending && <p role="status" className="rounded-2xl border bg-muted/30 p-4 text-sm text-muted-foreground">Carregando opções do evento...</p>}
+    {showParticipation && !ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
       <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{requiresApproval ? `A organização aprova cada participante. Peça para participar e acompanhe a resposta aqui.${hasExternalTickets && !isFree ? " A compra e as regras do ingresso ficam no site do organizador." : ""}` : isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>
@@ -214,10 +220,10 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       <button type="button" onClick={() => void share()} className={tile}><Share2 className="h-4 w-4" aria-hidden="true" />Compartilhar</button>
       <a className={tile} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" aria-hidden="true" /><span className="sm:hidden">Calendário<span className="sr-only"> (arquivo .ics)</span></span><span className="hidden sm:inline">Adicionar ao calendário (.ics)</span></a>
       {googleCalendarUrl && <a className={tile} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" /><span aria-hidden="true"><span className="sm:hidden">Google</span><span className="hidden sm:inline">Google Agenda</span></span><span className="sr-only">Google Agenda (abre em nova aba)</span></a>}
-      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " order-first basis-full bg-primary text-primary-foreground sm:order-none sm:basis-auto"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
+      {showParticipation && ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " order-first basis-full bg-primary text-primary-foreground sm:order-none sm:basis-auto"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
     </div>
     {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); notify(result.message, result.success ? "success" : "error"); if (result.success) setReminder(minutes); } catch { notify("Não foi possível configurar o lembrete.", "error"); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
-    {status === "authenticated" && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
+    {status === "authenticated" && !isOwner && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
       {reportOpen && <div className="mt-3 max-w-xl space-y-3 rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">Sua denúncia será analisada pela equipe de moderação.</p><label htmlFor="report-reason" className="block text-sm font-medium">Motivo</label><select id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="INCORRECT_INFORMATION">Informações incorretas</option><option value="INAPPROPRIATE_CONTENT">Conteúdo inadequado</option><option value="SPAM">Spam ou fraude</option><option value="OTHER">Outro motivo</option></select><label htmlFor="report-details" className="block text-sm font-medium">Descreva o problema</label><textarea id="report-details" value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Explique o que precisa ser verificado" className="w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /><button type="button" disabled={reportPending || reportDetails.trim().length < 5} onClick={() => void submitReport()} className={`${button} bg-primary text-primary-foreground disabled:opacity-50`}>{reportPending ? "Enviando..." : "Enviar denúncia"}</button></div>}
     </div>}
     {showStickyBar && <div role="region" aria-label="Ação rápida do evento" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_hsl(var(--foreground)/0.08)] xl:hidden">

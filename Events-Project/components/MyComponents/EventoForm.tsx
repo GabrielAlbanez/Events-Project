@@ -27,7 +27,8 @@ import { useEventDraftRecovery } from "@/hooks/useEventDraftRecovery";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useSocket } from "@/context/SocketContext";
 import { useGoogleMaps } from "./GoogleMapsLoader";
-import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { PlaceSearchCombobox } from "./PlaceAutocomplete";
+import { eventTimeError, normalizeEventTime } from "@/schemas/eventInput";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
 
 type EventoFormData = {
@@ -76,7 +77,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const form = useForm<EventoFormData>({
     mode: "onChange",
-    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: initialEvent?.startTime ?? "", endTime: initialEvent?.endTime ?? "", ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "", requiresApproval: initialEvent?.requiresApproval ?? true },
+    defaultValues: { nome: initialEvent?.nome ?? "", descricao: initialEvent?.descricao ?? "", organizerName: initialEvent?.organizerName ?? "", ageRating: initialEvent?.ageRating ?? "", accessibilityInfo: initialEvent?.accessibilityInfo ?? "", participationInfo: initialEvent?.participationInfo ?? "", LinkParaCompraIngresso: initialEvent?.linkParaCompra ?? "", endereco: initialEvent?.endereco ?? "", category: initialEvent?.category ?? "", price: initialEvent?.priceCents != null ? (initialEvent.priceCents / 100).toFixed(2) : "", capacity: initialEvent?.capacity != null ? String(initialEvent.capacity) : "", isFree: initialEvent?.isFree ?? true, startTime: normalizeEventTime(initialEvent?.startTime), endTime: normalizeEventTime(initialEvent?.endTime), ticketsEnabled: initialEvent?.ticketsEnabled ?? false, ticketCapacity: initialEvent?.ticketCapacity != null ? String(initialEvent.ticketCapacity) : "", requiresApproval: initialEvent?.requiresApproval ?? true },
   });
   // Selling through EventMap needs payments configured and the organizer's Mercado Pago connected (re-checked on the server).
   const [sellerStatus, setSellerStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
@@ -107,6 +108,8 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const [occurrences, setOccurrences] = useState(4);
   const [addressMode, setAddressMode] = useState<"search" | "manual">("search");
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(initialEvent?.lat != null && initialEvent?.lng != null ? { lat: initialEvent.lat, lng: initialEvent.lng } : null);
+  // Text edited in the search after a pick has no matching coordinates until a suggestion is chosen again.
+  const [addressNeedsPick, setAddressNeedsPick] = useState(false);
   const saveMode = useRef<"draft" | "submit">("submit");
   const [reviewPrompt, setReviewPrompt] = useState<EventoFormData | null>(null);
   const allValues = form.watch();
@@ -122,7 +125,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     if (!draft) return;
     form.reset(draft.values);
     try { setDateRange(draft.dates ? { start: parseDate(draft.dates[0]), end: parseDate(draft.dates[1]) } : null); } catch { setDateRange(null); }
-    setCoordinates(draft.coordinates); setRecurrence(draft.recurrence); setRepeatEvery(draft.repeatEvery); setOccurrences(draft.occurrences); setAddressMode("manual");
+    setCoordinates(draft.coordinates); setRecurrence(draft.recurrence); setRepeatEvery(draft.repeatEvery); setOccurrences(draft.occurrences); setAddressMode("manual"); setAddressNeedsPick(false);
     toast.info("Rascunho recuperado. Se necessário, selecione novamente as imagens.");
   };
 
@@ -169,8 +172,31 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
+  // Events stored with only an end time stay editable while that value is kept.
+  const storedEndOnlyTime = !initialEvent?.startTime && initialEvent?.endTime ? normalizeEventTime(initialEvent.endTime) : "";
+  const timeErrorFor = (startTime: string, endTime: string) => eventTimeError(
+    { dataInicio: dateRange?.start.toString(), dataFim: dateRange?.end.toString(), startTime, endTime },
+    Boolean(storedEndOnlyTime) && endTime === storedEndOnlyTime,
+  );
+  const startValue = form.watch("startTime");
+  const endValue = form.watch("endTime");
+  const scheduleKey = dateRange ? `${dateRange.start.toString()}/${dateRange.end.toString()}` : "";
+  useEffect(() => {
+    // Start and dates also decide whether the end time is valid.
+    if (form.getValues("endTime")) void form.trigger("endTime");
+  }, [startValue, scheduleKey, form]);
+
   const onSubmit = (values: EventoFormData, reviewConfirmed = false) => {
     const draft = saveMode.current === "draft";
+    const timeError = timeErrorFor(values.startTime, values.endTime);
+    if (timeError) {
+      form.setError("endTime", { type: "validate", message: timeError }, { shouldFocus: true });
+      return;
+    }
+    if (!draft && addressNeedsPick) {
+      form.setError("endereco", { type: "validate", message: "Selecione uma sugestão da lista para confirmar o local, ou use “Não encontrou? Digite o endereço”." }, { shouldFocus: true });
+      return;
+    }
     if (!draft && (!dateRange?.start || !dateRange.end || dateRange.start.compare(dateRange.end) > 0)) {
       setDateError("Escolha uma data de início e uma data de fim válidas.");
       return;
@@ -229,6 +255,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
         if (approvalLoaded || approvalTouched.current) payload.append("requiresApproval", String(values.requiresApproval !== false));
         payload.append("startTime", values.startTime);
         payload.append("endTime", values.endTime);
+        if (storedEndOnlyTime && values.endTime === storedEndOnlyTime) payload.append("keepStoredEndOnlyTime", storedEndOnlyTime);
         if (coordinates) {
           payload.append("lat", String(coordinates.lat));
           payload.append("lng", String(coordinates.lng));
@@ -355,10 +382,11 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
                 <p className="mt-2 text-sm text-muted-foreground">Para um evento de um dia, selecione a mesma data no início e no fim.</p>
                 {dateError && <p role="alert" className="mt-2 text-sm text-destructive">{dateError}</p>}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField name="startTime" render={({ field }) => <FormItem><FormLabel>Horário de início</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField name="endTime" render={({ field }) => <FormItem><FormLabel>Horário de término</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>} />
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
+                <FormField name="startTime" rules={{ validate: (value: string) => !value || !eventTimeError({ startTime: value, endTime: "" }) || "Horário de início inválido. Use o formato HH:mm." }} render={({ field }) => <FormItem className="min-w-0"><div className="flex min-h-6 items-center justify-between gap-2"><FormLabel>Horário de início</FormLabel>{field.value && <ClearTimeButton label="Limpar horário de início" onClear={() => field.onChange("")} />}</div><FormControl><Input type="time" step={60} className={timeInputClass} {...field} onChange={(event) => field.onChange(normalizeEventTime(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
+                <FormField name="endTime" rules={{ validate: (value: string) => timeErrorFor(form.getValues("startTime"), value) ?? true }} render={({ field }) => <FormItem className="min-w-0"><div className="flex min-h-6 items-center justify-between gap-2"><FormLabel>Horário de término</FormLabel>{field.value && <ClearTimeButton label="Limpar horário de término" onClear={() => field.onChange("")} />}</div><FormControl><Input type="time" step={60} className={timeInputClass} {...field} onChange={(event) => field.onChange(normalizeEventTime(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
               </div>
+              {endValue && !startValue && storedEndOnlyTime === endValue && <p className="text-sm text-muted-foreground">Este evento tem apenas horário de término. Você pode mantê-lo ou informar também o início.</p>}
               {!initialEvent && <fieldset className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
                 <legend className="px-1 text-sm font-semibold">Repetir este evento</legend>
                 <p className="text-sm text-muted-foreground">Crie outras datas com o mesmo local, horário e informações. Cada edição poderá ser revisada separadamente.</p>
@@ -383,25 +411,33 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
               <GoogleMapsPreference compact />
               <FormField name="endereco" rules={{ required: "Informe o endereço do evento.", validate: (value) => value.trim().length >= 3 || "Use pelo menos 3 caracteres no endereço." }} render={({ field }) => (
                 <FormItem>
-                  <span className="block text-sm font-medium">Endereço <Required /></span>
-                    <div className="space-y-2">
-                      {mapsLoaded && addressMode === "search" ? (
-                        <PlaceAutocomplete
-                          className="w-full overflow-visible rounded-xl border border-input bg-background"
-                          placeholder="Busque o endereço ou nome do local"
-                          ariaLabel="Buscar endereço do evento"
-                          onPlaceSelect={({ address, lat, lng }) => { field.onChange(address); setCoordinates({ lat, lng }); }}
-                        />
-                      ) : (
-                        <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} onChange={(event) => { field.onChange(event); setCoordinates(null); }} />
-                      )}
+                  <FormLabel>Endereço <Required /></FormLabel>
+                    <div className="min-w-0 space-y-2">
+                      <FormControl>
+                        {mapsLoaded && addressMode === "search" ? (
+                          <PlaceSearchCombobox
+                            inputRef={field.ref}
+                            value={field.value}
+                            placeholder="Busque o endereço ou nome do local"
+                            ariaLabel="Buscar endereço do evento"
+                            onBlur={field.onBlur}
+                            onTextChange={(text) => { field.onChange(text); setCoordinates(null); setAddressNeedsPick(text.trim().length > 0); }}
+                            onPlaceSelect={({ address, lat, lng }) => { field.onChange(address); setCoordinates({ lat, lng }); setAddressNeedsPick(false); form.clearErrors("endereco"); }}
+                            onUseManual={() => { setAddressMode("manual"); setAddressNeedsPick(false); form.clearErrors("endereco"); }}
+                          />
+                        ) : (
+                          <Input aria-label="Endereço do evento" placeholder="Rua, número, bairro, cidade e estado" {...field} onChange={(event) => { field.onChange(event); setCoordinates(null); }} />
+                        )}
+                      </FormControl>
                       {mapsLoaded && (
-                        <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setAddressMode(addressMode === "search" ? "manual" : "search")}>
+                        <button type="button" className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setAddressMode(addressMode === "search" ? "manual" : "search"); setAddressNeedsPick(false); form.clearErrors("endereco"); }}>
                           {addressMode === "search" ? "Não encontrou? Digite o endereço" : "Buscar endereço no mapa"}
                         </button>
                       )}
                     </div>
-                  {field.value && <p className="flex items-center gap-1 text-sm text-brand"><MapPin className="h-4 w-4" /> {field.value}</p>}
+                  {addressNeedsPick && mapsLoaded && addressMode === "search"
+                    ? <p role="status" className="flex items-start gap-1.5 text-sm text-amber-800 dark:text-amber-300"><AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />Selecione uma sugestão para confirmar o local no mapa.</p>
+                    : field.value && <p className="flex min-w-0 items-start gap-1.5 break-words text-sm text-brand"><MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0">{field.value}{coordinates ? " · local confirmado no mapa" : ""}</span></p>}
                   <FormDescription>Confira número e cidade. Você também pode digitar o endereço se a busca não estiver disponível.</FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -534,6 +570,12 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       </form>
     </FormProvider>
   );
+}
+
+const timeInputClass = "block w-full min-w-0 max-w-full appearance-none text-left text-base leading-6 tabular-nums md:text-base [&::-webkit-date-and-time-value]:min-h-6 [&::-webkit-date-and-time-value]:text-left [&::-webkit-datetime-edit]:p-0";
+
+function ClearTimeButton({ label, onClear }: { label: string; onClear: () => void }) {
+  return <button type="button" aria-label={label} onClick={onClear} className="-my-2.5 inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Limpar</button>;
 }
 
 function Required() { return <span aria-label="obrigatório" className="text-destructive">*</span>; }
