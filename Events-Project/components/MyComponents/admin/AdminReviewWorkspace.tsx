@@ -311,7 +311,7 @@ export function AdminReviewWorkspace({ adminId, events, onEventsChange, isLoadin
   const showProgress = !isLoading && decidedCount + summary.pending > 0;
 
   return <LazyMotion features={loadLayoutFeatures}><MotionConfig reducedMotion="user"><LayoutGroup id="admin-review">
-    <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-3 sm:px-6 lg:px-8 lg:pt-4">
+    <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-11 sm:px-6 lg:px-8">
       <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
 
       {/* Actions sit at the bottom edge: the global realtime pill is fixed at the band's top-right corner. */}

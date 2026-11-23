@@ -119,7 +119,7 @@ export const QueueRow = memo(function QueueRow({ event, index, now, selected, ch
           <span className="inline-flex min-w-0 max-w-full items-center gap-1"><MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{event.endereco || "Sem endereço"}</span></span>
         </span>
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <EventStatusBadge status={status} className="min-h-6 px-2 py-0.5" />
+          {!successLabel && <EventStatusBadge status={status} className="min-h-6 px-2 py-0.5" />}
           {event.aiImport && <span className="inline-flex min-h-6 items-center rounded-full border border-border px-2 text-xs font-medium text-muted-foreground">{importedBadge(event.aiImport.sourceUrl)}</span>}
           {problems > 0 && <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-amber-600/25 bg-amber-500/10 px-2 text-xs font-medium text-amber-900 dark:text-amber-300"><AlertTriangle className="h-3 w-3" aria-hidden="true" />{problems} a conferir</span>}
           {successLabel ? <m.span initial={reduced ? false : { opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={reviewSpring} className="ml-auto inline-flex min-h-6 items-center gap-1 rounded-full bg-cta px-2 text-xs font-semibold text-cta-foreground"><Check className="h-3 w-3" aria-hidden="true" />{successLabel}</m.span> : <span className="ml-auto inline-flex items-center text-xs font-semibold text-brand">{pending ? "Revisar" : "Ver"}<ChevronRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover/row:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover/row:translate-x-0" aria-hidden="true" /></span>}
