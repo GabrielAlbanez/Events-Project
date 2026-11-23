@@ -126,4 +126,38 @@ for (const text of ['role="tablist"', 'role="tab"', "aria-selected", "aria-contr
 assert.ok(workspace.includes('role="tabpanel"') && workspace.includes("SheetTitle") && workspace.includes("motion-reduce"));
 assert.ok(detail.includes('rel="noopener noreferrer"') && detail.includes("safeHref"));
 
+// Overview: zero values never render as a stat; progress comes only from confirmed decisions
+assert.deepEqual(queue.overviewStats({ imported: 0, withProblems: 0 }, 0), []);
+assert.deepEqual(queue.overviewStats({ imported: 2, withProblems: 0 }, 1).map(stat => stat.id), ["imported", "decided"]);
+assert.equal(queue.queueProgress(0, 0), 0);
+assert.equal(queue.queueProgress(0, 4), 0);
+assert.equal(queue.queueProgress(1, 3), 0.25);
+assert.equal(queue.queueProgress(4, 0), 1);
+assert.ok(row.includes('count === 0 ? "bg-transparent'), "zero tab count stays neutral");
+assert.ok(workspace.includes("summary.pending > 0 ? <CountUp"), "the count-up is hidden at zero");
+
+// Reduced motion
+assert.ok(workspace.includes('reducedMotion="user"'));
+assert.ok(workspace.includes("if (reducedMotion) { release(true); return; }"), "no success hold with reduced motion");
+assert.ok(workspace.includes("!isDesktop || reducedMotion"), "no artwork flight with reduced motion");
+assert.ok(workspace.includes("const entrance = !reducedMotion"), "no stagger with reduced motion");
+for (const [name, source] of [["queue", row], ["detail", detail]]) assert.ok(source.includes("useReducedMotion()") && source.includes("motion-reduce:"), name + " respects reduced motion");
+assert.ok(row.includes("if (reduced || from === value)"), "count-up jumps to the value");
+
+// Exit and advance happen only after a confirmed result, and socket refreshes do not animate
+assert.equal(workspace.split("setConfirmedExitIds(").length, 2, "exit ids have one writer");
+assert.ok(workspace.indexOf("function advanceFrom") < workspace.indexOf("setConfirmedExitIds(decided)") && workspace.indexOf("setConfirmedExitIds(decided)") < workspace.indexOf("async function publish"));
+for (const call of ['advanceFrom([event.id], order, "Evento publicado."', 'advanceFrom([event.id], order, "Pedido de correção', "advanceFrom(ids, order"]) assert.equal(workspace.split(call).length, 2, call);
+assert.ok(workspace.indexOf("if (!validated.includes(event.id))") < workspace.indexOf('advanceFrom([event.id], order, "Evento publicado."'));
+assert.ok(workspace.indexOf("if (!result.success)") < workspace.indexOf('advanceFrom([event.id], order, "Pedido de correção'));
+assert.ok(workspace.indexOf('if (result.status !== "success") return') < workspace.indexOf("advanceFrom(ids, order"));
+assert.ok(row.includes("confirmed?.has(event.id)") && row.includes("transition: { duration: 0 }"), "unconfirmed removals do not slide");
+assert.ok(row.includes("layoutDependency={layoutTick}"), "reflow only after a confirmed decision");
+assert.ok(row.includes("const [enter] = useState(entrance)") && row.includes('enter && !reduced && "') && row.includes("motion-reduce:animate-none"), "stagger only on first load or tab change");
+assert.ok(row.includes("variants={variants} initial={false}"), "rows never depend on lazy motion features to become visible");
+assert.ok(!/animate=\{\{[^}]*(width|height|top|left|margin|padding)/.test(row + detail + workspace), "transform and opacity only");
+
+// The global realtime pill must not cover the header actions
+assert.ok(workspace.includes("lg:items-end"), "header actions stay at the band's lower edge");
+
 console.log("PASS: fila de revisão do admin");

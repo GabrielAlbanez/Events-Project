@@ -133,6 +133,21 @@ export function queueSummary(events: Evento[], now: Date = new Date()) {
   };
 }
 
+/** Overview chips from loaded data and confirmed decisions; a zero never renders. */
+export function overviewStats(summary: { imported: number; withProblems: number }, decided: number) {
+  return [
+    { id: "imported", value: summary.imported, label: summary.imported === 1 ? "importado" : "importados" },
+    { id: "problems", value: summary.withProblems, label: "com dados a conferir" },
+    { id: "decided", value: decided, label: decided === 1 ? "decidido nesta sessão" : "decididos nesta sessão" },
+  ].filter(stat => stat.value > 0);
+}
+
+/** Share of this session's queue already decided, from 0 to 1. */
+export function queueProgress(decided: number, pending: number) {
+  const total = Math.max(decided, 0) + Math.max(pending, 0);
+  return total ? Math.max(decided, 0) / total : 0;
+}
+
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
 export function formatSchedule(event: Pick<Evento, "dataInicio" | "dataFim" | "startTime">) {
