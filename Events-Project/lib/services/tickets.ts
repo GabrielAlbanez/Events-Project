@@ -10,7 +10,7 @@ import {
   type TicketBlockCode, type TicketOrderStatusValue,
 } from "@/lib/tickets";
 import { eventInstant } from "@/lib/eventTime";
-import { TicketConfigError, decryptTicketToken, encryptTicketToken, signOAuthState, ticketPaymentsConfigured, verifyMercadoPagoSignature, verifyOAuthState } from "@/lib/ticketSecurity";
+import { SELLER_RECONNECT_MARK as RECONNECT_MARK, TicketConfigError, decryptTicketToken, encryptTicketToken, sellerAccountActive as sellerConnected, signOAuthState, ticketPaymentsConfigured, verifyMercadoPagoSignature, verifyOAuthState } from "@/lib/ticketSecurity";
 import {
   MercadoPagoError, cancelMercadoPagoPayment, createMercadoPagoPixPayment, exchangeMercadoPagoCode, getMercadoPagoPayment, mercadoPagoAuthorizeUrl, mercadoPagoConfig,
   refreshMercadoPagoToken, refundMercadoPagoPayment, type MercadoPagoConfig, type MercadoPagoPayment, type MercadoPagoTokens, type MpFetch, type PixPayment,
@@ -68,7 +68,6 @@ const REFRESH_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ATTEMPTS = 5;
 /** expiresAt sentinel for an account whose refresh token was rejected (invalid_grant): only a new OAuth connection fixes it. */
-const RECONNECT_MARK = new Date(0);
 const sellerDisconnected = "A conta do Mercado Pago do organizador está desconectada. Reconecte a conta em Pagamentos para estornar; nada foi alterado.";
 const refundProviderError = "O Mercado Pago não confirmou o estorno agora. Nada foi alterado; tente novamente em alguns minutos.";
 
@@ -162,12 +161,6 @@ async function buyerProfile(db: Pick<Prisma.TransactionClient, "user">, userId: 
 }
 
 /** Connected = tokens stored and not flagged for reconnection after a rejected refresh. */
-async function sellerConnected(db: Pick<Prisma.TransactionClient, "mercadoPagoAccount">, sellerId: string | null): Promise<boolean> {
-  if (!sellerId) return false;
-  const account = await db.mercadoPagoAccount.findUnique({ where: { userId: sellerId }, select: { expiresAt: true } });
-  return Boolean(account && new Date(account.expiresAt).getTime() > RECONNECT_MARK.getTime());
-}
-
 /** A sealed token that no longer opens means the encryption key changed: a configuration problem, not a provider one. */
 function openToken(sealed: string, env: Env): string {
   try {
@@ -321,11 +314,9 @@ export async function disconnectMercadoPago(resolveAccountHolder: ResolveCurrent
     const upcomingEvents = new Set(paidEvents.filter((event) => !eventHasEnded(event, now)).map((event) => event.id));
     const upcoming = paid.reduce((total, group) => total + (upcomingEvents.has(group.eventId) ? group.quantity * group._count._all : 0), 0);
     if (upcoming) return { success: false, message: `Há ${upcoming} ${upcoming === 1 ? "ingresso pago" : "ingressos pagos"} para eventos que ainda não terminaram. Mantenha a conta conectada até o fim desses eventos para poder estornar se for preciso.` };
-    await prisma.$transaction(async (tx) => {
-      await tx.mercadoPagoAccount.deleteMany({ where: { userId: user.id } });
-      await tx.events.updateMany({ where: { userId: user.id, ticketsEnabled: true }, data: { ticketsEnabled: false } });
-    });
-    return { success: true, message: "Mercado Pago desconectado. As vendas pelo EventMap foram pausadas nos seus eventos.", data: undefined };
+    // ticketsEnabled stays on: without an account the sale is paused (never a free RSVP) and resumes on reconnect.
+    await prisma.mercadoPagoAccount.deleteMany({ where: { userId: user.id } });
+    return { success: true, message: "Mercado Pago desconectado. As vendas foram pausadas e voltam quando você reconectar a conta.", data: undefined };
   } catch {
     console.warn("ticket-disconnect-failed");
     return genericError;
@@ -335,11 +326,12 @@ export async function disconnectMercadoPago(resolveAccountHolder: ResolveCurrent
 /** Used by the event form action: enabling sales needs a paid price in bounds and the owner's connected account. */
 export async function ticketSettingsProblem(
   db: Pick<Prisma.TransactionClient, "mercadoPagoAccount">, sellerId: string,
-  settings: { ticketsEnabled: boolean; isFree: boolean; priceCents: number }, env: Env = process.env,
+  settings: { ticketsEnabled: boolean; isFree: boolean; priceCents: number; alreadyEnabled?: boolean }, env: Env = process.env,
 ): Promise<string | null> {
   if (!settings.ticketsEnabled) return null;
   const configured = ticketPaymentsConfigured(env);
-  return ticketSettingsError({ ...settings, configured, sellerConnected: configured && await sellerConnected(db, sellerId) });
+  // A sale paused by a disconnected account can still be edited; only turning sales on needs the account.
+  return ticketSettingsError({ ticketsEnabled: settings.ticketsEnabled, isFree: settings.isFree, priceCents: settings.priceCents, configured, sellerConnected: configured && (Boolean(settings.alreadyEnabled) || await sellerConnected(db, sellerId)) });
 }
 
 /** Whether the public page should show the EventMap checkout instead of the free registration. */
@@ -347,8 +339,8 @@ export async function isTicketSaleActive(eventId: string, deps?: TicketDeps): Pr
   const d = resolveDeps(deps);
   if (!ticketPaymentsConfigured(d.env)) return false;
   try {
-    const event = await prisma.events.findUnique({ where: { id: eventId }, select: { ticketsEnabled: true, isFree: true } });
-    return Boolean(event?.ticketsEnabled && !event.isFree);
+    const event = await prisma.events.findUnique({ where: { id: eventId }, select: { ticketsEnabled: true, isFree: true, userId: true } });
+    return Boolean(event?.ticketsEnabled && !event.isFree && await sellerConnected(prisma, event.userId));
   } catch {
     return false;
   }

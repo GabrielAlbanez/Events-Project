@@ -5,7 +5,7 @@ import { Prisma, RegistrationStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { withEventLock } from "@/lib/eventLock";
 import { eventInstant } from "@/lib/eventTime";
-import { ticketPaymentsConfigured } from "@/lib/ticketSecurity";
+import { sellerAccountActive, ticketPaymentsConfigured } from "@/lib/ticketSecurity";
 
 const tokenLifetimeMs = 5 * 60 * 1000;
 const retryLimit = 3;
@@ -86,7 +86,7 @@ export async function reconcileEventWaitlist(eventId: string): Promise<number> {
 
 export async function getRegistrationState(eventId: string, userId: string | null) {
   const event = await prisma.events.findUnique({ where: { id: eventId }, select: {
-    id: true, status: true, capacity: true, ticketsEnabled: true, isFree: true, requiresApproval: true, aiImport: { select: { id: true } },
+    id: true, status: true, capacity: true, userId: true, ticketsEnabled: true, isFree: true, requiresApproval: true, aiImport: { select: { id: true } },
   } });
   if (!event) throw new AttendanceError("Evento não encontrado.", 404);
   const [confirmedCount, waitingCount, registration] = await Promise.all([
@@ -95,9 +95,9 @@ export async function getRegistrationState(eventId: string, userId: string | nul
     userId ? prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } }, select: { id: true, status: true, createdAt: true, checkedInAt: true } }) : Promise.resolve(null),
   ]);
   const sellsTickets = Boolean(event.ticketsEnabled && !event.isFree);
-  const configured = ticketPaymentsConfigured();
-  // ticketSalesPaused: EventMap sells this event, but payments are not configured right now (no free RSVP either).
-  return { capacity: event.capacity, confirmedCount, waitingCount, registration, requiresApproval: needsApproval(event), ticketSale: Boolean(event.ticketsEnabled && !event.isFree && ticketPaymentsConfigured()), ticketSalesPaused: sellsTickets && !configured };
+  const canSell = sellsTickets && ticketPaymentsConfigured() && await sellerAccountActive(prisma, event.userId);
+  // ticketSalesPaused: EventMap sells this event, but payments or the seller account are off right now (no free RSVP either).
+  return { capacity: event.capacity, confirmedCount, waitingCount, registration, requiresApproval: needsApproval(event), ticketSale: canSell, ticketSalesPaused: sellsTickets && !canSell };
 }
 
 export async function registerForEvent(eventId: string, userId: string) {
@@ -107,9 +107,9 @@ export async function registerForEvent(eventId: string, userId: string) {
     if (event.userId === userId) throw new AttendanceError("O organizador não pode se inscrever no próprio evento.", 409);
     if (needsApproval(event)) return requestApproval(tx, event, userId);
     // While EventMap sells the tickets, the registration (and its QR) comes only from a paid order.
-    // Also while payments are not configured: a paid event never turns into a free RSVP.
+    // Also while payments or the seller account are off: a paid event never turns into a free RSVP.
     if (event.ticketsEnabled && !event.isFree) {
-      throw new AttendanceError(ticketPaymentsConfigured() ? "Este evento vende ingressos pelo EventMap. Compre seu ingresso para participar." : "As vendas deste evento estão pausadas no momento.", 409);
+      throw new AttendanceError(ticketPaymentsConfigured() && await sellerAccountActive(tx, event.userId) ? "Este evento vende ingressos pelo EventMap. Compre seu ingresso para participar." : "As vendas deste evento estão pausadas no momento.", 409);
     }
     const existing = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } } });
     if (existing && existing.status !== "CANCELLED") return { id: existing.id, status: existing.status };

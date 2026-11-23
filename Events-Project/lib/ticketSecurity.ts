@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 
 /** Server-only secrets for ticket sales. Never log or return the values read here. */
 type Env = Record<string, string | undefined>;
@@ -125,4 +126,14 @@ export function verifyOAuthState(state: unknown, userId: string, env: Env = proc
   } catch {
     return false;
   }
+}
+
+/** Stored as the token expiry when Mercado Pago ended the authorization and the seller must reconnect. */
+export const SELLER_RECONNECT_MARK = new Date(0);
+
+/** Whether this seller can receive payments now. A paid event without it is paused, never free. */
+export async function sellerAccountActive(db: Pick<Prisma.TransactionClient, "mercadoPagoAccount">, sellerId: string | null): Promise<boolean> {
+  if (!sellerId) return false;
+  const account = await db.mercadoPagoAccount.findUnique({ where: { userId: sellerId }, select: { expiresAt: true } });
+  return Boolean(account && new Date(account.expiresAt).getTime() > SELLER_RECONNECT_MARK.getTime());
 }

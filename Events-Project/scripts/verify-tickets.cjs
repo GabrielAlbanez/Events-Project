@@ -674,11 +674,30 @@ async function checkService() {
   assert.equal(paidBlocked.success, false, "paid tickets for an upcoming event block disconnect");
   assert.match(paidBlocked.message, /ingresso pago/);
   current = new Date("2099-03-26T03:30:00.000Z");
+  const savedAccount = { ...db.mercadoPagoAccount.rows[0] };
   const disconnected = await service.disconnectMercadoPago(as("seller", "PROMOTER"), deps);
   assert.equal(disconnected.success, true, disconnected.message);
   assert.equal(db.mercadoPagoAccount.rows.length, 0);
-  assert.equal(db.events.rows.filter((event) => event.userId === "seller" && event.ticketsEnabled).length, 0, "sales disabled");
   current = NOW;
+  // Disconnecting pauses the sale: a paid event must never become a free registration with a valid QR.
+  assert.equal(db.events.rows.find((event) => event.id === "event-1").ticketsEnabled, true, "the sale setting survives so reconnecting resumes it");
+  assert.equal(await service.isTicketSaleActive("event-1", deps), false, "no checkout while disconnected");
+  const envBefore = { ...process.env };
+  Object.assign(process.env, ENV);
+  try {
+    const attendance = load("lib/services/attendance.ts");
+    const paused = await attendance.getRegistrationState("event-1", "buyer");
+    assert.deepEqual([paused.ticketSale, paused.ticketSalesPaused], [false, true], "public page shows paused sales");
+    await assert.rejects(() => attendance.registerForEvent("event-1", "free-rider"), /pausadas/, "no free registration on a paused paid event");
+    assert.equal(db.eventRegistration.rows.some((row) => row.userId === "free-rider"), false);
+    assert.equal(await service.ticketSettingsProblem(db, "seller", { ticketsEnabled: true, isFree: false, priceCents: 2500, alreadyEnabled: true }, ENV), null, "a paused event can still be edited");
+    assert.match(await service.ticketSettingsProblem(db, "seller", { ticketsEnabled: true, isFree: false, priceCents: 2500 }, ENV), /Mercado Pago/, "new sales still need a connected account");
+    db.mercadoPagoAccount.rows.push(savedAccount);
+    assert.equal(await service.isTicketSaleActive("event-1", deps), true, "reconnecting resumes the sale");
+    assert.equal((await attendance.getRegistrationState("event-1", "buyer")).ticketSale, true);
+  } finally {
+    for (const key of Object.keys(ENV)) { if (key in envBefore) process.env[key] = envBefore[key]; else delete process.env[key]; }
+  }
 }
 
 // Ticket orders are financial records: deleting their event or a buyer/seller account is refused (DB RESTRICT + friendly guard).
@@ -1032,7 +1051,7 @@ function checkWiring() {
   assert.match(publicActions, /ticketSale && registrationOpen && <TicketPurchase/, "event page shows the checkout when EventMap sells tickets");
   assert.match(fs.readFileSync("app/eventos/[id]/page.tsx", "utf8"), /isTicketSaleActive\(/, "buy button hidden unless payments are configured");
   // Drawers and modals don't receive ticketSale: the registration state must say the event sells tickets so they hide the free RSVP.
-  assert.match(fs.readFileSync("lib/services/attendance.ts", "utf8"), /ticketSale: Boolean\(event\.ticketsEnabled && !event\.isFree && ticketPaymentsConfigured\(\)\)/, "registration state exposes ticketSale");
+  assert.match(fs.readFileSync("lib/services/attendance.ts", "utf8"), /ticketSale: canSell, ticketSalesPaused: sellsTickets && !canSell/, "registration state exposes ticketSale");
   const actionsUi = fs.readFileSync("components/MyComponents/EventPublicActions.tsx", "utf8");
   assert.match(actionsUi, /const sellsElsewhere = !ticketSale && Boolean\(registration\?\.ticketSale\)/, "overlays detect EventMap ticket sales");
   const eventForm = fs.readFileSync("components/MyComponents/EventoForm.tsx", "utf8");
@@ -1045,7 +1064,7 @@ function checkWiring() {
   const attendanceSource = fs.readFileSync("lib/services/attendance.ts", "utf8");
   assert.match(attendanceSource, /if \(event\.ticketsEnabled && !event\.isFree\) \{/, "registration blocked regardless of payments configuration");
   assert.match(attendanceSource, /As vendas deste evento estão pausadas no momento\./);
-  assert.match(attendanceSource, /ticketSalesPaused: sellsTickets && !configured/);
+  assert.match(attendanceSource, /ticketSalesPaused: sellsTickets && !canSell/);
   // Webhook route forwards the collector hint; cron route is bearer-protected; health reports payments.
   assert.match(fs.readFileSync("app/api/webhooks/mercadopago/route.ts", "utf8"), /mpUserId:/);
   const cron = fs.readFileSync("app/api/cron/tickets-reconcile/route.ts", "utf8");

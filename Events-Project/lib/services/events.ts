@@ -49,7 +49,7 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         if (ticketInput && !ticketInput.success)
             return ticketInput;
         const ticketSettings = ticketInput?.data ?? { ticketsEnabled: existing?.ticketsEnabled ?? false, ticketCapacity: existing?.ticketCapacity ?? null };
-        const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents });
+        const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents, alreadyEnabled: Boolean(existing?.ticketsEnabled) });
         if (ticketProblem)
             return { success: false, message: ticketProblem };
         // Approval of registrations: new events start with it on; older clients omit the field and keep the stored value.

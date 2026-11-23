@@ -31,7 +31,8 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 2. Compra real de R$ 5 (preço mínimo) para confirmar Pix, webhook, split, QR e estorno.
 3. Teste em iPhone e Android reais, incluindo Google Places e leitura do QR pela câmera.
 4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela, com conta real.
-5. Corrigido na branch, aguardando OK para deploy: avisos de alteração, cancelamento e remoção agora chegam também a inscrições pendentes e aprovadas; a trava de desconexão do Mercado Pago não perde ingressos futuros em contas com mais de 2.000 pedidos.
+5. Publicado no commit `9c71b99`: avisos de alteração, cancelamento e remoção chegam também a inscrições pendentes e aprovadas; a trava de desconexão do Mercado Pago não perde ingressos futuros em contas com mais de 2.000 pedidos.
+6. Na branch, aguardando OK para deploy: desconectar o Mercado Pago pausa a venda em vez de liberar inscrição gratuita com QR, e reconectar retoma a venda. Validado offline, sem conta real.
 
 ## Riscos e dependências externas
 
