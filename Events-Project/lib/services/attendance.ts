@@ -165,7 +165,11 @@ type RegistrationEvent = Awaited<ReturnType<typeof eventForRegistration>>;
 async function requestApproval(tx: Prisma.TransactionClient, event: RegistrationEvent, userId: string) {
   const existing = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId } } });
   if (existing?.status === "REJECTED") throw new AttendanceError(rejectedMessage, 409);
-  if (existing && existing.status !== "CANCELLED") return { id: existing.id, status: existing.status };
+  // A free RSVP from before the paid sale holds no ticket: asking turns it into a request and revokes its QR.
+  const unpaidSeat = Boolean(event.ticketsEnabled && !event.isFree && existing && ["CONFIRMED", "WAITLISTED", "CHECKED_IN"].includes(existing.status))
+    && !await tx.ticketOrder.count({ where: { eventId: event.id, buyerId: userId, status: "PAID" } });
+  if (unpaidSeat && existing?.status === "CHECKED_IN") throw new AttendanceError("Sua entrada neste evento já foi validada.", 409);
+  if (existing && existing.status !== "CANCELLED" && !unpaidSeat) return { id: existing.id, status: existing.status };
   const registration = existing
     ? await tx.eventRegistration.update({ where: { id: existing.id }, data: { status: "PENDING", qrVersion: { increment: 1 }, checkedInAt: null, createdAt: new Date() } })
     : await tx.eventRegistration.create({ data: { eventId: event.id, userId, status: "PENDING" } });

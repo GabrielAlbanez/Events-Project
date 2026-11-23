@@ -74,6 +74,7 @@ function freshDb() {
     { ...base, id: "ev-imported", userId: "promoter", requiresApproval: true, imported: true },
     { ...base, id: "ev-full", userId: "promoter", requiresApproval: true, capacity: 1 },
     { ...base, id: "ev-paid", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
+    { ...base, id: "ev-paid-legacy", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
   ];
   const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }];
   const store = {
@@ -139,6 +140,20 @@ function freshDb() {
   await attendance.registerForEvent("ev-full", "bia");
   assert.equal((await attendance.reviewRegistration("ev-full", owner, reg("ev-full", "bia").id, "APPROVE")).status, "WAITLISTED");
 
+  // A free RSVP from before the paid sale must become a request: the button works and the old QR stops being valid.
+  for (const [userId, status] of [["old-confirmed", "CONFIRMED"], ["old-waiting", "WAITLISTED"]]) {
+    await db.eventRegistration.create({ data: { eventId: "ev-paid-legacy", userId, status } });
+    assert.equal((await attendance.registerForEvent("ev-paid-legacy", userId)).status, "PENDING", `${status} without payment becomes a request`);
+    assert.equal(reg("ev-paid-legacy", userId).qrVersion, 1, "the unpaid QR is revoked");
+  }
+  await db.eventRegistration.create({ data: { eventId: "ev-paid-legacy", userId: "old-entered", status: "CHECKED_IN" } });
+  await assert.rejects(attendance.registerForEvent("ev-paid-legacy", "old-entered"), (error) => error.status === 409 && /validada/.test(error.message), "a validated entry gets a visible answer");
+  assert.equal(reg("ev-paid-legacy", "old-entered").status, "CHECKED_IN");
+  await db.eventRegistration.create({ data: { eventId: "ev-paid-legacy", userId: "buyer-paid", status: "CONFIRMED" } });
+  await db.ticketOrder.create({ data: { eventId: "ev-paid-legacy", buyerId: "buyer-paid", status: "PAID" } });
+  assert.equal((await attendance.registerForEvent("ev-paid-legacy", "buyer-paid")).status, "CONFIRMED", "a paid ticket is never downgraded");
+  assert.equal(reg("ev-paid-legacy", "buyer-paid").qrVersion, 0);
+  assert.equal((await attendance.registerForEvent("ev-open", "ana")).status, "CONFIRMED", "free events keep the registration");
   // Withdrawing a pending request is allowed.
   await attendance.registerForEvent("ev-approval", "caio");
   assert.equal((await attendance.cancelRegistration("ev-approval", "caio")).status, "CANCELLED");
