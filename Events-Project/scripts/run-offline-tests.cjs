@@ -14,6 +14,8 @@ const OFFLINE_EXTRA = [
   "verify-organizer-ops.cjs",
   "verify-registration-approval.cjs",
   "verify-my-events-requests.cjs",
+  "verify-event-reminders.cjs",
+  "verify-event-form-mobile.cjs",
   "verify-organizer-insights.cjs",
   "verify-security-platform.cjs",
   "verify-commercial-growth.cjs",

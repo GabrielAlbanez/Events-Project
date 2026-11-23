@@ -1,0 +1,37 @@
+# EventMap: progresso da sprint
+
+Worktree: `eventmap-main-20261118/Events-Project`, branch `codex/animacoes-20261119`. Base: `ddc4e3e`.
+Deploy só com OK explícito do dono. O `.env` local aponta para o banco de produção: nunca rodar fluxos de escrita nem carga contra ele.
+
+## Concluído (validado offline, ainda sem commit)
+
+- Comissão de 10% no Back-end (`lib/tickets.ts`), Termos e página de organizadores. Pedidos antigos mantêm a taxa gravada.
+- Vários ingressos por Pix (até 6): `TicketOrder.quantity`, `TicketPass` (ingressos 2..N com QR próprio), lotação por ingresso, taxa sobre o total, estorno cancela os não usados.
+- Migração aditiva `20261123120000_ticket_quantity_passes`.
+- Painel financeiro (dados): totais de vendidos, bruto, comissão, líquido e reembolsos.
+- Notificações idempotentes (`createNotificationOnce`) em pagamento, estorno e pedidos de participação.
+- Lembretes de eventos salvos: nada processava esses pedidos. Agora há `lib/services/eventReminders.ts`, cron diário e execução oportunista.
+
+- Concorrência: inscrição, compra e confirmação entram em fila por evento (`lib/eventLock.ts`). Antes, com 100 inscrições simultâneas, 88 falhavam.
+- Carga medida em PostgreSQL local descartável, pool de 20 conexões, Mercado Pago simulado (`scripts/load-test-isolated.cjs`). Mede os serviços, não a rede nem a Vercel:
+
+| Simultâneos | Inscrição p95 | Compra p95 | Webhook p95 | Erros | Acima da lotação | Notificações duplicadas |
+|---|---|---|---|---|---|---|
+| 100 | 978 ms | 1.263 ms | 688 ms | 0 | 0 | 0 |
+| 500 | 2.701 ms | 4.668 ms | 2.055 ms | 0 | 0 | 0 |
+| 1.000 | 5.607 ms | 9.632 ms | 3.944 ms | 0 | 0 | 0 |
+
+## Em andamento
+
+- Front-end: horários no mobile, autocomplete do Google e visão do organizador.
+
+## Pendente
+
+1. UI: seletor de quantidade, QR de cada ingresso, leitura na portaria, painéis com os novos totais.
+2. Validação completa, commits e OK para deploy.
+
+## Riscos e dependências externas
+
+- A migração usa a trava do Prisma, que ficou presa em 22/11. Se o build falhar com P1002, é preciso encerrar a sessão presa no painel do banco.
+- Split real depende de a aplicação do Mercado Pago estar habilitada como marketplace e de cada organizador autorizar via OAuth. Ainda não houve compra real de teste.
+- Cron da Vercel está diário; por isso os lembretes também rodam quando usuários consultam notificações. Precisão por minuto exige cron mais frequente.

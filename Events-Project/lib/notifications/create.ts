@@ -17,6 +17,12 @@ export function validateNotification(input: CreateNotificationInput) {
 export async function createNotification(db: NotificationStore, input: CreateNotificationInput) {
   return db.notification.create({ data: validateNotification(input) });
 }
+/** Idempotent by (userId, groupKey): retried webhooks or repeated requests never notify twice. */
+export async function createNotificationOnce(db: NotificationStore, input: CreateNotificationInput & { groupKey: string }, scope: "ever" | "unread" = "ever") {
+  const data = validateNotification(input);
+  const existing = await db.notification.findFirst({ where: { userId: data.userId, groupKey: input.groupKey, ...(scope === "unread" ? { readAt: null } : {}) }, select: { id: true } });
+  return existing ?? db.notification.create({ data });
+}
 export async function createNotifications(db: NotificationStore, inputs: CreateNotificationInput[]) {
   const data = inputs.map(validateNotification);
   return data.length ? db.notification.createMany({ data }) : { count: 0 };

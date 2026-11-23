@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import type { ResolveCurrentUser } from "@/lib/services/authContext";
 import type { NotificationDTO } from "@/types/features";
+import { runDueRemindersOpportunistically } from "@/lib/services/eventReminders";
 import { z } from "zod";
 import { getNotificationType, notificationCatalog, safeNotificationHref, type NotificationCategory } from "@/lib/notifications/catalog";
 
@@ -44,6 +45,7 @@ export async function getNotificationCounts(resolveCurrentUser: ResolveCurrentUs
     const result = { total: 0, Eventos: 0, Comunidade: 0, Conexões: 0, Sistema: 0 };
     const user = await resolveCurrentUser();
     if (!user) return result;
+    await runDueRemindersOpportunistically();
     const groups = await prisma.notification.groupBy({ by: ["type"], where: { userId: user.id, readAt: null }, _count: { _all: true } });
     for (const group of groups) { result.total += group._count._all; result[notificationCatalog[getNotificationType(group.type)].category] += group._count._all; }
     return result;

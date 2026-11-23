@@ -29,7 +29,7 @@ function load(file, dependencies) {
   let query;
   const date = new Date("2026-10-03T12:00:00.000Z");
   const rows = Array.from({ length: 51 }, (_, index) => ({ id: `00000000-0000-4000-8000-${String(1000 - index).padStart(12,"0")}`, title: "Title", message: "Message", href: "/", readAt: null, createdAt: date }));
-  const notices = load("lib/services/notifications.ts", { "@/lib/prisma": { __esModule: true, default: { notification: { findMany: async args => { query = args; return rows; } } } } });
+  const notices = load("lib/services/notifications.ts", { "@/lib/services/eventReminders": { runDueRemindersOpportunistically: async () => {} }, "@/lib/prisma": { __esModule: true, default: { notification: { findMany: async args => { query = args; return rows; } } } } });
   assert.deepEqual(await notices.getNotificationPage(async () => null), { items: [], nextBefore: null }); assert.equal(query, undefined);
   const page = await notices.getNotificationPage(async () => ({ id: "owner" }), { unread: true });
   assert.equal(query.where.userId, "owner"); assert.equal(query.where.readAt, null); assert.equal(query.take, 51); assert.equal(page.items.length, 50);

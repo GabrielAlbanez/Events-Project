@@ -16,7 +16,7 @@ const id = '00000000-0000-4000-8000-000000000001';
   assert.throws(() => creator.validateNotification({...input,type:'INVALID'}));
   const files = ['lib/eventNotifications.ts','lib/community/events.ts','lib/community/notifications.ts','lib/community/rooms.ts','lib/services/attendance.ts','lib/services/eventReports.ts','lib/partyConnections/actions.ts','server/notificationWorker.mts'];
   let creatorSites=0;
-  for(const file of files){const source=fs.readFileSync(file,'utf8');creatorSites+=(source.match(/await createNotifications?\(/g)||[]).length;
+  for(const file of files){const source=fs.readFileSync(file,'utf8');creatorSites+=(source.match(/await createNotification(?:s|Once)?\(/g)||[]).length;
     for(const title of ['Evento '+ 'x'.repeat(200),''])for(const message of ['x'.repeat(240),'']){
       const prepared=catalog.notificationCopy({...input,title,message});
       assert.doesNotThrow(()=>creator.validateNotification(prepared),file+' copy must not reject long/empty content');
@@ -41,7 +41,7 @@ const id = '00000000-0000-4000-8000-000000000001';
   }};
   const module = {exports:{}};
   const source=ts.transpileModule(fs.readFileSync('lib/services/notifications.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText;
-  new Function('require','module','exports',source)(name=>name==='@/lib/prisma'?{__esModule:true,default:store}:name.includes('notifications/')?load(name):require(name),module,module.exports);
+  new Function('require','module','exports',source)(name=>name==='@/lib/prisma'?{__esModule:true,default:store}:name==='@/lib/services/eventReminders'?{runDueRemindersOpportunistically:async()=>{}}:name.includes('notifications/')?load(name):require(name),module,module.exports);
   const service=module.exports, owner=async()=>({id:'owner',role:'BASIC'});
   assert.equal(await service.getUnreadCount(async()=>null),0);assert.equal(query,undefined);
   assert.equal(await service.getUnreadCount(owner),125);assert.deepEqual(query.where,{userId:'owner',readAt:null});
