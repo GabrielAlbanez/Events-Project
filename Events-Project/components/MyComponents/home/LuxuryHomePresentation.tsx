@@ -1,8 +1,9 @@
 "use client";
 
+import { FeaturedBadge } from "@/components/MyComponents/FeaturedBadge";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ArrowDown, ArrowRight, BookmarkCheck, Clock, Map as MapIcon, MapPin, QrCode, Star, Tag, Ticket } from "lucide-react";
+import { ArrowDown, ArrowRight, BookmarkCheck, Clock, Map as MapIcon, MapPin, QrCode, Tag, Ticket } from "lucide-react";
 import { LazyMotion, m, useReducedMotion, useScroll, useSpring, useTransform, type Variants } from "framer-motion";
 import { loadAnimationFeatures } from "@/components/animations/config";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
@@ -67,7 +68,7 @@ function EventCard({ event, reason, index, count }: { event: Evento; reason?: st
         <HomeEventImage banner={event.banner} category={event.category} index={index} sizes={sizes} className={styles.banner} />
         {(event.category || event.featured) && <span className={styles.imagePills}>
           {event.category && <span className={styles.categoryPill}><Tag size={13} strokeWidth={2.4} aria-hidden="true" />{event.category}</span>}
-          {event.featured && <span className={styles.featuredPill}><Star size={13} strokeWidth={2.4} aria-hidden="true" />Em destaque</span>}
+          {event.featured && <FeaturedBadge className={styles.featuredPill} />}
         </span>}
       </div>
       <div className={styles.eventBody}>
