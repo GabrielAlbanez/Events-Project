@@ -31,7 +31,7 @@ import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
-import { GoogleMapsPreference } from "./GoogleMapsPreference";
+import { MapConsentCard } from "./MapConsentCard";
 import Link from "next/link";
 import { DayMonthBlock } from "./home/discoveryVisuals";
 import cardStyles from "./MapEventCard.module.css";
@@ -859,7 +859,7 @@ export default function Mapa(props: MapProps) {
   if (isLoaded) return <MapaGoogle {...props} />;
   if (isLoading) return <CustomLoading />;
 
-  if (!enabled && configured) return <section aria-label="Ativar mapa opcional" className="flex h-full min-h-[420px] items-center justify-center bg-muted p-6"><div className="max-w-md space-y-4 rounded-2xl bg-card p-6"><h2 className="text-xl font-semibold">Explore também pelo mapa</h2><GoogleMapsPreference /><p className="text-sm text-muted-foreground">Você pode continuar buscando e filtrando os eventos pela lista sem ativar o mapa.</p></div></section>;
+  if (!enabled && configured) return <MapConsentCard />;
 
   return (
     <section className="flex h-full min-h-[520px] items-center justify-center bg-muted p-8">
