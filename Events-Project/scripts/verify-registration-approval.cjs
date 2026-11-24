@@ -64,6 +64,7 @@ function table(name, rows, relations = {}) {
       return hydrate(row);
     },
     createMany: async (q) => { rows.push(...q.data); return { count: q.data.length }; },
+    groupBy: async (q) => { const out = new Map(); for (const row of rows.filter((item) => matches(item, q.where))) { const key = row[q.by[0]]; out.set(key, (out.get(key) ?? 0) + 1); } return [...out].map(([key, n]) => ({ [q.by[0]]: key, _count: { _all: n } })); },
     updateMany: async (q) => { const hit = rows.filter((row) => matches(row, q.where)); for (const row of hit) Object.assign(row, q.data); return { count: hit.length }; },
   };
 }
@@ -120,8 +121,14 @@ function freshDb() {
   // Only owner and admins see and decide requests; the check-in team cannot.
   await assert.rejects(attendance.listRegistrationRequests("ev-approval", { id: "team", role: "BASIC" }), (error) => error.status === 403);
   await assert.rejects(attendance.listRegistrationRequests("ev-approval", { id: "bia", role: "BASIC" }), (error) => error.status === 403);
+  await db.eventRegistration.create({ data: { eventId: "ev-open", userId: "ana", status: "CHECKED_IN" } });
   const requests = await attendance.listRegistrationRequests("ev-approval", owner);
   assert.deepEqual(requests.map((row) => [row.user.name, row.status]), [["Ana", "PENDING"]]);
+  // The organizer sees who is asking: public profile photo and bio, plus how many other events they actually attended.
+  assert.equal(requests[0].attendedEvents, 1, "attended count comes from check-ins at other events");
+  assert.ok("image" in requests[0].user && "bio" in requests[0].user, "request carries photo and bio");
+  assert.ok(!("photoUrl" in requests[0].user) && !("password" in requests[0].user), "never the party photo or secrets");
+  await db.eventRegistration.update({ where: { eventId_userId: { eventId: "ev-open", userId: "ana" } }, data: { status: "CANCELLED" } });
   await assert.rejects(attendance.reviewRegistration("ev-approval", { id: "team", role: "BASIC" }, pending.id, "APPROVE"), (error) => error.status === 403);
 
   // Approve (free): CONFIRMED and the attendee is notified; it now counts as a seat.

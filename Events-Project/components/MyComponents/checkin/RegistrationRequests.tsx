@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, UserMinus, UserPlus, X } from "lucide-react";
+import { BadgeCheck, CalendarCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { cn } from "@/lib/utils";
 
 /** Mirrors GET /api/events/[id]/registration-requests (owner/admin only). */
@@ -14,7 +15,9 @@ export type RegistrationRequest = {
   status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
   checkedInAt: string | null;
-  user: { id: string; name: string | null; email: string | null };
+  user: { id: string; name: string | null; email: string | null; image: string | null; bio: string };
+  /** Other events this person actually checked in to on EventMap. */
+  attendedEvents: number;
 };
 type Decision = "APPROVE" | "REJECT";
 type DecisionResult = { id: string; status: string; message?: string };
@@ -45,6 +48,24 @@ function isRequestList(value: unknown): value is RegistrationRequest[] {
 function requestedAt(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : dateFormat.format(date);
+}
+
+function attendanceText(count: unknown): string {
+  if (typeof count !== "number" || !Number.isFinite(count) || count < 0) return "";
+  if (count === 0) return "Primeiro evento no EventMap";
+  return `Já foi a ${count} ${count === 1 ? "evento" : "eventos"} no EventMap`;
+}
+
+/** Plain-text bio clamped to two lines; long texts can be expanded in place. */
+function RequestBio({ id, bio }: { id: string; bio: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = bio.trim();
+  if (!text) return null;
+  const long = text.length > 120 || text.includes("\n");
+  return <div className="mt-1.5">
+    <p id={id} className={cn("whitespace-pre-line break-words text-sm text-foreground/80", !expanded && long && "line-clamp-2")}>{text}</p>
+    {long && <button type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((value) => !value)} className="mt-0.5 rounded text-xs font-semibold text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{expanded ? "Ver menos" : "Ver bio completa"}</button>}
+  </div>;
 }
 
 function approvedMessage(name: string, status: string): string {
@@ -332,11 +353,20 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
               : <ul className="mt-4 divide-y divide-border">{visible.map((entry) => {
                 const rowBusy = busyId === entry.id;
                 const when = requestedAt(entry.createdAt);
-                return <li key={entry.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold">{personName(entry)}</p>
-                    {entry.user.email && <p className="break-all text-xs text-muted-foreground">{entry.user.email}</p>}
-                    {when && <p className="mt-0.5 text-xs text-muted-foreground">Pedido em <time dateTime={entry.createdAt}>{when}</time></p>}
+                const attendance = attendanceText(entry.attendedEvents);
+                return <li key={entry.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <ProfileAvatar preview src={entry.user.image} name={entry.user.name || entry.user.email} size={48} label={`Foto de perfil de ${personName(entry)}`} className="h-12 w-12 shrink-0 rounded-full object-cover" fallbackClassName="bg-primary/10 text-sm font-semibold text-brand" />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold">{personName(entry)}</p>
+                      {entry.user.email && <p className="break-all text-xs text-muted-foreground">{entry.user.email}</p>}
+                      {typeof entry.user.bio === "string" && <RequestBio id={`request-bio-${entry.id}`} bio={entry.user.bio} />}
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                        {attendance && <span className={cn("inline-flex items-center gap-1 font-medium", entry.attendedEvents > 0 ? "text-foreground/80" : "")}><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />{attendance}</span>}
+                        {attendance && when && <span aria-hidden="true">·</span>}
+                        {when && <span>Pedido em <time dateTime={entry.createdAt}>{when}</time></span>}
+                      </p>
+                    </div>
                   </div>
                   {entry.status === "PENDING" ? <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
                     <Button type="button" size="sm" disabled={busy || !open} onClick={() => void runSingle(entry, "APPROVE")}>{rowBusy && busyDecision === "APPROVE" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <Check aria-hidden="true" />}Aprovar<span className="sr-only"> {personName(entry)}</span></Button>

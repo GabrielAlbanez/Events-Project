@@ -211,7 +211,18 @@ const requestStatuses: RegistrationStatus[] = ["PENDING", "APPROVED", "REJECTED"
 export async function listRegistrationRequests(eventId: string, actor: StaffActor) {
   const event = await rosterEvent(eventId);
   await assertManager(prisma, event, actor);
-  return prisma.eventRegistration.findMany({ where: { eventId, status: { in: requestStatuses } }, select: rosterSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 500 });
+  const rows = await prisma.eventRegistration.findMany({ where: { eventId, status: { in: requestStatuses } }, select: requestSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 500 });
+  const userIds = Array.from(new Set(rows.map((row) => row.user.id)));
+  const attended = userIds.length
+    ? await prisma.eventRegistration.groupBy({ by: ["userId"], where: { userId: { in: userIds }, eventId: { not: eventId }, status: "CHECKED_IN" }, _count: { _all: true } })
+    : [];
+  const attendedBy = new Map(attended.map((row) => [row.userId, row._count._all]));
+  // Only the public profile (photo and bio) the person shows on the site; never the party-mode profile.
+  return rows.map(({ user, ...row }) => ({
+    ...row,
+    user: { id: user.id, name: user.name, email: user.email, image: user.image ?? null, bio: user.bio ?? "" },
+    attendedEvents: attendedBy.get(user.id) ?? 0,
+  }));
 }
 
 export type RegistrationDecision = "APPROVE" | "REJECT";
@@ -392,6 +403,10 @@ async function checkInAccess(db: TeamStore, event: { id: string; userId: string 
 const rosterSelect = {
   id: true, status: true, createdAt: true, checkedInAt: true,
   user: { select: { id: true, name: true, email: true } },
+} satisfies Prisma.EventRegistrationSelect;
+const requestSelect = {
+  id: true, status: true, createdAt: true, checkedInAt: true,
+  user: { select: { id: true, name: true, email: true, image: true, bio: true } },
 } satisfies Prisma.EventRegistrationSelect;
 const rosterStatuses: RegistrationStatus[] = ["CONFIRMED", "WAITLISTED", "CHECKED_IN"];
 

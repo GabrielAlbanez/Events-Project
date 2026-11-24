@@ -41,6 +41,7 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 12. Frequência do cron não alterada: o plano da Vercel não foi confirmado e um agendamento não permitido pode bloquear o deploy.
 13. Publicado com o item 14: organizador remove participante. O QR é revogado, a pessoa é avisada e não volta a se inscrever. Ingresso pago exige estorno, Pix em aberto bloqueia e Pix atrasado é devolvido. Validado em navegador real com banco descartável (42/42), desktop e 390 px; Mercado Pago real segue sem teste.
 14. Readmitir e inscrições em tempo real (organizador, participante, portaria, QR e /ingressos). Validado com duas sessões reais e Socket.IO local em banco descartável (13/13): remoção em 0,5 s, readmissão em 0,6 s, QR estornado em 1,2 s. Vagas para outros visitantes atualizam por intervalo (15 a 60 s). Socket de produção não exercitado com contas reais.
+15. Solicitações mostram foto do perfil, bio e quantos eventos a pessoa já frequentou (check-ins em outros eventos). Usa só o perfil público, nunca o perfil do modo festa. Validado em navegador a 390 px (55/55) e testes offline 66/66. Não testado com fotos reais do Google em produção.
 
 ## Riscos e dependências externas
 
