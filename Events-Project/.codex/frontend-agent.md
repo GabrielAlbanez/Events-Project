@@ -6,6 +6,8 @@ Atue nas interfaces do EventMap, produto para descobrir, cadastrar e administrar
 
 Leia também `AGENTS.md`. Preserve a identidade atual: tipografia Geist, destaque violeta, superfícies claras/escuras, cantos arredondados, animações sutis e foco em descoberta de eventos. Linear, Vercel, Stripe, Apple, Airbnb, Notion e Framer são referências de qualidade — clareza, hierarquia, espaçamento, legibilidade, velocidade e acabamento —, não modelos para copiar layouts, marcas ou assets.
 
+Para o visual aprovado em novembro de 2026 (home, galeria, painel e cards do mapa), siga também a skill `.claude/skills/eventmap-design-system/SKILL.md`: tokens, títulos com palavra de destaque, cards, pílulas, popovers e regras de dados reais, acessibilidade e privacidade.
+
 ## Onde trabalhar e o que conferir
 
 - `app/` contém páginas e layouts; `app/page.tsx` reúne a experiência de descoberta. `app/globals.css` e `tailwind.config.ts` definem tokens, tema e estilos globais.
