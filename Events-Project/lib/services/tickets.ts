@@ -64,6 +64,14 @@ const loginRequired = { success: false as const, message: "Entre na sua conta pa
 const notConfigured = "Os pagamentos ainda não foram configurados no EventMap.";
 const genericError = { success: false as const, message: "Não foi possível concluir agora. Tente novamente em alguns minutos." };
 const approvalRequired = "A organização precisa aprovar sua participação antes da compra. Peça para participar na página do evento.";
+/** What failed while creating a Pix, for the logs only: the stage, HTTP status and provider codes. No tokens or personal data. */
+function pixFailureDetail(error: unknown): string {
+  if (error instanceof MercadoPagoError) return `stage=${error.code} status=${error.status ?? "-"} causes=${error.causes.join(",") || "-"}`;
+  if (error instanceof TicketConfigError) return "stage=config";
+  if (error instanceof Error && /^SELLER_[A-Z_]+$/.test(error.message)) return `stage=${error.message.toLowerCase()}`;
+  return "stage=unknown";
+}
+
 const pixError = { success: false as const, message: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos." };
 const iso = (value: Date | null | undefined) => (value ? new Date(value).toISOString() : null);
 const REFRESH_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -481,9 +489,9 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       orderId: order.id, amountCents: order.unitCents * order.quantity, feeCents: order.feeCents, description: `${order.quantity > 1 ? `${order.quantity} ingressos` : "Ingresso"}: ${outcome.eventName}`,
       payerEmail: outcome.payerEmail, notificationUrl: notificationUrl(d.env), expiresAt: order.expiresAt,
     }, d.fetch);
-  } catch {
+  } catch (error) {
     // No QR code was ever shown, so nothing can be paid for this order.
-    console.warn("ticket-pix-create-failed");
+    console.warn("ticket-pix-create-failed", pixFailureDetail(error));
     await cancelOrder();
     return pixError;
   }

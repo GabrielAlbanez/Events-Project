@@ -196,7 +196,7 @@ function mockMercadoPago() {
     calls.push({ url, method, headers, body });
     assert.ok(init.signal, "every Mercado Pago call has a timeout signal");
     const { pathname } = new URL(url);
-    if (mp.fail && mp.fail(pathname, method)) return json(500, { message: "internal error" });
+    if (mp.fail && mp.fail(pathname, method)) return mp.failWith ? json(mp.failWith.status, mp.failWith.body) : json(500, { message: "internal error" });
     if (pathname === "/oauth/token" && method === "POST") {
       mp.tokenCount++;
       if (body.code === "bad-code") return json(400, { message: "invalid_grant" });
@@ -588,6 +588,21 @@ async function checkService() {
   assert.equal(/500|internal/i.test(failed.message), false, "no provider detail");
   const failedRow = db.ticketOrder.rows.filter((row) => row.buyerId === "buyer2" && row.eventId === "event-open").at(-1);
   assert.equal(failedRow.status, "CANCELLED");
+
+  // A refusal by Mercado Pago is logged with its stage, HTTP status and cause code, never with tokens or the payer's e-mail.
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warned.push(args.map((item) => typeof item === "string" ? item : JSON.stringify(item)).join(" "));
+  mp.fail = (pathname, method) => pathname === "/v1/payments" && method === "POST";
+  mp.failWith = { status: 400, body: { message: "Collector user without key enabled for QR render", error: "bad_request", status: 400, cause: [{ code: 13253, description: "Collector user without key enabled for QR render" }] } };
+  try {
+    await service.createTicketOrder({ eventId: "event-open" }, as("buyer2"), deps);
+  } finally { console.warn = realWarn; mp.fail = null; mp.failWith = null; }
+  const line = warned.find((entry) => entry.includes("ticket-pix-create-failed")) ?? "";
+  assert.match(line, /payment_create/, "stage is logged");
+  assert.match(line, /400/, "HTTP status is logged");
+  assert.match(line, /13253/, "Mercado Pago cause code is logged");
+  assert.equal(/@|APP_USR|TG-/.test(line), false, "no e-mail or token in the log");
 
   // Rate limit: at most 5 order creations per buyer per 10 minutes.
   for (let index = 0; index < 4; index++) {

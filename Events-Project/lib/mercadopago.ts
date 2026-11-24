@@ -22,6 +22,8 @@ export type MercadoPagoPayment = {
 const TIMEOUT_MS = 10_000;
 
 export class MercadoPagoError extends Error {
+  /** Mercado Pago's own cause codes (e.g. 13253), safe to log: numbers or short identifiers, never user data. */
+  causes: string[] = [];
   constructor(readonly code: string, readonly status: number | null = null) {
     super(`mercadopago:${code}${status ? `:${status}` : ""}`);
     this.name = "MercadoPagoError";
@@ -68,13 +70,33 @@ async function request(fetchImpl: MpFetch, url: string, init: RequestInit, code:
   } catch {
     throw new MercadoPagoError(`${code}_network`);
   }
-  if (!response.ok) throw new MercadoPagoError(code, response.status);
+  if (!response.ok) {
+    const error = new MercadoPagoError(code, response.status);
+    error.causes = await causeCodes(response);
+    throw error;
+  }
   try {
     const body: unknown = await response.json();
     if (!body || typeof body !== "object") throw new Error("invalid");
     return body as Record<string, unknown>;
   } catch {
     throw new MercadoPagoError(`${code}_invalid_response`, response.status);
+  }
+}
+
+/** Reads only the cause codes from an error body; messages are dropped because they could echo user data. */
+async function causeCodes(response: Response): Promise<string[]> {
+  try {
+    const body: unknown = await response.json();
+    if (!body || typeof body !== "object") return [];
+    const { cause, error } = body as { cause?: unknown; error?: unknown };
+    const codes = (Array.isArray(cause) ? cause : cause ? [cause] : [])
+      .map((item) => (item && typeof item === "object" ? (item as { code?: unknown }).code : undefined))
+      .map((value) => String(value ?? ""));
+    if (typeof error === "string") codes.push(error);
+    return codes.filter((value) => /^[A-Za-z0-9_.-]{1,40}$/.test(value)).slice(0, 5);
+  } catch {
+    return [];
   }
 }
 
