@@ -129,11 +129,14 @@ function eventPinIcon(date: string | null | undefined, variant: PinVariant) {
 /** Anchored card geometry (px): card width/height estimate, clearance above the pin tip, safe margins of the map area. */
 const CARD_WIDTH = 320;
 /** Fallback until the card has been measured. */
-const CARD_HEIGHT = 280;
+const CARD_HEIGHT = 250;
 /** Space the tail needs between the card edge and the pin. */
 const TAIL_GAP = 10;
-/** Below the floating "Mapa | Lista" toggle. */
-const SAFE_TOP = 64;
+/** Top margin: below the floating "Mapa | Lista" toggle when the card overlaps its column, otherwise a small gap. */
+const SAFE_TOP_TOGGLE = 64;
+const SAFE_TOP = 12;
+/** Right edge (map px) of the toggle column in the top-left corner. */
+const TOGGLE_RIGHT = 260;
 const SAFE_LEFT = 56;
 const SAFE_RIGHT = 84;
 /** Closest zoom an automatic framing (first load, filter change, "Explore o mapa") may end at. */
@@ -171,7 +174,7 @@ function AnchoredEventCard({ event, placement, tag, pinned, deck, onClose, onRou
         <article ref={articleRef} aria-label={event.featured ? "Evento em destaque" : pinned ? "Evento selecionado" : "Prévia do evento"} className={`relative flex rounded-[22px] border border-black/[.06] bg-card text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 flex-col`}>
           {/* Below the pin the tail sits on the top edge; the image (painted after it) hides its lower half. */}
           {!above && <span aria-hidden="true" className="absolute -top-2 h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-l border-t border-black/[.06] bg-card dark:border-white/10" style={{ left: tailLeft }} />}
-          <div className="relative h-[9.5rem] overflow-hidden rounded-t-[21px] bg-primary/10">
+          <div className="relative h-[7.5rem] overflow-hidden rounded-t-[21px] bg-primary/10">
             <div className={`absolute inset-0 ${cardStyles.image}`}><HomeEventImage banner={event.banner} category={event.category} index={0} sizes="320px" className="object-cover" /></div>
             <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
             {tag === "featured" && <span role="note" aria-label="Evento em destaque patrocinado" className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-cta px-3 py-1 text-xs font-semibold text-cta-foreground shadow-sm"><Star aria-hidden="true" className="h-3 w-3 fill-current" /><span aria-hidden="true">Em destaque</span></span>}
@@ -656,7 +659,13 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     // Pin icon height for the variant shown (see eventPinIcon): selected/featured 55, list-hover enlarged 62, regular 48.
     const pinHeight = event.id === selectedId || event.featured ? 55 : event.id === highlightedId && event.id !== floatingId ? 62 : 48;
     const clearance = pinHeight + TAIL_GAP;
-    const roomAbove = y - clearance - SAFE_TOP, roomBelow = height - y - TAIL_GAP - 4 - 16;
+    let shift = 0;
+    if (x - CARD_WIDTH / 2 < SAFE_LEFT) shift = SAFE_LEFT - (x - CARD_WIDTH / 2);
+    else if (x + CARD_WIDTH / 2 > width - SAFE_RIGHT) shift = width - SAFE_RIGHT - (x + CARD_WIDTH / 2);
+    const limit = CARD_WIDTH / 2 - 30;
+    shift = Math.round(Math.max(-limit, Math.min(limit, shift)));
+    const topMargin = x + shift - CARD_WIDTH / 2 < TOGGLE_RIGHT ? SAFE_TOP_TOGGLE : SAFE_TOP;
+    const roomAbove = y - clearance - topMargin, roomBelow = height - y - TAIL_GAP - 4 - 16;
     // Above whenever it fits; below only when it does not fit above but fits below. If neither fits, a pinned card
     // opens above with a minimal pan; a hover card just takes the roomier side (panning would pull the pin from under the pointer).
     const pinned = event.id === selectedId;
@@ -665,11 +674,6 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
       pannedForRef.current = event.id;
       map.panBy(0, -Math.ceil(cardHeight - roomAbove));
     }
-    let shift = 0;
-    if (x - CARD_WIDTH / 2 < SAFE_LEFT) shift = SAFE_LEFT - (x - CARD_WIDTH / 2);
-    else if (x + CARD_WIDTH / 2 > width - SAFE_RIGHT) shift = width - SAFE_RIGHT - (x + CARD_WIDTH / 2);
-    const limit = CARD_WIDTH / 2 - 30;
-    shift = Math.round(Math.max(-limit, Math.min(limit, shift)));
     setPlacement((current) => current.side === side && current.shift === shift && current.clearance === clearance ? current : { side, shift, clearance });
   }, [anchoredEvent, cardHeight, selectedId, highlightedId, floatingId]);
   useEffect(() => { updatePlacement(); }, [updatePlacement]);
