@@ -34,6 +34,7 @@ import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
 import Link from "next/link";
 import { DayMonthBlock } from "./home/discoveryVisuals";
+import cardStyles from "./MapEventCard.module.css";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 import { HomeEventImage } from "./home/HomeEventImage";
 import { animationConfig, loadAnimationFeatures } from "@/components/animations/config";
@@ -125,34 +126,69 @@ function eventPinIcon(date: string | null | undefined, variant: PinVariant) {
   return icon;
 }
 
-/** Card bottom-centre sits on the pin tip, where Google anchors the marker icon. */
-const floatingCardOffset = (width: number, height: number) => ({ x: -width / 2, y: -height });
+/** Anchored card geometry (px): card width/height estimate, clearance above the pin tip, safe margins of the map area. */
+const CARD_WIDTH = 320;
+const CARD_HEIGHT = 300;
+const PIN_CLEARANCE = 62;
+const SAFE_TOP = 84;
+const SAFE_LEFT = 56;
+const SAFE_RIGHT = 84;
+type CardPlacement = { side: "above" | "below"; shift: number };
+/** The overlay div sits on the pin tip; the card positions itself with a transform. */
+const anchorOffset = () => ({ x: 0, y: 0 });
 
-/** Pin hover: the date tag grows into a floating preview of the event (decorative; the marker keeps the accessible title).
- * The pin stays visible underneath: a transparent marker stops receiving hover, which made the card flicker. */
-function FloatingEventCard({ event, onSelect }: { event: Evento; onSelect: (event: Evento) => void }) {
-  const cardRef = useRef<HTMLButtonElement>(null);
-  // Clicks and drags on the card belong to the card, not to the map underneath.
+type AnchoredEventCardProps = {
+  event: Evento;
+  placement: CardPlacement;
+  tag: "featured" | "upcoming" | null;
+  pinned: boolean;
+  deck: { index: number; total: number; upcoming: boolean; onPage: (delta: number) => void } | null;
+  onClose: () => void;
+  onRoute: () => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+};
+
+/** Event card floating on its pin, with an integrated tail pointing at it (flips below the pin near the top edge). */
+function AnchoredEventCard({ event, placement, tag, pinned, deck, onClose, onRoute, onPointerEnter, onPointerLeave }: AnchoredEventCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Clicks, scrolls and drags on the card belong to the card, not to the map underneath.
   useEffect(() => { if (cardRef.current) google.maps.OverlayView.preventMapHitsAndGesturesFrom(cardRef.current); }, []);
-  const parsed = event.dataInicio ? parseEventDate(event.dataInicio) : null;
-  const day = parsed ? String(parsed.getDate()).padStart(2, "0") : null;
-  const month = parsed ? pinMonthFormat.format(parsed).replace(/\./g, "").toLocaleUpperCase("pt-BR") : null;
+  const above = placement.side === "above";
+  const tailLeft = `calc(50% - ${placement.shift}px)`;
   return (
-    <div className="event-pin-float pointer-events-none select-none pb-1">
-      {/* Mouse-only shortcut (aria-hidden, not focusable): keyboard and screen readers use the marker and the list. */}
-      <button ref={cardRef} type="button" tabIndex={-1} aria-hidden="true" onClick={() => onSelect(event)} className="event-pin-float__card pointer-events-auto block cursor-pointer text-left">
-        <div className="flex w-64 items-center gap-3 rounded-2xl border border-white/70 bg-card/95 p-2 pr-3 text-card-foreground shadow-[0_18px_40px_-12px_rgba(16,21,31,.45)] backdrop-blur-xl transition-shadow hover:shadow-[0_22px_46px_-12px_rgba(16,21,31,.55)] dark:border-white/10">
-          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#2455FF]">
-            <HomeEventImage banner={event.banner} category={event.category} index={0} sizes="64px" className="object-cover" />
-            {day && <span className="absolute left-1 top-1 flex flex-col items-center rounded-md bg-[#2455FF] px-1.5 py-0.5 text-white shadow"><span className="text-[8px] font-bold leading-3 tracking-wide opacity-90">{month}</span><span className="text-sm font-extrabold leading-4">{day}</span></span>}
+    <div className={cardStyles.anchor} style={{ transform: above ? `translate(calc(-50% + ${placement.shift}px), calc(-100% - ${PIN_CLEARANCE}px))` : `translate(calc(-50% + ${placement.shift}px), 14px)` }}>
+      <div ref={cardRef} onMouseEnter={onPointerEnter} onMouseLeave={onPointerLeave} onKeyDown={(keyEvent) => { if (keyEvent.key === "Escape") onClose(); }} className={cardStyles.card} style={{ transformOrigin: `${tailLeft} ${above ? "100%" : "0%"}` }}>
+        <article aria-label={event.featured ? "Evento em destaque" : pinned ? "Evento selecionado" : "Prévia do evento"} className={`relative flex rounded-[22px] border border-black/[.06] bg-card text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 ${above ? "flex-col" : "flex-col-reverse"}`}>
+          <div className={`relative h-[9.5rem] overflow-hidden bg-primary/10 ${above ? "rounded-t-[21px]" : "rounded-b-[21px]"}`}>
+            <div className={`absolute inset-0 ${cardStyles.image}`}><HomeEventImage banner={event.banner} category={event.category} index={0} sizes="320px" className="object-cover" /></div>
+            <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
+            {tag === "featured" && <span role="note" aria-label="Evento em destaque patrocinado" className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-cta px-3 py-1 text-xs font-semibold text-cta-foreground shadow-sm"><Star aria-hidden="true" className="h-3 w-3 fill-current" /><span aria-hidden="true">Em destaque</span></span>}
+            {tag === "upcoming" && <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-cta px-3 py-1 text-xs font-semibold text-cta-foreground shadow-sm"><CalendarDays aria-hidden="true" className="h-3 w-3" />Próximo evento</span>}
+            {deck && deck.total > 1 && <div role="group" aria-label={deck.upcoming ? "Navegar entre próximos eventos" : "Navegar entre destaques"} className="absolute right-3 top-3 flex items-center rounded-full bg-[#0B0D12]/80 text-white shadow-sm backdrop-blur">
+              <button type="button" onClick={() => deck.onPage(-1)} aria-label={deck.upcoming ? "Evento anterior" : "Destaque anterior"} className="grid h-8 w-8 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+              <span aria-live="polite" className="px-0.5 text-xs font-semibold tabular-nums"><span className="sr-only">{deck.upcoming ? "Evento " : "Destaque "}</span>{deck.index + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{deck.total}</span>
+              <button type="button" onClick={() => deck.onPage(1)} aria-label={deck.upcoming ? "Próximo evento da lista" : "Próximo destaque"} className="grid h-8 w-8 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+            </div>}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-sm font-semibold leading-5">{event.nome}</p>
-            <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{event.endereco || "Local a confirmar"}</span></p>
+          <div className="relative p-4">
+            <div className={`flex items-start gap-3 ${pinned ? "pr-7" : ""}`}>
+              <DayMonthBlock date={event.dataInicio} />
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-2 text-[15px] font-bold leading-5 tracking-tight">{event.nome}</p>
+                <p className="mt-1.5 flex items-center gap-1 text-xs leading-4 text-muted-foreground"><MapPin aria-hidden="true" className="h-3 w-3 shrink-0" /><span className="truncate">{event.endereco || "Local a confirmar"}</span></p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button type="button" onClick={onRoute} aria-label="Detalhes e rota" title="Detalhes e rota" className="grid h-10 w-10 place-items-center rounded-full border border-border text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Route aria-hidden="true" className="h-4 w-4" /></button>
+              <Link href={"/eventos/" + encodeURIComponent(event.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground shadow-[0_6px_16px_-8px_rgba(120,160,0,.9)] transition-colors hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">Ver detalhes <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
+            </div>
+            {pinned && <button type="button" onClick={onClose} aria-label="Fechar card do evento" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X aria-hidden="true" className="h-4 w-4" /></button>}
           </div>
-        </div>
-        <span className="mx-auto -mt-1.5 block h-3 w-3 rotate-45 rounded-[2px] border-b border-r border-white/70 bg-card dark:border-white/10" />
-      </button>
+          {/* Tail: same surface as the card body, drawn over the card edge so the joint is seamless. */}
+          <span aria-hidden="true" className={`absolute h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-black/[.06] bg-card dark:border-white/10 ${above ? "-bottom-2 border-b border-r" : "-top-2 border-l border-t"}`} style={{ left: tailLeft }} />
+        </article>
+      </div>
     </div>
   );
 }
@@ -463,8 +499,6 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     if (Math.abs(dx) > 26 || dy < -60 || dy > 10) closeFloating();
   }, [closeFloating, visibleEvents]);
   const floatingEvent = useMemo(() => floatingId && floatingId !== selectedId ? visibleEvents.find(event => event.id === floatingId) : undefined, [floatingId, selectedId, visibleEvents]);
-  // A stable position object: a new one on every render makes the overlay remount and restart its entrance animation.
-  const floatingPosition = useMemo(() => floatingEvent ? { lat: floatingEvent.lat!, lng: floatingEvent.lng! } : null, [floatingEvent]);
   useEffect(() => () => { if (hoverClearTimer.current !== null) window.clearTimeout(hoverClearTimer.current); }, []);
   const reducedMotion = useReducedMotion();
   const selectedEvent = useMemo(
@@ -494,8 +528,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     const bounds = new google.maps.LatLngBounds();
     list.forEach((event) => bounds.extend({ lat: event.lat!, lng: event.lng! }));
     const compact = window.matchMedia("(max-width: 767px)").matches;
-    const card = cardShownRef.current;
-    map.fitBounds(bounds, compact ? { top: 72, right: 64, bottom: card ? 150 : 40, left: 32 } : { top: 96, right: card ? 420 : 96, bottom: 96, left: 80 });
+    map.fitBounds(bounds, compact ? { top: 72, right: 64, bottom: cardShownRef.current ? 150 : 40, left: 32 } : { top: 96, right: 120, bottom: 96, left: 80 });
   }, []);
   /** "Explore o mapa": frames every event currently on the map. */
   const exploreMap = useCallback(() => frameEvents(visibleEvents), [frameEvents, visibleEvents]);
@@ -524,8 +557,16 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   const cardEvent = selectedEvent ?? (cardDismissed ? null : baseDeck[0] ?? null);
   const cardDeck = useMemo(() => cardEvent && !baseDeck.some((event) => event.id === cardEvent.id) ? [cardEvent, ...baseDeck] : baseDeck, [cardEvent, baseDeck]);
   const cardIsUpcoming = Boolean(cardEvent && !cardEvent.featured && upcomingMode && baseDeck.some((event) => event.id === cardEvent.id));
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia("(min-width: 768px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsDesktop(query.matches);
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  /** Only the phone card (fixed above the sheet) needs room when framing; on desktop the card follows its pin. */
   const cardShownRef = useRef(false);
-  cardShownRef.current = Boolean(cardEvent);
+  cardShownRef.current = Boolean(cardEvent) && !isDesktop;
   const cardIndex = cardEvent ? cardDeck.findIndex((event) => event.id === cardEvent.id) : -1;
   const cardMappable = Boolean(cardEvent && hasMapCoordinates(cardEvent));
   const pageCard = useCallback((delta: number) => {
@@ -533,6 +574,69 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     onSelectEvent(cardDeck[(cardIndex + delta + cardDeck.length) % cardDeck.length].id);
   }, [cardDeck, cardIndex, onSelectEvent]);
   const closeCard = useCallback(() => { setCardDismissed(true); onSelectEvent(null); }, [onSelectEvent]);
+
+  // Desktop: the card rides on a pin — the one under the pointer (or the list item hovered/focused), else the selected one.
+  // Leaving waits 200ms so the pointer can travel from the pin to the card and click "Ver detalhes".
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+  const anchorTimer = useRef<number | null>(null);
+  const cardHoveredRef = useRef(false);
+  const hoverId = floatingId ?? highlightedId;
+  const validHoverId = hoverId && visibleEvents.some((event) => event.id === hoverId) ? hoverId : null;
+  const restingId = selectedEvent && hasMapCoordinates(selectedEvent) ? selectedEvent.id : null;
+  const hoverRef = useRef(validHoverId);
+  hoverRef.current = validHoverId;
+  const restingRef = useRef(restingId);
+  restingRef.current = restingId;
+  const clearAnchorTimer = useCallback(() => { if (anchorTimer.current !== null) window.clearTimeout(anchorTimer.current); anchorTimer.current = null; }, []);
+  const scheduleAnchorRest = useCallback(() => {
+    clearAnchorTimer();
+    anchorTimer.current = window.setTimeout(() => { anchorTimer.current = null; if (!cardHoveredRef.current) setAnchorId(hoverRef.current ?? restingRef.current); }, 200);
+  }, [clearAnchorTimer]);
+  useEffect(() => {
+    if (!isDesktop) { clearAnchorTimer(); setAnchorId(null); return; }
+    if (validHoverId) { clearAnchorTimer(); setAnchorId(validHoverId); return; }
+    if (!cardHoveredRef.current) scheduleAnchorRest();
+  }, [isDesktop, validHoverId, restingId, clearAnchorTimer, scheduleAnchorRest]);
+  useEffect(() => clearAnchorTimer, [clearAnchorTimer]);
+  const anchoredEvent = useMemo(() => anchorId ? visibleEvents.find((event) => event.id === anchorId) ?? null : null, [anchorId, visibleEvents]);
+  const anchoredPosition = useMemo(() => anchoredEvent ? { lat: anchoredEvent.lat!, lng: anchoredEvent.lng! } : null, [anchoredEvent]);
+  const anchorDeck = useMemo(() => {
+    const deck = baseDeck.filter(hasMapCoordinates);
+    return anchoredEvent && !deck.some((event) => event.id === anchoredEvent.id) ? [anchoredEvent, ...deck] : deck;
+  }, [baseDeck, anchoredEvent]);
+  const anchorIndex = anchoredEvent ? anchorDeck.findIndex((event) => event.id === anchoredEvent.id) : -1;
+  const pageAnchored = useCallback((delta: number) => {
+    if (anchorIndex < 0 || anchorDeck.length < 2) return;
+    const next = anchorDeck[(anchorIndex + delta + anchorDeck.length) % anchorDeck.length];
+    clearAnchorTimer();
+    setAnchorId(next.id);
+    onSelectEvent(next.id);
+  }, [anchorDeck, anchorIndex, clearAnchorTimer, onSelectEvent]);
+  const closeAnchored = useCallback(() => { clearAnchorTimer(); cardHoveredRef.current = false; setAnchorId(null); onSelectEvent(null); }, [clearAnchorTimer, onSelectEvent]);
+  // Opens above the pin; flips below near the top edge and slides sideways to stay clear of the panel and the controls.
+  const [placement, setPlacement] = useState<CardPlacement>({ side: "above", shift: 0 });
+  const updatePlacement = useCallback(() => {
+    const map = mapRef.current, projection = map?.getProjection(), bounds = map?.getBounds(), zoom = map?.getZoom();
+    const event = anchoredEvent;
+    if (!map || !projection || !bounds || zoom === undefined || !event) return;
+    const northWest = projection.fromLatLngToPoint(new google.maps.LatLng(bounds.getNorthEast().lat(), bounds.getSouthWest().lng()));
+    const pin = projection.fromLatLngToPoint(new google.maps.LatLng(event.lat!, event.lng!));
+    if (!northWest || !pin) return;
+    const scale = 2 ** zoom;
+    let x = (pin.x - northWest.x) * scale;
+    if (x < 0) x += 256 * scale;
+    const y = (pin.y - northWest.y) * scale;
+    const width = map.getDiv().clientWidth, height = map.getDiv().clientHeight;
+    const roomAbove = y - PIN_CLEARANCE - SAFE_TOP, roomBelow = height - y - 16;
+    const side = roomAbove >= CARD_HEIGHT + 12 || roomAbove >= roomBelow ? "above" : "below";
+    let shift = 0;
+    if (x - CARD_WIDTH / 2 < SAFE_LEFT) shift = SAFE_LEFT - (x - CARD_WIDTH / 2);
+    else if (x + CARD_WIDTH / 2 > width - SAFE_RIGHT) shift = width - SAFE_RIGHT - (x + CARD_WIDTH / 2);
+    const limit = CARD_WIDTH / 2 - 30;
+    shift = Math.round(Math.max(-limit, Math.min(limit, shift)));
+    setPlacement((current) => current.side === side && current.shift === shift ? current : { side, shift });
+  }, [anchoredEvent]);
+  useEffect(() => { updatePlacement(); }, [updatePlacement]);
 
   return (
     <div className="absolute inset-0 z-10 flex flex-col overflow-hidden bg-muted md:flex-row">
@@ -549,12 +653,25 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               onMouseOut={closeFloating}
               onDragStart={handleDragStart}
               onZoomChanged={handleZoomChanged}
+              onIdle={updatePlacement}
             >
               {userLocation && <Marker position={userLocation} icon={userMarkerIcon} zIndex={100} />}
 
               <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} floatingId={floatingEvent ? floatingId : null} onHover={handleMarkerHover} />
 
-              {floatingEvent && floatingPosition && <OverlayViewF key={floatingEvent.id} position={floatingPosition} mapPaneName={OverlayView.FLOAT_PANE} getPixelPositionOffset={floatingCardOffset}><FloatingEventCard event={floatingEvent} onSelect={handleEventSelect} /></OverlayViewF>}
+              {isDesktop && !showDirections && anchoredEvent && anchoredPosition && <OverlayViewF key={anchoredEvent.id} position={anchoredPosition} mapPaneName={OverlayView.FLOAT_PANE} getPixelPositionOffset={anchorOffset}>
+                <AnchoredEventCard
+                  event={anchoredEvent}
+                  placement={placement}
+                  tag={anchoredEvent.featured ? "featured" : upcomingMode && baseDeck.some((event) => event.id === anchoredEvent.id) ? "upcoming" : null}
+                  pinned={anchoredEvent.id === selectedId}
+                  deck={anchorIndex >= 0 ? { index: anchorIndex, total: anchorDeck.length, upcoming: upcomingMode, onPage: pageAnchored } : null}
+                  onClose={closeAnchored}
+                  onRoute={() => setEventoAtivo(anchoredEvent)}
+                  onPointerEnter={() => { cardHoveredRef.current = true; clearAnchorTimer(); }}
+                  onPointerLeave={() => { cardHoveredRef.current = false; scheduleAnchorRest(); }}
+                />
+              </OverlayViewF>}
 
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
@@ -581,7 +698,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               </div>
             )}
 
-            {cardEvent && !showDirections && (
+            {cardEvent && !showDirections && !isDesktop && (
               <LazyMotion features={loadAnimationFeatures} strict>
                 <m.section
                   key={cardEvent.id}
