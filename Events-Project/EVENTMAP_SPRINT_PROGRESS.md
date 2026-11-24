@@ -39,7 +39,8 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 10. Publicado no commit `5f5a411`: compra com 1.000 simultâneos caiu de cerca de 6,8 s para 5,5 s no p95 (3 medições cada, banco local descartável, 0 erros).
 11. Publicado no commit `5f5a411`: botões de inscrição, QR, aprovação e portaria sempre dão retorno; exportação de vendas em CSV. O botão de CSV não foi aberto em navegador.
 12. Frequência do cron não alterada: o plano da Vercel não foi confirmado e um agendamento não permitido pode bloquear o deploy.
-13. Na branch, aguardando OK: organizador remove participante. O QR é revogado, a pessoa é avisada e não volta a se inscrever. Ingresso pago exige estorno, Pix em aberto bloqueia e Pix atrasado é devolvido. Validado em navegador real com banco descartável (42/42), desktop e 390 px; Mercado Pago real segue sem teste.
+13. Publicado com o item 14: organizador remove participante. O QR é revogado, a pessoa é avisada e não volta a se inscrever. Ingresso pago exige estorno, Pix em aberto bloqueia e Pix atrasado é devolvido. Validado em navegador real com banco descartável (42/42), desktop e 390 px; Mercado Pago real segue sem teste.
+14. Readmitir e inscrições em tempo real (organizador, participante, portaria, QR e /ingressos). Validado com duas sessões reais e Socket.IO local em banco descartável (13/13): remoção em 0,5 s, readmissão em 0,6 s, QR estornado em 1,2 s. Vagas para outros visitantes atualizam por intervalo (15 a 60 s). Socket de produção não exercitado com contas reais.
 
 ## Riscos e dependências externas
 

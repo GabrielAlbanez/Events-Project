@@ -6,6 +6,7 @@ import type { MyTicketView } from "@/lib/services/tickets";
 import { formatTicketAmount, ticketStatusLabels, type TicketOrderStatusValue } from "@/lib/tickets";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 import CheckInPass from "@/components/MyComponents/CheckInPass";
+import TicketsLiveRefresh from "@/components/MyComponents/tickets/TicketsLiveRefresh";
 
 export const metadata: Metadata = { title: "Meus ingressos" };
 export const dynamic = "force-dynamic";
@@ -56,6 +57,7 @@ function RefundNote({ tickets }: { tickets: MyTicketView[] }) {
 export default async function MyTicketsPage() {
   const result = await listMyTickets();
   return <div className="w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10">
+    <TicketsLiveRefresh />
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meus ingressos</h1>

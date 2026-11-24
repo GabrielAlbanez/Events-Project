@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, RegistrationStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { withEventLock } from "@/lib/eventLock";
+import { signalRegistrationChange } from "@/lib/registrationSignals";
 import { eventInstant } from "@/lib/eventTime";
 import { sellerAccountActive, ticketPaymentsConfigured } from "@/lib/ticketSecurity";
 
@@ -78,6 +79,7 @@ async function promoteWaiting(tx: Prisma.TransactionClient, eventId: string, fre
       title: "Sua presença foi confirmada",
       message: "Uma vaga abriu no evento. Sua inscrição foi confirmada.",
     }, type: "CHECKIN" }));
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
   }
   return next.length;
 }
@@ -137,6 +139,7 @@ export async function registerForEvent(eventId: string, userId: string) {
     const registration = existing
       ? await tx.eventRegistration.update({ where: { id: existing.id }, data: { status, qrVersion: { increment: 1 }, checkedInAt: null, createdAt: new Date() } })
       : await tx.eventRegistration.create({ data: { eventId, userId, status } });
+    await signalRegistrationChange(tx, eventId, [userId]);
     return { id: registration.id, status: registration.status };
   });
 }
@@ -165,6 +168,7 @@ export async function cancelRegistration(eventId: string, userId: string) {
         }
       }
     }
+    await signalRegistrationChange(tx, eventId, [userId, promotedUserId]);
     return { status: "CANCELLED" as const, promotedUserId };
   });
 }
@@ -191,6 +195,7 @@ async function requestApproval(tx: Prisma.TransactionClient, event: Registration
       title: "Novo pedido de participação", message: `${event.nome}: há pedidos para participar. Aprove ou recuse na lista de inscritos.`,
     }), groupKey: `registration-request:${event.id}` }, "unread");
   }
+  await signalRegistrationChange(tx, event.id, [userId]);
   return { id: registration.id, status: registration.status };
 }
 
@@ -240,6 +245,7 @@ export async function reviewRegistration(eventId: string, actor: StaffActor, reg
     await createNotification(tx, notificationCopy({ userId: registration.userId, type: (status === "REJECTED" ? "SYSTEM" : "CHECKIN") as "SYSTEM" | "CHECKIN", href, groupKey: `registration-review:${registration.id}`, ...notice }));
     const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
     await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: `Inscrição ${registration.id} ${decision === "REJECT" ? "recusada" : "aprovada"}.` } });
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
     return changed;
   });
 }
@@ -271,6 +277,38 @@ export async function removeAttendee(eventId: string, actor: StaffActor, registr
     await createNotification(tx, notificationCopy({ userId: registration.userId, type: "SYSTEM" as const, href: `/eventos/${encodeURIComponent(eventId)}`, groupKey: `registration-removed:${registration.id}`, title: "Inscrição removida", message: `${event.nome}: a organização removeu sua inscrição deste evento.` }));
     const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
     await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: `Inscrição ${registration.id} removida pela organização.` } });
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
+    return changed;
+  });
+}
+
+/**
+ * Organizer undoes a removal or a refusal. Free event: a seat, or the waiting list when full. Paid event: the right to
+ * buy again, never a free seat. The QR version moves forward, so a code from before the removal stays invalid.
+ */
+export async function readmitAttendee(eventId: string, actor: StaffActor, registrationId: string) {
+  return withEventLock(eventId, async (tx) => {
+    const event = await eventForRegistration(tx, eventId);
+    await assertManager(tx, event, actor);
+    const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, userId: true, status: true } });
+    if (!registration || registration.eventId !== eventId) throw new AttendanceError("Inscrição não encontrada neste evento.", 404);
+    if (registration.status !== "REJECTED") throw new AttendanceError("Esta pessoa não está removida nem recusada.", 409);
+    assertOpen(event);
+    const returning = await tx.ticketOrder.count({ where: { eventId, buyerId: registration.userId, status: "PAID" } });
+    if (returning) throw new AttendanceError("Há um Pix desta pessoa em devolução. Aguarde a devolução para readmiti-la.", 409);
+    let status: RegistrationStatus = "APPROVED";
+    if (!sellsTickets(event)) {
+      const occupied = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
+      status = event.capacity !== null && occupied >= event.capacity ? "WAITLISTED" : "CONFIRMED";
+    }
+    const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status, qrVersion: { increment: 1 }, checkedInAt: null, createdAt: new Date() }, select: { id: true, status: true } });
+    const message = status === "APPROVED" ? `${event.nome}: a organização readmitiu você. Compre seu ingresso para garantir a vaga.`
+      : status === "WAITLISTED" ? `${event.nome}: a organização readmitiu você na lista de espera.`
+      : `${event.nome}: a organização readmitiu você. Sua presença está confirmada.`;
+    await createNotification(tx, notificationCopy({ userId: registration.userId, type: "CHECKIN" as const, href: `/eventos/${encodeURIComponent(eventId)}`, groupKey: `registration-readmitted:${registration.id}`, title: "Você foi readmitido", message }));
+    const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
+    await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: `Inscrição ${registration.id} readmitida pela organização.` } });
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
     return changed;
   });
 }
@@ -435,6 +473,7 @@ export async function checkInAttendee(eventId: string, actor: StaffActor, token:
     if (registration.status !== "CONFIRMED") throw new AttendanceError("Esta inscrição não está confirmada.", 409);
     await assertPaidSeat(tx, event, registration.userId);
     const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CHECKED_IN", checkedInAt: new Date() }, select: { id: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
     return { ...changed, alreadyCheckedIn: false as const };
   });
 }
@@ -448,6 +487,7 @@ async function checkInPass(tx: Prisma.TransactionClient, eventId: string, passId
   if (pass.status !== "VALID" || pass.order.status !== "PAID") throw new AttendanceError("Este ingresso não está mais válido.", 409);
   const checkedInAt = new Date();
   await tx.ticketPass.update({ where: { id: pass.id }, data: { status: "USED", checkedInAt } });
+  await signalRegistrationChange(tx, eventId, [pass.order.buyer.id]);
   return { ...base, checkedInAt, alreadyCheckedIn: false as const };
 }
 
@@ -467,6 +507,7 @@ export async function manualCheckIn(eventId: string, actor: StaffActor, registra
     const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
     // Audit without copying attendee personal data into the event history.
     await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: "Check-in manual da inscrição " + registration.id + "." } });
+    await signalRegistrationChange(tx, eventId, [registration.userId]);
     return changed;
   });
 }

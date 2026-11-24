@@ -23,8 +23,8 @@ const id = '00000000-0000-4000-8000-000000000001';
       assert.ok(prepared.title.length<=80&&prepared.message.length<=160);
     }
   }
-  // 15 = 12 previous sites + registration approval (request to the organizer, decision to the attendee) + participant removed.
-  assert.equal(creatorSites,15,'all fifteen creation sites must use shared normalization');
+  // 16 = 12 previous sites + registration approval (request to the organizer, decision to the attendee) + participant removed + readmitted.
+  assert.equal(creatorSites,16,'all sixteen creation sites must use shared normalization');
   const calls = [];
   const db = { notification: { create: async data => calls.push(data), createMany: async data => calls.push(data) } };
   await creator.createNotification(db,input);

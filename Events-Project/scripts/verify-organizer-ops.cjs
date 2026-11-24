@@ -128,7 +128,7 @@ async function checkTeamCheckIn() {
   db = {
     events: { findUnique: async () => ({ ...event }) },
     eventRegistration: registrations,
-    communityTeamMember: table([{ eventId: "event", userId: "staff" }]),
+    communityTeamMember: table([{ eventId: "event", userId: "staff" }]), communitySignal: { createMany: async (q) => ({ count: q.data.length }) },
     ticketPass: { count: async () => 0 },
     eventHistory: history,
     user: { findUnique: async (q) => ({ id: q.where.id, name: "Equipe" }) },

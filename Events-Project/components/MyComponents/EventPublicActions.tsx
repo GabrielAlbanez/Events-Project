@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Bookmark, Share2, CalendarPlus, CircleSlash, Flag, Hourglass, TicketCheck, Users, ExternalLink, BadgeCheck } from "lucide-react";
@@ -11,6 +11,8 @@ import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
 import { RegistrationStatusBadge, type RegistrationStatus } from "@/components/ui/status-badge";
 import { PopIcon } from "@/components/animations/PopIcon";
 import { toast } from "react-toastify";
+import { useRegistrationLive } from "@/hooks/useRegistrationLive";
+import { useSocketStatus } from "@/context/SocketContext";
 
 // PENDING / APPROVED / REJECTED exist only on events where the organizer approves each participant (requiresApproval).
 type Registration = { id: string; status: RegistrationStatus; createdAt: string; checkedInAt: string | null };
@@ -19,7 +21,7 @@ type RequestStatus = Extract<RegistrationStatus, "PENDING" | "APPROVED" | "REJEC
 const requestStatusOf = (status: RegistrationStatus | undefined): RequestStatus | null => status === "PENDING" || status === "APPROVED" || status === "REJECTED" ? status : null;
 type ApiError = { message?: string };
 // Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
-const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
+const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
 // fetch rejects with TypeError when offline; only messages written by us reach the user.
 const actionError = (error: unknown, fallback: string) => error instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : error instanceof Error && error.name === "Error" && error.message ? error.message : fallback;
 // Every registration answer ends in a message, including an OK whose status did not change.
@@ -37,6 +39,19 @@ function registrationOutcome(method: "POST" | "DELETE", previous: RegistrationSt
   }
 }
 
+// Compared before applying a background read, so an identical answer changes nothing on screen.
+const registrationSnapshot = (state: RegistrationState) => JSON.stringify([state.capacity, state.confirmedCount, state.waitingCount, state.requiresApproval, state.ticketSale, state.ticketSalesPaused, state.registration?.id, state.registration?.status, state.registration?.checkedInAt]);
+/** Discreet notice for a change made by someone else while this page is open. */
+function remoteChangeNotice(previous: RegistrationStatus | undefined, next: RegistrationStatus | undefined): string {
+  if (!previous || !next || previous === next) return "";
+  if (next === "REJECTED") return previous === "PENDING" ? "Sua participação não foi aprovada pela organização deste evento." : "A organização removeu sua participação neste evento.";
+  if (previous === "REJECTED") return next === "APPROVED" ? "A organização readmitiu você. Compre seu ingresso para garantir a vaga." : next === "WAITLISTED" ? "A organização readmitiu você na lista de espera." : next === "CONFIRMED" ? "A organização readmitiu você. Sua presença está confirmada." : "";
+  if (previous === "PENDING") return next === "APPROVED" ? "Sua participação foi aprovada. Compre seu ingresso para garantir a vaga." : next === "WAITLISTED" ? "Sua participação foi aprovada e você está na lista de espera." : next === "CONFIRMED" ? "Sua participação foi aprovada. Presença confirmada." : "";
+  if (previous === "WAITLISTED" && next === "CONFIRMED") return "Abriu uma vaga: sua presença foi confirmada.";
+  if (next === "CHECKED_IN") return "Sua entrada foi registrada.";
+  return "";
+}
+
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 export const approvalPrivacyNotice = "Ao pedir para participar, seu nome e e-mail ficam visíveis para a organização do evento.";
 
@@ -44,6 +59,7 @@ type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatu
 
 export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true, ticketSale, viewerIsOwner, ownerId }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
+  const socketConnected = useSocketStatus();
   const isOwner = viewerIsOwner ?? (status === "authenticated" && Boolean(ownerId) && session?.user?.id === ownerId);
   // Without a server answer, participation stays hidden until the session says who is viewing.
   const ownershipPending = viewerIsOwner === undefined && Boolean(ownerId) && status === "loading";
@@ -65,6 +81,12 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const [reportPending, setReportPending] = useState(false);
   const [pending, startTransition] = useTransition();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Latest applied state and read order: an answer older than the last confirmed action is dropped.
+  const registrationRef = useRef<RegistrationState | null>(null);
+  const changingRegistration = useRef(false);
+  const registrationRead = useRef(0);
+  const registrationApplied = useRef(0);
+  const registrationFloor = useRef(0);
   const [panelOutOfView, setPanelOutOfView] = useState(false);
   useEffect(() => {
     // The mobile CTA bar appears only after the full actions panel scrolls away, so actions never show twice.
@@ -92,22 +114,45 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   useEffect(() => {
     if (!showParticipation) { setRegistrationLoading(false); return; }
     const controller = new AbortController();
+    registrationFloor.current = registrationRead.current;
+    const read = ++registrationRead.current;
+    registrationRef.current = null;
     setRegistrationLoading(true);
     fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Não foi possível consultar as vagas.");
         return response.json() as Promise<RegistrationState>;
       })
-      .then((result) => { setRegistration(result); setRegistrationError(""); })
+      .then((result) => { if (read < registrationApplied.current) return; registrationApplied.current = read; registrationRef.current = result; setRegistration(result); setRegistrationError(""); })
       .catch(() => { if (!controller.signal.aborted) setRegistrationError("Não foi possível consultar as vagas. Tente atualizar a página."); })
       .finally(() => { if (!controller.signal.aborted) setRegistrationLoading(false); });
     return () => controller.abort();
   }, [eventId, status, session?.user?.id, showParticipation]);
+  const refreshRegistrationLive = useCallback(async () => {
+    if (changingRegistration.current) return;
+    const read = ++registrationRead.current;
+    const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { cache: "no-store" });
+    if (!response.ok) return;
+    const next = await response.json().catch(() => null) as RegistrationState | null;
+    if (!next || typeof next.confirmedCount !== "number" || changingRegistration.current || read <= registrationFloor.current || read < registrationApplied.current) return;
+    registrationApplied.current = read;
+    setRegistrationError("");
+    const previous = registrationRef.current;
+    if (previous && registrationSnapshot(previous) === registrationSnapshot(next)) return;
+    registrationRef.current = next;
+    setRegistration(next);
+    if (!previous) return;
+    setTicketRefresh(value => value + 1);
+    notify(remoteChangeNotice(previous.registration?.status, next.registration?.status), "info");
+  }, [eventId]);
   async function changeRegistration(method: "POST" | "DELETE") {
+    if (changingRegistration.current) return;
+    changingRegistration.current = true;
     setRegistrationPending(true);
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { method });
       const result = await response.json().catch(() => ({})) as ApiError;
+      registrationFloor.current = registrationRead.current;
       if (!response.ok) throw new Error(result.message || "Não foi possível atualizar sua inscrição.");
       const previousStatus = registration?.registration?.status;
       const wasRequest = Boolean(registration?.requiresApproval) || requestStatusOf(previousStatus) !== null;
@@ -115,6 +160,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
       const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { cache: "no-store" }).catch(() => null);
       const next = latest?.ok ? await latest.json().catch(() => null) as RegistrationState | null : null;
       if (!next) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
+      registrationRef.current = next;
       setRegistration(next);
       setTicketRefresh(value => value + 1);
       const outcome = registrationOutcome(method, previousStatus, next.registration?.status, wasRequest);
@@ -123,6 +169,7 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     } catch (error) {
       notify(actionError(error, "Não foi possível atualizar sua inscrição."), "error");
     } finally {
+      changingRegistration.current = false;
       setRegistrationPending(false);
     }
   }
@@ -155,6 +202,8 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   const hasExternalTickets = Boolean(ticketUrl && /^https?:\/\//i.test(ticketUrl));
   const trackTicket = () => { if (!hasMetricConsent()) return; void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); };
   const registrationOpen = eventStatus !== "CANCELLED" && eventStatus !== "ENDED";
+  // Visitors only need seat counters; signed-in people also get socket signals, so polling is just a fallback.
+  useRegistrationLive({ refresh: refreshRegistrationLive, intervalMs: status !== "authenticated" ? 60000 : socketConnected ? 20000 : 15000, enabled: showParticipation && registrationOpen && status !== "loading" });
   const activeRegistration = registration?.registration && registration.registration.status !== "CANCELLED" ? registration.registration : null;
   const waitlistOnly = Boolean(registration && registration.capacity !== null && registration.confirmedCount >= registration.capacity);
   // Drawers/modals don't pass ticketSale; when EventMap sells this event's tickets they link to the checkout instead of the free RSVP.

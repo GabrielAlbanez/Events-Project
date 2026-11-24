@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRegistrationLive } from "@/hooks/useRegistrationLive";
 
 type TokenResponse = { token?: string; expiresAt?: number; message?: string };
+
+/** Reads the registration version from a signed token: a removal followed by a readmission changes it. */
+function tokenVersion(value: string): number | null {
+  try {
+    const claims = JSON.parse(atob(value.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))) as { qrVersion?: unknown };
+    return typeof claims.qrVersion === "number" ? claims.qrVersion : null;
+  } catch {
+    return null;
+  }
+}
 
 type CheckInPassProps = {
   eventId: string;
@@ -20,28 +31,35 @@ export default function CheckInPass({ eventId, passId, label }: CheckInPassProps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  // Only the newest request may change the QR on screen.
+  const passRequest = useRef(0);
+  const manualLoad = useRef(false);
 
   useEffect(() => {
     if (!open || !expiresAt) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [open, expiresAt]);
-  useEffect(() => { setImage(""); setToken(""); setExpiresAt(0); setOpen(false); setError(""); }, [eventId, passId]);
+  useEffect(() => { passRequest.current += 1; setImage(""); setToken(""); setExpiresAt(0); setOpen(false); setError(""); }, [eventId, passId]);
 
   async function loadPass() {
+    const request = ++passRequest.current;
+    manualLoad.current = true;
     setLoading(true);
     setError("");
     try {
       const query = passId ? `?pass=${encodeURIComponent(passId)}` : "";
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/check-in-token${query}`, { cache: "no-store" });
       const data = await response.json().catch(() => ({})) as TokenResponse;
+      if (request !== passRequest.current) return;
       // Used or cancelled meanwhile: the QR on screen no longer gets anyone in. Network errors keep it visible.
       const ownTicketGone = response.status === 403 && Boolean(label) && !passId;
-      if (response.status === 409 || ownTicketGone) { setOpen(false); setImage(""); setToken(""); setExpiresAt(0); }
+      if (response.status === 409 || response.status === 403 || response.status === 404) { setOpen(false); setImage(""); setToken(""); setExpiresAt(0); }
       if (ownTicketGone) throw new Error("Não foi possível gerar este QR Code. Se este ingresso já passou pela entrada, ele não precisa de um novo código.");
       if (!response.ok || !data.token || !data.expiresAt) throw new Error(data.message || "Não foi possível gerar seu QR Code.");
       const QRCode = (await import("qrcode")).default;
       const qr = await QRCode.toDataURL(data.token, { width: 256, margin: 2, errorCorrectionLevel: "M" });
+      if (request !== passRequest.current) return;
       setToken(data.token);
       setImage(qr);
       setExpiresAt(data.expiresAt);
@@ -50,9 +68,36 @@ export default function CheckInPass({ eventId, passId, label }: CheckInPassProps
     } catch (cause) {
       setError(cause instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : cause instanceof Error && cause.name === "Error" && cause.message ? cause.message : "Não foi possível gerar seu QR Code.");
     } finally {
+      manualLoad.current = false;
       setLoading(false);
     }
   }
+
+  // While the QR is open, the server is asked again: a removal, refund or used ticket must take it off the screen.
+  const checkPass = useCallback(async () => {
+    // A click on "Gerar novo código" always wins over the background check.
+    if (!token || manualLoad.current) return;
+    const request = ++passRequest.current;
+    const query = passId ? `?pass=${encodeURIComponent(passId)}` : "";
+    const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/check-in-token${query}`, { cache: "no-store" });
+    if (request !== passRequest.current) return;
+    if (response.status === 403 || response.status === 404 || response.status === 409) {
+      setOpen(false); setImage(""); setToken(""); setExpiresAt(0);
+      setError("Este QR Code não vale mais porque sua inscrição mudou. Se você já passou pela entrada, não precisa de um novo código.");
+      return;
+    }
+    if (!response.ok) return;
+    const data = await response.json().catch(() => null) as TokenResponse | null;
+    if (!data?.token || !data.expiresAt || request !== passRequest.current) return;
+    // Same version: keep the code on screen so it does not change while being scanned.
+    const version = tokenVersion(data.token);
+    if (version === null || version === tokenVersion(token)) return;
+    const QRCode = (await import("qrcode")).default;
+    const qr = await QRCode.toDataURL(data.token, { width: 256, margin: 2, errorCorrectionLevel: "M" });
+    if (request !== passRequest.current) return;
+    setToken(data.token); setImage(qr); setExpiresAt(data.expiresAt); setNow(Date.now()); setError("");
+  }, [eventId, passId, token]);
+  useRegistrationLive({ refresh: checkPass, intervalMs: 15000, enabled: open && Boolean(token) });
 
   const expired = Boolean(expiresAt && now >= expiresAt);
   return <div className="space-y-3">

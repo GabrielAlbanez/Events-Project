@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, UserMinus, X } from "lucide-react";
+import { BadgeCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,9 +19,10 @@ export type RegistrationRequest = {
 type Decision = "APPROVE" | "REJECT";
 type DecisionResult = { id: string; status: string; message?: string };
 type Filter = RegistrationRequest["status"];
-type Confirm = { kind: "reject"; entry: RegistrationRequest } | { kind: "remove"; entry: RegistrationRequest } | { kind: "bulk"; count: number };
+type Confirm = { kind: "reject"; entry: RegistrationRequest } | { kind: "remove"; entry: RegistrationRequest } | { kind: "readmit"; entry: RegistrationRequest } | { kind: "bulk"; count: number };
+type ReadmitPlan = "free" | "full" | "paid";
+type EventPlace = { capacity?: number | null; confirmedCount?: number; ticketSale?: boolean; ticketSalesPaused?: boolean };
 
-const REFRESH_MS = 20000;
 const filters: Array<{ value: Filter; label: string; short: string }> = [
   { value: "PENDING", label: "Pendentes", short: "Pendentes" },
   { value: "APPROVED", label: "Aprovados · aguardando pagamento", short: "Aprovados" },
@@ -52,6 +53,19 @@ function approvedMessage(name: string, status: string): string {
   return `${name} foi aprovado(a) e está com presença confirmada.`;
 }
 
+function readmitText(plan: ReadmitPlan | null): string {
+  if (plan === "paid") return "Ela será avisada e poderá comprar o ingresso de novo. O QR Code novo sai depois do pagamento.";
+  if (plan === "full") return "O evento está lotado: ela volta para a lista de espera e será avisada. O QR Code novo sai quando a presença for confirmada.";
+  if (plan === "free") return "Ela volta com presença confirmada, será avisada e recebe um QR Code novo.";
+  return "Em evento gratuito, ela volta com presença confirmada ou para a lista de espera, se estiver lotado. Em evento pago, poderá comprar o ingresso. Ela será avisada e recebe um QR Code novo quando a presença for confirmada.";
+}
+
+function readmittedMessage(name: string, status: string): string {
+  if (status === "APPROVED") return `${name} foi readmitido(a) e já pode comprar o ingresso.`;
+  if (status === "WAITLISTED") return `${name} foi readmitido(a) na lista de espera (vagas esgotadas).`;
+  return `${name} foi readmitido(a) com presença confirmada.`;
+}
+
 type Props = {
   apiBase: string;
   /** Decisions only work while the event is published (the server answers 409 otherwise). */
@@ -69,42 +83,42 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("PENDING");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [busyDecision, setBusyDecision] = useState<Decision | "REMOVE" | null>(null);
+  const [busyDecision, setBusyDecision] = useState<Decision | "REMOVE" | "READMIT" | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const working = useRef(false);
   const cancelRemovalRef = useRef<HTMLButtonElement>(null);
+  const [readmitPlan, setReadmitPlan] = useState<ReadmitPlan | null>(null);
+  const planRequest = useRef(0);
+  // Order of list reads: an answer older than the last confirmed decision never reaches the screen.
+  const listRequest = useRef(0);
+  const listApplied = useRef(0);
+  const listFloor = useRef(0);
 
   const load = useCallback(async (): Promise<boolean> => {
+    const request = ++listRequest.current;
+    const outdated = () => request <= listFloor.current || request < listApplied.current;
     try {
       const response = await fetch(`${apiBase}/registration-requests`, { cache: "no-store" });
       const data: unknown = await response.json().catch(() => null);
+      if (outdated()) return true;
       if (!response.ok || !isRequestList(data)) throw new Error((data as { message?: string } | null)?.message || "Não foi possível consultar as solicitações.");
+      listApplied.current = request;
       setRequests(data);
       setError("");
       return true;
     } catch (cause) {
+      if (outdated()) return true;
       setError(cause instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : cause instanceof Error && cause.message ? cause.message : "Não foi possível consultar as solicitações.");
       return false;
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [apiBase]);
 
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const refresh = async () => {
-      // Skip background refreshes while a decision is running so the list never jumps under the cursor.
-      if (document.visibilityState === "visible" && !working.current) await load();
-      if (active) timer = window.setTimeout(() => { void refresh(); }, REFRESH_MS);
-    };
-    void refresh();
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [load]);
-
-  useEffect(() => { if (refreshKey > 0) void load(); }, [refreshKey, load]);
+  // The check-in page drives live updates through refreshKey. Skipped during a decision so the list never jumps under the cursor.
+  useEffect(() => { if (!working.current) void load(); }, [refreshKey, load]);
 
   /** Sends one decision; the list changes only after the server confirms it. */
   const decide = useCallback(async (entry: RegistrationRequest, decision: Decision): Promise<boolean> => {
@@ -117,6 +131,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
         body: JSON.stringify({ registrationId: entry.id, decision }),
       });
       const data = await response.json().catch(() => ({})) as Partial<DecisionResult>;
+      listFloor.current = listRequest.current;
       if (!response.ok || typeof data.status !== "string") {
         const message = data.message || "Não foi possível responder o pedido. Tente novamente.";
         notifyError(message);
@@ -162,6 +177,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
         body: JSON.stringify({ registrationId: entry.id }),
       });
       const data = await response.json().catch(() => null) as Partial<DecisionResult> | null;
+      listFloor.current = listRequest.current;
       if (!response.ok) {
         notifyError(data?.message || "Não foi possível remover esta pessoa. Tente novamente.");
         if (response.status === 409 || response.status === 404) await Promise.all([load(), onChanged()]);
@@ -177,6 +193,62 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
       else toast.warning(`${personName(entry)} foi removido(a), mas a lista não foi atualizada. Atualize a página.`, { toastId: `requests-removed:${entry.id}`, autoClose: 8000 });
     } catch (cause) {
       notifyError(cause instanceof TypeError ? "Sem conexão. Não foi possível confirmar a remoção; confira a lista e tente novamente." : "Não foi possível remover esta pessoa. Tente novamente.");
+    } finally {
+      working.current = false;
+      setBusyId(null);
+      setBusyDecision(null);
+    }
+  };
+
+  /** Opens the confirmation; the text becomes specific once the event's seats and sale mode are known. */
+  const openReadmit = async (entry: RegistrationRequest) => {
+    const request = ++planRequest.current;
+    setReadmitPlan(null);
+    setConfirm({ kind: "readmit", entry });
+    try {
+      const response = await fetch(`${apiBase}/registration`, { cache: "no-store" });
+      const data = await response.json().catch(() => null) as EventPlace | null;
+      if (request !== planRequest.current || !response.ok || !data || typeof data.confirmedCount !== "number") return;
+      setReadmitPlan(data.ticketSale || data.ticketSalesPaused ? "paid" : typeof data.capacity === "number" && data.confirmedCount >= data.capacity ? "full" : "free");
+    } catch {
+      // The dialog keeps the text that is true for every kind of event.
+    }
+  };
+
+  /** Brings a removed or rejected person back; the server decides between confirmed, waitlist and approved. */
+  const readmit = async (entry: RegistrationRequest) => {
+    if (working.current) return;
+    working.current = true;
+    setBusyId(entry.id);
+    setBusyDecision("READMIT");
+    try {
+      const response = await fetch(`${apiBase}/registration-requests`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: entry.id }),
+      });
+      const result = await response.json().catch(() => null) as Partial<DecisionResult> | null;
+      listFloor.current = listRequest.current;
+      if (!response.ok) {
+        notifyError(result?.message || "Não foi possível readmitir esta pessoa. Tente novamente.");
+        if (response.status === 409 || response.status === 404) await Promise.all([load(), onChanged()]);
+        return;
+      }
+      const status = result?.status;
+      if (status !== "CONFIRMED" && status !== "WAITLISTED" && status !== "APPROVED") {
+        notifyError("Não foi possível confirmar a readmissão. Atualize a página para conferir.");
+        return;
+      }
+      setRequests((current) => current
+        ? status === "APPROVED"
+          ? current.map((item) => item.id === entry.id ? { ...item, status } : item)
+          : current.filter((item) => item.id !== entry.id)
+        : current);
+      const [listOk, attendeesOk] = await Promise.all([load(), onChanged()]);
+      if (listOk && attendeesOk !== false) notifyOk(readmittedMessage(personName(entry), status));
+      else toast.warning(`${personName(entry)} foi readmitido(a), mas a lista não foi atualizada. Atualize a página.`, { toastId: `requests-readmitted:${entry.id}`, autoClose: 8000 });
+    } catch (cause) {
+      notifyError(cause instanceof TypeError ? "Sem conexão. Não foi possível confirmar a readmissão; confira a lista e tente novamente." : "Não foi possível readmitir esta pessoa. Tente novamente.");
     } finally {
       working.current = false;
       setBusyId(null);
@@ -232,7 +304,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
           <Inbox aria-hidden="true" className="h-5 w-5 text-brand" />Solicitações
           {counts.PENDING > 0 && <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold tabular-nums text-amber-900 dark:text-amber-200"><span className="sr-only">, </span>{counts.PENDING}<span className="sr-only"> {counts.PENDING === 1 ? "pedido pendente" : "pedidos pendentes"}</span></span>}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">Pedidos de participação aguardando sua resposta. Recusar é definitivo: a pessoa não pode pedir de novo.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Pedidos de participação aguardando sua resposta. Quem foi recusado não pode pedir de novo; só a organização pode readmitir.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {filter === "PENDING" && counts.PENDING > 1 && open && <Button type="button" size="sm" disabled={busy} onClick={() => setConfirm({ kind: "bulk", count: counts.PENDING })}><Check aria-hidden="true" />Aprovar todos</Button>}
@@ -271,18 +343,18 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
                     <Button type="button" size="sm" variant="outline" disabled={busy || !open} onClick={() => setConfirm({ kind: "reject", entry })} className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">{rowBusy && busyDecision === "REJECT" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <X aria-hidden="true" />}Recusar<span className="sr-only"> {personName(entry)}</span></Button>
                   </div>
                     : entry.status === "APPROVED" ? <div className="flex flex-wrap items-center gap-2 sm:shrink-0"><StatusBadge tone="info" icon={BadgeCheck}>Aguardando pagamento</StatusBadge>{open && <button type="button" disabled={busy} aria-label={rowBusy && busyDecision === "REMOVE" ? `Removendo ${personName(entry)} do evento` : `Remover ${personName(entry)} do evento`} onClick={() => setConfirm({ kind: "remove", entry })} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive disabled:cursor-not-allowed disabled:opacity-50">{rowBusy && busyDecision === "REMOVE" ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <UserMinus aria-hidden="true" className="h-4 w-4" />}{rowBusy && busyDecision === "REMOVE" ? "Removendo..." : "Remover"}</button>}</div>
-                      : <StatusBadge tone="neutral" icon={CircleSlash} className="self-start sm:self-auto">Recusado</StatusBadge>}
+                      : <div className="flex flex-wrap items-center gap-2 sm:shrink-0"><StatusBadge tone="neutral" icon={CircleSlash}>Recusado</StatusBadge>{open && <button type="button" disabled={busy} aria-label={rowBusy && busyDecision === "READMIT" ? `Readmitindo ${personName(entry)} no evento` : `Readmitir ${personName(entry)} no evento`} onClick={() => void openReadmit(entry)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50">{rowBusy && busyDecision === "READMIT" ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <UserPlus aria-hidden="true" className="h-4 w-4" />}{rowBusy && busyDecision === "READMIT" ? "Readmitindo..." : "Readmitir"}</button>}</div>}
                 </li>;
               })}</ul>}
           {filter === "PENDING" && counts.PENDING > 0 && <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground"><Hourglass aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />Em eventos pagos, quem for aprovado recebe um aviso para comprar o ingresso; em eventos gratuitos, a presença é confirmada na hora (ou vai para a lista de espera, se lotado).</p>}
         </>}
 
     <Dialog open={confirm !== null} onOpenChange={(value) => { if (!value) setConfirm(null); }}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md" onOpenAutoFocus={(event) => { if (confirm?.kind === "remove") { event.preventDefault(); cancelRemovalRef.current?.focus(); } }}>
+      <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md" onOpenAutoFocus={(event) => { if (confirm?.kind === "remove" || confirm?.kind === "readmit") { event.preventDefault(); cancelRemovalRef.current?.focus(); } }}>
         {confirm?.kind === "reject" ? <>
           <DialogHeader>
             <DialogTitle className="pr-6 leading-snug">Recusar pedido?</DialogTitle>
-            <DialogDescription>A recusa é definitiva: a pessoa recebe um aviso e não poderá pedir para participar de novo.</DialogDescription>
+            <DialogDescription>A pessoa recebe um aviso e não poderá pedir para participar de novo. Depois, só a organização pode readmiti-la.</DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border bg-muted/30 p-3 text-sm"><p className="break-words font-semibold">{personName(confirm.entry)}</p>{confirm.entry.user.email && <p className="break-all text-muted-foreground">{confirm.entry.user.email}</p>}</div>
           <DialogFooter className="gap-2">
@@ -307,6 +379,16 @@ export default function RegistrationRequests({ apiBase, open, onChanged, refresh
           <DialogFooter className="gap-2">
             <Button ref={cancelRemovalRef} type="button" variant="outline" onClick={() => setConfirm(null)}>Cancelar</Button>
             <Button type="button" variant="destructive" onClick={() => { const entry = confirm.entry; setConfirm(null); void removeApproved(entry); }}>Remover do evento</Button>
+          </DialogFooter>
+        </> : confirm?.kind === "readmit" ? <>
+          <DialogHeader>
+            <DialogTitle className="break-words pr-6 leading-snug">Readmitir {personName(confirm.entry)} no evento?</DialogTitle>
+            <DialogDescription aria-live="polite">{readmitText(readmitPlan)}</DialogDescription>
+          </DialogHeader>
+          {confirm.entry.user.email && <p className="break-all rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">{confirm.entry.user.email}</p>}
+          <DialogFooter className="gap-2">
+            <Button ref={cancelRemovalRef} type="button" variant="outline" onClick={() => setConfirm(null)}>Cancelar</Button>
+            <Button type="button" onClick={() => { const entry = confirm.entry; setConfirm(null); void readmit(entry); }}>Readmitir</Button>
           </DialogFooter>
         </> : null}
       </DialogContent>

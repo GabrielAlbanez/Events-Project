@@ -17,6 +17,7 @@ import {
 } from "@/lib/mercadopago";
 import { connectCallbackSchema, createTicketCouponSchema, createTicketOrderSchema, ticketCouponPreviewSchema, ticketCouponToggleSchema, ticketOrderSchema } from "@/schemas/tickets";
 import type { SalesCsvRow } from "@/lib/organizerOps/salesCsv";
+import { signalRegistrationChange } from "@/lib/registrationSignals";
 
 type Env = Record<string, string | undefined>;
 /** Everything external is injectable so the offline suite never touches the network or the real clock. */
@@ -652,7 +653,7 @@ async function grantTicket(tx: Prisma.TransactionClient, order: SyncOrder): Prom
     userId: order.buyerId, type: "CHECKIN" as const, href: `/eventos/${encodeURIComponent(order.eventId)}`, groupKey: `ticket-paid:${order.id}`,
     title: "Ingresso confirmado", message: `${order.event.nome}: pagamento recebido. Mostre o QR Code do seu ingresso na entrada.`,
   }), groupKey: `ticket-paid:${order.id}` });
-  await tx.communitySignal.create({ data: { room: `user:${order.buyerId}` } });
+  await signalRegistrationChange(tx, order.eventId, [order.buyerId]);
 }
 
 /** Mercado Pago's payment must match the stored order exactly; anything else is ignored (logged with a fixed code). */
@@ -742,7 +743,7 @@ async function markRefunded(order: SyncOrder, now: Date, reason: "refund" | "sol
         title: "Pix devolvido automaticamente", message: reason === "removed" ? `${order.event.nome}: um Pix de uma pessoa removida do evento foi aprovado e devolvido.` : `${order.event.nome}: um Pix aprovado depois do prazo chegou com os ingressos esgotados e foi devolvido.`,
       }), groupKey: `ticket-oversell:${order.id}` });
     }
-    await tx.communitySignal.create({ data: { room: `user:${order.buyerId}` } });
+    await signalRegistrationChange(tx, order.eventId, [order.buyerId]);
     return true;
   });
 }

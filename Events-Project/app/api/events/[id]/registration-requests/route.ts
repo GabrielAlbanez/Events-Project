@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAllowedRequestOrigin } from "@/lib/publicUrl";
 import { getAuthenticatedUser } from "@/lib/adminAuth";
-import { AttendanceError, listRegistrationRequests, removeAttendee, reviewRegistration } from "@/lib/services/attendance";
+import { AttendanceError, listRegistrationRequests, readmitAttendee, removeAttendee, reviewRegistration } from "@/lib/services/attendance";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +49,21 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const parsed = removeBody.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ message: "Pedido inválido." }, { status: 400 });
     const result = await removeAttendee(params.id, user, parsed.data.registrationId);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+/** Organizer readmits someone removed or refused (owner/admin only; enforced by the service). */
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!isAllowedRequestOrigin(request)) return NextResponse.json({ message: "Origem inválida." }, { status: 403 });
+  try {
+    const user = await getAuthenticatedUser(request, { allowImpersonation: false });
+    if (!user) return NextResponse.json({ message: "Acesso negado." }, { status: 401 });
+    const parsed = removeBody.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ message: "Pedido inválido." }, { status: 400 });
+    const result = await readmitAttendee(params.id, user, parsed.data.registrationId);
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);

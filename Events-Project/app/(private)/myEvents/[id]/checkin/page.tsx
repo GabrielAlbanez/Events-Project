@@ -10,6 +10,7 @@ import { StaggerList } from "@/components/animations/StaggerList";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import RegistrationRequests from "@/components/MyComponents/checkin/RegistrationRequests";
+import { useRegistrationLive } from "@/hooks/useRegistrationLive";
 
 type Attendee = {
   id: string;
@@ -63,37 +64,47 @@ export default function CheckInPage() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [requestsRefresh, setRequestsRefresh] = useState(0);
   const removingRef = useRef(false);
+  // Order of list reads: an answer older than the last confirmed action never reaches the screen.
+  const attendeesRequestRef = useRef(0);
+  const attendeesAppliedRef = useRef(0);
+  const attendeesFloorRef = useRef(0);
   const cancelRemovalRef = useRef<HTMLButtonElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scannedRef = useRef(false);
 
   const loadAttendees = useCallback(async (): Promise<boolean> => {
+    const request = ++attendeesRequestRef.current;
+    const outdated = () => request <= attendeesFloorRef.current || request < attendeesAppliedRef.current;
     try {
       const response = await fetch(`${apiBase}/check-in?detalhes=1`, { cache: "no-store" });
       const data: unknown = await response.json().catch(() => null);
+      if (outdated()) return true;
       if (!response.ok || !isOverview(data)) throw new Error((data as ApiError | null)?.message || "Não foi possível consultar inscrições.");
+      attendeesAppliedRef.current = request;
       setOverview(data);
       setError("");
       return true;
     } catch (cause) {
+      if (outdated()) return true;
       setError(errorText(cause, "Não foi possível consultar inscrições."));
       return false;
     } finally {
-      setLoading(false);
+      if (request === attendeesRequestRef.current) setLoading(false);
     }
   }, [apiBase]);
 
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const refresh = async () => {
-      if (document.visibilityState === "visible") await loadAttendees();
-      if (active) timer = window.setTimeout(() => { void refresh(); }, 10000);
-    };
-    void refresh();
-    return () => { active = false; window.clearTimeout(timer); };
+  // Requests made before a confirmed action may carry the old list.
+  const reloadAfterAction = useCallback(() => {
+    attendeesFloorRef.current = attendeesRequestRef.current;
+    return loadAttendees();
   }, [loadAttendees]);
+
+  const refreshLive = useCallback(async () => {
+    setRequestsRefresh((value) => value + 1);
+    await loadAttendees();
+  }, [loadAttendees]);
+  useRegistrationLive({ refresh: refreshLive, intervalMs: 10000, immediate: true });
   useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const submitCheckIn = useCallback(async (body: { token: string } | { registrationId: string }) => {
@@ -130,7 +141,7 @@ export default function CheckInPage() {
         : `Entrada registrada${data.user?.name ? ` para ${data.user.name}` : ""}.`;
       toast.success(success, { toastId: `checkin:${success}` });
       if ("token" in body) setToken("");
-      await loadAttendees();
+      await reloadAfterAction();
     } catch (cause) {
       const message = errorText(cause, "Não foi possível registrar a entrada.");
       toast.error(message, { toastId: `checkin-error:${message}` });
@@ -140,7 +151,7 @@ export default function CheckInPage() {
       setManualId(null);
       scannedRef.current = false;
     }
-  }, [apiBase, loadAttendees]);
+  }, [apiBase, reloadAfterAction]);
 
   const registerCheckIn = useCallback(async (value: string) => {
     if (!value.trim()) return;
@@ -211,17 +222,18 @@ export default function CheckInPage() {
       if (!response.ok) {
         toast.error(data?.message || "Não foi possível remover esta pessoa. Tente novamente.", { toastId: `checkin-remove-error:${entry.id}` });
         // 409/404: the registration changed elsewhere, so show its current state.
-        if (response.status === 409 || response.status === 404) { setRequestsRefresh((value) => value + 1); await loadAttendees(); }
+        if (response.status === 409 || response.status === 404) { setRequestsRefresh((value) => value + 1); await reloadAfterAction(); }
         return;
       }
       if (data?.status !== "REJECTED") {
         toast.error("Não foi possível confirmar a remoção. Atualize a página para conferir.", { toastId: `checkin-remove-error:${entry.id}` });
         return;
       }
+      attendeesFloorRef.current = attendeesRequestRef.current;
       // Leaves the list right away, so a failed reload cannot offer the same removal again.
       setOverview((current) => current ? { ...current, attendees: current.attendees.filter((item) => item.id !== entry.id) } : current);
       setRequestsRefresh((value) => value + 1);
-      if (await loadAttendees()) toast.success(`${name} foi removido(a) do evento.`, { toastId: `checkin-removed:${entry.id}` });
+      if (await reloadAfterAction()) toast.success(`${name} foi removido(a) do evento.`, { toastId: `checkin-removed:${entry.id}` });
       else toast.warning(`${name} foi removido(a), mas a lista não foi atualizada. Atualize a página.`, { toastId: `checkin-removed:${entry.id}`, autoClose: 8000 });
     } catch (cause) {
       toast.error(cause instanceof TypeError ? "Sem conexão. Não foi possível confirmar a remoção; confira a lista e tente novamente." : "Não foi possível remover esta pessoa. Tente novamente.", { toastId: `checkin-remove-error:${entry.id}` });
@@ -286,7 +298,7 @@ export default function CheckInPage() {
   return <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"><div className="mx-auto max-w-5xl space-y-6">
     <header className="flex items-start gap-4"><div className="min-w-0"><Link href={team ? `/eventos/${encodeURIComponent(eventId)}/comunidade` : "/myEvents"} className="text-sm font-semibold text-brand hover:underline">{team ? "← Comunidade do evento" : "← Meus eventos"}</Link><FadeInView><h1 className="mt-2 text-3xl font-bold tracking-tight">Check-in do evento</h1>{overview && <p className="mt-1 break-words text-base font-medium">{overview.event.nome}</p>}<p className="mt-2 text-muted-foreground">Leia o QR Code apresentado pelo participante, insira o código ou busque pelo nome ou e-mail.</p>{team && <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-brand"><ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />Você está operando como equipe do evento</p>}</FadeInView></div></header>
     <StaggerList className={`grid gap-3 ${extraTickets.total > 0 ? "grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Confirmados aguardando</p><p className="mt-1 text-2xl font-bold">{counts.confirmed}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Entraram</p><p className="mt-1 text-2xl font-bold text-brand">{enteredTotal}{overview?.event.capacity ? <span className="ml-1 text-sm font-medium text-muted-foreground">de {overview.event.capacity} vagas</span> : null}</p></div><div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Lista de espera</p><p className="mt-1 text-2xl font-bold">{counts.waitlisted}</p></div>{extraTickets.total > 0 && <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Ingressos extras</p><p className="mt-1 text-2xl font-bold tabular-nums">{extraTickets.checkedIn}<span className="ml-1 text-sm font-medium text-muted-foreground">de {extraTickets.total} entraram</span></p></div>}</StaggerList>
-    {canManageRequests && <RegistrationRequests apiBase={apiBase} open={overview?.event.status === "PUBLISHED"} onChanged={loadAttendees} refreshKey={requestsRefresh} />}
+    {canManageRequests && <RegistrationRequests apiBase={apiBase} open={overview?.event.status === "PUBLISHED"} onChanged={reloadAfterAction} refreshKey={requestsRefresh} />}
     <section aria-labelledby="scanner-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><h2 id="scanner-title" className="text-xl font-semibold">Registrar entrada</h2><p className="mt-1 text-sm text-muted-foreground">O código expira em cinco minutos. Peça ao participante para abrir um novo se necessário.</p>
       {scanning ? <div className="mt-4 max-w-lg overflow-hidden rounded-xl border bg-black"><video ref={videoRef} playsInline muted className="aspect-video w-full object-cover" /><button type="button" onClick={stopCamera} className="flex min-h-11 w-full items-center justify-center gap-2 bg-card text-sm font-semibold"><X className="h-4 w-4" />Fechar câmera</button></div> : <button type="button" disabled={startingCamera} onClick={() => void startCamera()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60"><Camera className="h-4 w-4" />{startingCamera ? "Abrindo câmera..." : "Ler QR Code"}</button>}
       {cameraError && <p role="alert" className="mt-3 text-sm text-destructive">{cameraError}</p>}

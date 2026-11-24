@@ -63,6 +63,7 @@ function table(name, rows, relations = {}) {
       for (const [key, value] of Object.entries(q.data)) row[key] = value && typeof value === "object" && "increment" in value ? (row[key] ?? 0) + value.increment : value;
       return hydrate(row);
     },
+    createMany: async (q) => { rows.push(...q.data); return { count: q.data.length }; },
     updateMany: async (q) => { const hit = rows.filter((row) => matches(row, q.where)); for (const row of hit) Object.assign(row, q.data); return { count: hit.length }; },
   };
 }
@@ -75,16 +76,19 @@ function freshDb() {
     { ...base, id: "ev-full", userId: "promoter", requiresApproval: true, capacity: 1 },
     { ...base, id: "ev-paid", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
     { ...base, id: "ev-paid-legacy", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
+    { ...base, id: "ev-readmit", userId: "promoter", requiresApproval: false, capacity: 1 },
+    { ...base, id: "ev-readmit-paid", userId: "promoter", requiresApproval: false, ticketsEnabled: true, isFree: false, priceCents: 3000 },
     { ...base, id: "ev-remove", userId: "promoter", requiresApproval: false, capacity: 1 },
     { ...base, id: "ev-paid-door", userId: "promoter", requiresApproval: false, ticketsEnabled: true, isFree: false, priceCents: 3000 },
   ];
-  const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }, { id: "rm-a", name: "Remover A" }, { id: "rm-b", name: "Remover B" }, { id: "rm-paid", name: "Remover pago" }, { id: "rm-pix", name: "Remover Pix" }, { id: "rm-in", name: "Remover entrou" }];
+  const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }, { id: "rm-a", name: "Remover A" }, { id: "rm-b", name: "Remover B" }, { id: "rm-paid", name: "Remover pago" }, { id: "rm-pix", name: "Remover Pix" }, { id: "rm-in", name: "Remover entrou" }, { id: "rd-a", name: "Readmitir A" }, { id: "rd-b", name: "Readmitir B" }, { id: "rd-paid", name: "Readmitir pago" }];
   const store = {
     events: table("event", events, { aiImport: (row) => (row.imported ? { id: "cand-" + row.id } : null) }),
     user: table("user", users),
     notification: table("notification", []),
     eventHistory: table("history", []),
     ticketOrder: table("order", []),
+    communitySignal: table("signal", []),
     communityTeamMember: table("team", [{ eventId: "ev-approval", userId: "team" }]),
   };
   store.eventRegistration = table("reg", [], { user: (row) => users.find((user) => user.id === row.userId) ?? null });
@@ -197,6 +201,33 @@ function freshDb() {
   await assert.rejects(attendance.removeAttendee("ev-paid-door", owner, reg("ev-paid-door", "rm-pix").id), (error) => error.status === 409 && /Pix/.test(error.message), "an open Pix blocks removal");
   await assert.rejects(attendance.removeAttendee("ev-paid-door", owner, reg("ev-paid-door", "rm-in").id), (error) => error.status === 409 && /entrada/i.test(error.message), "a validated entry stays");
   assert.deepEqual(["rm-paid", "rm-pix", "rm-in"].map((id) => reg("ev-paid-door", id).status), ["CONFIRMED", "APPROVED", "CHECKED_IN"], "refused removals change nothing");
+  // Readmit: the organizer undoes a removal or a refusal; the seat follows capacity and payment rules, and a new QR is issued.
+  await db.communityTeamMember.create({ data: { eventId: "ev-readmit", userId: "team" } });
+  const readmitted = await attendance.registerForEvent("ev-readmit", "rd-a");
+  await attendance.removeAttendee("ev-readmit", owner, readmitted.id);
+  const qrWhenRemoved = reg("ev-readmit", "rd-a").qrVersion;
+  await assert.rejects(attendance.readmitAttendee("ev-readmit", { id: "team", role: "BASIC" }, readmitted.id), (error) => error.status === 403, "only the organizer readmits");
+  await assert.rejects(attendance.readmitAttendee("ev-open", owner, readmitted.id), (error) => error.status === 404);
+  await attendance.registerForEvent("ev-readmit", "rd-b");
+  assert.equal(reg("ev-readmit", "rd-b").status, "CONFIRMED");
+  assert.equal((await attendance.readmitAttendee("ev-readmit", owner, readmitted.id)).status, "WAITLISTED", "a full event puts the person on the waiting list");
+  assert.ok(reg("ev-readmit", "rd-a").qrVersion > qrWhenRemoved, "an old QR never comes back");
+  assert.ok(db.notification.rows.some((row) => row.userId === "rd-a" && /readmit/i.test(row.title + row.message)), "the person is told");
+  assert.ok(db.eventHistory.rows.some((row) => row.eventId === "ev-readmit" && /readmitid/i.test(row.note) && !/Readmitir A/.test(row.note)), "audited without personal data");
+  await assert.rejects(attendance.readmitAttendee("ev-readmit", owner, readmitted.id), (error) => error.status === 409, "only a removed or refused person is readmitted");
+  await attendance.cancelRegistration("ev-readmit", "rd-b");
+  assert.equal(reg("ev-readmit", "rd-a").status, "CONFIRMED", "the waiting list still works after readmission");
+  const roomsFor = (id) => db.communitySignal.rows.filter((row) => row.room === `user:${id}`).length;
+  for (const id of ["rd-a", "promoter", "team"]) assert.ok(roomsFor(id) > 0, `${id} is told in real time`);
+  const beforeEntry = roomsFor("team");
+  const entryQr = await attendance.issueCheckInToken("ev-readmit", "rd-a");
+  await attendance.checkInAttendee("ev-readmit", owner, entryQr.token);
+  assert.ok(roomsFor("team") > beforeEntry, "the door team sees an entry in real time");
+  const paidReturn = await db.eventRegistration.create({ data: { eventId: "ev-readmit-paid", userId: "rd-paid", status: "REJECTED" } });
+  await db.ticketOrder.create({ data: { id: "rd-refund", eventId: "ev-readmit-paid", buyerId: "rd-paid", status: "PAID" } });
+  await assert.rejects(attendance.readmitAttendee("ev-readmit-paid", owner, paidReturn.id), (error) => error.status === 409 && /devolu/i.test(error.message), "not while a late Pix is being returned");
+  db.ticketOrder.rows.find((row) => row.id === "rd-refund").status = "REFUNDED";
+  assert.equal((await attendance.readmitAttendee("ev-readmit-paid", owner, paidReturn.id)).status, "APPROVED", "a paid event gets back the right to buy, never a free seat");
   // Withdrawing a pending request is allowed.
   await attendance.registerForEvent("ev-approval", "caio");
   assert.equal((await attendance.cancelRegistration("ev-approval", "caio")).status, "CANCELLED");
