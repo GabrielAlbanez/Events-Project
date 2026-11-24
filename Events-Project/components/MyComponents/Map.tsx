@@ -13,6 +13,7 @@ import { LazyMotion, m, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Route,
@@ -69,9 +70,9 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "administrative.neighborhood", elementType: "labels.text.fill", stylers: [{ color: "#8A919C" }] },
   { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#E4EFE1" }] },
   { featureType: "poi", elementType: "geometry", stylers: [{ color: "#ECEFED" }] },
-  { featureType: "poi", elementType: "labels.icon", stylers: [{ saturation: -60 }, { lightness: 20 }] },
-  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#D6ECD0" }] },
+  { featureType: "poi.park", elementType: "labels.text", stylers: [{ visibility: "on" }] },
   { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#4C8A48" }] },
   { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#FFFFFF" }] },
   { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#E3E6EA" }] },
@@ -79,7 +80,7 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#D3D8DE" }] },
   { featureType: "road.local", elementType: "labels.text.fill", stylers: [{ color: "#9CA3AF" }] },
   { featureType: "transit", elementType: "geometry", stylers: [{ color: "#E2E5E8" }] },
-  { featureType: "transit.station", elementType: "labels.icon", stylers: [{ saturation: -100 }] },
+  { featureType: "transit.station", stylers: [{ visibility: "off" }] },
   { featureType: "water", elementType: "geometry", stylers: [{ color: "#CFE2F2" }] },
   { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#7A9CB8" }] },
 ];
@@ -246,8 +247,13 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   const locationRequestRef = useRef(0);
   const locationInFlightRef = useRef(false);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const handleMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; }, []);
-  const handleMapUnmount = useCallback(() => { mapRef.current = null; }, []);
+  const [mapReady, setMapReady] = useState(false);
+  const handleMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; setMapReady(true); }, []);
+  const handleMapUnmount = useCallback(() => { mapRef.current = null; setMapReady(false); }, []);
+  /** Auto-framing stops for good once the visitor drags or zooms (or moves the centre to a location/address). */
+  const userMovedRef = useRef(false);
+  const programmaticMoveRef = useRef(false);
+  const framedOnceRef = useRef(false);
 
   // Captura a localização atual
   const getCurrentLocation = useCallback(() => {
@@ -475,23 +481,51 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   const changeZoom = useCallback((delta: number) => {
     const map = mapRef.current;
     if (!map) return;
+    userMovedRef.current = true;
     map.setZoom((map.getZoom() ?? 12) + delta);
   }, []);
-  /** "Explore o mapa": frames every event currently on the map. */
-  const exploreMap = useCallback(() => {
+  /** Frames the given events, keeping clear of the view toggle, the side panel overlap and the floating card. */
+  const frameEvents = useCallback((list: Evento[]) => {
     const map = mapRef.current;
-    if (!map || visibleEvents.length === 0) return;
-    if (visibleEvents.length === 1) { map.panTo({ lat: visibleEvents[0].lat!, lng: visibleEvents[0].lng! }); map.setZoom(14); return; }
+    if (!map || list.length === 0) return;
+    programmaticMoveRef.current = true;
+    google.maps.event.addListenerOnce(map, "idle", () => { programmaticMoveRef.current = false; });
+    if (list.length === 1) { map.panTo({ lat: list[0].lat!, lng: list[0].lng! }); map.setZoom(14); return; }
     const bounds = new google.maps.LatLngBounds();
-    visibleEvents.forEach((event) => bounds.extend({ lat: event.lat!, lng: event.lng! }));
-    map.fitBounds(bounds, 80);
-  }, [visibleEvents]);
+    list.forEach((event) => bounds.extend({ lat: event.lat!, lng: event.lng! }));
+    const compact = window.matchMedia("(max-width: 767px)").matches;
+    const card = cardShownRef.current;
+    map.fitBounds(bounds, compact ? { top: 72, right: 64, bottom: card ? 150 : 40, left: 32 } : { top: 96, right: card ? 420 : 96, bottom: 96, left: 80 });
+  }, []);
+  /** "Explore o mapa": frames every event currently on the map. */
+  const exploreMap = useCallback(() => frameEvents(visibleEvents), [frameEvents, visibleEvents]);
+  const handleZoomChanged = useCallback(() => {
+    if (framedOnceRef.current && !programmaticMoveRef.current) userMovedRef.current = true;
+  }, []);
+  const handleDragStart = useCallback(() => { userMovedRef.current = true; closeFloating(); }, [closeFloating]);
+  // First load, and every time the filtered set changes while the visitor has not moved the map: frame the events.
+  const framingKey = visibleEvents.map((event) => event.id + ":" + event.lat + ":" + event.lng).join("|");
+  useEffect(() => {
+    if (!mapReady || userMovedRef.current || !framingKey) return;
+    frameEvents(visibleEvents);
+    framedOnceRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- framingKey captures the visible events
+  }, [mapReady, framingKey, frameEvents]);
+  // A located user or an explicit ?endereco= search owns the centre from then on.
+  const initialCenterRef = useRef(currentLocation);
+  useEffect(() => { if (currentLocation !== initialCenterRef.current) userMovedRef.current = true; }, [currentLocation]);
   // Floating card: the selected event, otherwise the first paid highlight (until the visitor closes it). The pager walks the highlights.
   const featuredEvents = useMemo(() => events.filter((event) => event.featured), [events]);
   const [cardDismissed, setCardDismissed] = useState(false);
   useEffect(() => { if (selectedId) setCardDismissed(false); }, [selectedId]);
-  const cardEvent = selectedEvent ?? (cardDismissed ? null : featuredEvents[0] ?? null);
-  const cardDeck = useMemo(() => cardEvent && !featuredEvents.some((event) => event.id === cardEvent.id) ? [cardEvent, ...featuredEvents] : featuredEvents, [cardEvent, featuredEvents]);
+  // Without paid highlights the card presents the next events instead (first three of the filtered list).
+  const upcomingMode = featuredEvents.length === 0;
+  const baseDeck = useMemo(() => upcomingMode ? events.slice(0, 3) : featuredEvents, [upcomingMode, events, featuredEvents]);
+  const cardEvent = selectedEvent ?? (cardDismissed ? null : baseDeck[0] ?? null);
+  const cardDeck = useMemo(() => cardEvent && !baseDeck.some((event) => event.id === cardEvent.id) ? [cardEvent, ...baseDeck] : baseDeck, [cardEvent, baseDeck]);
+  const cardIsUpcoming = Boolean(cardEvent && !cardEvent.featured && upcomingMode && baseDeck.some((event) => event.id === cardEvent.id));
+  const cardShownRef = useRef(false);
+  cardShownRef.current = Boolean(cardEvent);
   const cardIndex = cardEvent ? cardDeck.findIndex((event) => event.id === cardEvent.id) : -1;
   const cardMappable = Boolean(cardEvent && hasMapCoordinates(cardEvent));
   const pageCard = useCallback((delta: number) => {
@@ -513,7 +547,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               onUnmount={handleMapUnmount}
               onMouseMove={handleMapMouseMove}
               onMouseOut={closeFloating}
-              onDragStart={closeFloating}
+              onDragStart={handleDragStart}
+              onZoomChanged={handleZoomChanged}
             >
               {userLocation && <Marker position={userLocation} icon={userMarkerIcon} zIndex={100} />}
 
@@ -550,7 +585,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               <LazyMotion features={loadAnimationFeatures} strict>
                 <m.section
                   key={cardEvent.id}
-                  aria-label={cardEvent.id === selectedId ? "Evento selecionado" : "Evento em destaque"}
+                  aria-label={cardEvent.id === selectedId ? "Evento selecionado" : cardEvent.featured ? "Evento em destaque" : "Próximo evento"}
                   initial={reducedMotion === false ? { opacity: 0, y: -animationConfig.entranceDistance / 2 } : false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: reducedMotion === false ? animationConfig.grid.reenterDuration : 0, ease: animationConfig.ease }}
@@ -559,10 +594,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
                   <div className="relative w-28 shrink-0 overflow-hidden bg-primary/10 md:h-44 md:w-full">
                     <HomeEventImage banner={cardEvent.banner} category={cardEvent.category} index={0} sizes="(min-width: 768px) 352px, 112px" className="object-cover" />
                     {cardEvent.featured && <span role="note" aria-label="Evento em destaque patrocinado" className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-cta px-2.5 py-1 text-[11px] font-semibold text-cta-foreground shadow-sm md:left-3 md:top-3 md:px-3 md:text-xs"><Star aria-hidden="true" className="h-3 w-3 fill-current" /><span aria-hidden="true" className="hidden md:inline">Em destaque</span></span>}
-                    {cardDeck.length > 1 && <div role="group" aria-label="Navegar entre destaques" className="absolute right-3 top-3 hidden items-center rounded-full bg-[#0B0D12]/80 text-white backdrop-blur md:flex">
-                      <button type="button" onClick={() => pageCard(-1)} aria-label="Destaque anterior" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
-                      <span aria-live="polite" className="px-1 text-xs font-semibold tabular-nums"><span className="sr-only">Destaque </span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
-                      <button type="button" onClick={() => pageCard(1)} aria-label="Próximo destaque" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                    {cardIsUpcoming && <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-cta px-2.5 py-1 text-[11px] font-semibold text-cta-foreground shadow-sm md:left-3 md:top-3 md:px-3 md:text-xs"><CalendarDays aria-hidden="true" className="h-3 w-3" /><span className="hidden md:inline">Próximo evento</span><span className="sr-only md:hidden">Próximo evento</span></span>}
+                    {cardDeck.length > 1 && <div role="group" aria-label={upcomingMode ? "Navegar entre próximos eventos" : "Navegar entre destaques"} className="absolute right-3 top-3 hidden items-center rounded-full bg-[#0B0D12]/80 text-white backdrop-blur md:flex">
+                      <button type="button" onClick={() => pageCard(-1)} aria-label={upcomingMode ? "Evento anterior" : "Destaque anterior"} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+                      <span aria-live="polite" className="px-1 text-xs font-semibold tabular-nums"><span className="sr-only">{upcomingMode ? "Evento " : "Destaque "}</span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
+                      <button type="button" onClick={() => pageCard(1)} aria-label={upcomingMode ? "Próximo evento da lista" : "Próximo destaque"} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
                     </div>}
                   </div>
                   <div className="relative min-w-0 flex-1 p-3 md:p-4">
@@ -575,10 +611,10 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2 md:mt-4">
-                      {cardDeck.length > 1 && <div role="group" aria-label="Navegar entre destaques" className="flex items-center md:hidden">
-                        <button type="button" onClick={() => pageCard(-1)} aria-label="Destaque anterior" className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
-                        <span className="text-xs font-semibold tabular-nums"><span className="sr-only">Destaque </span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
-                        <button type="button" onClick={() => pageCard(1)} aria-label="Próximo destaque" className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                      {cardDeck.length > 1 && <div role="group" aria-label={upcomingMode ? "Navegar entre próximos eventos" : "Navegar entre destaques"} className="flex items-center md:hidden">
+                        <button type="button" onClick={() => pageCard(-1)} aria-label={upcomingMode ? "Evento anterior" : "Destaque anterior"} className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+                        <span className="text-xs font-semibold tabular-nums"><span className="sr-only">{upcomingMode ? "Evento " : "Destaque "}</span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
+                        <button type="button" onClick={() => pageCard(1)} aria-label={upcomingMode ? "Próximo evento da lista" : "Próximo destaque"} className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
                       </div>}
                       {cardMappable && <button type="button" aria-label="Detalhes e rota" title="Detalhes e rota" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:ml-0" onClick={() => setEventoAtivo(cardEvent)}><Route aria-hidden="true" className="h-4 w-4" /></button>}
                       <Link href={"/eventos/" + encodeURIComponent(cardEvent.id)} className={`${cardMappable ? "" : "ml-auto "}inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground shadow-sm hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card md:ml-auto`}>Ver detalhes <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>

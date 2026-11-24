@@ -49,6 +49,22 @@ export function eventCity(address: string | null | undefined): string | null {
   return null;
 }
 
+/**
+ * "Arena Campinas, SP" → "Campinas, SP" when the trailing words match a city already parsed from another address
+ * (venue names often precede " - UF"). Unknown multi-word names are kept as they are.
+ */
+export function resolveCity(name: string | null, known: ReadonlySet<string>): string | null {
+  if (!name) return null;
+  const comma = name.lastIndexOf(", ");
+  const words = name.slice(0, comma).split(/\s+/);
+  const uf = name.slice(comma + 2);
+  for (let start = 1; start < words.length; start++) {
+    const candidate = `${words.slice(start).join(" ")}, ${uf}`;
+    if (known.has(candidate)) return candidate;
+  }
+  return name;
+}
+
 const monthFormat = new Intl.DateTimeFormat("pt-BR", { month: "short" });
 const fullFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "full" });
 

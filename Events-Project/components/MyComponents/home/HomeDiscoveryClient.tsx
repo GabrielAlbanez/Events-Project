@@ -11,7 +11,7 @@ import styles from "@/app/discovery.module.css";
 import { LuxuryHomePresentation } from "@/components/MyComponents/home/LuxuryHomePresentation";
 import { LoadingShimmer } from "@/components/animations/LoadingShimmer";
 import { HomeEventImage } from "@/components/MyComponents/home/HomeEventImage";
-import { DayMonthBlock, FeaturedTag, categoryVisual, eventCity } from "@/components/MyComponents/home/discoveryVisuals";
+import { DayMonthBlock, FeaturedTag, categoryVisual, eventCity, resolveCity } from "@/components/MyComponents/home/discoveryVisuals";
 import { prioritizeFeatured } from "@/lib/promotions";
 
 const filters: { label: string; value: Period }[] = [
@@ -135,19 +135,24 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     return () => { window.removeEventListener("eventmap:discovery", openDiscovery); window.removeEventListener("eventmap:home", openHome); window.cancelAnimationFrame(frame); };
   }, [urlReady]);
 
+  /** Raw city names first, then venue-prefixed names ("Arena Campinas, SP") folded into a known city. */
+  const cityOf = useMemo(() => {
+    const known = new Set(events.map((event) => eventCity(event.endereco)).filter((name): name is string => Boolean(name)));
+    return (address: string | null | undefined) => resolveCity(eventCity(address), known);
+  }, [events]);
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
-    return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) && (!city || eventCity(event.endereco) === city) &&
+    return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) && (!city || cityOf(event.endereco) === city) &&
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
-  }, [events, period, search, discovery, city]);
+  }, [events, period, search, discovery, city, cityOf]);
   const listedEvents = useMemo(() => prioritizeFeatured(filteredEvents), [filteredEvents]);
   const hasFeatured = listedEvents.some((event) => event.featured);
   /** Cities parsed from the published addresses, most frequent first (a display/filter hint, never geocoded). */
   const cities = useMemo(() => {
     const counts = new Map<string, number>();
-    events.forEach((event) => { const name = eventCity(event.endereco); if (name) counts.set(name, (counts.get(name) ?? 0) + 1); });
+    events.forEach((event) => { const name = cityOf(event.endereco); if (name) counts.set(name, (counts.get(name) ?? 0) + 1); });
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR")).map(([name]) => name);
-  }, [events]);
+  }, [events, cityOf]);
   /** Real categories present in the catalog, most frequent first. */
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -255,13 +260,13 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
               <h3 className="flex items-center gap-2 text-sm font-semibold"><LayoutGrid aria-hidden="true" className="h-4 w-4" /> Categorias populares</h3>
               {categories.length > 5 && <button type="button" aria-expanded={showAllCategories} aria-controls="discovery-categories" onClick={() => setShowAllCategories((value) => !value)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-xs font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{showAllCategories ? "Ver menos" : "Ver todas"} <ArrowRight aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${showAllCategories ? "-rotate-90" : ""}`} /></button>}
             </div>
-            <div id="discovery-categories" role="group" aria-label="Categorias" className={`mt-2 gap-2 ${showAllCategories ? "grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))]" : "-mx-5 flex overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:px-0"}`}>
+            <div id="discovery-categories" role="group" aria-label="Categorias" className={`mt-2 gap-2 ${showAllCategories ? "grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))]" : "-mx-5 flex overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:px-0"}`}>
               {(showAllCategories ? categories : categories.slice(0, 5)).map((category) => {
                 const { icon: Icon, tone } = categoryVisual(category);
                 const active = discovery.category === category;
-                return <button key={category} type="button" aria-pressed={active} onClick={() => pickCategory(category)} className={`flex min-h-[5.25rem] min-w-[4.75rem] flex-1 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-2.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${active ? "border-cta bg-cta/15 text-foreground ring-1 ring-cta" : "border-border bg-card text-foreground/80 hover:border-primary/30 hover:shadow-surface"}`}>
+                return <button key={category} type="button" aria-pressed={active} onClick={() => pickCategory(category)} className={`flex min-h-[5.5rem] min-w-[5.75rem] flex-1 shrink-0 flex-col items-center justify-start gap-1.5 rounded-2xl border px-1.5 py-2.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${active ? "border-cta bg-cta/15 text-foreground ring-1 ring-cta" : "border-border bg-card text-foreground/80 hover:border-primary/30 hover:shadow-surface"}`}>
                   <span aria-hidden="true" className={`grid h-9 w-9 place-items-center rounded-full ${tone}`}><Icon className="h-[18px] w-[18px]" /></span>
-                  <span className="max-w-full truncate">{category}</span>
+                  <span className="line-clamp-2 max-w-full break-words text-center leading-[1.2]">{category}</span>
                 </button>;
               })}
             </div>
