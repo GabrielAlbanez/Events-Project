@@ -52,6 +52,17 @@ export function needsApproval(event: { requiresApproval: boolean; aiImport: { id
   return event.requiresApproval && !event.aiImport;
 }
 
+function sellsTickets(event: { ticketsEnabled: boolean; isFree: boolean }): boolean {
+  return event.ticketsEnabled && !event.isFree;
+}
+
+/** On a paid event a seat is only valid with a PAID order, even if an older free RSVP still reads CONFIRMED. */
+async function assertPaidSeat(db: Pick<Prisma.TransactionClient, "ticketOrder">, event: { id: string; ticketsEnabled: boolean; isFree: boolean }, userId: string): Promise<void> {
+  if (!sellsTickets(event)) return;
+  const paid = await db.ticketOrder.count({ where: { eventId: event.id, buyerId: userId, status: "PAID" } });
+  if (!paid) throw new AttendanceError("Pagamento não confirmado para este ingresso.", 409);
+}
+
 async function promoteWaiting(tx: Prisma.TransactionClient, eventId: string, freePlaces: number): Promise<number> {
   if (freePlaces <= 0) return 0;
   const next = await tx.eventRegistration.findMany({
@@ -76,7 +87,7 @@ export async function reconcileEventWaitlist(eventId: string): Promise<number> {
   return serializable(async (tx) => {
     const event = await eventForRegistration(tx, eventId);
     const start = eventInstant(event.dataInicio, event.startTime, event.timezone);
-    if (event.status !== "PUBLISHED" || !start || start.getTime() <= Date.now()) return 0;
+    if (event.status !== "PUBLISHED" || !start || start.getTime() <= Date.now() || sellsTickets(event)) return 0;
     const occupied = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
     const waiting = await tx.eventRegistration.count({ where: { eventId, status: "WAITLISTED" } });
     const freePlaces = event.capacity === null ? waiting : Math.max(0, event.capacity - occupied);
@@ -145,7 +156,7 @@ export async function cancelRegistration(eventId: string, userId: string) {
       const event = await eventForRegistration(tx, eventId);
       // Cancellation of a published event does not revive its waiting list.
       const start = eventInstant(event.dataInicio, event.startTime, event.timezone);
-      if (event.status === "PUBLISHED" && start && start.getTime() > Date.now()) {
+      if (event.status === "PUBLISHED" && start && start.getTime() > Date.now() && !sellsTickets(event)) {
         const next = await tx.eventRegistration.findFirst({ where: { eventId, status: "WAITLISTED" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
         if (next) {
           await tx.eventRegistration.update({ where: { id: next.id }, data: { status: "CONFIRMED" } });
@@ -247,10 +258,11 @@ type CheckInClaims = { registrationId: string; eventId: string; qrVersion: numbe
 type PassClaims = { passId: string; eventId: string; expiresAt: number };
 
 export async function issueCheckInToken(eventId: string, userId: string) {
-  const event = await prisma.events.findUnique({ where: { id: eventId }, select: { status: true } });
+  const event = await prisma.events.findUnique({ where: { id: eventId }, select: { id: true, status: true, ticketsEnabled: true, isFree: true } });
   if (!event || (event.status !== "PUBLISHED" && event.status !== "ENDED")) throw new AttendanceError("Check-in indisponível para este evento.", 409);
   const registration = await prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId, userId } }, select: { id: true, status: true, qrVersion: true } });
   if (!registration || registration.status !== "CONFIRMED") throw new AttendanceError("Confirme sua presença para gerar o QR Code.", 403);
+  await assertPaidSeat(prisma, { ...event, id: eventId }, userId);
   const claims: CheckInClaims = { registrationId: registration.id, eventId, qrVersion: registration.qrVersion, expiresAt: Date.now() + tokenLifetimeMs };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   return { token: `${payload}.${signature(payload)}`, expiresAt: claims.expiresAt };
@@ -385,11 +397,12 @@ export async function checkInAttendee(eventId: string, actor: StaffActor, token:
     const claims = verifyCheckInToken(token);
     if (claims.eventId !== eventId) throw new AttendanceError("QR Code pertence a outro evento.", 400);
     if (claims.passId !== undefined) return checkInPass(tx, eventId, claims.passId);
-    const registration = await tx.eventRegistration.findUnique({ where: { id: claims.registrationId }, select: { id: true, eventId: true, status: true, qrVersion: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
+    const registration = await tx.eventRegistration.findUnique({ where: { id: claims.registrationId }, select: { id: true, eventId: true, userId: true, status: true, qrVersion: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     if (!registration || registration.eventId !== eventId || registration.qrVersion !== claims.qrVersion) throw new AttendanceError("QR Code inválido.", 400);
     // Idempotent (network retries never fail), but flagged so the door never shows a reused QR as a new entry.
     if (registration.status === "CHECKED_IN") return { id: registration.id, status: registration.status, checkedInAt: registration.checkedInAt, user: registration.user, alreadyCheckedIn: true as const };
     if (registration.status !== "CONFIRMED") throw new AttendanceError("Esta inscrição não está confirmada.", 409);
+    await assertPaidSeat(tx, event, registration.userId);
     const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CHECKED_IN", checkedInAt: new Date() }, select: { id: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     return { ...changed, alreadyCheckedIn: false as const };
   });
@@ -410,14 +423,15 @@ async function checkInPass(tx: Prisma.TransactionClient, eventId: string, passId
 /** Door check-in for attendees without a phone: same rules as the QR flow, audited in EventHistory. */
 export async function manualCheckIn(eventId: string, actor: StaffActor, registrationId: string) {
   return serializable(async (tx) => {
-    const event = await tx.events.findUnique({ where: { id: eventId }, select: { id: true, nome: true, userId: true, status: true } });
+    const event = await tx.events.findUnique({ where: { id: eventId }, select: { id: true, nome: true, userId: true, status: true, ticketsEnabled: true, isFree: true } });
     if (!event) throw new AttendanceError("Evento não encontrado.", 404);
     await checkInAccess(tx, event, actor);
     if (event.status !== "PUBLISHED" && event.status !== "ENDED") throw new AttendanceError("Check-in indisponível para este evento.", 409);
-    const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
+    const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, userId: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     if (!registration || registration.eventId !== eventId) throw new AttendanceError("Inscrição não encontrada neste evento.", 404);
     if (registration.status === "CHECKED_IN") return { id: registration.id, status: registration.status, checkedInAt: registration.checkedInAt, user: registration.user };
     if (registration.status !== "CONFIRMED") throw new AttendanceError("Esta inscrição não está confirmada.", 409);
+    await assertPaidSeat(tx, event, registration.userId);
     const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "CHECKED_IN", checkedInAt: new Date() }, select: { id: true, status: true, checkedInAt: true, user: { select: { id: true, name: true } } } });
     const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
     // Audit without copying attendee personal data into the event history.

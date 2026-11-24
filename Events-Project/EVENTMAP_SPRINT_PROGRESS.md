@@ -33,7 +33,8 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 4. Auditoria restante: desconexão e reconexão do Mercado Pago na tela, com conta real.
 5. Publicado no commit `9c71b99`: avisos de alteração, cancelamento e remoção chegam também a inscrições pendentes e aprovadas; a trava de desconexão do Mercado Pago não perde ingressos futuros em contas com mais de 2.000 pedidos.
 6. Publicado no commit `0d1c37b`: desconectar o Mercado Pago pausa a venda em vez de liberar inscrição gratuita com QR, e reconectar retoma a venda. Validado offline, sem conta real.
-7. Na branch, aguardando OK para deploy: "Pedir para participar" não fazia nada para quem tinha presença confirmada ou lista de espera sem pagamento em evento pago. Agora vira pedido pendente e o QR não pago é revogado. Validado com servidor e navegador reais em banco descartável (13/13), desktop e 390 px. Pagamento Pix real segue sem teste.
+7. Publicado no commit `ffa1fd0`: "Pedir para participar" não fazia nada para quem tinha presença confirmada ou lista de espera sem pagamento em evento pago. Agora vira pedido pendente e o QR não pago é revogado. Validado com servidor e navegador reais em banco descartável (13/13), desktop e 390 px. Pagamento Pix real segue sem teste.
+8. Na branch, aguardando OK para deploy: em evento pago, QR, leitura e entrada manual exigem pedido PAGO, e vaga liberada não promove a lista de espera sem pagamento. Validado offline. A quantidade de inscrições antigas afetadas em produção não foi medida.
 
 ## Riscos e dependências externas
 

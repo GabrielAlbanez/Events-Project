@@ -75,6 +75,7 @@ function freshDb() {
     { ...base, id: "ev-full", userId: "promoter", requiresApproval: true, capacity: 1 },
     { ...base, id: "ev-paid", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
     { ...base, id: "ev-paid-legacy", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
+    { ...base, id: "ev-paid-door", userId: "promoter", requiresApproval: false, ticketsEnabled: true, isFree: false, priceCents: 3000 },
   ];
   const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }];
   const store = {
@@ -154,6 +155,27 @@ function freshDb() {
   assert.equal((await attendance.registerForEvent("ev-paid-legacy", "buyer-paid")).status, "CONFIRMED", "a paid ticket is never downgraded");
   assert.equal(reg("ev-paid-legacy", "buyer-paid").qrVersion, 0);
   assert.equal((await attendance.registerForEvent("ev-open", "ana")).status, "CONFIRMED", "free events keep the registration");
+  // The door only admits a paid seat on a paid event: no QR, no scan and no manual entry without a PAID order.
+  process.env.NEXTAUTH_SECRET = "offline-door-test-secret-".repeat(2);
+  const doorSeat = (userId, status = "CONFIRMED") => db.eventRegistration.create({ data: { eventId: "ev-paid-door", userId, status } });
+  const unpaid = await doorSeat("door-unpaid");
+  await assert.rejects(attendance.issueCheckInToken("ev-paid-door", "door-unpaid"), (error) => error.status === 409 && /pagamento/i.test(error.message), "no QR without payment");
+  await assert.rejects(attendance.manualCheckIn("ev-paid-door", owner, unpaid.id), (error) => error.status === 409 && /pagamento/i.test(error.message), "no manual entry without payment");
+  assert.equal(reg("ev-paid-door", "door-unpaid").status, "CONFIRMED", "a refused entry changes nothing");
+  await doorSeat("door-paid");
+  const doorOrder = await db.ticketOrder.create({ data: { eventId: "ev-paid-door", buyerId: "door-paid", status: "PAID" } });
+  const doorQr = await attendance.issueCheckInToken("ev-paid-door", "door-paid");
+  db.ticketOrder.rows.find((row) => row.id === doorOrder.id).status = "REFUNDED";
+  await assert.rejects(attendance.checkInAttendee("ev-paid-door", owner, doorQr.token), (error) => error.status === 409 && /pagamento/i.test(error.message), "a QR issued before the refund stops working");
+  db.ticketOrder.rows.find((row) => row.id === doorOrder.id).status = "PAID";
+  assert.equal((await attendance.checkInAttendee("ev-paid-door", owner, doorQr.token)).status, "CHECKED_IN", "a paid ticket enters");
+  // A freed seat on a paid event is sold, never handed to the waiting list as a free confirmation.
+  await doorSeat("door-waiting", "WAITLISTED");
+  const noticesBefore = db.notification.rows.filter((row) => row.userId === "door-waiting").length;
+  assert.equal(await attendance.reconcileEventWaitlist("ev-paid-door"), 0, "no free promotion on a paid event");
+  await attendance.cancelRegistration("ev-paid-door", "door-unpaid");
+  assert.equal(reg("ev-paid-door", "door-waiting").status, "WAITLISTED", "cancelling does not promote without payment");
+  assert.equal(db.notification.rows.filter((row) => row.userId === "door-waiting").length, noticesBefore, "nobody is told a seat was confirmed");
   // Withdrawing a pending request is allowed.
   await attendance.registerForEvent("ev-approval", "caio");
   assert.equal((await attendance.cancelRegistration("ev-approval", "caio")).status, "CANCELLED");
