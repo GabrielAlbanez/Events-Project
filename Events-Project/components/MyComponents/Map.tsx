@@ -263,9 +263,11 @@ type MapProps = {
   onSelectEvent: (id: string | null) => void;
   /** Pin hover (pointer devices only) so the list can mirror the highlight. */
   onHighlightEvent?: (id: string | null) => void;
+  /** Visitor location chosen in the panel ("Usar minha localização atual"): shown as the blue dot and centred once. */
+  userOrigin?: google.maps.LatLngLiteral | null;
 };
 
-const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighlightEvent }: MapProps) => {
+const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighlightEvent, userOrigin = null }: MapProps) => {
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
@@ -568,6 +570,22 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     framedOnceRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- framingKey captures the visible events
   }, [mapReady, framingKey, frameEvents]);
+  // Panel location: blue dot, centred on the visitor, and no more automatic framing. Clearing removes that dot.
+  const panelOriginRef = useRef<google.maps.LatLngLiteral | null>(null);
+  useEffect(() => {
+    if (!userOrigin) {
+      const previous = panelOriginRef.current;
+      panelOriginRef.current = null;
+      if (previous) setUserLocation((current) => current && current.lat === previous.lat && current.lng === previous.lng ? null : current);
+      return;
+    }
+    panelOriginRef.current = userOrigin;
+    setUserLocation(userOrigin);
+    if (!mapReady) return;
+    userMovedRef.current = true;
+    mapRef.current?.panTo(userOrigin);
+    if ((mapRef.current?.getZoom() ?? 0) < 13) mapRef.current?.setZoom(14);
+  }, [userOrigin, mapReady]);
   // A located user or an explicit ?endereco= search owns the centre from then on.
   const initialCenterRef = useRef(currentLocation);
   useEffect(() => { if (currentLocation !== initialCenterRef.current) userMovedRef.current = true; }, [currentLocation]);

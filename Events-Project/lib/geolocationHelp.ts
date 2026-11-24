@@ -32,3 +32,23 @@ export function locationErrorMessage(code: number, userAgent: string, platform?:
   }
   return UNAVAILABLE_MESSAGE;
 }
+
+/**
+ * One explicit browser location request with the same strategy as the map's locate button: a quick network fix,
+ * then a single high-accuracy retry when it is unavailable or slow. Rejects with the platform message above.
+ * The coordinates are only returned to the caller (never stored or logged here).
+ */
+export function requestBrowserPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) { reject(new Error("Este navegador não oferece localização.")); return; }
+    const locate = (retry: boolean) => navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      (error) => {
+        if (!retry && (error.code === error.POSITION_UNAVAILABLE || error.code === error.TIMEOUT)) { locate(true); return; }
+        reject(new Error(locationErrorMessage(error.code, navigator.userAgent, navigator.platform, navigator.maxTouchPoints)));
+      },
+      retry ? { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } : { enableHighAccuracy: false, maximumAge: 60000, timeout: 7000 },
+    );
+    locate(false);
+  });
+}

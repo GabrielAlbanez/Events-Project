@@ -3,6 +3,9 @@
 import PublicEventFilters, { DiscoveryFilter, emptyDiscoveryFilter, filterDiscovery } from "@/components/MyComponents/PublicEventFilters";
 import { useSocket } from "@/context/SocketContext";
 import Mapa from "@/components/MyComponents/Map";
+import { useGoogleMaps } from "@/components/MyComponents/GoogleMapsLoader";
+import { LocationPicker } from "@/components/MyComponents/home/LocationPicker";
+import { requestBrowserPosition } from "@/lib/geolocationHelp";
 import { Evento } from "@/types";
 import { ArrowRight, CalendarDays, ChevronDown, ChevronRight, LayoutGrid, List, MapPin, Map as MapIcon, Search, Star, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -58,6 +61,12 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
   const [view, setView] = useState<"mapa" | "lista">("mapa");
   const [compact, setCompact] = useState(false);
   const [city, setCity] = useState("");
+  // Visitor's own location for "Sua localização": React state only (never storage, URL, server or logs).
+  const [userPlace, setUserPlace] = useState<{ label: string | null } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const locationRequest = useRef(0);
+  const { isLoaded: mapsLoaded, enabled: mapsEnabled, configured: mapsConfigured, enableMaps } = useGoogleMaps();
   const [showAllCategories, setShowAllCategories] = useState(false);
   useEffect(() => {
     const query = window.matchMedia("(max-width: 767px)");
@@ -145,7 +154,76 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) && (!city || cityOf(event.endereco) === city) &&
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
   }, [events, period, search, discovery, city, cityOf]);
-  const listedEvents = useMemo(() => prioritizeFeatured(filteredEvents), [filteredEvents]);
+  // With an origin, nearest first (events without coordinates last); paid highlights still lead.
+  const listedEvents = useMemo(() => {
+    const origin = discovery.origin;
+    if (!origin) return prioritizeFeatured(filteredEvents);
+    const distance = (event: Evento) => event.lat == null || event.lng == null ? Number.POSITIVE_INFINITY
+      : (event.lat - origin.lat) ** 2 + ((event.lng - origin.lng) * Math.cos(origin.lat * Math.PI / 180)) ** 2;
+    return prioritizeFeatured([...filteredEvents].sort((a, b) => distance(a) - distance(b)));
+  }, [filteredEvents, discovery.origin]);
+
+  /** "Bairro, Cidade - UF" from a reverse geocode; null when Google gives nothing usable. */
+  const shortAddress = useCallback(async (location: { lat: number; lng: number }): Promise<string | null> => {
+    try {
+      const { results } = await new google.maps.Geocoder().geocode({ location });
+      const parts = results?.[0]?.address_components ?? [];
+      const pick = (type: string, short = false) => { const part = results.flatMap((result) => result.address_components).find((component) => component.types.includes(type)); return part ? (short ? part.short_name : part.long_name) : null; };
+      const district = pick("sublocality_level_1") ?? pick("sublocality") ?? pick("neighborhood");
+      const cityName = pick("administrative_area_level_2") ?? pick("locality");
+      const uf = pick("administrative_area_level_1", true);
+      if (!parts.length || (!district && !cityName)) return null;
+      const place = cityName ? (uf ? `${cityName} - ${uf}` : cityName) : uf;
+      return [district, place].filter(Boolean).join(", ") || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const locateMe = useCallback(async () => {
+    const request = ++locationRequest.current;
+    setLocating(true);
+    setLocationError(null);
+    try {
+      const origin = await requestBrowserPosition();
+      if (request !== locationRequest.current) return;
+      setCity("");
+      setDiscovery((current) => ({ ...current, origin, travelMinutes: null, travelDurations: {} }));
+      const label = mapsLoaded && window.google?.maps ? await shortAddress(origin) : null;
+      if (request !== locationRequest.current) return;
+      setUserPlace({ label });
+    } catch (error) {
+      if (request !== locationRequest.current) return;
+      setLocationError(error instanceof Error ? error.message : "Não foi possível obter a localização.");
+    } finally {
+      if (request === locationRequest.current) setLocating(false);
+    }
+  }, [mapsLoaded, shortAddress]);
+
+  const clearMyLocation = useCallback(() => {
+    locationRequest.current++;
+    setLocating(false);
+    setLocationError(null);
+    setUserPlace(null);
+    setDiscovery((current) => ({ ...current, origin: null, radius: "", travelMinutes: null, travelDurations: {} }));
+  }, []);
+
+  const pickCity = useCallback((name: string) => {
+    if (userPlace) clearMyLocation();
+    setLocationError(null);
+    setCity(name);
+  }, [userPlace, clearMyLocation]);
+
+  // Origin removed elsewhere ("Limpar filtros"): the trigger goes back to the city choice.
+  useEffect(() => { if (!discovery.origin && userPlace) setUserPlace(null); }, [discovery.origin, userPlace]);
+  // The map was enabled after locating: now the address can be resolved (still only in memory).
+  useEffect(() => {
+    const origin = discovery.origin;
+    if (!mapsLoaded || !origin || !userPlace || userPlace.label !== null || !window.google?.maps) return;
+    let cancelled = false;
+    void shortAddress(origin).then((label) => { if (!cancelled && label) setUserPlace({ label }); });
+    return () => { cancelled = true; };
+  }, [mapsLoaded, discovery.origin, userPlace, shortAddress]);
   const hasFeatured = listedEvents.some((event) => event.featured);
   /** Cities parsed from the published addresses, most frequent first (a display/filter hint, never geocoded). */
   const cities = useMemo(() => {
@@ -224,18 +302,19 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
           <div ref={listScroll} id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
           <div className="relative isolate px-5 pb-4 pt-2 md:px-8 md:pt-7">
             <svg aria-hidden="true" viewBox="0 0 160 120" fill="none" className="pointer-events-none absolute -left-10 -top-14 -z-10 hidden h-32 w-44 text-cta md:block"><path d="M4 112C30 58 78 22 156 8" stroke="currentColor" strokeWidth="10" strokeLinecap="round" opacity=".55" /></svg>
-            <div className="flex items-start justify-between gap-3">
-              <label className="group relative flex min-h-11 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl pr-1 focus-within:ring-2 focus-within:ring-ring">
-                <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card text-brand shadow-sm"><MapPin className="h-4 w-4" /></span>
-                <span aria-hidden="true" className="min-w-0">
-                  <span className="block text-[11px] leading-4 text-muted-foreground">Sua localização</span>
-                  <span className="flex items-center gap-1 text-sm font-semibold leading-5"><span className="truncate">{city || "Todas as cidades"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /></span>
-                </span>
-                <select value={city} onChange={(event) => setCity(event.target.value)} aria-label="Sua localização: escolher cidade dos eventos" className="absolute inset-0 cursor-pointer opacity-0">
-                  <option value="">Todas as cidades</option>
-                  {cities.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-              </label>
+            <div className="relative flex items-start justify-between gap-3">
+              <LocationPicker
+                cities={cities}
+                city={city}
+                userLabel={userPlace ? userPlace.label ?? "Perto de você" : null}
+                locating={locating}
+                error={locationError}
+                showEnableMaps={Boolean(userPlace && userPlace.label === null && !mapsEnabled && mapsConfigured)}
+                onEnableMaps={enableMaps}
+                onCity={pickCity}
+                onUseLocation={() => void locateMe()}
+                onClear={clearMyLocation}
+              />
               <span className="mt-2 inline-flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
                 <span aria-hidden="true" className={`h-2 w-2 rounded-full ${loadError ? "bg-amber-500" : "bg-emerald-500"}`} />
                 {loadError ? "Atualização pendente" : discovery.origin ? "Perto de você" : "Eventos por perto"}
@@ -295,7 +374,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
               return <button key={value} type="button" aria-pressed={active} onClick={() => chooseView(value)} className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground/80 hover:bg-muted"}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>;
             })}
           </div>
-          <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={handleMapSelect} onHighlightEvent={setHighlightedId} />
+          <Mapa events={filteredEvents} userOrigin={userPlace ? discovery.origin : null} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={handleMapSelect} onHighlightEvent={setHighlightedId} />
           {view === "lista" && !compact && <div className="absolute inset-0 z-30 overflow-y-auto bg-background px-6 pb-10 pt-24 md:pl-14">
             <h2 className="sr-only">Lista de eventos</h2>
             {!loading && listedEvents.length === 0 ? <div className="mx-auto max-w-sm rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca, cidade ou período.</p></div>
