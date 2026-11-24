@@ -75,9 +75,10 @@ function freshDb() {
     { ...base, id: "ev-full", userId: "promoter", requiresApproval: true, capacity: 1 },
     { ...base, id: "ev-paid", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
     { ...base, id: "ev-paid-legacy", userId: "promoter", requiresApproval: true, ticketsEnabled: true, isFree: false, priceCents: 3000 },
+    { ...base, id: "ev-remove", userId: "promoter", requiresApproval: false, capacity: 1 },
     { ...base, id: "ev-paid-door", userId: "promoter", requiresApproval: false, ticketsEnabled: true, isFree: false, priceCents: 3000 },
   ];
-  const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }];
+  const users = [{ id: "promoter", name: "Promo" }, { id: "ana", name: "Ana", email: "ana@example.test" }, { id: "bia", name: "Bia", email: "bia@example.test" }, { id: "caio", name: "Caio", email: "caio@example.test" }, { id: "admin", name: "Admin" }, { id: "team", name: "Equipe" }, { id: "rm-a", name: "Remover A" }, { id: "rm-b", name: "Remover B" }, { id: "rm-paid", name: "Remover pago" }, { id: "rm-pix", name: "Remover Pix" }, { id: "rm-in", name: "Remover entrou" }];
   const store = {
     events: table("event", events, { aiImport: (row) => (row.imported ? { id: "cand-" + row.id } : null) }),
     user: table("user", users),
@@ -176,6 +177,26 @@ function freshDb() {
   await attendance.cancelRegistration("ev-paid-door", "door-unpaid");
   assert.equal(reg("ev-paid-door", "door-waiting").status, "WAITLISTED", "cancelling does not promote without payment");
   assert.equal(db.notification.rows.filter((row) => row.userId === "door-waiting").length, noticesBefore, "nobody is told a seat was confirmed");
+  // Organizer removes a participant: QR revoked, person told, no way back in, next in line promoted, audited.
+  const removable = await attendance.registerForEvent("ev-remove", "rm-a");
+  await attendance.registerForEvent("ev-remove", "rm-b");
+  assert.equal(reg("ev-remove", "rm-b").status, "WAITLISTED");
+  await assert.rejects(attendance.removeAttendee("ev-remove", { id: "team", role: "BASIC" }, removable.id), (error) => error.status === 403, "only the organizer removes");
+  await assert.rejects(attendance.removeAttendee("ev-open", owner, removable.id), (error) => error.status === 404, "registration of another event");
+  assert.equal((await attendance.removeAttendee("ev-remove", owner, removable.id)).status, "REJECTED");
+  assert.equal(reg("ev-remove", "rm-a").qrVersion, 1, "the QR stops working");
+  assert.equal(reg("ev-remove", "rm-b").status, "CONFIRMED", "the next person gets the seat");
+  assert.ok(db.notification.rows.some((row) => row.userId === "rm-a" && /removid/i.test(row.title + row.message)), "the person is told");
+  assert.ok(db.eventHistory.rows.some((row) => row.eventId === "ev-remove" && /removid/i.test(row.note) && !/Remover A/.test(row.note)), "audited without personal data");
+  assert.equal((await attendance.registerForEvent("ev-remove", "rm-a")).status, "REJECTED", "a removed person cannot sign up again");
+  assert.equal((await attendance.removeAttendee("ev-remove", owner, removable.id)).status, "REJECTED", "repeating is harmless");
+  for (const [userId, status] of [["rm-paid", "CONFIRMED"], ["rm-pix", "APPROVED"], ["rm-in", "CHECKED_IN"]]) await db.eventRegistration.create({ data: { eventId: "ev-paid-door", userId, status } });
+  await db.ticketOrder.create({ data: { eventId: "ev-paid-door", buyerId: "rm-paid", status: "PAID" } });
+  await db.ticketOrder.create({ data: { eventId: "ev-paid-door", buyerId: "rm-pix", status: "PENDING", expiresAt: new Date(Date.now() + 600000) } });
+  await assert.rejects(attendance.removeAttendee("ev-paid-door", owner, reg("ev-paid-door", "rm-paid").id), (error) => error.status === 409 && /estorn/i.test(error.message), "a paid ticket needs a refund first");
+  await assert.rejects(attendance.removeAttendee("ev-paid-door", owner, reg("ev-paid-door", "rm-pix").id), (error) => error.status === 409 && /Pix/.test(error.message), "an open Pix blocks removal");
+  await assert.rejects(attendance.removeAttendee("ev-paid-door", owner, reg("ev-paid-door", "rm-in").id), (error) => error.status === 409 && /entrada/i.test(error.message), "a validated entry stays");
+  assert.deepEqual(["rm-paid", "rm-pix", "rm-in"].map((id) => reg("ev-paid-door", id).status), ["CONFIRMED", "APPROVED", "CHECKED_IN"], "refused removals change nothing");
   // Withdrawing a pending request is allowed.
   await attendance.registerForEvent("ev-approval", "caio");
   assert.equal((await attendance.cancelRegistration("ev-approval", "caio")).status, "CANCELLED");

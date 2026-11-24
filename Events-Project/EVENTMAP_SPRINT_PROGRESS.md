@@ -34,11 +34,12 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 5. Publicado no commit `9c71b99`: avisos de alteração, cancelamento e remoção chegam também a inscrições pendentes e aprovadas; a trava de desconexão do Mercado Pago não perde ingressos futuros em contas com mais de 2.000 pedidos.
 6. Publicado no commit `0d1c37b`: desconectar o Mercado Pago pausa a venda em vez de liberar inscrição gratuita com QR, e reconectar retoma a venda. Validado offline, sem conta real.
 7. Publicado no commit `ffa1fd0`: "Pedir para participar" não fazia nada para quem tinha presença confirmada ou lista de espera sem pagamento em evento pago. Agora vira pedido pendente e o QR não pago é revogado. Validado com servidor e navegador reais em banco descartável (13/13), desktop e 390 px. Pagamento Pix real segue sem teste.
-8. Na branch, aguardando OK para deploy: em evento pago, QR, leitura e entrada manual exigem pedido PAGO, e vaga liberada não promove a lista de espera sem pagamento. Validado offline. A quantidade de inscrições antigas afetadas em produção não foi medida.
-9. Na branch, aguardando OK: reconciliação do Pix cobre 48 h e detecta estorno ou contestação com aviso perdido. Validado offline com Mercado Pago simulado.
-10. Na branch, aguardando OK: compra com 1.000 simultâneos caiu de cerca de 6,8 s para 5,5 s no p95 (3 medições cada, banco local descartável, 0 erros).
-11. Na branch, aguardando OK: botões de inscrição, QR, aprovação e portaria sempre dão retorno; exportação de vendas em CSV. O botão de CSV não foi aberto em navegador.
+8. Publicado no commit `5f5a411`: em evento pago, QR, leitura e entrada manual exigem pedido PAGO, e vaga liberada não promove a lista de espera sem pagamento. Validado offline. A quantidade de inscrições antigas afetadas em produção não foi medida.
+9. Publicado no commit `5f5a411`: reconciliação do Pix cobre 48 h e detecta estorno ou contestação com aviso perdido. Validado offline com Mercado Pago simulado.
+10. Publicado no commit `5f5a411`: compra com 1.000 simultâneos caiu de cerca de 6,8 s para 5,5 s no p95 (3 medições cada, banco local descartável, 0 erros).
+11. Publicado no commit `5f5a411`: botões de inscrição, QR, aprovação e portaria sempre dão retorno; exportação de vendas em CSV. O botão de CSV não foi aberto em navegador.
 12. Frequência do cron não alterada: o plano da Vercel não foi confirmado e um agendamento não permitido pode bloquear o deploy.
+13. Na branch, aguardando OK: organizador remove participante. O QR é revogado, a pessoa é avisada e não volta a se inscrever. Ingresso pago exige estorno, Pix em aberto bloqueia e Pix atrasado é devolvido. Validado em navegador real com banco descartável (42/42), desktop e 390 px; Mercado Pago real segue sem teste.
 
 ## Riscos e dependências externas
 

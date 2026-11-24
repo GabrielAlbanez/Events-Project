@@ -244,6 +244,37 @@ export async function reviewRegistration(eventId: string, actor: StaffActor, reg
   });
 }
 
+/**
+ * Organizer removes a participant: the QR stops working and the person cannot sign up again. Money is never decided here:
+ * a paid ticket goes through the refund, and an open Pix must finish or expire first.
+ */
+export async function removeAttendee(eventId: string, actor: StaffActor, registrationId: string) {
+  return withEventLock(eventId, async (tx) => {
+    const event = await eventForRegistration(tx, eventId);
+    await assertManager(tx, event, actor);
+    const registration = await tx.eventRegistration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, userId: true, status: true } });
+    if (!registration || registration.eventId !== eventId) throw new AttendanceError("Inscrição não encontrada neste evento.", 404);
+    if (registration.status === "REJECTED") return { id: registration.id, status: registration.status };
+    if (event.status !== "PUBLISHED") throw new AttendanceError("Só é possível remover participantes de eventos publicados.", 409);
+    if (registration.status === "CHECKED_IN") throw new AttendanceError("Esta pessoa já teve a entrada validada e não pode ser removida.", 409);
+    if (registration.status === "CANCELLED") throw new AttendanceError("Esta inscrição já foi cancelada.", 409);
+    const paid = await tx.ticketOrder.count({ where: { eventId, buyerId: registration.userId, status: "PAID" } });
+    if (paid) throw new AttendanceError("Esta pessoa tem ingresso pago. Faça o estorno em Pagamentos para removê-la do evento.", 409);
+    const openPix = await tx.ticketOrder.count({ where: { eventId, buyerId: registration.userId, status: "PENDING", expiresAt: { gt: new Date() } } });
+    if (openPix) throw new AttendanceError("Esta pessoa tem um Pix em aberto. Aguarde o pagamento ou a expiração para removê-la.", 409);
+    const changed = await tx.eventRegistration.update({ where: { id: registration.id }, data: { status: "REJECTED", qrVersion: { increment: 1 }, checkedInAt: null }, select: { id: true, status: true } });
+    const start = eventInstant(event.dataInicio, event.startTime, event.timezone);
+    if (registration.status === "CONFIRMED" && !sellsTickets(event) && start && start.getTime() > Date.now()) {
+      const occupied = await tx.eventRegistration.count({ where: { eventId, status: { in: ["CONFIRMED", "CHECKED_IN"] } } });
+      if (event.capacity === null || occupied < event.capacity) await promoteWaiting(tx, eventId, 1);
+    }
+    await createNotification(tx, notificationCopy({ userId: registration.userId, type: "SYSTEM" as const, href: `/eventos/${encodeURIComponent(eventId)}`, groupKey: `registration-removed:${registration.id}`, title: "Inscrição removida", message: `${event.nome}: a organização removeu sua inscrição deste evento.` }));
+    const staff = await tx.user.findUnique({ where: { id: actor.id }, select: { name: true } });
+    await tx.eventHistory.create({ data: { eventId: event.id, eventName: event.nome, promoterId: event.userId, actorId: actor.id, actorName: staff?.name ?? null, action: "UPDATED", note: `Inscrição ${registration.id} removida pela organização.` } });
+    return changed;
+  });
+}
+
 function signingSecret(): string {
   const secret = process.env.CHECKIN_SIGNING_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret || secret.length < 32) throw new AttendanceError("Check-in temporariamente indisponível.", 503);

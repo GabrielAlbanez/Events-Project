@@ -917,6 +917,21 @@ async function checkHardening() {
   assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-chargeback").status, "REFUNDED", "lost chargeback webhook recovered");
   assert.equal(db.eventRegistration.rows.find((row) => row.id === "reg-chargeback").status, "CANCELLED", "its QR stops working");
   assert.equal(honored.status, "PAID", "an approved payment stays paid");
+  // Removed by the organizer: cannot buy, and a late Pix is returned instead of granting a seat.
+  db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-removed", nome: "Removido" });
+  db.user.rows.push({ ...db.user.rows.find((user) => user.id === "buyer2"), id: "removed-buyer", email: "removed@example.test" });
+  const removedOrder = await buy("removed-buyer", "event-removed");
+  removedOrder.status = "EXPIRED";
+  db.eventRegistration.rows.push({ id: "reg-removed", eventId: "event-removed", userId: "removed-buyer", status: "REJECTED", qrVersion: 1, checkedInAt: null, createdAt: NOW });
+  const removedRetry = await service.createTicketOrder({ eventId: "event-removed" }, as("removed-buyer"), deps);
+  assert.equal(removedRetry.success, false, "a removed person cannot buy");
+  assert.equal((await service.getTicketPurchaseState("event-removed", as("removed-buyer"), deps)).data.state, "approval", "the purchase is not offered");
+  approve(removedOrder);
+  await service.reconcileRecentTicketOrders(deps);
+  assert.equal(removedOrder.status, "REFUNDED", "a late Pix from a removed person goes back");
+  assert.ok(mp.calls.some((call) => call.url.endsWith(`/v1/payments/${removedOrder.mpPaymentId}/refunds`)), "refund requested");
+  assert.equal(db.eventRegistration.rows.find((row) => row.id === "reg-removed").status, "REJECTED", "no seat is granted");
+  assert.ok(db.notification.rows.some((row) => row.userId === "removed-buyer" && /devolvido/.test(row.message) && !/esgot/.test(row.message)), "told the real reason");
   // Opportunistic run when the buyer opens /ingressos (throttled per viewer).
   db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-extra", nome: "Extra" });
   const viaList = await buy("buyer", "event-extra");

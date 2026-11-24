@@ -375,9 +375,10 @@ export async function getTicketPurchaseState(eventId: string, resolveViewer: Res
       if (own && isOpenTicketOrder(own, now)) return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "pending", message: null, order: toView(own) } };
     }
     if (blocked && blocked.code !== "email_unverified") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: stateFor[blocked.code] ?? "unavailable", message: blocked.message } };
-    if (viewer && event.requiresApproval && !event.aiImport) {
+    if (viewer) {
       const approval = await prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: viewer.id } }, select: { status: true } });
-      if (approval?.status !== "APPROVED") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "approval", message: approvalMessage(approval?.status) } };
+      const needsApproval = event.requiresApproval && !event.aiImport && approval?.status !== "APPROVED";
+      if (needsApproval || approval?.status === "REJECTED") return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "approval", message: approvalMessage(approval?.status) } };
     }
     if (seatsLeft === 0) return { success: true, message: "", data: { ...base, seatsLeft, maxQuantity, state: "sold_out", message: "Ingressos esgotados." } };
     // Unverified e-mail: the button stays visible and the purchase explains what to do.
@@ -426,10 +427,10 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       const blocked = ticketEligibility({ event, buyerId: user.id, sellerConnected: await sellerConnected(tx, event.userId), buyerEmailVerified: buyer?.verified ?? false, now });
       if (blocked) return { kind: "blocked", message: blocked.message };
       if (!buyer?.email) return { kind: "blocked", message: "Cadastre um e-mail na sua conta para receber o Pix." };
-      if (event.requiresApproval && !event.aiImport) {
-        const approval = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: user.id } }, select: { status: true } });
-        if (approval?.status !== "APPROVED") return { kind: "blocked", message: approvalRequired };
-      }
+      const approval = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: user.id } }, select: { status: true } });
+      // REJECTED also covers someone the organizer removed from an event without approval.
+      if (approval?.status === "REJECTED") return { kind: "blocked", message: approvalMessage("REJECTED") };
+      if (event.requiresApproval && !event.aiImport && approval?.status !== "APPROVED") return { kind: "blocked", message: approvalRequired };
       if (recent >= TICKET_ORDER_RATE_LIMIT) return { kind: "blocked", message: "Muitas tentativas de compra em pouco tempo. Aguarde alguns minutos e tente novamente." };
       const quantity = parsed.data.quantity ?? 1;
       if (event.ticketCapacity != null) {
@@ -680,7 +681,7 @@ async function syncOrderWithPayment(order: SyncOrder, payment: MercadoPagoPaymen
   if (!paymentMatchesOrder(order, payment)) return;
   const now = ctx.d.now();
   if (payment.status === "approved") {
-    const outcome = await withEventLock(order.eventId, async (tx): Promise<"none" | "paid" | "oversold"> => {
+    const outcome = await withEventLock(order.eventId, async (tx): Promise<"none" | "paid" | "oversold" | "removed"> => {
       const current = await tx.ticketOrder.findUnique({ where: { id: order.id }, select: { status: true, event: { select: { ticketCapacity: true } } } });
       // EXPIRED is accepted too: a Pix approved at the deadline was paid and is honored while a seat is left.
       if (!current || (current.status !== "PENDING" && current.status !== "EXPIRED")) return "none";
@@ -688,12 +689,16 @@ async function syncOrderWithPayment(order: SyncOrder, payment: MercadoPagoPaymen
       const oversold = current.status === "EXPIRED" && capacity != null && await seatsTaken(tx, order.eventId, now) + order.quantity > capacity;
       const changed = await tx.ticketOrder.updateMany({ where: { id: order.id, status: current.status }, data: { status: "PAID", paidAt: now } });
       if (!changed.count) return "none";
+      // Removed by the organizer while the Pix was open: no seat, the money goes back like an oversold order.
+      const seat = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: order.eventId, userId: order.buyerId } }, select: { status: true } });
+      if (seat?.status === "REJECTED") return "removed";
       // Sold out meanwhile: the money is recorded (PAID) and refunded right after, outside this transaction.
       if (oversold) return "oversold";
       await grantTicket(tx, order);
       return "paid";
     });
     if (outcome === "oversold") await refundLateApproval(order, payment.id, ctx);
+    if (outcome === "removed") await refundLateApproval(order, payment.id, ctx, "removed");
     return;
   }
   if ((payment.status === "cancelled" || payment.status === "rejected") && order.status === "PENDING") {
@@ -706,32 +711,35 @@ async function syncOrderWithPayment(order: SyncOrder, payment: MercadoPagoPaymen
 }
 
 /** Late approval with no seat left: refund the Pix. If Mercado Pago refuses, the ticket is honored above capacity. */
-async function refundLateApproval(order: SyncOrder, paymentId: string, ctx: SyncContext): Promise<void> {
+async function refundLateApproval(order: SyncOrder, paymentId: string, ctx: SyncContext, reason: "sold_out" | "removed" = "sold_out"): Promise<void> {
   try {
     await refundMercadoPagoPayment(ctx.config.apiBase, ctx.token, paymentId, `refund-${order.id}`, ctx.d.fetch);
   } catch {
     console.warn("ticket-oversell-refund-failed");
-    await serializable((tx) => grantTicket(tx, order));
+    // A removed person never gets the seat: reconciliation retries this refund.
+    if (reason === "sold_out") await serializable((tx) => grantTicket(tx, order));
     return;
   }
-  await markRefunded(order, ctx.d.now(), "sold_out");
+  await markRefunded(order, ctx.d.now(), reason);
 }
 
-async function markRefunded(order: SyncOrder, now: Date, reason: "refund" | "sold_out" = "refund"): Promise<boolean> {
+async function markRefunded(order: SyncOrder, now: Date, reason: "refund" | "sold_out" | "removed" = "refund"): Promise<boolean> {
   return serializable(async (tx) => {
     const changed = await tx.ticketOrder.updateMany({ where: { id: order.id, status: "PAID" }, data: { status: "REFUNDED", refundedAt: now } });
     if (!changed.count) return false;
     // A ticket already used at the door keeps its check-in record.
     await tx.eventRegistration.updateMany({ where: { eventId: order.eventId, userId: order.buyerId, status: { in: ["CONFIRMED", "WAITLISTED"] } }, data: { status: "CANCELLED", qrVersion: { increment: 1 } } });
     await tx.ticketPass.updateMany({ where: { orderId: order.id, status: "VALID" }, data: { status: "CANCELLED" } });
-    const buyerNotice = reason === "sold_out"
+    const buyerNotice = reason === "removed"
+      ? { title: "Pix devolvido", message: `${order.event.nome}: sua inscrição foi removida pela organização e seu Pix foi devolvido.` }
+      : reason === "sold_out"
       ? { title: "Ingressos esgotados", message: `${order.event.nome}: os ingressos esgotaram antes da confirmação; seu Pix foi devolvido.` }
       : { title: "Ingresso estornado", message: `${order.event.nome}: o valor do ingresso foi devolvido pelo Mercado Pago.` };
     await createNotificationOnce(tx, { ...notificationCopy({ userId: order.buyerId, type: "SYSTEM" as const, href: "/ingressos", groupKey: `ticket-refund:${order.id}`, ...buyerNotice }), groupKey: `ticket-refund:${order.id}` });
-    if (reason === "sold_out") {
+    if (reason !== "refund") {
       await createNotificationOnce(tx, { ...notificationCopy({
         userId: order.sellerId, type: "SYSTEM" as const, href: "/myEvents/pagamentos", groupKey: `ticket-oversell:${order.id}`,
-        title: "Pix devolvido automaticamente", message: `${order.event.nome}: um Pix aprovado depois do prazo chegou com os ingressos esgotados e foi devolvido.`,
+        title: "Pix devolvido automaticamente", message: reason === "removed" ? `${order.event.nome}: um Pix de uma pessoa removida do evento foi aprovado e devolvido.` : `${order.event.nome}: um Pix aprovado depois do prazo chegou com os ingressos esgotados e foi devolvido.`,
       }), groupKey: `ticket-oversell:${order.id}` });
     }
     await tx.communitySignal.create({ data: { room: `user:${order.buyerId}` } });
@@ -903,17 +911,20 @@ async function findStrandedOrders(now: Date, scope: ReconcileScope): Promise<Syn
   if (!paid.length) return [];
   const registrations = await prisma.eventRegistration.findMany({
     where: { OR: paid.map((order) => ({ eventId: order.eventId, userId: order.buyerId })) },
-    select: { eventId: true, userId: true },
+    select: { eventId: true, userId: true, status: true },
   });
-  const seated = new Set(registrations.map((row) => `${row.eventId}:${row.userId}`));
+  // A removed person holds no seat either: an interrupted refund of their late Pix is finished here.
+  const seated = new Set(registrations.filter((row) => row.status !== "REJECTED").map((row) => `${row.eventId}:${row.userId}`));
   return paid.filter((order) => !seated.has(`${order.eventId}:${order.buyerId}`));
 }
 
 /** Finishes the interrupted refund, or records one Mercado Pago already made. Same idempotency key as the first try. */
 async function settleStrandedOrder(order: SyncOrder, payment: MercadoPagoPayment, ctx: SyncContext): Promise<void> {
   if (!paymentMatchesOrder(order, payment)) return;
-  if (payment.status === "approved") await refundLateApproval(order, payment.id, ctx);
-  else if (payment.status === "refunded" || payment.status === "charged_back") await markRefunded(order, ctx.d.now(), "sold_out");
+  const seat = await prisma.eventRegistration.findUnique({ where: { eventId_userId: { eventId: order.eventId, userId: order.buyerId } }, select: { status: true } });
+  const reason = seat?.status === "REJECTED" ? "removed" : "sold_out";
+  if (payment.status === "approved") await refundLateApproval(order, payment.id, ctx, reason);
+  else if (payment.status === "refunded" || payment.status === "charged_back") await markRefunded(order, ctx.d.now(), reason);
 }
 
 const lastReconcile = new Map<string, number>();

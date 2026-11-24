@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, X } from "lucide-react";
+import { BadgeCheck, Check, CircleSlash, Hourglass, Inbox, Loader2, RefreshCcw, UserMinus, X } from "lucide-react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,7 +19,7 @@ export type RegistrationRequest = {
 type Decision = "APPROVE" | "REJECT";
 type DecisionResult = { id: string; status: string; message?: string };
 type Filter = RegistrationRequest["status"];
-type Confirm = { kind: "reject"; entry: RegistrationRequest } | { kind: "bulk"; count: number };
+type Confirm = { kind: "reject"; entry: RegistrationRequest } | { kind: "remove"; entry: RegistrationRequest } | { kind: "bulk"; count: number };
 
 const REFRESH_MS = 20000;
 const filters: Array<{ value: Filter; label: string; short: string }> = [
@@ -56,22 +56,25 @@ type Props = {
   apiBase: string;
   /** Decisions only work while the event is published (the server answers 409 otherwise). */
   open: boolean;
-  /** Called after a decision that may change the participant list (free events confirm on approval). */
-  onChanged: () => void;
+  /** Called after a decision that may change the participant list (free events confirm on approval). Resolves to false when the reload failed. */
+  onChanged: () => void | Promise<boolean>;
+  /** Changing it re-reads the requests (e.g. after a removal in the participant list). */
+  refreshKey?: number;
 };
 
 /** Organizer approval of registrations: pending requests first, then approved (waiting payment) and rejected. */
-export default function RegistrationRequests({ apiBase, open, onChanged }: Props) {
+export default function RegistrationRequests({ apiBase, open, onChanged, refreshKey = 0 }: Props) {
   const [requests, setRequests] = useState<RegistrationRequest[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("PENDING");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [busyDecision, setBusyDecision] = useState<Decision | null>(null);
+  const [busyDecision, setBusyDecision] = useState<Decision | "REMOVE" | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const working = useRef(false);
+  const cancelRemovalRef = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(async (): Promise<boolean> => {
     try {
@@ -100,6 +103,8 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
     void refresh();
     return () => { active = false; window.clearTimeout(timer); };
   }, [load]);
+
+  useEffect(() => { if (refreshKey > 0) void load(); }, [refreshKey, load]);
 
   /** Sends one decision; the list changes only after the server confirms it. */
   const decide = useCallback(async (entry: RegistrationRequest, decision: Decision): Promise<boolean> => {
@@ -142,6 +147,41 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
     if (working.current) return;
     working.current = true;
     try { await decide(entry, decision); } finally { working.current = false; }
+  };
+
+  /** Removes an approved person; the lists are re-read for counters and the waiting list. */
+  const removeApproved = async (entry: RegistrationRequest) => {
+    if (working.current) return;
+    working.current = true;
+    setBusyId(entry.id);
+    setBusyDecision("REMOVE");
+    try {
+      const response = await fetch(`${apiBase}/registration-requests`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: entry.id }),
+      });
+      const data = await response.json().catch(() => null) as Partial<DecisionResult> | null;
+      if (!response.ok) {
+        notifyError(data?.message || "Não foi possível remover esta pessoa. Tente novamente.");
+        if (response.status === 409 || response.status === 404) await Promise.all([load(), onChanged()]);
+        return;
+      }
+      if (data?.status !== "REJECTED") {
+        notifyError("Não foi possível confirmar a remoção. Atualize a página para conferir.");
+        return;
+      }
+      setRequests((current) => current ? current.map((item) => item.id === entry.id ? { ...item, status: "REJECTED" } : item) : current);
+      const [listOk, attendeesOk] = await Promise.all([load(), onChanged()]);
+      if (listOk && attendeesOk !== false) notifyOk(`${personName(entry)} foi removido(a) do evento.`);
+      else toast.warning(`${personName(entry)} foi removido(a), mas a lista não foi atualizada. Atualize a página.`, { toastId: `requests-removed:${entry.id}`, autoClose: 8000 });
+    } catch (cause) {
+      notifyError(cause instanceof TypeError ? "Sem conexão. Não foi possível confirmar a remoção; confira a lista e tente novamente." : "Não foi possível remover esta pessoa. Tente novamente.");
+    } finally {
+      working.current = false;
+      setBusyId(null);
+      setBusyDecision(null);
+    }
   };
 
   /** Approves the visible pending list one by one; stops at the first failure. */
@@ -230,7 +270,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
                     <Button type="button" size="sm" disabled={busy || !open} onClick={() => void runSingle(entry, "APPROVE")}>{rowBusy && busyDecision === "APPROVE" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <Check aria-hidden="true" />}Aprovar<span className="sr-only"> {personName(entry)}</span></Button>
                     <Button type="button" size="sm" variant="outline" disabled={busy || !open} onClick={() => setConfirm({ kind: "reject", entry })} className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">{rowBusy && busyDecision === "REJECT" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <X aria-hidden="true" />}Recusar<span className="sr-only"> {personName(entry)}</span></Button>
                   </div>
-                    : entry.status === "APPROVED" ? <StatusBadge tone="info" icon={BadgeCheck} className="self-start sm:self-auto">Aguardando pagamento</StatusBadge>
+                    : entry.status === "APPROVED" ? <div className="flex flex-wrap items-center gap-2 sm:shrink-0"><StatusBadge tone="info" icon={BadgeCheck}>Aguardando pagamento</StatusBadge>{open && <button type="button" disabled={busy} aria-label={rowBusy && busyDecision === "REMOVE" ? `Removendo ${personName(entry)} do evento` : `Remover ${personName(entry)} do evento`} onClick={() => setConfirm({ kind: "remove", entry })} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive disabled:cursor-not-allowed disabled:opacity-50">{rowBusy && busyDecision === "REMOVE" ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <UserMinus aria-hidden="true" className="h-4 w-4" />}{rowBusy && busyDecision === "REMOVE" ? "Removendo..." : "Remover"}</button>}</div>
                       : <StatusBadge tone="neutral" icon={CircleSlash} className="self-start sm:self-auto">Recusado</StatusBadge>}
                 </li>;
               })}</ul>}
@@ -238,7 +278,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
         </>}
 
     <Dialog open={confirm !== null} onOpenChange={(value) => { if (!value) setConfirm(null); }}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md">
+      <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md" onOpenAutoFocus={(event) => { if (confirm?.kind === "remove") { event.preventDefault(); cancelRemovalRef.current?.focus(); } }}>
         {confirm?.kind === "reject" ? <>
           <DialogHeader>
             <DialogTitle className="pr-6 leading-snug">Recusar pedido?</DialogTitle>
@@ -257,6 +297,16 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setConfirm(null)}>Voltar</Button>
             <Button type="button" onClick={() => { setConfirm(null); void approveAll(); }}>Aprovar todos</Button>
+          </DialogFooter>
+        </> : confirm?.kind === "remove" ? <>
+          <DialogHeader>
+            <DialogTitle className="break-words pr-6 leading-snug">Remover {personName(confirm.entry)} do evento?</DialogTitle>
+            <DialogDescription>O QR Code desta pessoa deixa de valer. Ela será avisada e não poderá se inscrever de novo neste evento.</DialogDescription>
+          </DialogHeader>
+          {confirm.entry.user.email && <p className="break-all rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">{confirm.entry.user.email}</p>}
+          <DialogFooter className="gap-2">
+            <Button ref={cancelRemovalRef} type="button" variant="outline" onClick={() => setConfirm(null)}>Cancelar</Button>
+            <Button type="button" variant="destructive" onClick={() => { const entry = confirm.entry; setConfirm(null); void removeApproved(entry); }}>Remover do evento</Button>
           </DialogFooter>
         </> : null}
       </DialogContent>
