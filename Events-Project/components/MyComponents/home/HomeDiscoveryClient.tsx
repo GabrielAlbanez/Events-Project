@@ -4,13 +4,15 @@ import PublicEventFilters, { DiscoveryFilter, emptyDiscoveryFilter, filterDiscov
 import { useSocket } from "@/context/SocketContext";
 import Mapa from "@/components/MyComponents/Map";
 import { Evento } from "@/types";
-import { CalendarDays, ChevronDown, MapPin, Search, Sparkles, X } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, ChevronRight, LayoutGrid, List, MapPin, Map as MapIcon, Search, Star, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "@/app/discovery.module.css";
 import { LuxuryHomePresentation } from "@/components/MyComponents/home/LuxuryHomePresentation";
 import { LoadingShimmer } from "@/components/animations/LoadingShimmer";
-import { EventDateBlock } from "@/components/MyComponents/EventDateBlock";
+import { HomeEventImage } from "@/components/MyComponents/home/HomeEventImage";
+import { DayMonthBlock, FeaturedTag, categoryVisual, eventCity } from "@/components/MyComponents/home/discoveryVisuals";
+import { prioritizeFeatured } from "@/lib/promotions";
 
 const filters: { label: string; value: Period }[] = [
   { label: "Todos", value: "todos" },
@@ -52,6 +54,17 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
   /** Id picked on the map (not in the list): only those selections scroll the list. */
   const mapSelection = useRef<string | null>(null);
   const [retry, setRetry] = useState(0);
+  /** Desktop only: the map area can switch to a card grid. On mobile "Lista" expands the bottom sheet instead. */
+  const [view, setView] = useState<"mapa" | "lista">("mapa");
+  const [compact, setCompact] = useState(false);
+  const [city, setCity] = useState("");
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const sync = () => setCompact(query.matches);
+    sync(); query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   const [urlReady, setUrlReady] = useState(false);
   useEffect(() => {
     const restore = () => {
@@ -124,9 +137,30 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
-    return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) &&
+    return filterDiscovery(events, discovery).filter((event) => matchesPeriod(event, period) && (!city || eventCity(event.endereco) === city) &&
       (!query || `${event.nome} ${event.descricao} ${event.endereco}`.toLocaleLowerCase("pt-BR").includes(query)));
-  }, [events, period, search, discovery]);
+  }, [events, period, search, discovery, city]);
+  const listedEvents = useMemo(() => prioritizeFeatured(filteredEvents), [filteredEvents]);
+  const hasFeatured = listedEvents.some((event) => event.featured);
+  /** Cities parsed from the published addresses, most frequent first (a display/filter hint, never geocoded). */
+  const cities = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((event) => { const name = eventCity(event.endereco); if (name) counts.set(name, (counts.get(name) ?? 0) + 1); });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR")).map(([name]) => name);
+  }, [events]);
+  /** Real categories present in the catalog, most frequent first. */
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((event) => { if (event.category) counts.set(event.category, (counts.get(event.category) ?? 0) + 1); });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR")).map(([name]) => name);
+  }, [events]);
+  const pickCategory = (category: string) => setDiscovery((current) => ({ ...current, category: current.category === category ? "" : category, travelMinutes: null, travelDurations: {} }));
+  const listActive = compact ? sheetExpanded : view === "lista";
+  const chooseView = (next: "mapa" | "lista") => {
+    if (window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(next === "lista"); setView("mapa"); }
+    else setView(next);
+  };
+  const selectFromList = (id: string) => { setSelectedId(id); setHighlightedId(null); setSheetExpanded(false); setView("mapa"); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); };
 
   const handleMapSelect = useCallback((id: string | null) => { mapSelection.current = id; setSelectedId(id); }, []);
 
@@ -144,7 +178,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     if (offset) container.scrollBy({ top: offset, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [selectedId]);
 
-  const hasActiveFilters = Boolean(search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
+  const hasActiveFilters = Boolean(city || search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
 
   const handleQuickSearch = ({ location, period: selectedPeriod, category }: { location: string; period: Period; category: string }) => {
     const query = location.trim().slice(0, 100);
@@ -172,8 +206,8 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
 
       <div ref={homeScrollContainer} className={styles.scroller}>
       <LuxuryHomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} period={period} periodLinks={periodLinks} onPeriodChange={setPeriod} onQuickSearch={handleQuickSearch} searchValue={search} categoryValue={discovery.category} />
-      <section id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]`}>
-        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet md:relative md:inset-auto md:rounded-none md:border-r md:border-t-0 md:shadow-none`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
+      <section id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:grid-cols-[minmax(400px,480px)_minmax(0,1fr)]`}>
+        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet md:relative md:inset-auto md:z-30 md:rounded-r-[2rem] md:rounded-tl-none md:border-r md:border-t-0 md:shadow-[18px_0_48px_-28px_hsl(var(--foreground)/0.28)]`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
             <span className="flex items-center gap-3">
@@ -183,45 +217,88 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
             </span>
           </button>
           <div ref={listScroll} id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
-          <div className="px-5 pb-4 pt-2 md:px-7 md:pt-8">
-            <div className="relative isolate">
-              <div aria-hidden="true" className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 overflow-hidden rounded-3xl">
-                  <span className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-border" />
-                  <span className="absolute -right-2 -top-6 h-28 w-28 rounded-full border border-border bg-muted/20" />
-                  <span className="absolute -bottom-12 right-8 h-32 w-32 rounded-full bg-decoration-brand" />
-                  <span className="absolute -left-10 -top-12 h-44 w-44 rounded-full bg-decoration-brand" />
-                  <span className="absolute -left-8 -top-10 h-36 w-36 rounded-full border border-border" />
-              </div>
-            <div className="mb-3 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground md:flex"><Sparkles className="h-4 w-4" /> Descubra por perto</div>
-            <h2 className="text-2xl font-bold tracking-tight md:text-[2rem]">Escolha como viver a cidade</h2>
-            <p className="mt-1 hidden text-sm leading-6 text-muted-foreground md:block">Explore a agenda e escolha o que combina com você.</p>
+          <div className="relative isolate px-5 pb-4 pt-2 md:px-8 md:pt-7">
+            <svg aria-hidden="true" viewBox="0 0 160 120" fill="none" className="pointer-events-none absolute -left-10 -top-14 -z-10 hidden h-32 w-44 text-cta md:block"><path d="M4 112C30 58 78 22 156 8" stroke="currentColor" strokeWidth="10" strokeLinecap="round" opacity=".55" /></svg>
+            <div className="flex items-start justify-between gap-3">
+              <label className="group relative flex min-h-11 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl pr-1 focus-within:ring-2 focus-within:ring-ring">
+                <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card text-brand shadow-sm"><MapPin className="h-4 w-4" /></span>
+                <span aria-hidden="true" className="min-w-0">
+                  <span className="block text-[11px] leading-4 text-muted-foreground">Sua localização</span>
+                  <span className="flex items-center gap-1 text-sm font-semibold leading-5"><span className="truncate">{city || "Todas as cidades"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /></span>
+                </span>
+                <select value={city} onChange={(event) => setCity(event.target.value)} aria-label="Sua localização: escolher cidade dos eventos" className="absolute inset-0 cursor-pointer opacity-0">
+                  <option value="">Todas as cidades</option>
+                  {cities.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              <span className="mt-2 inline-flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+                <span aria-hidden="true" className={`h-2 w-2 rounded-full ${loadError ? "bg-amber-500" : "bg-emerald-500"}`} />
+                {loadError ? "Atualização pendente" : discovery.origin ? "Perto de você" : "Eventos por perto"}
+              </span>
             </div>
-            <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-border bg-muted px-4 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input id="home-discovery-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+            <h2 className="mt-4 text-[1.75rem] font-bold leading-[1.1] tracking-tight md:mt-6 md:text-[2.5rem]">
+              Escolha como viver a{" "}
+              <span className="relative inline-block text-[#4E7A00] dark:text-cta">cidade<svg aria-hidden="true" viewBox="0 0 140 14" preserveAspectRatio="none" className="absolute -bottom-2 left-0 h-3 w-full text-cta"><path d="M3 9C34 4 70 3 137 6M10 12c30-3 62-4 104-3" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none" /></svg></span>
+            </h2>
+            <p className="mt-3 hidden text-[15px] leading-6 text-muted-foreground md:block">Explore a agenda e encontre o que combina com você.</p>
+            <label className="mt-5 flex h-12 items-center gap-3 rounded-2xl border border-border bg-muted/60 px-4 transition-colors focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20 md:h-14">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <input id="home-discovery-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar…" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
               {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4 text-muted-foreground" /></button>}
             </label>
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`min-h-11 shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${period === filter.value ? "border border-cta-foreground/15 bg-cta text-cta-foreground" : "border border-border bg-card text-muted-foreground hover:border-primary/30   "}`}>{filter.label}</button>)}
+            <div role="group" aria-label="Período" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:px-0">
+              {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${period === filter.value ? "border border-cta-foreground/10 bg-cta text-cta-foreground shadow-sm" : "border border-border bg-card text-foreground/80 hover:border-primary/30"}`}>{filter.value !== "todos" && <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />}{filter.label}</button>)}
             </div>
           </div>
-          <div className="shrink-0 px-4 pb-3"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border">
-            <div className="flex items-center justify-between px-5 py-4 md:px-7"><h2 className="text-sm font-semibold">Eventos próximos</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} {filteredEvents.length === 1 ? "encontrado" : "encontrados"}</span></div>
-            <div className="flex-1 space-y-2 px-4 pb-6 md:px-5">
-              {loading && <div role="status" className="space-y-2"><span className="sr-only">Carregando eventos…</span>{[0, 1, 2].map((item) => <div key={item} aria-hidden="true" className="relative flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-3"><div className="h-[84px] w-[84px] shrink-0 rounded-xl bg-muted" /><div className="flex min-w-0 flex-1 flex-col justify-center gap-3"><div className="h-2.5 w-20 rounded bg-muted" /><div className="h-3.5 w-4/5 rounded bg-muted" /><div className="h-3 w-3/5 rounded bg-muted" /></div><LoadingShimmer className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/20" /></div>)}</div>}
+          {categories.length > 0 && <div className="px-5 pb-4 md:px-8">
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><LayoutGrid aria-hidden="true" className="h-4 w-4" /> Categorias populares</h3>
+              {categories.length > 5 && <button type="button" aria-expanded={showAllCategories} aria-controls="discovery-categories" onClick={() => setShowAllCategories((value) => !value)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-xs font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{showAllCategories ? "Ver menos" : "Ver todas"} <ArrowRight aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${showAllCategories ? "-rotate-90" : ""}`} /></button>}
+            </div>
+            <div id="discovery-categories" role="group" aria-label="Categorias" className={`mt-2 gap-2 ${showAllCategories ? "grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))]" : "-mx-5 flex overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:px-0"}`}>
+              {(showAllCategories ? categories : categories.slice(0, 5)).map((category) => {
+                const { icon: Icon, tone } = categoryVisual(category);
+                const active = discovery.category === category;
+                return <button key={category} type="button" aria-pressed={active} onClick={() => pickCategory(category)} className={`flex min-h-[5.25rem] min-w-[4.75rem] flex-1 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-2.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${active ? "border-cta bg-cta/15 text-foreground ring-1 ring-cta" : "border-border bg-card text-foreground/80 hover:border-primary/30 hover:shadow-surface"}`}>
+                  <span aria-hidden="true" className={`grid h-9 w-9 place-items-center rounded-full ${tone}`}><Icon className="h-[18px] w-[18px]" /></span>
+                  <span className="max-w-full truncate">{category}</span>
+                </button>;
+              })}
+            </div>
+          </div>}
+          <div className="shrink-0 px-5 pb-3 md:px-8"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="mx-5 flex items-center justify-between border-t border-border py-4 md:mx-8"><h2 className="flex items-center gap-2 text-sm font-semibold"><Star aria-hidden="true" className="h-4 w-4" />{hasFeatured ? "Eventos em destaque" : "Próximos eventos"}</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} {filteredEvents.length === 1 ? "encontrado" : "encontrados"}</span></div>
+            <div className="flex-1 space-y-2 px-4 pb-6 md:px-6">
+              {loading && <div role="status" className="space-y-2"><span className="sr-only">Carregando eventos…</span>{[0, 1, 2].map((item) => <div key={item} aria-hidden="true" className="relative flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-2"><div className="h-[72px] w-[104px] shrink-0 rounded-xl bg-muted" /><div className="flex min-w-0 flex-1 flex-col justify-center gap-3"><div className="h-2.5 w-20 rounded bg-muted" /><div className="h-3.5 w-4/5 rounded bg-muted" /><div className="h-3 w-3/5 rounded bg-muted" /></div><LoadingShimmer className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/20" /></div>)}</div>}
               {loadError && <div role="alert" className="rounded-2xl border border-border bg-muted/40 p-5 text-sm leading-6 text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
-              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca ou período.</p></div>}
-              <div className="space-y-2">{filteredEvents.map((event) => <button key={event.id} type="button" data-event-id={event.id} onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} aria-pressed={selectedId === event.id} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => { setSelectedId(event.id); setHighlightedId(null); setSheetExpanded(false); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); }} className={`${styles.eventCard} group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-cta bg-card shadow-surface ring-2 ring-cta" : highlightedId === event.id ? "border-primary/40 bg-card shadow-surface ring-1 ring-primary/30" : "border-border bg-card hover:border-primary/30  "}`}>
-                <div className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-primary/10">{event.banner ? <><img src={event.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="xs" date={event.dataInicio} className="absolute left-1 top-1" /></> : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="xs" date={event.dataInicio} /></div>}</div>
-                <div className="min-w-0 flex-1 self-center py-0.5"><h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight">{event.nome}</h3><p className="mt-2 flex items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{event.endereco}</p></div>
+              {!loading && !loadError && filteredEvents.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca, cidade ou período.</p></div>}
+              <div className="space-y-2">{listedEvents.map((event, index) => <button key={event.id} type="button" data-event-id={event.id} onMouseEnter={() => setHighlightedId(event.id)} onMouseLeave={() => setHighlightedId(null)} aria-pressed={selectedId === event.id} onFocus={() => setHighlightedId(event.id)} onBlur={() => setHighlightedId(null)} onClick={() => selectFromList(event.id)} className={`${styles.eventCard} group flex w-full items-center gap-3 rounded-2xl border p-2 pr-3 text-left transition-colors hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedId === event.id ? "border-cta bg-card shadow-surface ring-2 ring-cta" : highlightedId === event.id ? "border-primary/40 bg-card shadow-surface ring-1 ring-primary/30" : "border-transparent bg-card hover:border-border"}`}>
+                <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-primary/10 lg:w-[120px]"><HomeEventImage banner={event.banner} category={event.category} index={index} sizes="120px" className="object-cover" />{event.featured && <FeaturedTag className="absolute left-1.5 top-1.5" />}</div>
+                <DayMonthBlock date={event.dataInicio} />
+                <div className="min-w-0 flex-1 py-0.5"><h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight">{event.nome}</h3><p className="mt-1 flex items-center gap-1.5 text-xs leading-4 text-muted-foreground"><MapPin aria-hidden="true" className="h-3 w-3 shrink-0" /><span className="truncate">{event.endereco || "Local a confirmar"}</span></p></div>
+                <span aria-hidden="true" className="hidden h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-brand transition-colors group-hover:border-primary/40 group-hover:bg-primary/5 sm:grid"><ChevronRight className="h-4 w-4" /></span>
               </button>)}</div>
             </div>
           </div>
           </div>
         </section>
-        <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative overflow-hidden bg-muted`} aria-label="Mapa dos eventos">
+        <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative isolate overflow-hidden bg-muted md:-ml-8`} aria-label="Mapa dos eventos">
+          <div role="group" aria-label="Modo de visualização" className="absolute left-3 top-3 z-40 flex rounded-full border border-border bg-card/95 p-1 shadow-surface backdrop-blur md:left-12 md:top-5">
+            {([["mapa", "Mapa", MapIcon], ["lista", "Lista", List]] as const).map(([value, label, Icon]) => {
+              const active = value === "lista" ? listActive : !listActive;
+              return <button key={value} type="button" aria-pressed={active} onClick={() => chooseView(value)} className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground/80 hover:bg-muted"}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>;
+            })}
+          </div>
           <Mapa events={filteredEvents} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={handleMapSelect} onHighlightEvent={setHighlightedId} />
+          {view === "lista" && !compact && <div className="absolute inset-0 z-30 overflow-y-auto bg-background px-6 pb-10 pt-24 md:pl-14">
+            <h2 className="sr-only">Lista de eventos</h2>
+            {!loading && listedEvents.length === 0 ? <div className="mx-auto max-w-sm rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center"><CalendarDays className="mx-auto mb-3 h-6 w-6 text-primary" /><p className="text-sm font-medium">Nenhum evento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Experimente outra busca, cidade ou período.</p></div>
+            : <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">{listedEvents.map((event, index) => <li key={event.id}><button type="button" onClick={() => selectFromList(event.id)} className="group flex h-full w-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-left shadow-surface transition hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <span className="relative block aspect-[16/9] w-full overflow-hidden bg-primary/10"><HomeEventImage banner={event.banner} category={event.category} index={index} sizes="(min-width: 1280px) 25vw, 40vw" className="object-cover" />{event.featured && <FeaturedTag className="absolute left-3 top-3" />}</span>
+              <span className="flex flex-1 items-start gap-3 p-4"><DayMonthBlock date={event.dataInicio} /><span className="min-w-0 flex-1"><span className="line-clamp-2 text-sm font-semibold leading-5">{event.nome}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin aria-hidden="true" className="h-3 w-3 shrink-0" /><span className="truncate">{event.endereco || "Local a confirmar"}</span></span><span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand">Ver no mapa <ArrowRight aria-hidden="true" className="h-3 w-3" /></span></span></span>
+            </button></li>)}</ul>}
+          </div>}
         </section>
       </section>
       </div>

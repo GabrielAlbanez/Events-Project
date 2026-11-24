@@ -12,11 +12,16 @@ import { locationErrorMessage } from "@/lib/geolocationHelp";
 import { LazyMotion, m, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Route,
-  Crosshair,
   MapPin,
-  ZoomIn,
-  ZoomOut,
+  Minus,
+  Navigation,
+  Plus,
+  Sparkles,
+  Star,
   X,
 } from "lucide-react";
 import DrawerEventos from "@/components/MyComponents/DrawerEventos";
@@ -27,7 +32,7 @@ import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
 import Link from "next/link";
-import { EventDateBlock } from "./EventDateBlock";
+import { DayMonthBlock } from "./home/discoveryVisuals";
 import { parseEventDate } from "@/lib/discoveryPeriod";
 import { HomeEventImage } from "./home/HomeEventImage";
 import { animationConfig, loadAnimationFeatures } from "@/components/animations/config";
@@ -54,8 +59,34 @@ const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "water", elementType: "geometry", stylers: [{ color: "#0B111C" }] },
 ];
 
+/** Light, low-saturation base: soft green parks, white roads, muted labels, so the pins carry the colour. */
+const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#F3F5F4" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#6B7280" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }, { weight: 3 }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#D4D8DD" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#1F2937" }] },
+  { featureType: "administrative.neighborhood", elementType: "labels.text.fill", stylers: [{ color: "#8A919C" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#E4EFE1" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#ECEFED" }] },
+  { featureType: "poi", elementType: "labels.icon", stylers: [{ saturation: -60 }, { lightness: 20 }] },
+  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#D6ECD0" }] },
+  { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#4C8A48" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#FFFFFF" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#E3E6EA" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ saturation: -100 }, { lightness: 15 }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#D3D8DE" }] },
+  { featureType: "road.local", elementType: "labels.text.fill", stylers: [{ color: "#9CA3AF" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#E2E5E8" }] },
+  { featureType: "transit.station", elementType: "labels.icon", stylers: [{ saturation: -100 }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#CFE2F2" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#7A9CB8" }] },
+];
+
 const LOCATION_TOAST_ID = "location";
-const USER_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#C7F34A" stroke="#0B0D12" stroke-width="2"/><circle cx="13" cy="13" r="3" fill="#0B0D12"/></svg>') };
+/** Electric-blue dot with a white ring and a soft halo; anchored at its centre (see MapaGoogle). */
+const USER_MARKER_URL = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#2455FF" opacity=".16"/><circle cx="17" cy="17" r="8" fill="#2455FF" stroke="#fff" stroke-width="3"/></svg>');
 // The SVG's intrinsic width/height sets the rendered size; Google anchors it at the bottom centre (pin tip), so bigger pins don't shift.
 const createEventMarkerIcon = (fill: string, ink: string, width = 28, height = 36) => ({ url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 28 36"><path d="M14 1C7 1 1.5 6.5 1.5 13.5 1.5 23 14 34.5 14 34.5S26.5 23 26.5 13.5C26.5 6.5 21 1 14 1Z" fill="' + fill + '" stroke="' + ink + '" stroke-width="2"/><circle cx="14" cy="13" r="4.5" fill="' + ink + '"/></svg>') });
 const EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff");
@@ -386,8 +417,9 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     clickableIcons: false,
     gestureHandling: "greedy",
     keyboardShortcuts: true,
-    styles: resolvedTheme === "dark" ? DARK_MAP_STYLE : undefined,
+    styles: resolvedTheme === "dark" ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
   }), [resolvedTheme]);
+  const userMarkerIcon = useMemo<google.maps.Icon>(() => ({ url: USER_MARKER_URL, anchor: new google.maps.Point(17, 17) }), []);
 
   // No per-visit geocoding: events without stored coordinates stay in the list and are counted below.
   const visibleEvents = useMemo(() => events.filter(hasMapCoordinates), [events]);
@@ -433,7 +465,6 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     () => events.find((event) => event.id === selectedId) ?? null,
     [events, selectedId]
   );
-  const selectedMappable = Boolean(selectedEvent && hasMapCoordinates(selectedEvent));
   const selectedLat = selectedEvent?.lat;
   const selectedLng = selectedEvent?.lng;
   useEffect(() => {
@@ -446,6 +477,28 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     if (!map) return;
     map.setZoom((map.getZoom() ?? 12) + delta);
   }, []);
+  /** "Explore o mapa": frames every event currently on the map. */
+  const exploreMap = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || visibleEvents.length === 0) return;
+    if (visibleEvents.length === 1) { map.panTo({ lat: visibleEvents[0].lat!, lng: visibleEvents[0].lng! }); map.setZoom(14); return; }
+    const bounds = new google.maps.LatLngBounds();
+    visibleEvents.forEach((event) => bounds.extend({ lat: event.lat!, lng: event.lng! }));
+    map.fitBounds(bounds, 80);
+  }, [visibleEvents]);
+  // Floating card: the selected event, otherwise the first paid highlight (until the visitor closes it). The pager walks the highlights.
+  const featuredEvents = useMemo(() => events.filter((event) => event.featured), [events]);
+  const [cardDismissed, setCardDismissed] = useState(false);
+  useEffect(() => { if (selectedId) setCardDismissed(false); }, [selectedId]);
+  const cardEvent = selectedEvent ?? (cardDismissed ? null : featuredEvents[0] ?? null);
+  const cardDeck = useMemo(() => cardEvent && !featuredEvents.some((event) => event.id === cardEvent.id) ? [cardEvent, ...featuredEvents] : featuredEvents, [cardEvent, featuredEvents]);
+  const cardIndex = cardEvent ? cardDeck.findIndex((event) => event.id === cardEvent.id) : -1;
+  const cardMappable = Boolean(cardEvent && hasMapCoordinates(cardEvent));
+  const pageCard = useCallback((delta: number) => {
+    if (cardIndex < 0 || cardDeck.length < 2) return;
+    onSelectEvent(cardDeck[(cardIndex + delta + cardDeck.length) % cardDeck.length].id);
+  }, [cardDeck, cardIndex, onSelectEvent]);
+  const closeCard = useCallback(() => { setCardDismissed(true); onSelectEvent(null); }, [onSelectEvent]);
 
   return (
     <div className="absolute inset-0 z-10 flex flex-col overflow-hidden bg-muted md:flex-row">
@@ -462,7 +515,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               onMouseOut={closeFloating}
               onDragStart={closeFloating}
             >
-              {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} zIndex={100} />}
+              {userLocation && <Marker position={userLocation} icon={userMarkerIcon} zIndex={100} />}
 
               <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} floatingId={floatingEvent ? floatingId : null} onHover={handleMarkerHover} />
 
@@ -471,8 +524,14 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
 
+            {/* Decorative lime/blue swoosh in the corner (behind every control, never interactive). */}
+            <svg aria-hidden="true" viewBox="0 0 320 200" fill="none" preserveAspectRatio="none" className="pointer-events-none absolute bottom-0 right-0 z-[5] hidden h-44 w-80 md:block">
+              <path d="M320 34C236 70 150 128 70 200h250Z" fill="#2455FF" opacity=".9" />
+              <path d="M8 196C96 112 196 58 318 26" stroke="#C7F34A" strokeWidth="14" strokeLinecap="round" />
+            </svg>
+
             {showDirections && (
-              <div className="absolute left-3 right-[72px] top-3 z-10 rounded-2xl border border-border bg-card/95 p-4 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5 md:w-80">
+              <div className="absolute left-3 right-[72px] top-16 z-10 rounded-2xl border border-border bg-card/95 p-4 shadow-surface backdrop-blur-xl md:left-12 md:right-auto md:top-20 md:w-80">
                 <button type="button" onClick={() => setShowDirections(false)} className="mb-3 flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" /> Planejar rota</button>
                 <div className="space-y-3">
                   <PlaceAutocomplete ariaLabel="Local de partida da rota" className="w-full rounded-xl border border-border" placeholder="Local de partida" onPlaceSelect={({ lat, lng }) => { resetRouteRequest(); setUserLocation({ lat, lng }); }} />
@@ -487,62 +546,74 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               </div>
             )}
 
-            {selectedEvent && !showDirections && (
+            {cardEvent && !showDirections && (
               <LazyMotion features={loadAnimationFeatures} strict>
-                <m.div
-                  key={selectedEvent.id}
+                <m.section
+                  key={cardEvent.id}
+                  aria-label={cardEvent.id === selectedId ? "Evento selecionado" : "Evento em destaque"}
                   initial={reducedMotion === false ? { opacity: 0, y: -animationConfig.entranceDistance / 2 } : false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: reducedMotion === false ? animationConfig.grid.reenterDuration : 0, ease: animationConfig.ease }}
-                  className="absolute left-3 right-[72px] top-3 z-10 max-w-sm rounded-2xl border border-border bg-card/95 p-3 shadow-surface backdrop-blur-xl md:left-5 md:right-auto md:top-5 md:w-96"
+                  className="absolute inset-x-3 bottom-3 z-10 flex overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-[0_24px_60px_-24px_rgba(16,21,31,.45)] md:inset-x-auto md:bottom-auto md:right-6 md:top-6 md:w-[22rem] md:flex-col md:rounded-[1.75rem]"
                 >
-                  <div className="flex gap-3 pr-9">
-                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-primary/10">
-                      {selectedEvent.banner
-                        ? <><img src={selectedEvent.banner} alt="" className="h-full w-full object-cover" /><EventDateBlock size="xs" date={selectedEvent.dataInicio} className="absolute left-1 top-1" /></>
-                        : <div className="flex h-full w-full items-center justify-center"><EventDateBlock size="xs" date={selectedEvent.dataInicio} /></div>}
-                    </div>
-                    <div className="min-w-0 flex-1 self-center">
-                      <p className="line-clamp-2 text-sm font-semibold leading-5">{selectedEvent.nome}</p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{selectedEvent.endereco || "Local a confirmar"}</p>
-                      {!selectedMappable && <p className="mt-1 text-xs text-muted-foreground">Local ainda sem coordenadas no mapa.</p>}
-                    </div>
+                  <div className="relative w-28 shrink-0 overflow-hidden bg-primary/10 md:h-44 md:w-full">
+                    <HomeEventImage banner={cardEvent.banner} category={cardEvent.category} index={0} sizes="(min-width: 768px) 352px, 112px" className="object-cover" />
+                    {cardEvent.featured && <span role="note" aria-label="Evento em destaque patrocinado" className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-cta px-2.5 py-1 text-[11px] font-semibold text-cta-foreground shadow-sm md:left-3 md:top-3 md:px-3 md:text-xs"><Star aria-hidden="true" className="h-3 w-3 fill-current" /><span aria-hidden="true" className="hidden md:inline">Em destaque</span></span>}
+                    {cardDeck.length > 1 && <div role="group" aria-label="Navegar entre destaques" className="absolute right-3 top-3 hidden items-center rounded-full bg-[#0B0D12]/80 text-white backdrop-blur md:flex">
+                      <button type="button" onClick={() => pageCard(-1)} aria-label="Destaque anterior" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+                      <span aria-live="polite" className="px-1 text-xs font-semibold tabular-nums"><span className="sr-only">Destaque </span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
+                      <button type="button" onClick={() => pageCard(1)} aria-label="Próximo destaque" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cta"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                    </div>}
                   </div>
-                  <div className="mt-3 flex gap-2">
-                    <Link href={"/eventos/" + encodeURIComponent(selectedEvent.id)} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-cta px-3 text-sm font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">Ver evento</Link>
-                    {selectedMappable && <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setEventoAtivo(selectedEvent)}>Detalhes e rota</button>}
+                  <div className="relative min-w-0 flex-1 p-3 md:p-4">
+                    <div className="flex items-start gap-3 pr-9">
+                      <DayMonthBlock date={cardEvent.dataInicio} className="hidden md:inline-flex" />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight md:text-base md:leading-6">{cardEvent.nome}</p>
+                        <p className="mt-1 flex items-center gap-1 text-xs leading-4 text-muted-foreground"><MapPin aria-hidden="true" className="h-3 w-3 shrink-0" /><span className="truncate">{cardEvent.endereco || "Local a confirmar"}</span></p>
+                        {!cardMappable && <p className="mt-1 text-xs text-muted-foreground">Local ainda sem coordenadas no mapa.</p>}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 md:mt-4">
+                      {cardDeck.length > 1 && <div role="group" aria-label="Navegar entre destaques" className="flex items-center md:hidden">
+                        <button type="button" onClick={() => pageCard(-1)} aria-label="Destaque anterior" className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+                        <span className="text-xs font-semibold tabular-nums"><span className="sr-only">Destaque </span>{cardIndex + 1}<span aria-hidden="true">/</span><span className="sr-only"> de </span>{cardDeck.length}</span>
+                        <button type="button" onClick={() => pageCard(1)} aria-label="Próximo destaque" className="grid h-11 w-9 place-items-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                      </div>}
+                      {cardMappable && <button type="button" aria-label="Detalhes e rota" title="Detalhes e rota" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:ml-0" onClick={() => setEventoAtivo(cardEvent)}><Route aria-hidden="true" className="h-4 w-4" /></button>}
+                      <Link href={"/eventos/" + encodeURIComponent(cardEvent.id)} className={`${cardMappable ? "" : "ml-auto "}inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground shadow-sm hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card md:ml-auto`}>Ver detalhes <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
+                    </div>
+                    <button type="button" aria-label="Fechar evento" className="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:right-2 md:top-2" onClick={closeCard}><X className="h-4 w-4" aria-hidden="true" /></button>
                   </div>
-                  <button type="button" aria-label="Fechar evento" className="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelectEvent(null)}><X className="h-4 w-4" aria-hidden="true" /></button>
-                </m.div>
+                </m.section>
               </LazyMotion>
             )}
 
-            {!showDirections && !selectedEvent && <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-2 md:bottom-auto md:right-5 md:top-5">
-              <button type="button" className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 text-brand shadow-surface backdrop-blur hover:bg-muted" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota"><Route className="h-4 w-4" /></button>
-            </div>}
-            <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 md:bottom-20 md:right-5">
-              <div className="hidden overflow-hidden rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur md:block">
-                <button type="button" className="grid h-11 w-11 place-items-center text-muted-foreground transition hover:bg-muted hover:text-brand" onClick={() => changeZoom(1)} title="Aumentar zoom" aria-label="Aumentar zoom">
-                  <ZoomIn className="h-4 w-4" />
-                </button>
-                <div className="mx-2 h-px bg-border" />
-                <button type="button" className="grid h-11 w-11 place-items-center text-muted-foreground transition hover:bg-muted hover:text-brand" onClick={() => changeZoom(-1)} title="Diminuir zoom" aria-label="Diminuir zoom">
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-              </div>
+            {/* Map controls: top-right on phones (the card and sheet own the bottom), right edge above "Explore o mapa" from md. */}
+            <div className="absolute right-3 top-3 z-10 flex flex-col gap-2 md:bottom-24 md:right-6 md:top-auto">
+              {!showDirections && <button type="button" className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card text-brand shadow-surface hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setShowDirections(true); onSelectEvent(null); }} title="Planejar rota" aria-label="Planejar rota"><Route className="h-4 w-4" aria-hidden="true" /></button>}
               <button
                 type="button"
-                className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card/95 shadow-surface backdrop-blur transition hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
+                className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card shadow-surface transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
                 onClick={requestCurrentLocation}
                 disabled={isLocating}
                 title="Usar minha localização"
                 aria-label={isLocating ? "Obtendo localização…" : "Usar minha localização"}
               >
-                <Crosshair className="h-5 w-5 text-brand" />
+                <Navigation className="h-[18px] w-[18px] text-foreground" aria-hidden="true" />
               </button>
+              <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-surface md:block">
+                <button type="button" className="grid h-11 w-11 place-items-center text-foreground transition-colors hover:bg-muted hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => changeZoom(1)} title="Aumentar zoom" aria-label="Aumentar zoom">
+                  <Plus className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <div className="mx-2 h-px bg-border" />
+                <button type="button" className="grid h-11 w-11 place-items-center text-foreground transition-colors hover:bg-muted hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => changeZoom(-1)} title="Diminuir zoom" aria-label="Diminuir zoom">
+                  <Minus className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
-            {showLocationPrompt && <section aria-label="Usar sua localização no mapa" className="absolute inset-x-3 top-3 z-20 max-w-sm space-y-3 rounded-2xl bg-card p-5 shadow-surface md:left-5 md:right-auto">
+            {showLocationPrompt && <section aria-label="Usar sua localização no mapa" className="absolute inset-x-3 top-16 z-20 max-w-sm space-y-3 rounded-2xl bg-card p-5 shadow-surface md:left-12 md:right-auto md:top-20">
               <h2 className="text-base font-semibold">Usar sua localização?</h2>
               <p className="text-sm leading-6 text-muted-foreground">Sua posição será exibida no mapa do Google. Se você calcular um trajeto, origem e destino também serão enviados ao Google. Você pode continuar sem compartilhar a localização.</p>
               <div className="flex flex-wrap gap-2">
@@ -551,13 +622,21 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               </div>
             </section>}
 
-            {!showDirections && !selectedEvent && !showLocationPrompt && <Link href="/privacidade#preferencias" className="absolute left-3 top-3 z-10 inline-flex min-h-11 items-center rounded-xl bg-card px-3 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:left-5 md:top-5">Privacidade do mapa</Link>}
-
-            <div className="absolute bottom-5 left-5 z-10 hidden items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-medium text-muted-foreground shadow-surface backdrop-blur md:flex">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} no mapa
-              {missingCoordinates > 0 && <span>· {missingCoordinates} sem coordenadas</span>}
+            {/* Bottom-left (from md): live count and the map privacy link. On phones the privacy link sits under the view toggle. */}
+            {!showDirections && !showLocationPrompt && <Link href="/privacidade#preferencias" className="absolute left-3 top-16 z-10 inline-flex min-h-9 items-center rounded-full border border-border bg-card/95 px-3 text-xs font-medium text-foreground shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden">Privacidade do mapa</Link>}
+            <div className="absolute bottom-6 left-12 z-10 hidden items-center gap-2 md:flex">
+              <p className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-surface">
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} no mapa
+                {missingCoordinates > 0 && <span className="text-muted-foreground">· {missingCoordinates} sem coordenadas</span>}
+              </p>
+              <Link href="/privacidade#preferencias" className="inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Privacidade do mapa</Link>
             </div>
+            <button type="button" onClick={exploreMap} disabled={visibleEvents.length === 0} className="absolute bottom-6 right-6 z-10 hidden min-h-12 items-center gap-3 rounded-full bg-foreground px-5 text-sm font-semibold text-background shadow-[0_18px_40px_-16px_rgba(11,13,18,.6)] transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:inline-flex">
+              <Sparkles aria-hidden="true" className="h-4 w-4 text-cta" />
+              Explore o mapa
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </button>
           </div>
           {eventoAtivo && (
             
