@@ -874,15 +874,20 @@ async function checkHardening() {
   assert.equal(conflicts, 1, "other errors are not retried");
   db.$transaction = realTransaction;
 
-  // Reconciliation: recent EXPIRED/PENDING orders with a payment id are re-read; older than 24 hours are left alone.
+  // Reconciliation: recent EXPIRED/PENDING orders with a payment id are re-read; older than 48 hours are left alone.
   const missed = db.ticketOrder.rows.find((row) => row.id === retried.data.id);
   missed.status = "EXPIRED";
   approve(missed);
-  db.ticketOrder.rows.push({ id: "order-ancient", eventId: "event-open", buyerId: "buyer", sellerId: "seller", unitCents: 1234, feeCents: 247, status: "EXPIRED", mpPaymentId: "6600", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: null, refundedAt: null, createdAt: new Date(NOW.getTime() - 25 * 60 * MIN) });
+  db.ticketOrder.rows.push({ id: "order-ancient", eventId: "event-open", buyerId: "buyer", sellerId: "seller", unitCents: 1234, feeCents: 247, status: "EXPIRED", mpPaymentId: "6600", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: null, refundedAt: null, createdAt: new Date(NOW.getTime() - 49 * 60 * MIN) });
+  db.user.rows.push({ id: "day-old-buyer", name: "Comprador antigo", email: "day-old@example.test" }, { id: "chargeback-buyer", name: "Comprador estornado", email: "chargeback@example.test" });
+  // Created just before yesterday's daily run and paid after it: the next run must still see it.
+  db.ticketOrder.rows.push({ id: "order-day-old", eventId: "event-open", buyerId: "day-old-buyer", sellerId: "seller", unitCents: 1234, feeCents: 247, status: "EXPIRED", mpPaymentId: "6601", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: null, refundedAt: null, createdAt: new Date(NOW.getTime() - 25 * 60 * MIN) });
+  mp.payments.set("6601", { id: 6601, status: "approved", currency_id: "BRL", external_reference: "order-day-old", transaction_amount: 12.34, application_fee: 2.47 });
   mp.payments.set("6600", { id: 6600, status: "approved", currency_id: "BRL", external_reference: "order-ancient", transaction_amount: 12.34, application_fee: 2.47 });
   const report = await service.reconcileRecentTicketOrders(deps);
   assert.equal(missed.status, "PAID", "missed webhook recovered by reconciliation");
-  assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-ancient").status, "EXPIRED", "outside the 24 hour window");
+  assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-ancient").status, "EXPIRED", "outside the 48 hour window");
+  assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-day-old").status, "PAID", "a daily cron never skips an order between two runs");
   assert.ok(report.checked >= 1 && report.failed === 0, JSON.stringify(report));
   assert.deepEqual(await service.reconcileRecentTicketOrders({ ...deps, env: { NEXTAUTH_SECRET: ENV.NEXTAUTH_SECRET } }), { checked: 0, failed: 0 }, "not configured: no-op");
   // Crash between marking a late oversold approval PAID and refunding it: PAID with no registration row at all
@@ -903,6 +908,15 @@ async function checkHardening() {
   assert.equal(strandedRefunded.status, "REFUNDED", "refund already done at Mercado Pago: order marked REFUNDED");
   assert.equal(honored.status, "PAID", "paid order with a registration is left alone");
   assert.equal(honoredRefunds(), honoredBefore, "no new refund attempt for honored tickets");
+  // Refund or chargeback made at Mercado Pago with the webhook lost: the ticket must stop being valid.
+  db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-chargeback", nome: "Chargeback" });
+  db.ticketOrder.rows.push({ id: "order-chargeback", eventId: "event-chargeback", buyerId: "chargeback-buyer", sellerId: "seller", unitCents: 2500, feeCents: 500, quantity: 1, status: "PAID", mpPaymentId: "5502", pixCopyPaste: null, pixQrBase64: null, expiresAt: NOW, paidAt: NOW, refundedAt: null, createdAt: NOW });
+  db.eventRegistration.rows.push({ id: "reg-chargeback", eventId: "event-chargeback", userId: "chargeback-buyer", status: "CONFIRMED", qrVersion: 0, checkedInAt: null, createdAt: NOW });
+  mp.payments.set("5502", { id: 5502, status: "charged_back", currency_id: "BRL", external_reference: "order-chargeback", transaction_amount: 25, application_fee: 5 });
+  await service.reconcileRecentTicketOrders(deps);
+  assert.equal(db.ticketOrder.rows.find((row) => row.id === "order-chargeback").status, "REFUNDED", "lost chargeback webhook recovered");
+  assert.equal(db.eventRegistration.rows.find((row) => row.id === "reg-chargeback").status, "CANCELLED", "its QR stops working");
+  assert.equal(honored.status, "PAID", "an approved payment stays paid");
   // Opportunistic run when the buyer opens /ingressos (throttled per viewer).
   db.events.rows.push({ ...db.events.rows.find((event) => event.id === "event-open"), id: "event-extra", nome: "Extra" });
   const viaList = await buy("buyer", "event-extra");
@@ -1389,6 +1403,15 @@ async function checkMultiTicketOrder() {
     for (let index = 0; index < 600; index++) db.ticketOrder.rows.push({ ...row, id: `bulk-${index}`, status: "PAID", unitCents: 1000, quantity: 1, feeCents: 100, mpPaymentId: null });
     const large = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
     assert.deepEqual([large.data.totals.sold, large.data.totals.grossCents, large.data.totals.feeCents, large.data.totals.netCents, large.data.totals.refunded], [600, 600000, 60000, 540000, 3], "dashboard totals are not limited to the listed orders");
+    // Sales export: only the organizer's own paid and refunded orders, with safe cells and pt-BR amounts.
+    const exported = await service.getSalesExport(as("seller", "PROMOTER"), deps);
+    assert.equal(exported.data.length, 601, "every paid and refunded order, beyond the on-screen cap");
+    assert.equal((await service.getSalesExport(as("buyer2", "PROMOTER"), deps)).data.length, 0, "never another organizer's sales");
+    assert.equal((await service.getSalesExport(async () => null, deps)).success, false);
+    const csvLib = load("lib/organizerOps/salesCsv.ts");
+    const csvText = csvLib.salesCsv([{ eventName: "=HYPERLINK(1)", code: "ABC", buyerName: "Ana; Silva", status: "PAID", unitCents: 1050, quantity: 3, feeCents: 315, paidAt: "2099-01-02T15:00:00.000Z", refundedAt: null }]);
+    const csvRow = csvText.split(String.fromCharCode(13, 10))[1];
+    assert.ok(csvRow.startsWith(`'=HYPERLINK(1);ABC;"Ana; Silva";3;"10,50";"31,50";"3,15";"28,35";Pago;02/01/2099 12:00;`), csvRow);
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
     Object.assign(process.env, savedEnv);

@@ -16,6 +16,7 @@ import {
   refreshMercadoPagoToken, refundMercadoPagoPayment, type MercadoPagoConfig, type MercadoPagoPayment, type MercadoPagoTokens, type MpFetch, type PixPayment,
 } from "@/lib/mercadopago";
 import { connectCallbackSchema, createTicketCouponSchema, createTicketOrderSchema, ticketCouponPreviewSchema, ticketCouponToggleSchema, ticketOrderSchema } from "@/schemas/tickets";
+import type { SalesCsvRow } from "@/lib/organizerOps/salesCsv";
 
 type Env = Record<string, string | undefined>;
 /** Everything external is injectable so the offline suite never touches the network or the real clock. */
@@ -65,7 +66,8 @@ const approvalRequired = "A organização precisa aprovar sua participação ant
 const pixError = { success: false as const, message: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos." };
 const iso = (value: Date | null | undefined) => (value ? new Date(value).toISOString() : null);
 const REFRESH_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
-const RECONCILE_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Two days: with a daily cron, an order created right before one run and paid after it is still seen by the next.
+const RECONCILE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const ATTEMPTS = 5;
 /** expiresAt sentinel for an account whose refresh token was rejected (invalid_grant): only a new OAuth connection fixes it. */
 const sellerDisconnected = "A conta do Mercado Pago do organizador está desconectada. Reconecte a conta em Pagamentos para estornar; nada foi alterado.";
@@ -408,6 +410,11 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
   if (!config) return { success: false, message: notConfigured };
   let outcome: CreateOutcome;
   try {
+    // Read before queueing: these depend only on this buyer, so they never need to hold the event's lock.
+    const [buyer, recent] = await Promise.all([
+      buyerProfile(prisma, user.id),
+      prisma.ticketOrder.count({ where: { buyerId: user.id, createdAt: { gte: new Date(d.now().getTime() - TICKET_ORDER_RATE_WINDOW_MS) } } }),
+    ]);
     outcome = await withEventLock(parsed.data.eventId, async (tx): Promise<CreateOutcome> => {
       const now = d.now();
       const event = await tx.events.findUnique({ where: { id: parsed.data.eventId }, select: saleEventSelect });
@@ -416,7 +423,6 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
       const existing = await tx.ticketOrder.findFirst({ where: { eventId: event.id, buyerId: user.id, status: { in: ["PAID", "PENDING"] } }, select: orderSelect });
       if (existing?.status === "PAID") return { kind: "blocked", message: "Você já tem ingresso para este evento. Confira em Meus ingressos." };
       if (existing) return { kind: "existing", order: existing };
-      const buyer = await buyerProfile(tx, user.id);
       const blocked = ticketEligibility({ event, buyerId: user.id, sellerConnected: await sellerConnected(tx, event.userId), buyerEmailVerified: buyer?.verified ?? false, now });
       if (blocked) return { kind: "blocked", message: blocked.message };
       if (!buyer?.email) return { kind: "blocked", message: "Cadastre um e-mail na sua conta para receber o Pix." };
@@ -424,7 +430,6 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
         const approval = await tx.eventRegistration.findUnique({ where: { eventId_userId: { eventId: event.id, userId: user.id } }, select: { status: true } });
         if (approval?.status !== "APPROVED") return { kind: "blocked", message: approvalRequired };
       }
-      const recent = await tx.ticketOrder.count({ where: { buyerId: user.id, createdAt: { gte: new Date(now.getTime() - TICKET_ORDER_RATE_WINDOW_MS) } } });
       if (recent >= TICKET_ORDER_RATE_LIMIT) return { kind: "blocked", message: "Muitas tentativas de compra em pouco tempo. Aguarde alguns minutos e tente novamente." };
       const quantity = parsed.data.quantity ?? 1;
       if (event.ticketCapacity != null) {
@@ -832,8 +837,8 @@ export type ReconcileScope = { sellerId?: string; buyerId?: string; limit?: numb
 export type ReconcileReport = { checked: number; failed: number };
 
 /**
- * Safety net for missed webhooks: re-reads recent orders (last 24 hours) that have a Mercado Pago payment but are still
- * PENDING or EXPIRED, and applies the payment state. Used by the daily cron and, throttled, when the seller panel or
+ * Safety net for missed webhooks: re-reads recent orders (last 48 hours) that have a Mercado Pago payment but are still
+ * PENDING or EXPIRED, and applies the payment state. The full run (cron) also re-reads PAID orders to catch lost refunds. Used by the daily cron and, throttled, when the seller panel or
  * the buyer ticket list loads.
  */
 export async function reconcileRecentTicketOrders(deps?: TicketDeps, scope: ReconcileScope = {}): Promise<ReconcileReport> {
@@ -841,28 +846,33 @@ export async function reconcileRecentTicketOrders(deps?: TicketDeps, scope: Reco
   const config = configuration(d);
   if (!config) return { checked: 0, failed: 0 };
   const now = d.now();
+  const fullRun = !scope.sellerId && !scope.buyerId;
+  const stranded = await findStrandedOrders(now, scope);
+  const strandedIds = new Set(stranded.map((order) => order.id));
   const rows = await prisma.ticketOrder.findMany({
     where: {
-      mpPaymentId: { not: null }, status: { in: ["PENDING", "EXPIRED"] }, createdAt: { gte: new Date(now.getTime() - RECONCILE_WINDOW_MS) },
+      mpPaymentId: { not: null }, status: { in: fullRun ? ["PENDING", "EXPIRED", "PAID"] : ["PENDING", "EXPIRED"] }, createdAt: { gte: new Date(now.getTime() - RECONCILE_WINDOW_MS) },
       ...(scope.sellerId ? { sellerId: scope.sellerId } : {}), ...(scope.buyerId ? { buyerId: scope.buyerId } : {}),
     },
-    orderBy: { createdAt: "asc" }, take: Math.min(Math.max(scope.limit ?? 100, 1), 200), select: orderSelect,
+    // Newest first: old unpaid orders must not use up the batch before recent payments are read.
+    orderBy: { createdAt: "desc" }, take: Math.min(Math.max(scope.limit ?? (fullRun ? 200 : 100), 1), 200), select: orderSelect,
   });
   const tokens = new Map<string, string>();
   let checked = 0;
   let failed = 0;
   for (const order of rows) {
-    if (!order.mpPaymentId) continue;
+    if (!order.mpPaymentId || strandedIds.has(order.id)) continue;
     try {
       const token = tokens.get(order.sellerId) ?? await sellerAccessToken(order.sellerId, config, d);
       tokens.set(order.sellerId, token);
-      await syncOrderWithPayment(order, await getMercadoPagoPayment(config.apiBase, token, order.mpPaymentId, d.fetch), { config, token, d });
+      const payment = await getMercadoPagoPayment(config.apiBase, token, order.mpPaymentId, d.fetch);
+      // A PAID order only changes when the money went back; an approved one needs no event lock.
+      if (order.status !== "PAID" || payment.status === "refunded" || payment.status === "charged_back") await syncOrderWithPayment(order, payment, { config, token, d });
       checked++;
     } catch {
       failed++;
     }
   }
-  const stranded = await findStrandedOrders(now, scope);
   for (const order of stranded) {
     if (!order.mpPaymentId) continue;
     try {
@@ -969,6 +979,24 @@ export async function refundTicketOrder(rawInput: unknown, resolveAccountHolder:
 
 function sellerOrder(row: { id: string; status: TicketOrderStatusValue; unitCents: number; quantity: number; feeCents: number; paidAt: Date | null; refundedAt: Date | null; buyer: { name: string | null } }): SellerOrderView {
   return { id: row.id, code: shortTicketCode(row.id), buyerName: row.buyer.name?.trim() || "Participante", status: row.status, unitCents: row.unitCents, quantity: row.quantity, totalCents: row.unitCents * row.quantity, feeCents: row.feeCents, paidAt: iso(row.paidAt), refundedAt: iso(row.refundedAt) };
+}
+
+/** Every paid or refunded order of the signed-in organizer, for the sales CSV. Buyers appear by name only. */
+export async function getSalesExport(resolveViewer: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<SalesCsvRow[]>> {
+  resolveDeps(deps);
+  const user = await resolveViewer();
+  if (!user) return denied;
+  try {
+    const rows = await prisma.ticketOrder.findMany({
+      where: { sellerId: user.id, status: { in: ["PAID", "REFUNDED"] } },
+      orderBy: { createdAt: "desc" }, take: 20_000,
+      select: { id: true, status: true, unitCents: true, quantity: true, feeCents: true, paidAt: true, refundedAt: true, event: { select: { nome: true } }, buyer: { select: { name: true } } },
+    });
+    return { success: true, message: "", data: rows.map((row) => ({ ...sellerOrder(row), eventName: row.event.nome })) };
+  } catch {
+    console.warn("ticket-sales-export-failed");
+    return genericError;
+  }
 }
 
 export async function getPaymentsOverview(resolveViewer: ResolveCurrentUser, deps?: TicketDeps): Promise<TicketResult<PaymentsOverview>> {

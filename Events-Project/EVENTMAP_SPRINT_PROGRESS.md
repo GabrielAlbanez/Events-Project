@@ -35,6 +35,10 @@ Deploy só com OK explícito do dono. O `.env` local aponta para o banco de prod
 6. Publicado no commit `0d1c37b`: desconectar o Mercado Pago pausa a venda em vez de liberar inscrição gratuita com QR, e reconectar retoma a venda. Validado offline, sem conta real.
 7. Publicado no commit `ffa1fd0`: "Pedir para participar" não fazia nada para quem tinha presença confirmada ou lista de espera sem pagamento em evento pago. Agora vira pedido pendente e o QR não pago é revogado. Validado com servidor e navegador reais em banco descartável (13/13), desktop e 390 px. Pagamento Pix real segue sem teste.
 8. Na branch, aguardando OK para deploy: em evento pago, QR, leitura e entrada manual exigem pedido PAGO, e vaga liberada não promove a lista de espera sem pagamento. Validado offline. A quantidade de inscrições antigas afetadas em produção não foi medida.
+9. Na branch, aguardando OK: reconciliação do Pix cobre 48 h e detecta estorno ou contestação com aviso perdido. Validado offline com Mercado Pago simulado.
+10. Na branch, aguardando OK: compra com 1.000 simultâneos caiu de cerca de 6,8 s para 5,5 s no p95 (3 medições cada, banco local descartável, 0 erros).
+11. Na branch, aguardando OK: botões de inscrição, QR, aprovação e portaria sempre dão retorno; exportação de vendas em CSV. O botão de CSV não foi aberto em navegador.
+12. Frequência do cron não alterada: o plano da Vercel não foi confirmado e um agendamento não permitido pode bloquear o deploy.
 
 ## Riscos e dependências externas
 
