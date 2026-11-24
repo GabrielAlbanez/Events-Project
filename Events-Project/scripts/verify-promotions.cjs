@@ -409,7 +409,9 @@ function checkUiWiring() {
   assert.match(home, /event\.featured && <FeaturedBadge/, "home cards show the badge");
   assert.match(home, /prioritizeFeatured\(/, "home gallery puts highlights first");
   const map = fs.readFileSync("components/MyComponents/Map.tsx", "utf8");
-  assert.match(map, /event\.featured \? FEATURED_EVENT_MARKER_ICON/, "featured map pin variant");
+  assert.match(map, /event\.featured \? "featured"/, "featured events get the featured map pin variant");
+  assert.match(map, /variant === "featured" \? FEATURED_EVENT_MARKER_ICON/, "featured variant falls back to the featured pin without a date");
+  assert.match(map, /const ring = variant === "featured" \? "#C7F34A"/, "featured date pin keeps the CTA lime ring");
   assert.match(map, /event\.featured \? 900/, "featured pins draw above regular pins");
   const pinLine = map.slice(map.indexOf("FEATURED_EVENT_MARKER_ICON =")).split("\n")[0];
   assert.doesNotMatch(pinLine, /animate|Animation/, "no continuous pin animation");
