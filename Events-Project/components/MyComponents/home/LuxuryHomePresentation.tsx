@@ -13,7 +13,7 @@ import { prioritizeFeatured } from "@/lib/promotions";
 import { FeaturedBadge } from "@/components/MyComponents/FeaturedBadge";
 import type { HomePresentationProps } from "./HomePresentation";
 import { HomeEventImage } from "./HomeEventImage";
-import { HeroCarousel, HeroSearch, type HeroSearchValues } from "./HeroDiscovery";
+import { HeroCarousel, HeroCategories, HeroSearch, HeroStats, type HeroSearchValues } from "./HeroDiscovery";
 import { useLoggedHomeData } from "./useLoggedHomeData";
 import LoggedHomeAgenda from "./LoggedHomeAgenda";
 import styles from "./LuxuryHome.module.css";
@@ -107,7 +107,7 @@ type LuxuryHomePresentationProps = HomePresentationProps & {
   onQuickSearch: (values: HeroSearchValues) => void;
 };
 
-export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer, period, periodLinks, onPeriodChange, onQuickSearch, searchValue, categoryValue }: LuxuryHomePresentationProps) {
+export function LuxuryHomePresentation({ events, loading, loadError, scrollContainer, period, onPeriodChange, onQuickSearch, searchValue, categoryValue }: LuxuryHomePresentationProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
   const ticketStack = useRef<HTMLDivElement>(null);
@@ -174,19 +174,19 @@ export function LuxuryHomePresentation({ events, loading, loadError, scrollConta
   // LazyMotion + m: animation features load on demand instead of the full motion bundle (FE-06).
   return <LazyMotion features={loadAnimationFeatures}><div ref={sectionRef} className={styles.presentation} data-luxury-home>
     <section ref={heroRef} className={styles.hero} aria-labelledby="luxury-home-title" data-scroll-hero>
+      <span className={styles.heroRing} aria-hidden="true" />
       <div className={styles.heroPin} data-scroll-hero-pin>
       <m.div className={styles.heroCopy} data-scroll-copy initial="rest" animate="visible" variants={stagger}>
         <m.p variants={reveal} data-home-motion className={styles.greeting}>{authenticated && data.sessionName && <><span className={styles.greetingName}>{data.sessionName.split(" ")[0]}</span>, </>}{greeting}.</m.p>
-        <m.h1 variants={reveal} data-home-motion id="luxury-home-title">Descubra o que acontece<br />perto de você.</m.h1>
+        <m.h1 variants={reveal} data-home-motion id="luxury-home-title" className={styles.heroTitle}><span>Descubra o que</span>{" "}<span>acontece <span className={styles.heroHighlight}>perto<svg viewBox="0 0 240 24" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M4 19 C 70 9, 150 4, 236 7" /></svg></span></span>{" "}<span>de você.</span></m.h1>
         <m.p variants={reveal} data-home-motion className={styles.heroDescription}>Encontre eventos, conheça novos lugares e escolha como aproveitar a cidade.</m.p>
         <m.div variants={reveal} data-home-motion><HeroSearch events={publicUpcoming} period={period} searchValue={searchValue} categoryValue={categoryValue} onSearch={onQuickSearch} /></m.div>
-        <m.div variants={reveal} data-home-motion className={styles.actions}><a href="#home-discovery" onClick={navigate} className={styles.secondaryAction}>Explorar no mapa <MapPin size={17} aria-hidden="true" /></a></m.div>
-        <m.nav variants={reveal} data-home-motion className={styles.quickPeriods} aria-label="Buscar eventos por período">{periodLinks.map(link => <a key={link.value} href={link.href} onClick={navigate} aria-current={period === link.value ? "true" : undefined}>{link.label}</a>)}</m.nav>
+        <m.div variants={reveal} data-home-motion><HeroCategories events={publicUpcoming} loading={loading} onSelect={category => onQuickSearch({ location: searchValue, period, category })} onExplore={navigate} /></m.div>
       </m.div>
       <m.div className={styles.heroShowcase} aria-busy={loading} initial="rest" animate="visible" variants={reveal} data-home-motion>
         {parallax && !reduced ? <HeroParallax container={scrollContainer} target={heroRef}><HeroCarousel events={heroSuggestions.map(({ event }) => event)} loading={loading} loadError={loadError} onExplore={navigate} /></HeroParallax> : <HeroCarousel events={heroSuggestions.map(({ event }) => event)} loading={loading} loadError={loadError} onExplore={navigate} />}
       </m.div>
-      <div className={styles.heroBottom}><a href="#luxury-events" onClick={navigate} className={styles.scrollCue}><ArrowDown size={16} aria-hidden="true" />Descubra o que vem a seguir</a><Link href="/conheca" className={styles.scrollCue}>Como o EventMap funciona <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+      <m.div className={styles.heroStats} initial="rest" animate="visible" variants={reveal} data-home-motion><HeroStats events={publicUpcoming} loading={loading} loadError={loadError} /></m.div>
       </div>
     </section>
 
