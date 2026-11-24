@@ -1,5 +1,5 @@
 "use client";
-import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
 import {
   GoogleMap,
   Marker,
@@ -128,14 +128,17 @@ function eventPinIcon(date: string | null | undefined, variant: PinVariant) {
 
 /** Anchored card geometry (px): card width/height estimate, clearance above the pin tip, safe margins of the map area. */
 const CARD_WIDTH = 320;
-const CARD_HEIGHT = 300;
-const PIN_CLEARANCE = 62;
-const SAFE_TOP = 84;
+/** Fallback until the card has been measured. */
+const CARD_HEIGHT = 280;
+/** Space the tail needs between the card edge and the pin. */
+const TAIL_GAP = 10;
+/** Below the floating "Mapa | Lista" toggle. */
+const SAFE_TOP = 64;
 const SAFE_LEFT = 56;
 const SAFE_RIGHT = 84;
 /** Closest zoom an automatic framing (first load, filter change, "Explore o mapa") may end at. */
 const MAX_AUTO_ZOOM = 15;
-type CardPlacement = { side: "above" | "below"; shift: number };
+type CardPlacement = { side: "above" | "below"; shift: number; clearance: number };
 /** The overlay div sits on the pin tip; the card positions itself with a transform. */
 const anchorOffset = () => ({ x: 0, y: 0 });
 
@@ -149,20 +152,26 @@ type AnchoredEventCardProps = {
   onRoute: () => void;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
+  /** Reports the card's real (untransformed) height so the placement can use it. */
+  onMeasure: (height: number) => void;
 };
 
 /** Event card floating on its pin, with an integrated tail pointing at it (flips below the pin near the top edge). */
-function AnchoredEventCard({ event, placement, tag, pinned, deck, onClose, onRoute, onPointerEnter, onPointerLeave }: AnchoredEventCardProps) {
+function AnchoredEventCard({ event, placement, tag, pinned, deck, onClose, onRoute, onPointerEnter, onPointerLeave, onMeasure }: AnchoredEventCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => { if (articleRef.current) onMeasure(articleRef.current.offsetHeight); }, [event.id, pinned, deck?.total, onMeasure]);
   // Clicks, scrolls and drags on the card belong to the card, not to the map underneath.
   useEffect(() => { if (cardRef.current) google.maps.OverlayView.preventMapHitsAndGesturesFrom(cardRef.current); }, []);
   const above = placement.side === "above";
   const tailLeft = `calc(50% - ${placement.shift}px)`;
   return (
-    <div className={cardStyles.anchor} style={{ transform: above ? `translate(calc(-50% + ${placement.shift}px), calc(-100% - ${PIN_CLEARANCE}px))` : `translate(calc(-50% + ${placement.shift}px), 14px)` }}>
+    <div className={cardStyles.anchor} style={{ transform: above ? `translate(calc(-50% + ${placement.shift}px), calc(-100% - ${placement.clearance}px))` : `translate(calc(-50% + ${placement.shift}px), ${TAIL_GAP + 4}px)` }}>
       <div ref={cardRef} onMouseEnter={onPointerEnter} onMouseLeave={onPointerLeave} onKeyDown={(keyEvent) => { if (keyEvent.key === "Escape") onClose(); }} className={cardStyles.card} style={{ transformOrigin: `${tailLeft} ${above ? "100%" : "0%"}` }}>
-        <article aria-label={event.featured ? "Evento em destaque" : pinned ? "Evento selecionado" : "Prévia do evento"} className={`relative flex rounded-[22px] border border-black/[.06] bg-card text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 ${above ? "flex-col" : "flex-col-reverse"}`}>
-          <div className={`relative h-[9.5rem] overflow-hidden bg-primary/10 ${above ? "rounded-t-[21px]" : "rounded-b-[21px]"}`}>
+        <article ref={articleRef} aria-label={event.featured ? "Evento em destaque" : pinned ? "Evento selecionado" : "Prévia do evento"} className={`relative flex rounded-[22px] border border-black/[.06] bg-card text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 flex-col`}>
+          {/* Below the pin the tail sits on the top edge; the image (painted after it) hides its lower half. */}
+          {!above && <span aria-hidden="true" className="absolute -top-2 h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-l border-t border-black/[.06] bg-card dark:border-white/10" style={{ left: tailLeft }} />}
+          <div className="relative h-[9.5rem] overflow-hidden rounded-t-[21px] bg-primary/10">
             <div className={`absolute inset-0 ${cardStyles.image}`}><HomeEventImage banner={event.banner} category={event.category} index={0} sizes="320px" className="object-cover" /></div>
             <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
             {tag === "featured" && <span role="note" aria-label="Evento em destaque patrocinado" className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-cta px-3 py-1 text-xs font-semibold text-cta-foreground shadow-sm"><Star aria-hidden="true" className="h-3 w-3 fill-current" /><span aria-hidden="true">Em destaque</span></span>}
@@ -188,7 +197,7 @@ function AnchoredEventCard({ event, placement, tag, pinned, deck, onClose, onRou
             {pinned && <button type="button" onClick={onClose} aria-label="Fechar card do evento" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X aria-hidden="true" className="h-4 w-4" /></button>}
           </div>
           {/* Tail: same surface as the card body, drawn over the card edge so the joint is seamless. */}
-          <span aria-hidden="true" className={`absolute h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-black/[.06] bg-card dark:border-white/10 ${above ? "-bottom-2 border-b border-r" : "-top-2 border-l border-t"}`} style={{ left: tailLeft }} />
+          {above && <span aria-hidden="true" className="absolute -bottom-2 h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-b border-r border-black/[.06] bg-card dark:border-white/10" style={{ left: tailLeft }} />}
         </article>
       </div>
     </div>
@@ -627,7 +636,11 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   }, [anchorDeck, anchorIndex, clearAnchorTimer, onSelectEvent]);
   const closeAnchored = useCallback(() => { clearAnchorTimer(); cardHoveredRef.current = false; setAnchorId(null); onSelectEvent(null); }, [clearAnchorTimer, onSelectEvent]);
   // Opens above the pin; flips below near the top edge and slides sideways to stay clear of the panel and the controls.
-  const [placement, setPlacement] = useState<CardPlacement>({ side: "above", shift: 0 });
+  const [placement, setPlacement] = useState<CardPlacement>({ side: "above", shift: 0, clearance: 48 + TAIL_GAP });
+  const [cardHeight, setCardHeight] = useState(CARD_HEIGHT);
+  const measureCard = useCallback((height: number) => { if (height > 0) setCardHeight((current) => Math.abs(current - height) < 2 ? current : height); }, []);
+  /** One corrective pan per anchored event, so the card never chases the map. */
+  const pannedForRef = useRef<string | null>(null);
   const updatePlacement = useCallback(() => {
     const map = mapRef.current, projection = map?.getProjection(), bounds = map?.getBounds(), zoom = map?.getZoom();
     const event = anchoredEvent;
@@ -640,15 +653,25 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     if (x < 0) x += 256 * scale;
     const y = (pin.y - northWest.y) * scale;
     const width = map.getDiv().clientWidth, height = map.getDiv().clientHeight;
-    const roomAbove = y - PIN_CLEARANCE - SAFE_TOP, roomBelow = height - y - 16;
-    const side = roomAbove >= CARD_HEIGHT + 12 || roomAbove >= roomBelow ? "above" : "below";
+    // Pin icon height for the variant shown (see eventPinIcon): selected/featured 55, list-hover enlarged 62, regular 48.
+    const pinHeight = event.id === selectedId || event.featured ? 55 : event.id === highlightedId && event.id !== floatingId ? 62 : 48;
+    const clearance = pinHeight + TAIL_GAP;
+    const roomAbove = y - clearance - SAFE_TOP, roomBelow = height - y - TAIL_GAP - 4 - 16;
+    // Above whenever it fits; below only when it does not fit above but fits below. If neither fits, a pinned card
+    // opens above with a minimal pan; a hover card just takes the roomier side (panning would pull the pin from under the pointer).
+    const pinned = event.id === selectedId;
+    const side = roomAbove >= cardHeight ? "above" : roomBelow >= cardHeight ? "below" : pinned || roomAbove >= roomBelow ? "above" : "below";
+    if (pinned && side === "above" && roomAbove < cardHeight && pannedForRef.current !== event.id) {
+      pannedForRef.current = event.id;
+      map.panBy(0, -Math.ceil(cardHeight - roomAbove));
+    }
     let shift = 0;
     if (x - CARD_WIDTH / 2 < SAFE_LEFT) shift = SAFE_LEFT - (x - CARD_WIDTH / 2);
     else if (x + CARD_WIDTH / 2 > width - SAFE_RIGHT) shift = width - SAFE_RIGHT - (x + CARD_WIDTH / 2);
     const limit = CARD_WIDTH / 2 - 30;
     shift = Math.round(Math.max(-limit, Math.min(limit, shift)));
-    setPlacement((current) => current.side === side && current.shift === shift ? current : { side, shift });
-  }, [anchoredEvent]);
+    setPlacement((current) => current.side === side && current.shift === shift && current.clearance === clearance ? current : { side, shift, clearance });
+  }, [anchoredEvent, cardHeight, selectedId, highlightedId, floatingId]);
   useEffect(() => { updatePlacement(); }, [updatePlacement]);
 
   return (
@@ -676,6 +699,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
                 <AnchoredEventCard
                   event={anchoredEvent}
                   placement={placement}
+                  onMeasure={measureCard}
                   tag={anchoredEvent.featured ? "featured" : upcomingMode && baseDeck.some((event) => event.id === anchoredEvent.id) ? "upcoming" : null}
                   pinned={anchoredEvent.id === selectedId}
                   deck={anchorIndex >= 0 ? { index: anchorIndex, total: anchorDeck.length, upcoming: upcomingMode, onPage: pageAnchored } : null}
