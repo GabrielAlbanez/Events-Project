@@ -34,7 +34,7 @@ export default function CheckInPass({ eventId, passId, label }: CheckInPassProps
     try {
       const query = passId ? `?pass=${encodeURIComponent(passId)}` : "";
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/check-in-token${query}`, { cache: "no-store" });
-      const data = await response.json() as TokenResponse;
+      const data = await response.json().catch(() => ({})) as TokenResponse;
       // Used or cancelled meanwhile: the QR on screen no longer gets anyone in. Network errors keep it visible.
       const ownTicketGone = response.status === 403 && Boolean(label) && !passId;
       if (response.status === 409 || ownTicketGone) { setOpen(false); setImage(""); setToken(""); setExpiresAt(0); }
@@ -48,7 +48,7 @@ export default function CheckInPass({ eventId, passId, label }: CheckInPassProps
       setNow(Date.now());
       setOpen(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível gerar seu QR Code.");
+      setError(cause instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : cause instanceof Error && cause.name === "Error" && cause.message ? cause.message : "Não foi possível gerar seu QR Code.");
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export default function CheckInPass({ eventId, passId, label }: CheckInPassProps
       <p className="mt-1 text-xs text-muted-foreground">Mostre este QR Code ao organizador. Ele expira em cinco minutos.</p>
       {image && !expired ? <img src={image} alt={`QR Code temporário para o check-in neste evento${label ? ` · ${label}` : ""}`} className="mx-auto mt-4 h-56 w-56 rounded-lg bg-white p-2" /> : <p role="status" className="mt-4 rounded-lg bg-muted p-4 text-sm">Código expirado. Gere outro para entrar.</p>}
       {!expired && <details className="mt-3 text-left text-xs"><summary className="cursor-pointer font-medium text-brand">Usar código manual</summary><p className="mt-2 break-all rounded-lg bg-muted p-2 font-mono select-all">{token}</p></details>}
-      <button type="button" disabled={loading} onClick={() => void loadPass()} className="mt-4 min-h-11 rounded-xl border px-4 text-sm font-medium hover:bg-muted">Gerar novo código{label && <span className="sr-only"> · {label}</span>}</button>
+      <button type="button" disabled={loading} onClick={() => void loadPass()} className="mt-4 min-h-11 rounded-xl border px-4 text-sm font-medium hover:bg-muted disabled:cursor-wait disabled:opacity-60">{loading ? "Gerando..." : "Gerar novo código"}{label && <span className="sr-only"> · {label}</span>}</button>
     </div>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>;

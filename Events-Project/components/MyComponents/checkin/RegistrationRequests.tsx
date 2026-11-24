@@ -67,19 +67,23 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("PENDING");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyDecision, setBusyDecision] = useState<Decision | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const working = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch(`${apiBase}/registration-requests`, { cache: "no-store" });
       const data: unknown = await response.json().catch(() => null);
       if (!response.ok || !isRequestList(data)) throw new Error((data as { message?: string } | null)?.message || "Não foi possível consultar as solicitações.");
       setRequests(data);
       setError("");
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível consultar as solicitações.");
+      setError(cause instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : cause instanceof Error && cause.message ? cause.message : "Não foi possível consultar as solicitações.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -100,6 +104,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
   /** Sends one decision; the list changes only after the server confirms it. */
   const decide = useCallback(async (entry: RegistrationRequest, decision: Decision): Promise<boolean> => {
     setBusyId(entry.id);
+    setBusyDecision(decision);
     try {
       const response = await fetch(`${apiBase}/registration-requests`, {
         method: "POST",
@@ -129,6 +134,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
       return false;
     } finally {
       setBusyId(null);
+      setBusyDecision(null);
     }
   }, [apiBase, load, onChanged]);
 
@@ -161,6 +167,15 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
     }
   };
 
+  /** Manual refresh: the list may be identical, so the click always gets its own confirmation. A failure shows inline. */
+  const refreshList = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const ok = await load();
+    setRefreshing(false);
+    if (ok) notifyOk("Solicitações atualizadas.");
+  };
+
   const counts = useMemo(() => {
     const result: Record<Filter, number> = { PENDING: 0, APPROVED: 0, REJECTED: 0 };
     for (const item of requests ?? []) result[item.status] += 1;
@@ -181,7 +196,7 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
       </div>
       <div className="flex flex-wrap gap-2">
         {filter === "PENDING" && counts.PENDING > 1 && open && <Button type="button" size="sm" disabled={busy} onClick={() => setConfirm({ kind: "bulk", count: counts.PENDING })}><Check aria-hidden="true" />Aprovar todos</Button>}
-        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setLoading(true); void load(); }}><RefreshCcw aria-hidden="true" />Atualizar</Button>
+        <Button type="button" size="sm" variant="outline" disabled={busy || refreshing} onClick={() => void refreshList()}>{refreshing ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <RefreshCcw aria-hidden="true" />}{refreshing ? "Atualizando..." : "Atualizar"}</Button>
       </div>
     </div>
 
@@ -212,8 +227,8 @@ export default function RegistrationRequests({ apiBase, open, onChanged }: Props
                     {when && <p className="mt-0.5 text-xs text-muted-foreground">Pedido em <time dateTime={entry.createdAt}>{when}</time></p>}
                   </div>
                   {entry.status === "PENDING" ? <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                    <Button type="button" size="sm" disabled={busy || !open} onClick={() => void runSingle(entry, "APPROVE")}>{rowBusy ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <Check aria-hidden="true" />}Aprovar<span className="sr-only"> {personName(entry)}</span></Button>
-                    <Button type="button" size="sm" variant="outline" disabled={busy || !open} onClick={() => setConfirm({ kind: "reject", entry })} className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"><X aria-hidden="true" />Recusar<span className="sr-only"> {personName(entry)}</span></Button>
+                    <Button type="button" size="sm" disabled={busy || !open} onClick={() => void runSingle(entry, "APPROVE")}>{rowBusy && busyDecision === "APPROVE" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <Check aria-hidden="true" />}Aprovar<span className="sr-only"> {personName(entry)}</span></Button>
+                    <Button type="button" size="sm" variant="outline" disabled={busy || !open} onClick={() => setConfirm({ kind: "reject", entry })} className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">{rowBusy && busyDecision === "REJECT" ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <X aria-hidden="true" />}Recusar<span className="sr-only"> {personName(entry)}</span></Button>
                   </div>
                     : entry.status === "APPROVED" ? <StatusBadge tone="info" icon={BadgeCheck} className="self-start sm:self-auto">Aguardando pagamento</StatusBadge>
                       : <StatusBadge tone="neutral" icon={CircleSlash} className="self-start sm:self-auto">Recusado</StatusBadge>}

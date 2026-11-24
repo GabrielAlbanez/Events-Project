@@ -20,6 +20,22 @@ const requestStatusOf = (status: RegistrationStatus | undefined): RequestStatus 
 type ApiError = { message?: string };
 // Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
 const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
+// fetch rejects with TypeError when offline; only messages written by us reach the user.
+const actionError = (error: unknown, fallback: string) => error instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : error instanceof Error && error.name === "Error" && error.message ? error.message : fallback;
+// Every registration answer ends in a message, including an OK whose status did not change.
+function registrationOutcome(method: "POST" | "DELETE", previous: RegistrationStatus | undefined, next: RegistrationStatus | undefined, wasRequest: boolean): { text: string; type: "success" | "error" } {
+  if (method === "DELETE") return !next || next === "CANCELLED" ? { text: wasRequest ? "Pedido cancelado." : "Inscrição cancelada.", type: "success" } : { text: "Sua inscrição continua ativa. Atualize a página e tente novamente.", type: "error" };
+  const unchanged = previous === next;
+  switch (next) {
+    case "PENDING": return { text: unchanged ? "Seu pedido já foi enviado e aguarda a resposta da organização." : "Pedido enviado. Avisaremos quando a organização responder.", type: "success" };
+    case "APPROVED": return { text: "Sua participação já está aprovada. Compre seu ingresso para garantir a vaga.", type: "success" };
+    case "CONFIRMED": return { text: unchanged ? "Sua presença já estava confirmada." : "Presença confirmada.", type: "success" };
+    case "WAITLISTED": return { text: unchanged ? "Você já está na lista de espera." : "Você entrou na lista de espera. Avisaremos se surgir uma vaga.", type: "success" };
+    case "CHECKED_IN": return { text: "Sua entrada neste evento já foi registrada.", type: "success" };
+    case "REJECTED": return { text: "Sua participação não foi aprovada pela organização deste evento.", type: "error" };
+    default: return { text: "Não foi possível confirmar sua inscrição. Atualize a página e tente novamente.", type: "error" };
+  }
+}
 
 export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
 export const approvalPrivacyNotice = "Ao pedir para participar, seu nome e e-mail ficam visíveis para a organização do evento.";
@@ -91,19 +107,21 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
     setRegistrationPending(true);
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { method });
-      const result = await response.json() as ApiError;
+      const result = await response.json().catch(() => ({})) as ApiError;
       if (!response.ok) throw new Error(result.message || "Não foi possível atualizar sua inscrição.");
-      const wasRequest = Boolean(registration?.requiresApproval);
-      const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`);
-      if (!latest.ok) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
-      const next = await latest.json() as RegistrationState;
+      const previousStatus = registration?.registration?.status;
+      const wasRequest = Boolean(registration?.requiresApproval) || requestStatusOf(previousStatus) !== null;
+      // The change is already saved here: a failed re-read must not suggest trying again.
+      const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { cache: "no-store" }).catch(() => null);
+      const next = latest?.ok ? await latest.json().catch(() => null) as RegistrationState | null : null;
+      if (!next) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
       setRegistration(next);
       setTicketRefresh(value => value + 1);
-      if (method === "POST") setRegistrationPulse(value => value + 1);
-      if (wasRequest && method === "POST" && next.registration?.status === "PENDING") notify("Pedido enviado. Avisaremos quando a organização responder.", "success");
-      if (wasRequest && method === "DELETE") notify("Pedido cancelado.", "success");
+      const outcome = registrationOutcome(method, previousStatus, next.registration?.status, wasRequest);
+      if (method === "POST" && outcome.type === "success" && previousStatus !== next.registration?.status) setRegistrationPulse(value => value + 1);
+      notify(outcome.text, outcome.type);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.", "error");
+      notify(actionError(error, "Não foi possível atualizar sua inscrição."), "error");
     } finally {
       setRegistrationPending(false);
     }
@@ -116,13 +134,13 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reportReason, details: reportDetails.trim() }),
       });
-      const result = await response.json() as ApiError;
+      const result = await response.json().catch(() => ({})) as ApiError;
       if (!response.ok) throw new Error(result.message || "Não foi possível enviar a denúncia.");
       notify("Denúncia enviada para análise. Obrigado por nos avisar.", "success");
       setReportDetails("");
       setReportOpen(false);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Não foi possível enviar a denúncia.", "error");
+      notify(actionError(error, "Não foi possível enviar a denúncia."), "error");
     } finally {
       setReportPending(false);
     }

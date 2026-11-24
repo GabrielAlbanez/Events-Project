@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { AlertCircle, ArrowRight, CheckCircle2, Link2, Loader2, ReceiptText, Unlink, Wallet } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Download, Link2, Loader2, ReceiptText, Unlink, Wallet } from "lucide-react";
 import { disconnectMercadoPago, getPaymentsOverview, refundTicketOrder, startMercadoPagoConnect } from "@/app/(actions)/tickets/action";
 import type { PaymentsOverview, SellerOrderView } from "@/lib/services/tickets";
 import { TICKET_FEE_PERCENT, formatTicketAmount, ticketFeeCents, ticketNetCents, ticketStatusLabels } from "@/lib/tickets";
@@ -28,6 +28,7 @@ const netNote = "antes da tarifa do Mercado Pago";
 const RECENT_ORDERS = 5;
 const orderMoment = (order: SellerOrderView) => new Date(order.refundedAt ?? order.paidAt ?? 0).getTime();
 const metricClass = "rounded-2xl border bg-card p-4 shadow-surface";
+const salesExportError = "Não foi possível exportar as vendas. Tente novamente.";
 
 export default function PaymentsPanel({ connectStatus }: { connectStatus?: string }) {
   const [overview, setOverview] = useState<PaymentsOverview | null>(null);
@@ -36,6 +37,8 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
   const [busy, setBusy] = useState<"connect" | "disconnect" | "refund" | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [refundTarget, setRefundTarget] = useState<(SellerOrderView & { eventName: string }) | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +106,41 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
     }
   }
 
+  async function exportSales() {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
+    setExporting(true);
+    try {
+      const response = await fetch("/api/tickets/sales-export", { cache: "no-store" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { message?: string } | null;
+        notify(data?.message || salesExportError, "error");
+        return;
+      }
+      // An expired session can be redirected to an HTML page with status 200: never save that as the spreadsheet.
+      if (!(response.headers.get("Content-Type") ?? "").toLowerCase().includes("text/csv")) {
+        notify("Não foi possível gerar o arquivo. Atualize a página, confira se você está conectado e tente novamente.", "error");
+        return;
+      }
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "vendas-eventmap.csv";
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      notify("Vendas exportadas. Confira o arquivo baixado.", "success");
+    } catch (cause) {
+      notify(cause instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : salesExportError, "error");
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
+  }
+
   const connectButton = (label: string) => <Button type="button" className="w-full sm:w-auto" onClick={() => void connect()} disabled={busy !== null}>{busy === "connect" ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}{label}</Button>;
   const recentOrders = overview ? overview.events.flatMap((event) => event.orders.map((order) => ({ ...order, eventName: event.eventName }))).sort((a, b) => orderMoment(b) - orderMoment(a)).slice(0, RECENT_ORDERS) : [];
   const hasSales = Boolean(overview && (overview.totals.sold > 0 || overview.totals.refunded > 0));
@@ -141,7 +179,10 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
             </section>
 
             <section aria-labelledby="sales-title" className="space-y-4">
-              <h2 id="sales-title" className="text-xl font-semibold">Resumo das vendas</h2>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 id="sales-title" className="text-xl font-semibold">Resumo das vendas</h2>
+                {hasSales && <Button type="button" variant="outline" aria-busy={exporting} className="min-h-11 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto" disabled={exporting} onClick={() => void exportSales()}>{exporting ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}{exporting ? "Exportando..." : "Exportar vendas (CSV)"}</Button>}
+              </div>
               {!hasSales ? <div className="rounded-2xl border border-dashed p-6 text-center">
                 <ReceiptText className="mx-auto size-6 text-muted-foreground" aria-hidden="true" />
                 <p className="mt-2 font-semibold">Nenhum ingresso vendido ainda</p>
