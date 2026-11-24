@@ -16,17 +16,35 @@
 .searchButton:hover { transform:translateY(-2px); filter:brightness(1.08); }
 .searchButton:focus-visible,.carousel button:focus-visible,.cardLink:focus-visible,.placeholder a:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
 .carousel { position:relative; isolation:isolate; width:min(100%,540px); margin-inline:auto; }
-.carousel::before { content:""; position:absolute; z-index:-1; top:-14px; right:-12px; width:66%; height:44%; border-radius:24px; background:hsl(var(--primary)); pointer-events:none; }
-.card { overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:var(--shadow-surface); transition:box-shadow .25s; }
+/* Poster stack: the next events peek above the active card like a deck. */
+.stage { --peek:14px; --layers:0; position:relative; isolation:isolate; padding-top:calc(var(--peek) * var(--layers)); }
+.stage[data-depth="1"] { --layers:1; }
+.stage[data-depth="2"] { --layers:2; }
+.backCard { position:absolute; z-index:0; left:0; right:0; bottom:0; top:calc(var(--peek) * var(--layers)); overflow:hidden; padding:0; border:1px solid hsl(var(--border)); border-radius:24px; background:hsl(var(--muted)); transform-origin:top center; cursor:pointer; transition:transform .3s ease,opacity .3s ease; }
+.backCard::after { content:""; position:absolute; inset:0; background:hsl(var(--background)/.38); pointer-events:none; }
+.backCard[data-depth="1"] { transform:translateY(calc(var(--peek) * -1)) scale(.94); }
+.backCard[data-depth="2"] { transform:translateY(calc(var(--peek) * -2)) scale(.88); opacity:.75; }
+.backCard[data-depth="1"]:hover { transform:translateY(calc(var(--peek) * -1.35)) scale(.94); }
+.backCard[data-depth="2"]:hover { transform:translateY(calc(var(--peek) * -2.35)) scale(.88); }
+.backImage { object-fit:cover; object-position:center top; }
+.card { position:relative; z-index:1; overflow:hidden; border:1px solid hsl(var(--primary)/.3); border-radius:24px; background:hsl(var(--card)); box-shadow:var(--shadow-surface); transition:box-shadow .25s; touch-action:pan-y; }
 .card:hover { border-color:hsl(var(--primary)/.55); box-shadow:var(--shadow-surface); }
 .card:focus-within { outline:2px solid hsl(var(--ring)); outline-offset:4px; }
-.cardLink { display:block; color:hsl(var(--foreground)); text-decoration:none; }
-.artwork { position:relative; width:100%; aspect-ratio:1.45; overflow:hidden; background:hsl(var(--muted)); animation:hero-artwork-in .3s ease-out; }
-@keyframes hero-artwork-in { from { opacity:.65; } to { opacity:1; } }
-.image { object-fit:cover; object-position:center; }
-.badge { position:absolute; left:18px; top:18px; max-width:calc(100% - 36px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:7px 11px; border-radius:999px; background:rgb(11 13 18/.85); color:#fff; font-size:12px; font-weight:600; }
+.card img { -webkit-user-drag:none; user-select:none; }
+.cardLink { position:relative; display:block; color:hsl(var(--foreground)); text-decoration:none; }
+.slide { display:block; width:100%; background:hsl(var(--card)); }
+/* Full flyer, never cropped: contained artwork over a blurred, darkened copy of itself. */
+.artwork { position:relative; width:100%; aspect-ratio:1.45; overflow:hidden; background:rgb(11 13 18); }
+.backdrop { object-fit:cover; object-position:center; transform:scale(1.2); filter:blur(24px) brightness(.5) saturate(1.15); }
+.image { object-fit:contain; object-position:center; }
+.badge { position:absolute; z-index:1; left:18px; top:18px; max-width:calc(100% - 36px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:7px 11px; border-radius:999px; background:rgb(11 13 18/.85); color:#fff; font-size:12px; font-weight:600; }
 .cardBody { display:flex; flex-direction:column; min-height:196px; padding:21px 24px; }
+.meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
 .date { color:hsl(var(--brand)); font-size:14px; font-weight:700; line-height:1.5; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none; }
+.chip { padding:2px 10px; border:1px solid transparent; border-radius:999px; font-size:12px; font-weight:650; line-height:1.5; white-space:nowrap; }
+.chip[data-kind="when"] { background:hsl(var(--brand)/.14); color:hsl(var(--brand)); }
+.chip[data-kind="price"] { border-color:hsl(var(--border)); background:hsl(var(--muted)); color:hsl(var(--foreground)); }
 .cardBody h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:8px 0 10px; font-size:clamp(22px,2vw,28px); line-height:1.15; font-weight:650; letter-spacing:-.035em; overflow-wrap:anywhere; }
 .location { display:flex; align-items:flex-start; gap:8px; color:hsl(var(--muted-foreground)); font-size:14px; line-height:1.5; }
 .location svg { flex:none; margin-top:2px; }
@@ -36,13 +54,17 @@
 .controls button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; color:hsl(var(--foreground)); }
 .controls button:hover { background:hsl(var(--muted)); }
 .controls>button { border:1px solid hsl(var(--border)); background:hsl(var(--card)); }
-.dots { display:flex; align-items:center; }
-.dots button { width:44px; height:44px; }
-.dots span { width:8px; height:8px; border-radius:999px; background:hsl(var(--muted-foreground)/.55); transition:width .2s,background .2s; }
-.dots button[aria-current="true"] span { width:22px; background:hsl(var(--primary)); }
+.progress { display:flex; align-items:center; gap:4px; }
+.progress button { width:56px; height:44px; padding:0 6px; border-radius:10px; }
+.track { position:relative; display:block; width:100%; height:4px; overflow:hidden; border-radius:999px; background:hsl(var(--muted-foreground)/.3); }
+.progress button[aria-current="true"] .track { height:5px; }
+.fill { position:absolute; inset:0; border-radius:inherit; background:hsl(var(--primary)); transform-origin:left center; }
+.fill[data-mode="playing"],.fill[data-mode="paused"] { animation:hero-progress 6.5s linear forwards; }
+.fill[data-mode="paused"] { animation-play-state:paused; }
+@keyframes hero-progress { from { transform:scaleX(0); } to { transform:scaleX(1); } }
 .placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; min-height:320px; padding:28px; border:1px solid hsl(var(--border)); border-radius:24px; background:hsl(var(--card)); text-align:center; color:hsl(var(--muted-foreground)); }
 .placeholder a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 16px; border:1px solid hsl(var(--border)); border-radius:999px; color:hsl(var(--foreground)); }
 @media(max-width:1099px) { .carousel { width:min(100%,500px); margin-inline:0; } }
-@media(max-width:639px) { .search { grid-template-columns:1fr 1fr; gap:6px; padding:8px; margin-top:16px; }.badge { left:10px; top:10px; max-width:calc(100% - 20px); padding:3px 9px; font-size:11px; }.field:first-child { grid-column:1/-1; }.field + .field { border-left:0; }.field { padding:7px 10px; border:1px solid hsl(var(--border))!important; border-radius:10px; }.searchButton { grid-column:1/-1; }.carousel { width:100%; }.artwork { aspect-ratio:1.55; }.cardBody { padding:18px; }.cardBody h2 { font-size:22px; } }
-@media(max-width:380px) { .controls { flex-wrap:wrap; }.dots { order:3; flex-basis:100%; justify-content:center; } }
-@media(prefers-reduced-motion:reduce) { .searchButton,.card,.dots span { transition:none; }.searchButton:hover,.card:hover { transform:none; }.artwork { animation:none; } }
+@media(max-width:639px) { .search { grid-template-columns:1fr 1fr; gap:6px; padding:8px; margin-top:16px; }.badge { left:10px; top:10px; max-width:calc(100% - 20px); padding:3px 9px; font-size:11px; }.field:first-child { grid-column:1/-1; }.field + .field { border-left:0; }.field { padding:7px 10px; border:1px solid hsl(var(--border))!important; border-radius:10px; }.searchButton { grid-column:1/-1; }.carousel { width:100%; }.stage { --peek:10px; }.artwork { aspect-ratio:1.55; }.cardBody { padding:18px; }.cardBody h2 { font-size:22px; } }
+@media(max-width:380px) { .controls { flex-wrap:wrap; }.progress { order:3; flex-basis:100%; justify-content:center; } }
+@media(prefers-reduced-motion:reduce) { .searchButton,.card,.backCard { transition:none; }.searchButton:hover,.card:hover { transform:none; }.backCard[data-depth="1"]:hover { transform:translateY(calc(var(--peek) * -1)) scale(.94); }.backCard[data-depth="2"]:hover { transform:translateY(calc(var(--peek) * -2)) scale(.88); }.fill { animation:none!important; } }
