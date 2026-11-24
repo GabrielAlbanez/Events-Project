@@ -133,6 +133,8 @@ const PIN_CLEARANCE = 62;
 const SAFE_TOP = 84;
 const SAFE_LEFT = 56;
 const SAFE_RIGHT = 84;
+/** Closest zoom an automatic framing (first load, filter change, "Explore o mapa") may end at. */
+const MAX_AUTO_ZOOM = 15;
 type CardPlacement = { side: "above" | "below"; shift: number };
 /** The overlay div sits on the pin tip; the card positions itself with a transform. */
 const anchorOffset = () => ({ x: 0, y: 0 });
@@ -523,10 +525,20 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
     const map = mapRef.current;
     if (!map || list.length === 0) return;
     programmaticMoveRef.current = true;
-    google.maps.event.addListenerOnce(map, "idle", () => { programmaticMoveRef.current = false; });
+    const release = () => { programmaticMoveRef.current = false; };
+    // Never end an automatic framing closer than MAX_AUTO_ZOOM (a zero-size area would zoom past the tiles).
+    google.maps.event.addListenerOnce(map, "idle", () => {
+      if ((map.getZoom() ?? 0) > MAX_AUTO_ZOOM) { map.setZoom(MAX_AUTO_ZOOM); google.maps.event.addListenerOnce(map, "idle", release); }
+      else release();
+    });
+    // idle may never come when nothing moves; do not leave user zooms ignored.
+    window.setTimeout(release, 2500);
     if (list.length === 1) { map.panTo({ lat: list[0].lat!, lng: list[0].lng! }); map.setZoom(14); return; }
     const bounds = new google.maps.LatLngBounds();
     list.forEach((event) => bounds.extend({ lat: event.lat!, lng: event.lng! }));
+    const span = bounds.toSpan();
+    // Several events at (almost) the same place: centre on them instead of fitting a zero-size area.
+    if (span.lat() < 0.002 && span.lng() < 0.002) { map.setCenter(bounds.getCenter()); map.setZoom(MAX_AUTO_ZOOM); return; }
     const compact = window.matchMedia("(max-width: 767px)").matches;
     map.fitBounds(bounds, compact ? { top: 72, right: 64, bottom: cardShownRef.current ? 150 : 40, left: 32 } : { top: 96, right: 120, bottom: 96, left: 80 });
   }, []);
@@ -580,7 +592,8 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const anchorTimer = useRef<number | null>(null);
   const cardHoveredRef = useRef(false);
-  const hoverId = floatingId ?? highlightedId;
+  // The list highlight wins: a pin hover can linger when the pointer leaves the map through the card.
+  const hoverId = highlightedId ?? floatingId;
   const validHoverId = hoverId && visibleEvents.some((event) => event.id === hoverId) ? hoverId : null;
   const restingId = selectedEvent && hasMapCoordinates(selectedEvent) ? selectedEvent.id : null;
   const hoverRef = useRef(validHoverId);
@@ -669,7 +682,7 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
                   onClose={closeAnchored}
                   onRoute={() => setEventoAtivo(anchoredEvent)}
                   onPointerEnter={() => { cardHoveredRef.current = true; clearAnchorTimer(); }}
-                  onPointerLeave={() => { cardHoveredRef.current = false; scheduleAnchorRest(); }}
+                  onPointerLeave={() => { cardHoveredRef.current = false; closeFloating(); scheduleAnchorRest(); }}
                 />
               </OverlayViewF>}
 
