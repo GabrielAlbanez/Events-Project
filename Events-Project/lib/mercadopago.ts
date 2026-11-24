@@ -159,6 +159,13 @@ export async function createMercadoPagoPixPayment(apiBase: string, accessToken: 
   return { paymentId: String(id), status: typeof body.status === "string" ? body.status : "pending", qrCode: data.qr_code, qrCodeBase64: data.qr_code_base64 };
 }
 
+/** Who the connected account is, shown only to its own organizer: the account e-mail, or its nickname. */
+export async function getMercadoPagoAccountLabel(apiBase: string, accessToken: string, fetchImpl: MpFetch = fetch): Promise<string | null> {
+  const body = await request(fetchImpl, `${apiBase}/users/me`, { method: "GET", headers: authHeaders(accessToken) }, "user_me");
+  const label = [body.email, body.nickname].find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return label ? label.trim().slice(0, 120) : null;
+}
+
 export async function getMercadoPagoPayment(apiBase: string, accessToken: string, paymentId: string, fetchImpl: MpFetch = fetch): Promise<MercadoPagoPayment> {
   if (!paymentIdPattern.test(paymentId)) throw new MercadoPagoError("payment_invalid_id");
   const body = await request(fetchImpl, `${apiBase}/v1/payments/${paymentId}`, { method: "GET", headers: authHeaders(accessToken) }, "payment_get");

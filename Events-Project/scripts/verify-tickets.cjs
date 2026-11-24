@@ -231,6 +231,7 @@ function mockMercadoPago() {
       payment.status = "refunded";
       return json(201, { id: 1, payment_id: payment.id, amount: payment.transaction_amount });
     }
+    if (pathname === "/users/me" && method === "GET") return mp.usersMeStatus ? json(mp.usersMeStatus, { message: "error" }) : json(200, { id: 777001, nickname: "LOJA_TESTE", email: "loja@vendedor.test" });
     return json(404, { message: "unknown route" });
   };
   return mp;
@@ -376,6 +377,7 @@ function freshDb() {
     { id: "seller", name: "Organizadora", email: "seller@example.test", emailVerified: true, role: "PROMOTER", accounts: [] },
     { id: "buyer", name: "Comprador", email: "buyer@example.test", emailVerified: true, role: "BASIC", accounts: [] },
     { id: "buyer2", name: "Compradora", email: "buyer2@example.test", emailVerified: true, role: "BASIC", accounts: [] },
+    { id: "buyer3", name: "Terceira", email: "buyer3@example.test", emailVerified: true, role: "BASIC", accounts: [] },
     { id: "google", name: "Google", email: "google@example.test", emailVerified: null, role: "BASIC", accounts: [{ id: "acc-g" }] },
     { id: "unverified", name: "Sem email", email: "nv@example.test", emailVerified: false, role: "BASIC", accounts: [] },
     { id: "admin", name: "Admin", email: "admin@example.test", emailVerified: true, role: "ADMIN", accounts: [] },
@@ -462,6 +464,13 @@ async function checkService() {
   const overview = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
   assert.equal(overview.success && overview.data.account.mpUserId, account.mpUserId);
   assert.equal(/APP_USR|TG-|Enc/.test(JSON.stringify(overview)), false, "no token reaches the client");
+  // The panel says which Mercado Pago account is connected, so the organizer can tell it apart from the platform's.
+  assert.equal(overview.data.account.label, "loja@vendedor.test");
+  assert.equal(overview.data.account.feeRefused, false);
+  mp.usersMeStatus = 500;
+  const noLabel = await service.getPaymentsOverview(as("seller", "PROMOTER"), deps);
+  mp.usersMeStatus = null;
+  assert.equal(noLabel.success && noLabel.data.account.label, null, "the panel still loads when Mercado Pago does not answer");
   const sellerStatus = await service.getTicketSellerStatus(as("seller", "PROMOTER"), deps);
   assert.deepEqual(sellerStatus.data, { configured: true, connected: true });
 
@@ -603,6 +612,24 @@ async function checkService() {
   assert.match(line, /400/, "HTTP status is logged");
   assert.match(line, /13253/, "Mercado Pago cause code is logged");
   assert.equal(/@|APP_USR|TG-/.test(line), false, "no e-mail or token in the log");
+
+  // 2059: Mercado Pago refuses the EventMap fee for this seller account (e.g. it is the platform's own account).
+  // The buyer gets a clear message, the organizer is told once per connection, and the panel shows the problem.
+  mp.fail = (pathname, method) => pathname === "/v1/payments" && method === "POST";
+  mp.failWith = { status: 400, body: { message: "You cannot use application_fee with this payment", error: "bad_request", status: 400, cause: [{ code: 2059, description: "You cannot use application_fee with this payment" }] } };
+  let refused;
+  try {
+    refused = await service.createTicketOrder({ eventId: "event-open" }, as("buyer3"), deps);
+    await service.createTicketOrder({ eventId: "event-open" }, as("buyer3"), deps);
+  } finally { mp.fail = null; mp.failWith = null; }
+  assert.equal(refused.success, false);
+  assert.match(refused.message, /não está recebendo Pix/i);
+  assert.equal(/minutos/i.test(refused.message), false, "no false promise that retrying helps");
+  const feeNotices = db.notification.rows.filter((row) => row.userId === "seller" && /Mercado Pago/.test(row.title) && /taxa|outra conta/i.test(row.message));
+  assert.equal(feeNotices.length, 1, "the organizer is told once");
+  assert.equal(feeNotices[0].href, "/myEvents/pagamentos");
+  assert.equal((await service.getPaymentsOverview(as("seller", "PROMOTER"), deps)).data.account.feeRefused, true);
+  assert.equal(db.ticketOrder.rows.filter((row) => row.buyerId === "buyer3" && row.status === "PENDING").length, 0, "no seat held");
 
   // Rate limit: at most 5 order creations per buyer per 10 minutes.
   for (let index = 0; index < 4; index++) {

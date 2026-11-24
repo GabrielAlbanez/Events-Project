@@ -12,7 +12,7 @@ import {
 import { eventInstant } from "@/lib/eventTime";
 import { SELLER_RECONNECT_MARK as RECONNECT_MARK, TicketConfigError, decryptTicketToken, encryptTicketToken, sellerAccountActive as sellerConnected, signOAuthState, ticketPaymentsConfigured, verifyMercadoPagoSignature, verifyOAuthState } from "@/lib/ticketSecurity";
 import {
-  MercadoPagoError, cancelMercadoPagoPayment, createMercadoPagoPixPayment, exchangeMercadoPagoCode, getMercadoPagoPayment, mercadoPagoAuthorizeUrl, mercadoPagoConfig,
+  MercadoPagoError, cancelMercadoPagoPayment, createMercadoPagoPixPayment, exchangeMercadoPagoCode, getMercadoPagoAccountLabel, getMercadoPagoPayment, mercadoPagoAuthorizeUrl, mercadoPagoConfig,
   refreshMercadoPagoToken, refundMercadoPagoPayment, type MercadoPagoConfig, type MercadoPagoPayment, type MercadoPagoTokens, type MpFetch, type PixPayment,
 } from "@/lib/mercadopago";
 import { connectCallbackSchema, createTicketCouponSchema, createTicketOrderSchema, ticketCouponPreviewSchema, ticketCouponToggleSchema, ticketOrderSchema } from "@/schemas/tickets";
@@ -44,7 +44,8 @@ export type SellerOrderView = { id: string; code: string; buyerName: string; sta
 export type SellerEventSales = { eventId: string; eventName: string; sold: number; refunded: number; refundedCents: number; grossCents: number; feeCents: number; netCents: number; orders: SellerOrderView[] };
 export type PaymentsOverview = {
   configured: boolean; feePercent: number;
-  account: { mpUserId: string; connectedAt: string; needsReconnect: boolean } | null;
+  /** `label`: the connected account's e-mail or nickname. `feeRefused`: Mercado Pago refused the EventMap fee for this connection (code 2059). */
+  account: { mpUserId: string; connectedAt: string; needsReconnect: boolean; label: string | null; feeRefused: boolean } | null;
   events: SellerEventSales[];
   totals: { sold: number; refunded: number; refundedCents: number; grossCents: number; feeCents: number; netCents: number };
 };
@@ -70,6 +71,27 @@ function pixFailureDetail(error: unknown): string {
   if (error instanceof TicketConfigError) return "stage=config";
   if (error instanceof Error && /^SELLER_[A-Z_]+$/.test(error.message)) return `stage=${error.message.toLowerCase()}`;
   return "stage=unknown";
+}
+
+/** Mercado Pago code 2059: "You cannot use application_fee with this payment" (e.g. the seller connected the platform's own account). */
+const FEE_REFUSED_CAUSE = "2059";
+const feeRefusedError = { success: false as const, message: "Este evento não está recebendo Pix no momento. A organização já foi avisada para ajustar a conta de recebimento." };
+const feeRefusedKey = (sellerId: string, connectedAt: Date | string) => `mp-fee-refused:${sellerId}:${new Date(connectedAt).getTime()}`;
+
+/** Tells the organizer once per connection; reconnecting another account starts a new key, so the warning clears. */
+async function notifyFeeRefused(sellerId: string): Promise<void> {
+  try {
+    const account = await prisma.mercadoPagoAccount.findUnique({ where: { userId: sellerId }, select: { connectedAt: true } });
+    if (!account) return;
+    const groupKey = feeRefusedKey(sellerId, account.connectedAt);
+    await createNotificationOnce(prisma, { ...notificationCopy({
+      userId: sellerId, type: "SYSTEM" as const, href: "/myEvents/pagamentos", groupKey,
+      title: "Mercado Pago recusou suas vendas por Pix",
+      message: "O Mercado Pago não aceitou a taxa do EventMap nesta conta, então o Pix não foi gerado para quem tentou comprar. Em Pagamentos, desconecte e conecte outra conta do Mercado Pago, diferente da conta da plataforma.",
+    }), groupKey });
+  } catch {
+    console.warn("ticket-fee-refused-notice-failed");
+  }
 }
 
 const pixError = { success: false as const, message: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos." };
@@ -493,6 +515,10 @@ export async function createTicketOrder(rawInput: unknown, resolveAccountHolder:
     // No QR code was ever shown, so nothing can be paid for this order.
     console.warn("ticket-pix-create-failed", pixFailureDetail(error));
     await cancelOrder();
+    if (error instanceof MercadoPagoError && error.causes.includes(FEE_REFUSED_CAUSE)) {
+      await notifyFeeRefused(order.sellerId);
+      return feeRefusedError;
+    }
     return pixError;
   }
   const pixData = { mpPaymentId: pix.paymentId, pixCopyPaste: pix.qrCode, pixQrBase64: pix.qrCodeBase64 };
@@ -1070,11 +1096,23 @@ export async function getPaymentsOverview(resolveViewer: ResolveCurrentUser, dep
         entry.refundedCents += amount;
       }
     }
+    let label: string | null = null;
+    let feeRefused = false;
+    if (account) {
+      if (config && !accountNeedsReconnect(account.expiresAt, now)) {
+        try {
+          label = await getMercadoPagoAccountLabel(config.apiBase, await sellerAccessToken(user.id, config, d), d.fetch);
+        } catch {
+          console.warn("ticket-account-label-failed");
+        }
+      }
+      feeRefused = Boolean(await prisma.notification.findFirst({ where: { userId: user.id, groupKey: feeRefusedKey(user.id, account.connectedAt) }, select: { id: true } }));
+    }
     const events = Array.from(byEvent.values());
     const totals = events.reduce((sum, item) => ({ sold: sum.sold + item.sold, refunded: sum.refunded + item.refunded, refundedCents: sum.refundedCents + item.refundedCents, grossCents: sum.grossCents + item.grossCents, feeCents: sum.feeCents + item.feeCents, netCents: sum.netCents + item.netCents }), { sold: 0, refunded: 0, refundedCents: 0, grossCents: 0, feeCents: 0, netCents: 0 });
     return {
       success: true, message: "",
-      data: { configured, feePercent: TICKET_FEE_PERCENT, account: account ? { mpUserId: account.mpUserId, connectedAt: new Date(account.connectedAt).toISOString(), needsReconnect: accountNeedsReconnect(account.expiresAt, now) } : null, events, totals },
+      data: { configured, feePercent: TICKET_FEE_PERCENT, account: account ? { mpUserId: account.mpUserId, connectedAt: new Date(account.connectedAt).toISOString(), needsReconnect: accountNeedsReconnect(account.expiresAt, now), label, feeRefused } : null, events, totals },
     };
   } catch {
     console.warn("ticket-overview-failed");

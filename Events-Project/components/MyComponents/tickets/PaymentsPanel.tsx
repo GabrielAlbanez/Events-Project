@@ -166,7 +166,10 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                     <h2 id="mp-account-title" className="text-lg font-semibold">Conta do Mercado Pago</h2>
                     {!overview.configured ? <p className="mt-1 text-sm leading-6 text-muted-foreground">Pagamentos ainda não configurados no EventMap. Assim que forem ativados, você poderá conectar sua conta aqui.</p>
                       : overview.account?.needsReconnect ? <p role="alert" className="mt-1 flex items-start gap-1.5 text-sm leading-6 text-amber-800 dark:text-amber-300"><AlertCircle className="mt-1 size-4 shrink-0" aria-hidden="true" />Reconecte sua conta: o Mercado Pago encerrou a autorização do EventMap. Até lá, as vendas e os estornos ficam pausados.</p>
-                      : overview.account ? <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />Conectada em {dateTime.format(new Date(overview.account.connectedAt))}</p>
+                      : overview.account ? <>
+                        <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />Conectada em {dateTime.format(new Date(overview.account.connectedAt))}</p>
+                        {overview.account.label && <p className="mt-0.5 break-all text-sm text-muted-foreground">Conectada como <span className="font-medium text-foreground">{overview.account.label}</span></p>}
+                      </>
                         : <p className="mt-1 text-sm leading-6 text-muted-foreground">Conecte a conta que vai receber o dinheiro dos ingressos. Você autoriza no próprio site do Mercado Pago; o EventMap nunca vê sua senha. Quem compra paga só com Pix, sem precisar de conta.</p>}
                   </div>
                 </div>
@@ -176,6 +179,14 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                   ? <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setConfirmDisconnect(true)} disabled={busy !== null}><Unlink className="size-4" aria-hidden="true" />Desconectar</Button>
                   : connectButton("Conectar Mercado Pago"))}
               </div>
+              {overview.configured && overview.account && !overview.account.needsReconnect && overview.account.feeRefused && <div role="alert" className="mt-4 flex items-start gap-3 rounded-xl border border-amber-600/30 bg-amber-500/10 p-4 text-sm leading-6">
+                <AlertCircle className="mt-1 size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+                <div className="min-w-0 space-y-2">
+                  <p className="font-semibold text-amber-900 dark:text-amber-200">O Mercado Pago recusou suas vendas por Pix</p>
+                  <p className="text-foreground/90">O Mercado Pago não aceitou a taxa do EventMap nesta conta, por isso o Pix não foi gerado para quem tentou comprar. Isso acontece quando a conta conectada é a mesma conta da plataforma. Desconecte e conecte outra conta do Mercado Pago.</p>
+                  <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => setConfirmDisconnect(true)} disabled={busy !== null}><Unlink className="size-4" aria-hidden="true" />Desconectar e trocar de conta</Button>
+                </div>
+              </div>}
             </section>
 
             <section aria-labelledby="sales-title" className="space-y-4">
