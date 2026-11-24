@@ -287,3 +287,10 @@ body {
     font-family: var(--font-geist-mono), ui-monospace, monospace;
   }
 }
+
+/* Map pin hover: the date tag grows from the pin tip into a floating event card, then bobs gently. Transform/opacity only. */
+.event-pin-float { transform-origin: 50% 100%; animation: event-pin-morph .34s cubic-bezier(.2,.9,.3,1.15) both; }
+.event-pin-float__card { animation: event-pin-bob 3.2s ease-in-out .4s infinite; }
+@keyframes event-pin-morph { from { opacity: 0; transform: scale(.16) translateY(6px); } 45% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes event-pin-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) { .event-pin-float, .event-pin-float__card { animation: none; } }

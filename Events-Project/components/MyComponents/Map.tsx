@@ -4,6 +4,8 @@ import {
   GoogleMap,
   Marker,
   DirectionsRenderer,
+  OverlayView,
+  OverlayViewF,
 } from "@react-google-maps/api";
 import { toast } from "react-toastify";
 import { locationErrorMessage } from "@/lib/geolocationHelp";
@@ -26,6 +28,8 @@ import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
 import Link from "next/link";
 import { EventDateBlock } from "./EventDateBlock";
+import { parseEventDate } from "@/lib/discoveryPeriod";
+import { HomeEventImage } from "./home/HomeEventImage";
 import { animationConfig, loadAnimationFeatures } from "@/components/animations/config";
 
 // Componente de Loading Personalizado
@@ -60,6 +64,67 @@ const SELECTED_EVENT_MARKER_ICON = createEventMarkerIcon("#C7F34A", "#10151F");
 const HIGHLIGHTED_EVENT_MARKER_ICON = createEventMarkerIcon("#2455FF", "#fff", 36, 46);
 /** Paid highlight: larger pin with the CTA lime ring and dot, drawn above regular pins. Static (no animation). */
 const FEATURED_EVENT_MARKER_ICON = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 28 36"><path d="M14 1.5C7.2 1.5 2 6.8 2 13.5 2 22.8 14 34 14 34S26 22.8 26 13.5C26 6.8 20.8 1.5 14 1.5Z" fill="#2455FF" stroke="#C7F34A" stroke-width="2.6"/><circle cx="14" cy="13" r="5" fill="#C7F34A" stroke="#10151F" stroke-width="1"/></svg>') };
+type PinVariant = "default" | "highlighted" | "selected" | "featured";
+const pinMonthFormat = new Intl.DateTimeFormat("pt-BR", { month: "short" });
+const datePinCache = new Map<string, google.maps.Icon | { url: string }>();
+/** Calendar-tag pin (month over day, tip at the bottom) matching the list's date chips; falls back to the plain pin without a valid date. */
+function eventPinIcon(date: string | null | undefined, variant: PinVariant) {
+  const parsed = date ? parseEventDate(date) : null;
+  if (!parsed) return variant === "selected" ? SELECTED_EVENT_MARKER_ICON : variant === "highlighted" ? HIGHLIGHTED_EVENT_MARKER_ICON : variant === "featured" ? FEATURED_EVENT_MARKER_ICON : EVENT_MARKER_ICON;
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = pinMonthFormat.format(parsed).replace(/\./g, "").toLocaleUpperCase("pt-BR");
+  const key = day + month + variant;
+  const cached = datePinCache.get(key);
+  if (cached) return cached;
+  const selected = variant === "selected";
+  const fill = selected ? "#C7F34A" : "#2455FF", ink = selected ? "#10151F" : "#FFFFFF";
+  const ring = variant === "featured" ? "#C7F34A" : selected ? "#10151F" : "#FFFFFF";
+  const ringWidth = variant === "featured" ? 3 : 2;
+  const [width, height] = variant === "highlighted" ? [52, 62] : variant === "featured" || selected ? [46, 55] : [40, 48];
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 40 48">'
+    + '<ellipse cx="20" cy="46" rx="5" ry="1.6" fill="#0B0D12" opacity=".22"/>'
+    + '<path d="M15 37 20 44.5 25 37Z" fill="' + fill + '" stroke="' + ring + '" stroke-width="' + ringWidth + '" stroke-linejoin="round"/>'
+    + '<rect x="2" y="2" width="36" height="36" rx="10" fill="' + fill + '" stroke="' + ring + '" stroke-width="' + ringWidth + '"/>'
+    + '<rect x="14" y="35" width="12" height="4" fill="' + fill + '"/>'
+    + '<text x="20" y="15.5" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="8.5" font-weight="700" letter-spacing=".6" fill="' + ink + '" opacity=".85">' + month + '</text>'
+    + '<text x="20" y="31" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" fill="' + ink + '">' + day + '</text></svg>';
+  const icon = { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg) };
+  datePinCache.set(key, icon);
+  return icon;
+}
+
+/** Card bottom-centre sits on the pin tip, where Google anchors the marker icon. */
+const floatingCardOffset = (width: number, height: number) => ({ x: -width / 2, y: -height });
+
+/** Pin hover: the date tag grows into a floating preview of the event (decorative; the marker keeps the accessible title).
+ * The pin stays visible underneath: a transparent marker stops receiving hover, which made the card flicker. */
+function FloatingEventCard({ event, onSelect }: { event: Evento; onSelect: (event: Evento) => void }) {
+  const cardRef = useRef<HTMLButtonElement>(null);
+  // Clicks and drags on the card belong to the card, not to the map underneath.
+  useEffect(() => { if (cardRef.current) google.maps.OverlayView.preventMapHitsAndGesturesFrom(cardRef.current); }, []);
+  const parsed = event.dataInicio ? parseEventDate(event.dataInicio) : null;
+  const day = parsed ? String(parsed.getDate()).padStart(2, "0") : null;
+  const month = parsed ? pinMonthFormat.format(parsed).replace(/\./g, "").toLocaleUpperCase("pt-BR") : null;
+  return (
+    <div className="event-pin-float pointer-events-none select-none pb-1">
+      {/* Mouse-only shortcut (aria-hidden, not focusable): keyboard and screen readers use the marker and the list. */}
+      <button ref={cardRef} type="button" tabIndex={-1} aria-hidden="true" onClick={() => onSelect(event)} className="event-pin-float__card pointer-events-auto block cursor-pointer text-left">
+        <div className="flex w-64 items-center gap-3 rounded-2xl border border-white/70 bg-card/95 p-2 pr-3 text-card-foreground shadow-[0_18px_40px_-12px_rgba(16,21,31,.45)] backdrop-blur-xl transition-shadow hover:shadow-[0_22px_46px_-12px_rgba(16,21,31,.55)] dark:border-white/10">
+          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#2455FF]">
+            <HomeEventImage banner={event.banner} category={event.category} index={0} sizes="64px" className="object-cover" />
+            {day && <span className="absolute left-1 top-1 flex flex-col items-center rounded-md bg-[#2455FF] px-1.5 py-0.5 text-white shadow"><span className="text-[8px] font-bold leading-3 tracking-wide opacity-90">{month}</span><span className="text-sm font-extrabold leading-4">{day}</span></span>}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-sm font-semibold leading-5">{event.nome}</p>
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{event.endereco || "Local a confirmar"}</span></p>
+          </div>
+        </div>
+        <span className="mx-auto -mt-1.5 block h-3 w-3 rotate-45 rounded-[2px] border-b border-r border-white/70 bg-card dark:border-white/10" />
+      </button>
+    </div>
+  );
+}
+
 // Only the explicit `?endereco=` search is geocoded in the browser; events use stored coordinates.
 const geocodeCache = new Map<string, Promise<google.maps.LatLngLiteral>>();
 const locationNoticeKey = "eventmap:location-notice-accepted";
@@ -69,12 +134,14 @@ const EventMarkers = memo(function EventMarkers({
   onSelect,
   selectedId,
   highlightedId,
+  floatingId,
   onHover,
 }: {
   events: Evento[];
   onSelect: (event: Evento) => void;
   selectedId: string | null;
   highlightedId: string | null;
+  floatingId: string | null;
   onHover: (id: string | null) => void;
 }) {
   return events.map((event) => (
@@ -82,9 +149,9 @@ const EventMarkers = memo(function EventMarkers({
       key={event.id}
       position={{ lat: event.lat!, lng: event.lng! }}
       title={event.id === selectedId ? event.nome + " — evento selecionado" : event.featured ? event.nome + " — destaque patrocinado" : event.nome}
-      icon={event.id === selectedId ? SELECTED_EVENT_MARKER_ICON : event.id === highlightedId ? HIGHLIGHTED_EVENT_MARKER_ICON : event.featured ? FEATURED_EVENT_MARKER_ICON : EVENT_MARKER_ICON}
-      zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : event.featured ? 900 : undefined}
-      opacity={highlightedId && event.id !== highlightedId && event.id !== selectedId ? 0.6 : 1}
+      icon={eventPinIcon(event.dataInicio, event.id === selectedId ? "selected" : event.id === highlightedId && event.id !== floatingId ? "highlighted" : event.featured ? "featured" : "default")}
+      zIndex={event.id === selectedId ? 1001 : event.id === highlightedId ? 1000 : event.featured ? 900 : 500}
+      opacity={event.id === floatingId ? 1 : highlightedId && event.id !== highlightedId && event.id !== selectedId ? 0.6 : 1}
       onClick={() => onSelect(event)}
       onMouseOver={() => onHover(event.id)}
       onMouseOut={() => onHover(null)}
@@ -328,13 +395,38 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
   const handleEventSelect = useCallback((event: Evento) => onSelectEvent(event.id), [onSelectEvent]);
   // Clearing waits a beat so swapping to the bigger icon (which may emit out/over) never flickers the highlight.
   const hoverClearTimer = useRef<number | null>(null);
+  // Only pin hover (not list hover) opens the floating card, so browsing the list never covers the map.
+  // Google fires marker mouseout as soon as the card opens over the pin, so closing waits for the pointer to really leave the pin (see handleMapMouseMove).
+  const [floatingId, setFloatingId] = useState<string | null>(null);
+  const floatingRef = useRef<string | null>(null);
+  const closeFloating = useCallback(() => {
+    if (!floatingRef.current) return;
+    floatingRef.current = null;
+    setFloatingId(null);
+    onHighlightEvent?.(null);
+  }, [onHighlightEvent]);
   const handleMarkerHover = useCallback((id: string | null) => {
-    if (!onHighlightEvent || !window.matchMedia("(hover: hover)").matches) return;
+    if (!window.matchMedia("(hover: hover)").matches) return;
     if (hoverClearTimer.current !== null) window.clearTimeout(hoverClearTimer.current);
     hoverClearTimer.current = null;
-    if (id) onHighlightEvent(id);
-    else hoverClearTimer.current = window.setTimeout(() => { hoverClearTimer.current = null; onHighlightEvent(null); }, 80);
+    if (id) { floatingRef.current = id; setFloatingId(id); onHighlightEvent?.(id); }
+    else if (!floatingRef.current) hoverClearTimer.current = window.setTimeout(() => { hoverClearTimer.current = null; onHighlightEvent?.(null); }, 80);
   }, [onHighlightEvent]);
+  /** Keeps the card while the pointer is on the pin (tip ±26px wide, 60px tall); anything farther closes it. */
+  const handleMapMouseMove = useCallback((mouse: google.maps.MapMouseEvent) => {
+    const id = floatingRef.current;
+    if (!id) return;
+    const event = visibleEvents.find(item => item.id === id);
+    const map = mapRef.current, projection = map?.getProjection(), zoom = map?.getZoom();
+    if (!event || !mouse.latLng || !projection || zoom === undefined) { closeFloating(); return; }
+    const pin = projection.fromLatLngToPoint({ lat: event.lat!, lng: event.lng! }), pointer = projection.fromLatLngToPoint(mouse.latLng);
+    if (!pin || !pointer) { closeFloating(); return; }
+    const scale = 2 ** zoom, dx = (pointer.x - pin.x) * scale, dy = (pointer.y - pin.y) * scale;
+    if (Math.abs(dx) > 26 || dy < -60 || dy > 10) closeFloating();
+  }, [closeFloating, visibleEvents]);
+  const floatingEvent = useMemo(() => floatingId && floatingId !== selectedId ? visibleEvents.find(event => event.id === floatingId) : undefined, [floatingId, selectedId, visibleEvents]);
+  // A stable position object: a new one on every render makes the overlay remount and restart its entrance animation.
+  const floatingPosition = useMemo(() => floatingEvent ? { lat: floatingEvent.lat!, lng: floatingEvent.lng! } : null, [floatingEvent]);
   useEffect(() => () => { if (hoverClearTimer.current !== null) window.clearTimeout(hoverClearTimer.current); }, []);
   const reducedMotion = useReducedMotion();
   const selectedEvent = useMemo(
@@ -366,10 +458,15 @@ const MapaGoogle = ({ events, selectedId, highlightedId, onSelectEvent, onHighli
               options={mapOptions}
               onLoad={handleMapLoad}
               onUnmount={handleMapUnmount}
+              onMouseMove={handleMapMouseMove}
+              onMouseOut={closeFloating}
+              onDragStart={closeFloating}
             >
-              {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} />}
+              {userLocation && <Marker position={userLocation} icon={USER_MARKER_ICON} zIndex={100} />}
 
-              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} onHover={handleMarkerHover} />
+              <EventMarkers events={visibleEvents} onSelect={handleEventSelect} selectedId={selectedId} highlightedId={highlightedId} floatingId={floatingEvent ? floatingId : null} onHover={handleMarkerHover} />
+
+              {floatingEvent && floatingPosition && <OverlayViewF key={floatingEvent.id} position={floatingPosition} mapPaneName={OverlayView.FLOAT_PANE} getPixelPositionOffset={floatingCardOffset}><FloatingEventCard event={floatingEvent} onSelect={handleEventSelect} /></OverlayViewF>}
 
               {directions && <DirectionsRenderer directions={directions} />}
             </GoogleMap>
