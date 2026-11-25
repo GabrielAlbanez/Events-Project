@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { BellRing, BellOff, Smartphone } from "lucide-react";
+import { BellRing, BellOff, Smartphone, X } from "lucide-react";
 import { toast, type TypeOptions } from "react-toastify";
 import { Button } from "@/components/ui/button";
 
@@ -38,7 +38,10 @@ function reusePending<T>(ref: { current: Promise<T> | null }, start: () => Promi
   return operation;
 }
 
-export default function PushSettings() {
+/** compact: a dismissible one-line invitation shown only while avisos are off and can be enabled. */
+export default function PushSettings({ variant = "full" }: { variant?: "full" | "compact" }) {
+  const compact = variant === "compact";
+  const [dismissed, setDismissed] = useState(false);
   const { data: session, status } = useSession();
   const identity = useRef(session?.user?.id);
   identity.current = status === "authenticated" ? session?.user?.id : undefined;
@@ -74,12 +77,12 @@ export default function PushSettings() {
         if (!response.ok) throw new Error();
         const data: { publicKey: string | null; subscribed: boolean } = await response.json();
         if (active) { setPublicKey(data.publicKey); setSubscribed(Boolean(subscription) && data.subscribed); }
-      } catch { if (active) notify("Não foi possível consultar os avisos deste navegador. Recarregue a página para tentar novamente.", "error"); }
+      } catch { if (active && !compact) notify("Não foi possível consultar os avisos deste navegador. Recarregue a página para tentar novamente.", "error"); }
       finally { if (active) setLoading(false); }
     }
     void load();
     return () => { active = false; mounted.current = false; clearTimeout(cooldownTimer.current); window.removeEventListener("focus", permissionChanged); };
-  }, [status, session?.user?.id]);
+  }, [status, session?.user?.id, compact]);
   async function toggle() {
     if (!supported || (!publicKey && !subscribed) || pending.current || !identity.current) return;
     const requestedIdentity = identity.current;
@@ -151,5 +154,10 @@ export default function PushSettings() {
   const blocked = supported && permission === "denied";
   const description = !supported ? "Este navegador não oferece avisos fora do site. No iPhone, experimente adicionar o EventMap à tela inicial. A central funciona normalmente." : blocked ? "As notificações estão bloqueadas pelo navegador. Para ativá-las, permita os avisos nas configurações deste site." : subscribed ? "Você recebe novidades desta conta neste dispositivo. Sem precisar deixar a página aberta." : "Receba lembretes e novidades fora do site. Você decide quando ativar e pode desativar a qualquer momento.";
   const Icon = blocked ? BellOff : subscribed ? BellRing : Smartphone;
+  if (compact) {
+    // Unsupported browsers (iPhone outside the Home Screen) get the install hint; enabled or blocked states stay quiet.
+    if (loading || dismissed || subscribed || blocked || (supported && !publicKey)) return null;
+    return <section aria-label="Avisos de novas mensagens" className="mx-3 mb-3 flex items-start gap-3 rounded-[18px] border border-primary/20 bg-primary/5 p-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-brand"><BellRing className="size-[18px]" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="text-sm font-semibold">Saiba quando chegar mensagem</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{supported ? "Ative os avisos neste dispositivo. O texto das conversas nunca aparece na notificação." : "No iPhone, adicione o EventMap à Tela de Início (Compartilhar → Adicionar à Tela de Início) para receber avisos."}</p>{supported && <Button size="sm" className="mt-2 min-h-11 rounded-full bg-cta px-4 text-cta-foreground hover:bg-cta/90" disabled={busy} onClick={() => void toggle()}>{busy ? "Aguarde…" : "Ativar notificações"}</Button>}</div><button type="button" onClick={() => setDismissed(true)} aria-label="Dispensar convite de notificações" className="-mr-1 -mt-1 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><X className="size-4" aria-hidden="true" /></button></section>;
+  }
   return <section aria-label="Avisos neste dispositivo" className="rounded-[22px] border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><Icon className="size-[18px]" aria-hidden="true" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Avisos neste dispositivo</h2>{!loading && subscribed && !blocked && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">Ativos</span>}</div><p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>{loading ? <div className="mt-3 h-3 w-36 rounded bg-muted motion-safe:animate-pulse" role="status" aria-label="Consultando avisos" /> : supported && !publicKey && !subscribed ? <p className="mt-3 text-xs leading-5 text-muted-foreground">Os avisos fora do site estão temporariamente indisponíveis. Suas notificações continuam nesta central.</p> : supported && (!blocked || subscribed) ? <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" className="min-h-11" disabled={busy} onClick={() => void toggle()}>{busy ? "Aguarde…" : subscribed ? "Desativar avisos" : "Ativar avisos"}</Button>{subscribed && !blocked && <Button variant="ghost" className="min-h-11" disabled={busy || cooldown} onClick={() => void sendTest()}>{cooldown ? "Aguarde para testar novamente" : "Enviar notificação de teste"}</Button>}</div> : null}</div></div></section>;
 }
