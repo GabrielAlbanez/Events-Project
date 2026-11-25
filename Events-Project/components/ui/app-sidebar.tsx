@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sparkles,
   CirclePlay,
+  Download,
   Ticket,
   Receipt,
   UserCog,
@@ -47,6 +48,7 @@ import {
 import { Button } from "./button";
 import { LogoutButton } from "@/components/MyComponents/LogoutButton ";
 import { ThemeSwitcher } from "../MyComponents/ThemeSwitcher";
+import { useInstallApp } from "@/hooks/useInstallApp";
 
 type Role = "ADMIN" | "PROMOTER" | "BASIC";
 type NavItem = { label: string; href: string; icon: typeof Compass; roles?: Role[]; guest?: boolean };
@@ -97,6 +99,9 @@ export function AppSidebar() {
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
     window.dispatchEvent(new CustomEvent("eventmap:discovery", { detail: { focusSearch: false } }));
   };
+  const { installable, startInstall } = useInstallApp();
+  // Close the menu first; the native prompt keeps the click's user activation for a few seconds.
+  const openInstall = () => { closeNavigation(); window.setTimeout(() => void startInstall(), 120); };
   const { data: session, status } = useSession();
   const authenticatedUser = status === "authenticated" && session?.user?.id ? session.user : null;
   const role = authenticatedUser?.role;
@@ -145,6 +150,13 @@ export function AppSidebar() {
             );
           })}
         </SidebarMenu></section>; })}
+        {installable && <section className="mb-3 shrink-0 md:mb-5" aria-label="App"><p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">App</p>
+          <SidebarMenu><SidebarMenuItem>
+            <SidebarMenuButton onClick={openInstall} className="relative h-11 shrink-0 rounded-xl px-3 font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-cta/15 hover:text-sidebar-foreground">
+              <Download className="h-5 w-5" aria-hidden="true" />
+              <span>Instalar app</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem></SidebarMenu></section>}
       </SidebarContent>
 
       {(role === "ADMIN" || role === "PROMOTER") && (

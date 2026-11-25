@@ -13,6 +13,7 @@ import { SiteHeader } from "@/components/MyComponents/SiteHeader";
 import { SiteFooter } from "@/components/MyComponents/SiteFooter";
 import siteStyles from "@/components/MyComponents/SiteHeader.module.css";
 import { MobileBottomNav, showsMobileBottomNav } from "@/components/MyComponents/MobileBottomNav";
+import InstallAppProvider from "@/components/Providers/InstallAppProvider";
 
 /** Widgets incorporáveis (/embed/**) rodam sozinhos dentro de um iframe, sem a estrutura do site. */
 export function isEmbedPath(pathname: string | null): boolean {
@@ -47,6 +48,7 @@ export default function ClientProviders({
         <HeroUIProvider>
           <NextThemesProvider attribute="class" defaultTheme="light">
             <ImpersonationGuard>
+            <InstallAppProvider>
             <SidebarProvider defaultOpen={defaultOpen}>
               <div className="flex min-h-screen w-full">
                 {/* Primeiro foco da página: leva direto ao conteúdo, pulando menu e cabeçalho. */}
@@ -66,6 +68,7 @@ export default function ClientProviders({
                 <MobileBottomNav />
               </div>
             </SidebarProvider>
+            </InstallAppProvider>
             </ImpersonationGuard>
           </NextThemesProvider>
         </HeroUIProvider>

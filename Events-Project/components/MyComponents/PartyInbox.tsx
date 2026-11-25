@@ -7,6 +7,7 @@ import { usePartyInbox, type PartyInboxResource } from "@/hooks/usePartyInbox";
 import { conversationHref, filterInbox, formatActivity, formatEventDay, inboxEvents, inboxPreview, matchBadgeLabel } from "@/utils/partyInbox";
 import { ChatAvatar } from "./ChatAvatar";
 import PushSettings from "./PushSettings";
+import InstallAppCard from "./InstallAppCard";
 import styles from "./chat/Chat.module.css";
 
 const chip = "inline-flex min-h-11 shrink-0 snap-start items-center rounded-full border px-4 text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none";
@@ -66,7 +67,7 @@ export default function PartyInboxScreen() {
   const inbox = usePartyInbox();
   return <div className={styles.page}>
     <section className={`${styles.shell} ${styles.listOpen}`} aria-label="Conversas">
-      <PartyInbox inbox={inbox} heading="h1" prompt={<PushSettings variant="compact" />} />
+      <PartyInbox inbox={inbox} heading="h1" prompt={<InstallAppCard variant="compact" fallback={<PushSettings variant="compact" />} />} />
       <section className={styles.conversation} aria-label="Nenhuma conversa aberta">
         <div className={styles.emptyState}><span className={styles.emptyIcon}><MessageCircleHeart size={26} aria-hidden="true" /></span><h2>Escolha uma conversa</h2><p>Todas as suas conversas de match ficam aqui, de todos os eventos. Cada uma mostra onde vocês se conheceram.</p></div>
       </section>

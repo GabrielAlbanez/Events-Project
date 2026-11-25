@@ -6,6 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "EventMap",
     short_name: "EventMap",
     description: "Descubra eventos perto de você, confirme presença e converse com seus matches.",
+    id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -14,7 +15,10 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#2455ff",
     lang: "pt-BR",
     icons: [
-      { src: "/branding/notification-icon.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      // Chromium's install prompt needs 192 and 512 PNGs; maskable keeps the pin inside Android's safe zone.
+      { src: "/branding/app-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/branding/app-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/branding/app-icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
     ],
   };

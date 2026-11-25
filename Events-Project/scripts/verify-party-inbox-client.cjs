@@ -16,6 +16,7 @@ const inbox = run(compile("components/MyComponents/PartyInbox.tsx", true), name 
   if (name === "@/hooks/usePartyInbox") return { usePartyInbox: () => { throw new Error("screen not rendered here"); } };
   if (name === "./ChatAvatar") return { ChatAvatar: "avatar" };
   if (name === "./PushSettings") return { __esModule: true, default: "push-settings" };
+  if (name === "./InstallAppCard") return { __esModule: true, default: "install-app-card" };
   if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
   throw new Error("Unexpected dependency: " + name);
 });

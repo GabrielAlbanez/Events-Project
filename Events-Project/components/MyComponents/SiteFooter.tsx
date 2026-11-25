@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { InstallAppFooterLink } from "./InstallAppCard";
 
-/** Institutional links shared by the public pages. Hook-free, so it renders in server or client trees. */
+/** Institutional links shared by the public pages. Hook-free (the install entry is its own client island), so it renders in server or client trees. */
 export const siteFooterLinks = [
   { href: "/conheca", label: "Como funciona" },
   { href: "/para-organizadores", label: "Para organizadores" },
@@ -20,6 +21,7 @@ export function SiteFooter({ className = "" }: { className?: string }) {
                 <Link href={link.href} className="inline-flex min-h-11 items-center rounded-full text-sm font-medium text-muted-foreground transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none">{link.label}</Link>
               </li>
             ))}
+            <InstallAppFooterLink />
           </ul>
         </nav>
       </div>
