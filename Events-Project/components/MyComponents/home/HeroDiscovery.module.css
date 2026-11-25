@@ -154,3 +154,5 @@
   .searchButton:hover,.categoryChip:hover,.exploreAll:hover svg { transform:none; }
   .timer { animation:none!important; }
 }
+
+@media (pointer: coarse) { .field:focus-within { box-shadow:none; } .field input,.field .selectTrigger { font-size:16px; } }
