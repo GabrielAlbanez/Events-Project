@@ -99,14 +99,14 @@ export default function AdminPromotions() {
             <Textarea id={`reason-${item.id}`} value={reason} required minLength={3} maxLength={PROMOTION_REASON_MAX} onChange={(event) => setReason(event.target.value)} placeholder="Ex.: Pix não localizado com este identificador" className="min-h-20" autoFocus />
             <p className="text-xs text-muted-foreground">O organizador recebe este motivo por notificação.</p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={busyId === item.id} onClick={() => { setRejectingId(null); setReason(""); setActionError(""); }}>Voltar</Button>
-              <Button type="submit" variant="destructive" className="min-h-11 rounded-xl" disabled={busyId === item.id}>{busyId === item.id ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Recusando...</> : "Confirmar recusa"}</Button>
+              <Button type="button" variant="outline" className="min-h-11" disabled={busyId === item.id} onClick={() => { setRejectingId(null); setReason(""); setActionError(""); }}>Voltar</Button>
+              <Button type="submit" variant="destructive" className="min-h-11" disabled={busyId === item.id}>{busyId === item.id ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Recusando...</> : "Confirmar recusa"}</Button>
             </div>
           </form>
         ) : (
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setRejectingId(item.id); setReason(""); setActionError(""); }}>Recusar</Button>
-            <Button type="button" variant="cta" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setActionError(""); setConfirming(item); }}>Confirmar pagamento</Button>
+            <Button type="button" variant="outline" className="min-h-11" disabled={Boolean(busyId)} onClick={() => { setRejectingId(item.id); setReason(""); setActionError(""); }}>Recusar</Button>
+            <Button type="button" variant="cta" className="min-h-11" disabled={Boolean(busyId)} onClick={() => { setActionError(""); setConfirming(item); }}>Confirmar pagamento</Button>
           </div>
         )}
       </li>
@@ -123,7 +123,7 @@ export default function AdminPromotions() {
             <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Destaques pagos</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Confira o Pix pelo identificador do pedido antes de confirmar. A decisão fica registrada com seu usuário e horário.</p>
           </div>
-          <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={loading} onClick={() => void load()}>Atualizar</Button>
+          <Button type="button" variant="outline" className="min-h-11" disabled={loading} onClick={() => void load()}>Atualizar</Button>
         </header>
 
 
@@ -133,7 +133,7 @@ export default function AdminPromotions() {
           <div role="alert" className="flex flex-col items-center gap-4 rounded-[22px] border bg-card p-8 text-center shadow-[var(--em-shadow-card)]">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-6" aria-hidden="true" /></span>
             <p className="max-w-md text-sm leading-6">{error}</p>
-            <Button type="button" className="min-h-11 rounded-xl" onClick={() => void load()}>Tentar novamente</Button>
+            <Button type="button" className="min-h-11" onClick={() => void load()}>Tentar novamente</Button>
           </div>
         ) : (
           <>
@@ -195,8 +195,8 @@ export default function AdminPromotions() {
           </DialogHeader>
           {actionError && confirming && <p role="alert" className="break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</p>}
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { setConfirming(null); setActionError(""); }}>Voltar</Button>
-            <Button type="button" variant="cta" className="min-h-11 rounded-xl" disabled={Boolean(busyId)} onClick={() => { if (confirming) void decide(confirming, "confirm"); }}>{busyId ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Confirmando...</> : "Confirmar e ativar"}</Button>
+            <Button type="button" variant="outline" className="min-h-11" disabled={Boolean(busyId)} onClick={() => { setConfirming(null); setActionError(""); }}>Voltar</Button>
+            <Button type="button" variant="cta" className="min-h-11" disabled={Boolean(busyId)} onClick={() => { if (confirming) void decide(confirming, "confirm"); }}>{busyId ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Confirmando...</> : "Confirmar e ativar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

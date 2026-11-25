@@ -48,7 +48,7 @@ export function CommunityForm({ children, submit, busy, onSubmit, reset = true }
       setError(cause instanceof Error && !(cause instanceof RangeError) ? cause.message : "Confira os campos, incluindo a data e o horário.");
     }
   }
-  return <form onSubmit={event => void handleSubmit(event)} className="space-y-3"><fieldset key={resetVersion} disabled={busy} className="min-w-0 space-y-3 disabled:opacity-60">{children}<Button type="submit" disabled={busy || !online} className="min-h-11 rounded-xl">{busy ? "Salvando..." : submit}</Button></fieldset>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</form>;
+  return <form onSubmit={event => void handleSubmit(event)} className="space-y-3"><fieldset key={resetVersion} disabled={busy} className="min-w-0 space-y-3 disabled:opacity-60">{children}<Button type="submit" disabled={busy || !online} className="min-h-11">{busy ? "Salvando..." : submit}</Button></fieldset>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</form>;
 }
 
 export function CommunityEmpty({ children }: { children: ReactNode }) {
@@ -61,7 +61,7 @@ export function CommunityBadge({ children }: { children: ReactNode }) {
 
 export function CommunityAction({ children, busy, onClick }: { children: ReactNode; busy: boolean; onClick: () => void }) {
   const online = useCommunityInteractions();
-  return <Button type="button" variant="outline" disabled={busy || !online} onClick={onClick} className="min-h-11 max-w-full whitespace-normal rounded-xl">{children}</Button>;
+  return <Button type="button" variant="outline" disabled={busy || !online} onClick={onClick} className="min-h-11 max-w-full whitespace-normal">{children}</Button>;
 }
 
 export function CommunityStaleBanner({ error, hasData, online, refreshing, refresh }: { error: string; hasData: boolean; online: boolean; refreshing: boolean; refresh: () => void }) {

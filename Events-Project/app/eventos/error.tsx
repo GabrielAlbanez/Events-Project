@@ -36,11 +36,11 @@ export default function EventError({ reset }: ErrorProps) {
             <p className="mt-3 max-w-xl leading-7 text-muted-foreground">Ocorreu uma falha ao carregar as informações. Tente novamente ou explore outros eventos na agenda.</p>
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11 rounded-xl">
+            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11">
               <RotateCcw aria-hidden="true" />
               {pending ? "Tentando novamente..." : "Tentar novamente"}
             </Button>
-            <Button asChild variant="outline" size="lg" className="min-h-11 rounded-xl">
+            <Button asChild variant="outline" size="lg" className="min-h-11">
               <Link href="/EventsCreated">Voltar à agenda</Link>
             </Button>
           </div>

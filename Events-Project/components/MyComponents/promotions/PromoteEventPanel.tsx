@@ -197,8 +197,8 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
             <span className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-6" aria-hidden="true" /></span>
             <p className="max-w-md text-sm leading-6">{error || loadError}</p>
             <div className="flex flex-wrap justify-center gap-2">
-              <Button type="button" variant="outline" className="min-h-11 rounded-xl" onClick={() => { setLoading(true); void load(); }}>Tentar novamente</Button>
-              <Button asChild variant="ghost" className="min-h-11 rounded-xl"><Link href="/myEvents">Voltar para Meus eventos</Link></Button>
+              <Button type="button" variant="outline" className="min-h-11" onClick={() => { setLoading(true); void load(); }}>Tentar novamente</Button>
+              <Button asChild variant="ghost" className="min-h-11"><Link href="/myEvents">Voltar para Meus eventos</Link></Button>
             </div>
           </div>
         ) : (
@@ -232,7 +232,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                   <div className="rounded-xl border bg-background p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valor</dt><dd className="mt-1 text-2xl font-semibold tracking-tight">{formatPromotionAmount(open.amountCents)}</dd></div>
                   <div className="rounded-xl border bg-background p-4"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identificador do pedido</dt><dd className="mt-1 font-mono text-2xl font-semibold tracking-wider">{open.code}</dd><dd className="mt-1 text-xs text-muted-foreground">Escreva na descrição do Pix.</dd></div>
                   {overview.payment ? <>
-                    <div className="rounded-xl border bg-background p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Chave Pix</dt><dd className="mt-1 flex flex-wrap items-center gap-3"><span className="min-w-0 select-all break-all font-mono text-base">{overview.payment.key}</span><Button type="button" variant="outline" size="sm" className="min-h-11 rounded-xl" onClick={() => void copyPixKey(overview.payment!.key)}><Copy className="size-4" aria-hidden="true" />Copiar chave</Button></dd><dd className="mt-2 text-sm text-muted-foreground">Favorecido: {overview.payment.name}</dd></div>
+                    <div className="rounded-xl border bg-background p-4 sm:col-span-2"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Chave Pix</dt><dd className="mt-1 flex flex-wrap items-center gap-3"><span className="min-w-0 select-all break-all font-mono text-base">{overview.payment.key}</span><Button type="button" variant="outline" size="sm" className="min-h-11" onClick={() => void copyPixKey(overview.payment!.key)}><Copy className="size-4" aria-hidden="true" />Copiar chave</Button></dd><dd className="mt-2 text-sm text-muted-foreground">Favorecido: {overview.payment.name}</dd></div>
                   </> : <div role="status" className="rounded-xl border border-amber-300/50 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 sm:col-span-2">Pagamento indisponível no momento. Os dados do Pix voltam a aparecer aqui assim que forem configurados.</div>}
                 </dl>
                 <form className="mt-5 space-y-3" onSubmit={(event) => submitPaid(event, open.id)}>
@@ -241,8 +241,8 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                   <p id="payer-note-count" className="text-right text-xs text-muted-foreground">{note.length}/{PROMOTION_NOTE_MAX}</p>
                   <p id="paid-hint" className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm leading-6"><Clock3 className="mt-1 size-4 shrink-0 text-brand" aria-hidden="true" /><span><strong className="font-semibold">Já fez o Pix? Clique em &ldquo;Já paguei&rdquo;.</strong> É esse aviso que envia seu pedido para conferência; sem ele, a aprovação pode demorar.</span></p>
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="outline" disabled={Boolean(busy)} className="min-h-11 rounded-xl" onClick={() => void run("cancel", () => cancelPromotionOrder({ promotionId: open.id }))}>{busy === "cancel" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Cancelando...</> : "Cancelar pedido"}</Button>
-                    <Button type="submit" variant="cta" disabled={Boolean(busy)} aria-describedby="paid-hint" className="min-h-11 rounded-xl">{busy === "paid" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando...</> : "Já paguei"}</Button>
+                    <Button type="button" variant="outline" disabled={Boolean(busy)} className="min-h-11" onClick={() => void run("cancel", () => cancelPromotionOrder({ promotionId: open.id }))}>{busy === "cancel" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Cancelando...</> : "Cancelar pedido"}</Button>
+                    <Button type="submit" variant="cta" disabled={Boolean(busy)} aria-describedby="paid-hint" className="min-h-11">{busy === "paid" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando...</> : "Já paguei"}</Button>
                   </div>
                 </form>
               </section>
@@ -273,7 +273,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                   <p role="status" className="mt-4 rounded-xl border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">{overview.blockedReason}</p>
                 ) : null}
                 <div className="mt-5 flex justify-end">
-                  <Button type="button" variant="cta" disabled={Boolean(overview.blockedReason) || Boolean(busy) || !selectedPackage} className="min-h-11 w-full rounded-xl sm:w-auto" onClick={() => void run("create", () => createPromotionOrder({ eventId: overview.event.id, packageId: selected }))}>
+                  <Button type="button" variant="cta" disabled={Boolean(overview.blockedReason) || Boolean(busy) || !selectedPackage} className="min-h-11 w-full sm:w-auto" onClick={() => void run("create", () => createPromotionOrder({ eventId: overview.event.id, packageId: selected }))}>
                     {busy === "create" ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Gerando pedido...</> : selectedPackage ? `Gerar pedido de ${formatPromotionAmount(selectedPackage.amountCents)}` : "Gerar pedido"}
                   </Button>
                 </div>

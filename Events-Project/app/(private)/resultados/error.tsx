@@ -36,11 +36,11 @@ export default function ResultsError({ reset }: ErrorProps) {
             <p className="mt-3 max-w-xl leading-7 text-muted-foreground">O painel encontrou uma falha ao carregar. Tente novamente ou acompanhe seus eventos enquanto isso.</p>
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11 rounded-xl">
+            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11">
               <RotateCcw aria-hidden="true" />
               {pending ? "Tentando novamente..." : "Tentar novamente"}
             </Button>
-            <Button asChild variant="outline" size="lg" className="min-h-11 rounded-xl">
+            <Button asChild variant="outline" size="lg" className="min-h-11">
               <Link href="/myEvents">Ver meus eventos</Link>
             </Button>
           </div>

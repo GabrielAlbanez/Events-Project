@@ -40,7 +40,7 @@ export default function NotFound() {
           ))}
         </ul>
         <div className="mt-7">
-          <Button asChild size="lg" className="min-h-11 rounded-xl">
+          <Button asChild size="lg" className="min-h-11">
             <Link href="/">Voltar ao início</Link>
           </Button>
         </div>

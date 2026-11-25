@@ -38,11 +38,11 @@ export default function AppError({ error, reset }: ErrorProps) {
           </p>
         </div>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-          <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11 rounded-xl">
+          <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11">
             <RotateCcw aria-hidden="true" />
             {pending ? "Tentando novamente..." : "Tentar novamente"}
           </Button>
-          <Button asChild variant="outline" size="lg" className="min-h-11 rounded-xl">
+          <Button asChild variant="outline" size="lg" className="min-h-11">
             <Link href="/EventsCreated">Ir para a agenda</Link>
           </Button>
         </div>
