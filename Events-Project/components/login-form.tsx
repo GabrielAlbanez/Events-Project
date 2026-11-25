@@ -14,7 +14,7 @@ import { signIn, useSession } from "next-auth/react";
 import { GoogleButton } from "./MyComponents/GoogleButton";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
 import styles from "./MyComponents/LoginPage.module.css";
 import { authPathWithReturn, safeReturnPath } from "@/lib/authReturn";
@@ -130,19 +130,21 @@ export function LoginForm({
       {...props}
     >
       <div className={styles.formHeading}>
-        <h1>Bom ter você de volta</h1>
+        <h1>Bom ter você de volta!</h1>
         <p>
-          Entre para acompanhar seus eventos e conexões.
+          Entre para acompanhar seus eventos favoritos e conectar-se com a comunidade.
         </p>
       </div>
-      <p className="text-xs text-muted-foreground">Campos marcados com <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">asterisco</span> são obrigatórios.</p>
+      <p className={styles.requiredNote}>Campos marcados com <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">asterisco</span> são obrigatórios.</p>
       <div className={styles.fields}>
         <div className={styles.field}>
           <Label htmlFor="email">E-mail <span aria-hidden="true" className="text-destructive">*</span></Label>
+          <div className={styles.inputWrap}>
+          <Mail className={styles.inputIcon} aria-hidden="true" />
           <Input
             id="email"
             type="email"
-            placeholder="voce@exemplo.com"
+            placeholder="seu@email.com"
             autoComplete="email"
             autoCapitalize="none"
             spellCheck={false}
@@ -151,6 +153,7 @@ export function LoginForm({
             aria-describedby={describedBy(errors.email ? "email-error" : null)}
             {...register("email")}
           />
+          </div>
           {errors.email && (
             <p id="email-error" role="alert" className={styles.fieldError}>{errors.email.message}</p>
           )}
@@ -165,7 +168,8 @@ export function LoginForm({
               Esqueceu sua senha?
             </a>
           </div>
-          <div className="relative">
+          <div className={styles.inputWrap}>
+            <Lock className={styles.inputIcon} aria-hidden="true" />
             <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Sua senha" className="pr-12" aria-required="true" aria-invalid={!!errors.password} aria-describedby={describedBy(errors.password ? "password-error" : null)} {...register("password")} />
             <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} className={styles.passwordToggle}>{showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}</button>
           </div>
@@ -178,16 +182,22 @@ export function LoginForm({
         </Button>
         <div className={styles.divider}><span aria-hidden="true" />ou continue com<span aria-hidden="true" /></div>
         <div className={styles.googleButton}><GoogleButton textBody="Continuar com Google" callbackUrl={callbackUrl} /></div>
-        <p className="text-xs leading-5 text-muted-foreground">Saiba como usamos seus dados de acesso na <Link href="/privacidade" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Política de privacidade</Link>. Para acesso, correção ou exclusão, use o <Link href="/privacidade/solicitacoes" className="rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">canal de privacidade</Link>.</p>
       </div>
       <div className={styles.formFooter}>
-        <Link href="/confirmar-email" className={styles.confirmationLink}>Reenviar confirmação de e-mail</Link>
         <p className={styles.registerPrompt}>
-        Ainda não tem uma conta?{" "}
+        Não tem uma conta?{" "}
         <Link href={authPathWithReturn("/register", callbackUrl)} className={styles.registerLink}>
           Criar uma conta
         </Link>
         </p>
+        <div className={styles.secureNote}>
+          <p><ShieldCheck aria-hidden="true" />Seus dados estão seguros conosco.</p>
+          <nav aria-label="Ajuda com a conta e privacidade">
+            <Link href="/confirmar-email" className={styles.confirmationLink} aria-label="Reenviar confirmação de e-mail">Reenviar confirmação</Link>
+            <Link href="/privacidade" className={styles.confirmationLink} aria-label="Privacidade: política de privacidade">Privacidade</Link>
+            <Link href="/privacidade/solicitacoes" className={styles.confirmationLink}>Canal de privacidade</Link>
+          </nav>
+        </div>
       </div>
     </form>
   );
