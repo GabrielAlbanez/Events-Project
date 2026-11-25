@@ -9,9 +9,24 @@ import { receiptData, receiptKey } from "./receipts";
 export function publicProfile(profile: PartyProfile, liked = false): PartyPublicProfile {
   return { userId: profile.userId, displayName: profile.displayName, photoUrl: profile.photoUrl, bio: profile.bio, interests: profile.interests, intent: profile.intent as PartyIntent, liked };
 }
+export type PartyMatchActivity = { unreadCount: number; lastMessage?: { text: string; createdAt: string; own: boolean } };
+/** Unread count and latest preview per match, from the actor's own read receipt. Callers must authorize matchIds first. */
+export async function matchSummaries(tx: Prisma.TransactionClient, actorId: string, matchIds: string[]): Promise<Map<string, PartyMatchActivity>> {
+  const result = new Map<string, PartyMatchActivity>(matchIds.map(id => [id, { unreadCount: 0, lastMessage: undefined }]));
+  if (!matchIds.length) return result;
+  const receipts = await tx.communityEntry.findMany({ where: { id: { in: matchIds.map(id => receiptKey(id, actorId)) }, authorId: actorId, kind: "party.receipt" } });
+  const read = new Map(receipts.map(row => [row.id, receiptData(row).readThrough]));
+  const counts = await tx.partyMessage.groupBy({ by: ["matchId"], where: { OR: matchIds.map(id => ({ matchId: id, authorId: { not: actorId }, id: { gt: read.get(receiptKey(id, actorId)) ?? 0 } })) }, _count: { _all: true } });
+  for (const row of counts) result.get(row.matchId)!.unreadCount = row._count._all;
+  // Aggregate IDs first: fetch at most one preview per authorized match, never its full history.
+  const latestIds = await tx.partyMessage.groupBy({ by: ["matchId"], where: { matchId: { in: matchIds } }, _max: { id: true } });
+  const previews = await tx.partyMessage.findMany({ where: { id: { in: latestIds.flatMap(row => row._max.id === null ? [] : [row._max.id]) } }, select: { matchId: true, text: true, createdAt: true, authorId: true }, take: matchIds.length });
+  for (const row of previews) result.get(row.matchId)!.lastMessage = { text: row.text ? row.text.slice(0, 160) : "Foto", createdAt: row.createdAt.toISOString(), own: row.authorId === actorId };
+  return result;
+}
 export async function connectionsSnapshot(eventId: string, actor: Actor, after?: string): Promise<PartyConnectionsSnapshot> {
   return prisma.$transaction(async tx => {
-    const event = await tx.events.findUnique({ where: { id: eventId }, select: { id: true, nome: true, status: true } });
+    const event = await tx.events.findUnique({ where: { id: eventId }, select: { id: true, nome: true, status: true, dataInicio: true } });
     if (!event) throw new CommunityError(404, "Evento não encontrado.");
     if (!["PUBLISHED", "ENDED"].includes(event.status)) throw new CommunityError(404, "Evento indisponível.");
     if (!await tx.user.findUnique({ where: { id: actor.id }, select: { id: true } })) throw new CommunityError(401, "Entre novamente.");
@@ -20,7 +35,7 @@ export async function connectionsSnapshot(eventId: string, actor: Actor, after?:
     const eligible = await partyParticipant(tx, eventId, actor.id);
     const blockRows = await tx.partyBlock.findMany({ where: { fromId: actor.id }, take: 200 });
     const blocks = blockRows.map(row => ({ userId: row.toId, displayName: "Pessoa bloqueada" }));
-    const result: PartyConnectionsSnapshot = { savedProfile: global ? savedProfile({ ...global, intent: global.intent as PartyIntent }) : null, profileNeedsReview: global?.needsReview ?? false, event: { id: event.id, name: event.nome }, eligible, mine: own ? { displayName: own.displayName, photoUrl: own.photoUrl, bio: own.bio, interests: own.interests, intent: own.intent as PartyIntent, adultDeclared: own.adultDeclared, active: own.active } : null, profiles: [], matches: [], nextAfter: null, blocks };
+    const result: PartyConnectionsSnapshot = { savedProfile: global ? savedProfile({ ...global, intent: global.intent as PartyIntent }) : null, profileNeedsReview: global?.needsReview ?? false, event: { id: event.id, name: event.nome, date: event.dataInicio }, eligible, mine: own ? { displayName: own.displayName, photoUrl: own.photoUrl, bio: own.bio, interests: own.interests, intent: own.intent as PartyIntent, adultDeclared: own.adultDeclared, active: own.active } : null, profiles: [], matches: [], nextAfter: null, blocks };
     if (!eligible || !own?.active) return result;
     const [candidates, matches] = await Promise.all([
       tx.partyProfile.findMany({ where: { eventId, active: true, userId: { not: actor.id, ...(after ? { gt: after } : {}) } }, orderBy: { userId: "asc" }, take: 41 }),
@@ -46,15 +61,8 @@ export async function connectionsSnapshot(eventId: string, actor: Actor, after?:
       if (partner) result.matches.push({ id: match.id, profile: publicProfile(partner, true), createdAt: match.createdAt.toISOString() });
     }
     if (result.matches.length) {
-      const receipts = await tx.communityEntry.findMany({ where: { id: { in: result.matches.map(match => receiptKey(match.id, actor.id)) }, authorId: actor.id, kind: "party.receipt" } });
-      const read = new Map(receipts.map(row => [row.id, receiptData(row).readThrough]));
-      const counts = await tx.partyMessage.groupBy({ by: ["matchId"], where: { OR: result.matches.map(match => ({ matchId: match.id, authorId: { not: actor.id }, id: { gt: read.get(receiptKey(match.id, actor.id)) ?? 0 } })) }, _count: { _all: true } });
-      const unread = new Map(counts.map(row => [row.matchId, row._count._all]));
-      // Aggregate IDs first: fetch at most one preview per authorized match, never its full history.
-      const latestIds = await tx.partyMessage.groupBy({ by: ["matchId"], where: { matchId: { in: result.matches.map(match => match.id) } }, _max: { id: true } });
-      const previews = await tx.partyMessage.findMany({ where: { id: { in: latestIds.flatMap(row => row._max.id === null ? [] : [row._max.id]) } }, select: { matchId: true, text: true, createdAt: true, authorId: true }, take: result.matches.length });
-      const latest = new Map(previews.map(row => [row.matchId, { text: row.text ? row.text.slice(0, 160) : "Foto", createdAt: row.createdAt.toISOString(), own: row.authorId === actor.id }]));
-      result.matches = result.matches.map(match => ({ ...match, unreadCount: unread.get(match.id) ?? 0, lastMessage: latest.get(match.id) }));
+      const summaries = await matchSummaries(tx, actor.id, result.matches.map(match => match.id));
+      result.matches = result.matches.map(match => ({ ...match, ...summaries.get(match.id)! }));
     }
     return result;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });

@@ -4,6 +4,8 @@ import { Actor, CommunityError, signal, transact } from "@/lib/community/common"
 import { EventChatHistoryInput } from "@/schemas/eventChat";
 import { PartySendInput } from "@/schemas/partyMessage";
 import { EventChatHistory, EventChatMessage, EventChatSendResult } from "@/types/eventChat";
+import { createNotificationOnce } from "@/lib/notifications/create";
+import { notificationCopy } from "@/lib/notifications/catalog";
 import { matchAccess } from "./access";
 import { getReceipt } from "./receipts";
 import { bindChatImage, chatImageKind, chatImageUrl, imageData } from "./attachments";
@@ -51,6 +53,9 @@ export async function privateSend(eventId: string, matchId: string, actor: Actor
     if (burst >= 10 || minute >= 60) throw new CommunityError(429, "Aguarde um pouco antes de enviar mais mensagens.");
     const row = await tx.partyMessage.create({ data: { matchId, authorId: actor.id, clientId: input.clientId, text: input.text } });
     if (input.imageId) await bindChatImage(tx, eventId, matchId, actor.id, input.imageId, row.id);
+    // One unread alert per conversation: a burst of messages never stacks pushes. The text stays private.
+    const event = await tx.events.findUnique({ where: { id: eventId }, select: { nome: true } });
+    await createNotificationOnce(tx, notificationCopy({ userId: access.right.userId, type: "CONNECTION", title: `Nova mensagem de ${access.left.displayName}`, message: `Vocês deram match em ${event?.nome || "um evento"}. Toque para responder.`, href: `/conversas/${encodeURIComponent(matchId)}`, groupKey: `party-message:${matchId}` }), "unread");
     await signal(tx, `match:${matchId}`);
     // The recipient may be viewing the conversation list rather than this room.
     await signal(tx, `user:${access.right.userId}`);

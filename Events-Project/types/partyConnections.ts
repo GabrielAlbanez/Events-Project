@@ -8,7 +8,7 @@ export interface PartySavedProfileSnapshot { profile: PartySavedProfile | null; 
 export interface PartyConnectionsSnapshot {
   savedProfile: PartySavedProfile | null;
   profileNeedsReview: boolean;
-  event: { id: string; name: string };
+  event: { id: string; name: string; date?: string };
   eligible: boolean;
   mine: PartyOwnProfile | null;
   profiles: PartyPublicProfile[];
@@ -16,3 +16,7 @@ export interface PartyConnectionsSnapshot {
   matches: { id: string; profile: PartyPublicProfile; unreadCount?: number; createdAt?: string; lastMessage?: { text: string; createdAt: string; own: boolean } }[];
   blocks: { userId: string; displayName: string }[];
 }
+export type PartyMatchSummary = PartyConnectionsSnapshot["matches"][number];
+/** A conversation in the global inbox: the event-scoped match plus the event where it happened. */
+export interface PartyInboxItem extends PartyMatchSummary { event: { id: string; name: string; date: string } }
+export interface PartyInboxSnapshot { items: PartyInboxItem[] }

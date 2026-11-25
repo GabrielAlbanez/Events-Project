@@ -28,6 +28,9 @@ export function canAccessPath(role: string, pathname: string): boolean {
   if (/^\/eventos\/[^/]+\/conexoes(?:\/[^/]+)?$/.test(pathname)) {
     return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   }
+  if (/^\/conversas(?:\/[^/]+)?$/.test(pathname)) {
+    return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
+  }
   if (/^\/eventos\/[^/]+\/chat$/.test(pathname)) {
     return role === "BASIC" || role === "PROMOTER" || role === "ADMIN";
   }
