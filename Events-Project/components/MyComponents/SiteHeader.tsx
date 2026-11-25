@@ -8,6 +8,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { BrandLogo } from "./BrandLogo";
 import NotificationBell from "./NotificationBell";
+import ConversationsLink from "./ConversationsLink";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
@@ -63,6 +64,7 @@ export function SiteHeader() {
       <div className={styles.actions}>
         {showOrganizers && <Link href="/para-organizadores" className={styles.organizers} aria-current={pathname === "/para-organizadores" ? "page" : undefined}>Para organizadores</Link>}
         <Link href="/#home-discovery-search" onClick={event => openDiscovery(event, true)} className={styles.search} aria-label="Buscar eventos no mapa" title="Buscar eventos"><Search size={20} aria-hidden="true" /></Link>
+        {authenticated && <ConversationsLink />}
         {authenticated && <NotificationBell />}
         {status === "loading" ? <span className={styles.accountLoading} role="status" aria-label="Carregando conta" /> : authenticated ? <Link href="/Profile" className={styles.account} aria-label="Minha conta" aria-current={pathname === "/Profile" ? "page" : undefined}><UserRound size={18} aria-hidden="true" /><span>Minha conta</span></Link> : <>
           <a href="/login" onClick={closeMenu} className={styles.login} aria-label="Entrar na plataforma"><UserRound size={18} aria-hidden="true" /><span>Entrar</span></a>

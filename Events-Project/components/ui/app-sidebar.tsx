@@ -15,6 +15,7 @@ import {
   HeartHandshake,
   History,
   Map,
+  MessagesSquare,
   Megaphone,
   Plus,
   ShieldAlert,
@@ -63,6 +64,7 @@ const navigation: NavItem[] = [
   { label: "Meus ingressos", href: "/ingressos", icon: Ticket, roles: members },
   { label: "Central de atividades", href: "/atividade", icon: Activity, roles: members },
   { label: "Salas com amigos", href: "/salas", icon: UsersRound, roles: members },
+  { label: "Conversas", href: "/conversas", icon: MessagesSquare, roles: members },
   { label: "Notificações", href: "/notificacoes", icon: Bell, roles: members },
   { label: "Perfil de conexões", href: "/perfil-conexoes", icon: HeartHandshake, roles: members },
   { label: "Meu perfil", href: "/Profile", icon: UserRound, roles: members },
@@ -105,7 +107,7 @@ export function AppSidebar() {
   });
   const groups = [
     { label: "Descobrir", paths: ["/", "/EventsCreated", "/#home-discovery", "/conheca"] },
-    { label: "Participar", paths: ["/salvos", "/ingressos", "/atividade", "/salas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
+    { label: "Participar", paths: ["/salvos", "/ingressos", "/atividade", "/salas", "/conversas", "/notificacoes", "/perfil-conexoes", "/Profile"] },
     { label: "Organizar", paths: ["/para-organizadores", "/CriarEvento", "/myEvents", "/myEvents/pagamentos", "/resultados"] },
     { label: "Administrar", paths: ["/admin", "/admin/eventos-ia", "/admin/destaques", "/admin/ingressos", "/admin/reports", "/admin/conexoes-denuncias", "/admin/auditoria"] },
     { label: "Privacidade", paths: ["/privacidade", "/privacidade/solicitacoes"] },

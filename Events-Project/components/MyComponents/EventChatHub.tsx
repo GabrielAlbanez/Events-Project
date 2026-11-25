@@ -28,7 +28,7 @@ function EventChatContent({ eventId }: { eventId: string }) {
   return <EventChatView eventId={eventId} chat={chat} realtime={realtime} />;
 }
 
-export function EventChatView({ eventId, chat, realtime, privateMode = false, conversations, selectedConversation, conversationsLoading, partnerOnline, headerAction }: { eventId: string; chat: ReturnType<typeof useEventChat>; realtime: string; privateMode?: boolean; conversations?: ChatListItem[]; selectedConversation?: string; conversationsLoading?: boolean; partnerOnline?: boolean | null; headerAction?: ReactNode }) {
+export function EventChatView({ eventId, chat, realtime, privateMode = false, conversations, selectedConversation, conversationsLoading, partnerOnline, headerAction, listSlot, backLink, headerBadge }: { eventId: string; chat: ReturnType<typeof useEventChat>; realtime: string; privateMode?: boolean; conversations?: ChatListItem[]; selectedConversation?: string; conversationsLoading?: boolean; partnerOnline?: boolean | null; headerAction?: ReactNode; listSlot?: ReactNode; backLink?: { href: string; label: string; mobileOnly?: boolean }; headerBadge?: ReactNode }) {
   const [conversationOpen, setConversationOpen] = useState(true);
   const reduced = useReducedMotion();
   const { typing, acknowledge } = chat;
@@ -183,7 +183,7 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
   const statusLabel = chat.denied ? "Acesso restrito" : !chat.online ? "Sem conexão" : realtime === "live" ? "Conectado ao chat" : realtime === "connecting" ? "Conectando" : realtime === "denied" ? "Acesso indisponível" : "Sincronizando pelo histórico";
   const peerStatus = privateMode && !chat.denied && partnerOnline !== undefined && partnerOnline !== null ? partnerOnline ? "online" : "offline" : statusLabel;
   const statusTone = chat.denied || !chat.online ? "off" : privateMode && partnerOnline !== undefined && partnerOnline !== null ? partnerOnline ? "live" : "off" : realtime === "live" ? "live" : "wait";
-  const single = !conversations;
+  const single = !conversations && !listSlot;
   const starters = privateMode ? ["Oi! Que bom que deu match 👋", "Você já chegou ao evento?", "Bora se encontrar lá?"] : ["Oi, pessoal! 👋", "Alguém indo de carona?", "Que horas vocês chegam?"];
   const applyStarter = (text: string) => { draftRevision.current++; setDraft(text); document.getElementById("event-chat-message")?.focus(); };
 
@@ -191,15 +191,15 @@ export function EventChatView({ eventId, chat, realtime, privateMode = false, co
 
   return <LazyMotion features={loadAnimationFeatures} strict><div className={styles.page}>
 
-    <div className={`${styles.toolbar} ${single ? styles.toolbarSingle : ""}`}><Link href={`/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{privateMode ? "Conexões da festa" : "Voltar ao evento"}</Link></div>
+    <div className={`${styles.toolbar} ${single ? styles.toolbarSingle : ""} ${backLink?.mobileOnly ? styles.toolbarMobileOnly : ""}`}><Link href={backLink?.href ?? `/eventos/${encodeURIComponent(eventId)}${privateMode ? "/conexoes" : ""}`} className="inline-flex items-center gap-2"><ArrowLeft size={15} aria-hidden="true" />{backLink?.label ?? (privateMode ? "Conexões da festa" : "Voltar ao evento")}</Link></div>
 
     <section className={`${styles.shell} ${single ? styles.single : conversationOpen ? styles.conversationOpen : styles.listOpen}`} aria-label="Chat">
 
-      {!single && <ChatList items={items} selected={selectedConversation ?? eventId} onSelect={() => setConversationOpen(true)} loading={conversationsLoading} />}
+      {listSlot ?? (!single && <ChatList items={items} selected={selectedConversation ?? eventId} onSelect={() => setConversationOpen(true)} loading={conversationsLoading} />)}
 
       <section className={styles.conversation} aria-label="Conversa dos participantes">
 
-        <ChatHeader name={chat.event?.name ?? (privateMode ? "Conversa privada" : "Chat do evento")} image={chat.event?.partnerImage} status={peerStatus} tone={statusTone} typing={typingVisible} refresh={() => void chat.refresh()} disabled={!chat.online || chat.loading || chat.denied} back={single ? undefined : () => setConversationOpen(false)} action={chat.denied ? undefined : headerAction} />
+        <ChatHeader name={chat.event?.name ?? (privateMode ? "Conversa privada" : "Chat do evento")} image={chat.event?.partnerImage} status={peerStatus} tone={statusTone} typing={typingVisible} refresh={() => void chat.refresh()} disabled={!chat.online || chat.loading || chat.denied} back={single || listSlot ? undefined : () => setConversationOpen(false)} action={chat.denied ? undefined : headerAction} badge={headerBadge} />
 
         {chat.error && <p role="alert" className={`${styles.notice} ${styles.noticeError}`}><AlertCircle size={16} aria-hidden="true" /><span>{chat.error}</span></p>}
 

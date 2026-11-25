@@ -16,6 +16,8 @@
 .statusDot[data-tone="live"] { background: hsl(142 70% 42%); box-shadow: 0 0 0 3px hsl(142 70% 42% / .18); }
 .statusDot[data-tone="wait"] { background: hsl(38 92% 50%); }
 .statusDot[data-tone="typing"] { background: var(--chat-accent); }
+.headerBadge { display: flex; min-width: 0; margin-top: 3px; }
+.headerBadge > * { min-width: 0; }
 .headerActions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; color: var(--chat-muted); border-radius: 50%; }
 .iconButton:disabled, .sendButton:disabled { opacity: .5; cursor: not-allowed; }
@@ -110,4 +112,5 @@
 @media (hover: hover) { .iconButton:hover, .listItem:hover, .emojiPanel button:hover, .starter:hover { background: var(--chat-hover); } .listItem.selected:hover { background: var(--chat-selected); } .sendButton:not(:disabled):hover { box-shadow: 0 0 0 4px hsl(var(--cta) / .3); } }
 @media (pointer: coarse) { .keyHint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .iconButton, .sendButton, .listItem, .emojiPanel button, .starter { transition: none; } .iconButton:active, .sendButton:active, .emojiPanel button:active, .starter:active { transform: none; } }
+@media (min-width: 768px) { .toolbarMobileOnly { display: none; } }
 @media (max-width: 767px) { .page { padding: 0; min-height: 360px; } .toolbar { padding: 0 8px; min-height: 44px; } .shell { border-radius: 0; border-inline: 0; border-bottom: 0; box-shadow: none; grid-template-columns: minmax(0, 1fr); } .conversationOpen > .list { display: none; } .listOpen > .conversation { display: none; } .mobileBack { display: inline-flex; } .header { padding: 6px 6px 6px 8px; gap: 8px; min-height: 60px; } .header h1 { font-size: 15px; } .history { padding: 8px 10px 12px; } .bubble { max-width: 84%; } .incomingBubble { max-width: calc(100% - 64px); } .composer { padding-left: 4px; padding-right: 8px; } }
