@@ -4,6 +4,8 @@ type EventDateBlockProps = {
   date: string | null | undefined;
   className?: string;
   size?: "xs" | "sm" | "md";
+  /** "brand" is the primary-tinted tile of the home event cards; "card" (default) keeps the neutral chip. */
+  tone?: "card" | "brand";
 };
 
 const weekdayFormat = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
@@ -24,10 +26,11 @@ const sizes = {
  * Calendar-style date chip (weekday / day / month); `xs` is a compact single-line badge for small thumbnails. Server-safe: no hooks or browser APIs.
  * `YYYY-MM-DD` values are read as local calendar dates via `parseEventDate` (no UTC off-by-one).
  */
-export function EventDateBlock({ date, className = "", size = "md" }: EventDateBlockProps) {
+export function EventDateBlock({ date, className = "", size = "md", tone = "card" }: EventDateBlockProps) {
   const parsed = date ? parseEventDate(date) : null;
   const style = sizes[size];
-  const box = `inline-flex items-center justify-center border border-border bg-card text-center text-card-foreground shadow-surface ${style.box} ${className}`;
+  const toneClass = tone === "brand" ? "border-primary/20 bg-primary/[0.07] text-brand dark:bg-primary/15" : "border-border bg-card text-card-foreground shadow-surface";
+  const box = `inline-flex items-center justify-center border text-center ${toneClass} ${style.box} ${tone === "brand" && size === "md" ? "rounded-2xl" : ""} ${className}`;
   if (!parsed) {
     return (
       <span className={box}>

@@ -46,12 +46,12 @@ function SparkTile() {
 export function SimilarEvents({ items, title = "Eventos parecidos" }: { items: RecommendedEvent[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <section aria-labelledby="similar-events-title" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <section aria-labelledby="similar-events-title" className="rounded-[22px] border border-border/85 bg-card p-5 shadow-[var(--em-shadow-card)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-3">
           <SparkTile />
           <div className="min-w-0">
-            <h2 id="similar-events-title" className="text-lg font-semibold tracking-tight">{title}</h2>
+            <h2 id="similar-events-title" className="text-xl font-bold tracking-[-0.025em]">{title}</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Selecionados pela categoria, pelo organizador, pela distância ou por quem também salvou.</p>
           </div>
         </div>
@@ -61,8 +61,8 @@ export function SimilarEvents({ items, title = "Eventos parecidos" }: { items: R
         {items.map(({ event, reason }) => {
           const ReasonIcon = reasonIcon(reason);
           return (
-            <li key={event.id} className="em-motion-lift w-[80%] min-w-0 shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-surface hover:shadow-highlight sm:w-auto">
-              <Link href={"/eventos/" + encodeURIComponent(event.id)} className="group flex h-full min-w-0 flex-col rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+            <li key={event.id} className="em-motion-lift w-[80%] min-w-0 shrink-0 snap-start overflow-hidden rounded-[22px] border border-border/85 bg-card shadow-[var(--em-shadow-card)] hover:border-primary/30 hover:shadow-[var(--em-shadow-elevated)] sm:w-auto">
+              <Link href={"/eventos/" + encodeURIComponent(event.id)} className="group flex h-full min-w-0 flex-col rounded-[21px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-primary/10">
                   {event.banner
                     ? <EventArtwork src={event.banner} loading="lazy" className="h-full w-full" imgClassName="motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-focus-visible:scale-[1.04] [@media(hover:hover)_and_(pointer:fine)]:motion-safe:group-hover:scale-[1.04]" />
@@ -74,14 +74,14 @@ export function SimilarEvents({ items, title = "Eventos parecidos" }: { items: R
                     <ReasonIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span className="line-clamp-1 break-words">{reason}</span>
                   </p>
-                  <h3 className="line-clamp-2 min-h-12 break-words font-semibold leading-6">{event.nome}</h3>
+                  <h3 className="line-clamp-2 min-h-12 break-words text-[17px] font-bold leading-6 tracking-[-0.02em]">{event.nome}</h3>
                   <p className="flex items-center gap-2 text-sm text-muted-foreground"><Clock className="h-4 w-4 shrink-0" aria-hidden="true" />{event.startTime ? "Às " + event.startTime : "Horário a confirmar"}</p>
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="line-clamp-1 break-words">{event.endereco || "Local a confirmar"}</span></p>
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" /><span className="line-clamp-1 break-words">{event.endereco || "Local a confirmar"}</span></p>
                   <div className="mt-auto flex min-h-11 flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                     {event.isFree
                       ? <span className="inline-flex rounded-full border border-cta-foreground/15 bg-cta px-2.5 py-1 text-xs font-semibold text-cta-foreground">{formatPrice(event)}</span>
                       : <span className="text-sm font-medium">{formatPrice(event)}</span>}
-                    <span className="text-sm font-semibold text-brand group-hover:underline">Ver evento <span aria-hidden="true">→</span></span>
+                    <span className="inline-flex min-h-10 items-center rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground group-hover:brightness-105">Ver evento <span aria-hidden="true">&nbsp;→</span></span>
                   </div>
                 </div>
               </Link>

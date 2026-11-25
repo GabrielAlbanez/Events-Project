@@ -116,8 +116,8 @@ export default function CardEvents({ events }: CardEventsProps) {
     <>
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {events.map((event) => (
-          <article key={event.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm em-motion-card hover:shadow-md">
-            <div className="relative h-48 overflow-hidden bg-muted">
+          <article key={event.id} className="em-surface em-motion-lift group flex min-w-0 flex-col overflow-hidden em-motion-card">
+            <div className="relative aspect-[16/10] overflow-hidden bg-muted">
               {event.banner ? (
                 <Image src={event.banner} alt={`Capa do evento ${event.nome}`} removeWrapper className="h-full w-full object-cover em-motion-cover" />
               ) : (
@@ -128,18 +128,18 @@ export default function CardEvents({ events }: CardEventsProps) {
                 {eventStatusLabels[(event.status ?? "PENDING") as EventStatus] ?? "Em análise"}
               </span>
             </div>
-            <div className="flex flex-1 flex-col p-5">
-              <h2 className="line-clamp-2 text-lg font-semibold tracking-tight">{event.nome}</h2>
+            <div className="flex flex-1 flex-col p-5 sm:p-[22px]">
+              <h2 className="line-clamp-2 text-[19px] font-bold leading-snug tracking-[-0.02em]">{event.nome}</h2>
               <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{event.descricao || "Sem descrição."}</p>
               <div className="mt-4 space-y-2 text-sm text-muted-foreground">
                 <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" />{formatDate(event.dataInicio)}</p>
                 {event.endereco && <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" /><span className="line-clamp-1">{event.endereco}</span></p>}
               </div>
-              <button type="button" onClick={() => setSelectedEvent(event)} className="mt-5 inline-flex min-h-10 items-center justify-center rounded-xl border border-primary/30 bg-primary/5 px-4 text-sm font-semibold text-brand transition-colors hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <button type="button" onClick={() => setSelectedEvent(event)} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-cta bg-cta px-4 text-sm font-semibold text-cta-foreground transition-[filter] hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 Ver detalhes
               </button>
-              <Link href={`/eventos/${event.id}/comunidade`} className="em-motion-waypoint mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Comunidade e equipe <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-lg border px-3 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-lg border border-primary/30 bg-primary/5 px-3 font-medium text-brand hover:bg-primary/10">Check-in</Link>}{event.status === "PUBLISHED" && (event.pendingRequests ?? 0) > 0 && <Link href={`/myEvents/${encodeURIComponent(event.id)}/checkin#solicitacoes`} aria-label={pendingRequestsLabel(event.pendingRequests ?? 0)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 font-semibold text-amber-900 hover:bg-amber-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:text-amber-200"><Inbox className="size-3.5 shrink-0" aria-hidden="true" />Solicitações<span aria-hidden="true" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-xs font-bold leading-5 text-white dark:bg-amber-400 dark:text-amber-950">{event.pendingRequests}</span></Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${encodeURIComponent(event.id)}/destaque`} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-cta-foreground/15 bg-cta px-3 font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Sparkles className="size-3.5" aria-hidden="true" />Destacar evento</Link>}{isPromotable(event.status) && <EventPromoKit event={event} />}{event.ticketsEnabled && !event.isFree && event.status !== "CANCELLED" && event.status !== "ENDED" && <TicketCoupons eventId={event.id} eventName={event.nome} priceCents={event.priceCents ?? null} />}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-lg border px-3 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-lg border border-destructive/30 px-3 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
+              <Link href={`/eventos/${event.id}/comunidade`} className="em-motion-waypoint mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-sm font-semibold hover:border-primary/50 hover:bg-primary/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Comunidade e equipe <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">{event.status !== "CANCELLED" && event.status !== "ENDED" && <Link href={`/eventos/${event.id}/editar`} className="inline-flex min-h-10 items-center rounded-full border px-3.5 font-medium hover:bg-muted">Editar</Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${event.id}/checkin`} className="inline-flex min-h-10 items-center rounded-full border border-primary/30 bg-primary/5 px-3.5 font-medium text-brand hover:bg-primary/10">Check-in</Link>}{event.status === "PUBLISHED" && (event.pendingRequests ?? 0) > 0 && <Link href={`/myEvents/${encodeURIComponent(event.id)}/checkin#solicitacoes`} aria-label={pendingRequestsLabel(event.pendingRequests ?? 0)} className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 font-semibold text-amber-900 hover:bg-amber-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:text-amber-200"><Inbox className="size-3.5 shrink-0" aria-hidden="true" />Solicitações<span aria-hidden="true" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-xs font-bold leading-5 text-white dark:bg-amber-400 dark:text-amber-950">{event.pendingRequests}</span></Link>}{event.status === "PUBLISHED" && <Link href={`/myEvents/${encodeURIComponent(event.id)}/destaque`} className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-cta-foreground/15 bg-cta px-3.5 font-semibold text-cta-foreground hover:bg-cta/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Sparkles className="size-3.5" aria-hidden="true" />Destacar evento</Link>}{isPromotable(event.status) && <EventPromoKit event={event} />}{event.ticketsEnabled && !event.isFree && event.status !== "CANCELLED" && event.status !== "ENDED" && <TicketCoupons eventId={event.id} eventName={event.nome} priceCents={event.priceCents ?? null} />}<button type="button" disabled={busyEventId === event.id} onClick={() => void runEventAction(event, "duplicate")} className="min-h-10 rounded-full border px-3.5 font-medium hover:bg-muted disabled:opacity-50">Duplicar</button>{event.status === "PUBLISHED" && <button type="button" disabled={busyEventId === event.id} onClick={(click) => { if (actionPending.current) return; cancelTrigger.current = click.currentTarget; setCancelError(""); setCancelEvent(event); }} className="min-h-10 rounded-full border border-destructive/30 px-3.5 font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Cancelar</button>}</div>
             </div>
           </article>
         ))}
@@ -152,7 +152,7 @@ export default function CardEvents({ events }: CardEventsProps) {
           <DialogOverlay className="z-[70] bg-black/60 backdrop-blur-sm motion-reduce:animate-none" />
           <DialogPrimitive.Content
             role="alertdialog"
-            className="fixed left-1/2 top-1/2 z-[80] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border bg-card p-6 text-foreground shadow-2xl focus:outline-none sm:p-7"
+            className="fixed left-1/2 top-1/2 z-[80] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[22px] border bg-card p-6 text-foreground shadow-2xl focus:outline-none sm:p-7"
             onOpenAutoFocus={(event) => { event.preventDefault(); keepEventButton.current?.focus(); }}
             onCloseAutoFocus={(event) => { event.preventDefault(); cancelTrigger.current?.focus(); }}
             onEscapeKeyDown={(event) => { if (actionPending.current) event.preventDefault(); }}
@@ -170,10 +170,10 @@ export default function CardEvents({ events }: CardEventsProps) {
             </DialogHeader>
             {cancelError && <p role="alert" className="mt-5 break-words rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-red-600 dark:text-red-400">{cancelError}</p>}
             <DialogFooter className="mt-6 gap-3 sm:space-x-0">
-              <Button ref={keepEventButton} variant="outline" disabled={Boolean(busyEventId)} className="min-h-11 rounded-xl" onClick={() => { setCancelEvent(null); setCancelError(""); }}>
+              <Button ref={keepEventButton} variant="outline" disabled={Boolean(busyEventId)} className="min-h-11" onClick={() => { setCancelEvent(null); setCancelError(""); }}>
                 Manter evento
               </Button>
-              <Button variant="destructive" disabled={Boolean(busyEventId)} className="min-h-11 rounded-xl" onClick={() => { if (cancelEvent) void runEventAction(cancelEvent, "cancel"); }}>
+              <Button variant="destructive" disabled={Boolean(busyEventId)} className="min-h-11" onClick={() => { if (cancelEvent) void runEventAction(cancelEvent, "cancel"); }}>
                 {busyEventId === cancelEvent?.id ? <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" /><span role="status">Cancelando...</span></> : "Cancelar evento"}
               </Button>
             </DialogFooter>
@@ -181,7 +181,7 @@ export default function CardEvents({ events }: CardEventsProps) {
         </DialogPortal>
       </Dialog>
 
-      <Modal isOpen={Boolean(selectedEvent)} onClose={() => setSelectedEvent(null)} scrollBehavior="inside" size="2xl" classNames={{ base: "bg-card text-foreground", header: "border-b", body: "py-6" }}>
+      <Modal isOpen={Boolean(selectedEvent)} onClose={() => setSelectedEvent(null)} scrollBehavior="inside" size="2xl" classNames={{ base: "bg-card text-foreground rounded-[22px]", header: "border-b", body: "py-6" }}>
         <ModalContent>
           {selectedEvent && (
             <>

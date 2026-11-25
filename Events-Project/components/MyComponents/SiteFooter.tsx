@@ -10,14 +10,14 @@ export const siteFooterLinks = [
 
 export function SiteFooter({ className = "" }: { className?: string }) {
   return (
-    <footer className={`border-t border-border px-4 py-6 sm:px-6 lg:px-10 ${className}`}>
+    <footer className={`border-t border-border px-4 py-8 sm:px-6 lg:px-10 ${className}`}>
       <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">EventMap — descubra e organize eventos perto de você.</p>
+        <p className="flex items-center gap-2.5 text-sm text-muted-foreground"><span aria-hidden="true" className="h-[3px] w-[18px] shrink-0 rounded-full bg-cta" />EventMap — descubra e organize eventos perto de você.</p>
         <nav aria-label="Links institucionais">
           <ul className="flex flex-wrap gap-x-5 gap-y-1">
             {siteFooterLinks.map(link => (
               <li key={link.href}>
-                <Link href={link.href} className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none">{link.label}</Link>
+                <Link href={link.href} className="inline-flex min-h-11 items-center rounded-full text-sm font-medium text-muted-foreground transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none">{link.label}</Link>
               </li>
             ))}
           </ul>
