@@ -47,10 +47,10 @@ function GhostMap() {
 export function MapConsentCard() {
   const { enableMaps } = useGoogleMaps();
   return (
-    <section aria-label="Ativar mapa opcional" className="relative isolate flex h-full min-h-[420px] items-center justify-center overflow-y-auto overflow-x-hidden bg-muted px-4 pb-6 pt-20 md:p-8">
+    <section aria-label="Ativar mapa opcional" className="relative isolate flex h-full min-h-0 overflow-y-auto overflow-x-hidden bg-muted px-4 py-5 md:min-h-[420px] md:p-8">
       <GhostMap />
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--muted)/0.55),transparent_70%)]" />
-      <div className="relative w-full max-w-[26rem] rounded-[22px] border border-black/[.06] bg-card p-6 text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 sm:p-7">
+      <div className="relative m-auto w-full max-w-[26rem] rounded-[22px] border border-black/[.06] bg-card p-6 text-card-foreground shadow-[0_1px_2px_rgba(16,21,31,.06),0_14px_28px_-14px_rgba(16,21,31,.22),0_40px_80px_-32px_rgba(16,21,31,.42)] dark:border-white/10 sm:p-7">
         <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl bg-cta text-cta-foreground shadow-sm"><MapIcon className="h-6 w-6" /></span>
         <h2 className="mt-4 text-2xl font-bold tracking-tight">Explore pelo <span className="text-[#4E7A00] dark:text-cta">mapa</span></h2>
         <div className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">

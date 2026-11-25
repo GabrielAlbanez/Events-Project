@@ -880,8 +880,8 @@ export default function Mapa(props: MapProps) {
   if (!enabled && configured) return <MapConsentCard />;
 
   return (
-    <section className="flex h-full min-h-[520px] items-center justify-center bg-muted p-8">
-      <div className="max-w-sm rounded-3xl border border-border bg-card/95 p-6 text-center shadow-surface backdrop-blur">
+    <section className="flex h-full min-h-0 overflow-y-auto bg-muted p-4 md:min-h-[520px] md:p-8">
+      <div className="m-auto max-w-sm rounded-3xl border border-border bg-card/95 p-6 text-center shadow-surface backdrop-blur">
         <MapPin className="mx-auto mb-3 h-7 w-7 text-brand" />
         <h2 className="text-lg font-semibold">Mapa indisponível</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{error || "Você ainda pode explorar e filtrar os eventos na lista."}</p>

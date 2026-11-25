@@ -7,7 +7,8 @@ import { useGoogleMaps } from "@/components/MyComponents/GoogleMapsLoader";
 import { LocationPicker } from "@/components/MyComponents/home/LocationPicker";
 import { requestBrowserPosition } from "@/lib/geolocationHelp";
 import { Evento } from "@/types";
-import { ArrowRight, CalendarDays, ChevronDown, ChevronRight, LayoutGrid, List, MapPin, Map as MapIcon, Search, Star, X } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, ChevronRight, LayoutGrid, List, MapPin, Map as MapIcon, Search, SlidersHorizontal, Star, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { matchesPeriod, type DiscoveryPeriod as Period } from "@/lib/discoveryPeriod";
 import styles from "@/app/discovery.module.css";
@@ -41,6 +42,7 @@ type HomeDiscoveryClientProps = {
  */
 export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClientProps) {
   const socket = useSocket();
+  const router = useRouter();
   const homeScrollContainer = useRef<HTMLDivElement>(null);
   const [discovery, setDiscovery] = useState<DiscoveryFilter>(emptyDiscoveryFilter);
   const [events, setEvents] = useState<Evento[]>(() => initialEvents ? visibleHomeEvents(initialEvents) : []);
@@ -68,6 +70,8 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
   const locationRequest = useRef(0);
   const { isLoaded: mapsLoaded, enabled: mapsEnabled, configured: mapsConfigured, enableMaps } = useGoogleMaps();
   const [showAllCategories, setShowAllCategories] = useState(false);
+  /** Mobile only: location, period, categories and extra filters fold behind "Filtros" so results stay in view. */
+  const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
     const query = window.matchMedia("(max-width: 767px)");
     const sync = () => setCompact(query.matches);
@@ -124,17 +128,28 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     return () => { controller.abort(); socket.off("update-events", refresh); socket.off("connect", refresh); };
   }, [socket, retry]);
 
+  /**
+   * Aligns the discovery section with the inner scroller. On mobile the section is exactly one scroller tall,
+   * so it lands flush (a 16px offset would hide the bottom of the sheet); desktop keeps a little breathing room.
+   */
+  const scrollToDiscovery = useCallback(() => {
+    const container = homeScrollContainer.current;
+    const target = document.getElementById("home-discovery");
+    if (!container || !target || !container.contains(target)) return null;
+    const offset = window.matchMedia("(max-width: 767px)").matches ? 0 : 16;
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - offset;
+    container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    return target;
+  }, []);
+
   useEffect(() => {
     if (!urlReady) return;
     let frame = 0;
     const openDiscovery = (event?: Event) => {
-      const container = homeScrollContainer.current;
-      const target = document.getElementById("home-discovery");
-      if (!container || !target) return;
       const focusSearch = event ? Boolean((event as CustomEvent<{ focusSearch?: boolean }>).detail?.focusSearch) : window.location.hash === "#home-discovery-search";
       if (window.matchMedia("(max-width: 767px)").matches) setSheetExpanded(focusSearch);
-      const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
-      container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      const target = scrollToDiscovery();
+      if (!target) return;
       frame = window.requestAnimationFrame(() => (focusSearch ? document.getElementById("home-discovery-search") : target)?.focus({ preventScroll: true }));
     };
     const openHome = () => homeScrollContainer.current?.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -142,7 +157,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     window.addEventListener("eventmap:home", openHome);
     if (["#home-discovery", "#home-discovery-search"].includes(window.location.hash)) openDiscovery();
     return () => { window.removeEventListener("eventmap:discovery", openDiscovery); window.removeEventListener("eventmap:home", openHome); window.cancelAnimationFrame(frame); };
-  }, [urlReady]);
+  }, [urlReady, scrollToDiscovery]);
 
   /** Raw city names first, then venue-prefixed names ("Arena Campinas, SP") folded into a known city. */
   const cityOf = useMemo(() => {
@@ -243,7 +258,13 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     if (window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(next === "lista"); setView("mapa"); }
     else setView(next);
   };
-  const selectFromList = (id: string) => { setSelectedId(id); setHighlightedId(null); setSheetExpanded(false); setView("mapa"); if (window.matchMedia("(max-width: 767px)").matches) sheetToggle.current?.focus(); };
+  const selectFromList = (id: string) => {
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    // Without the (opt-in) map, "show on map" would only reveal the consent card: open the event page instead.
+    if (mobile && !mapsLoaded) { router.push(`/eventos/${encodeURIComponent(id)}`); return; }
+    setSelectedId(id); setHighlightedId(null); setSheetExpanded(false); setView("mapa");
+    if (mobile) window.requestAnimationFrame(() => sheetToggle.current?.focus());
+  };
 
   const handleMapSelect = useCallback((id: string | null) => { mapSelection.current = id; setSelectedId(id); }, []);
 
@@ -262,6 +283,25 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
   }, [selectedId]);
 
   const hasActiveFilters = Boolean(city || search || period !== "todos" || discovery.category || discovery.free || discovery.maxPrice || discovery.radius || discovery.travelMinutes !== null);
+  /** Filters folded behind the mobile "Filtros" button (the text search stays visible, so it is not counted). */
+  const activeFilterCount = [city || discovery.origin, period !== "todos", discovery.category, discovery.free, discovery.maxPrice, discovery.radius, discovery.travelMinutes !== null].filter(Boolean).length;
+  /** Applied values shown as removable chips on mobile while the filters are folded. */
+  const appliedChips: { key: string; label: string; clear: () => void }[] = [
+    ...(userPlace ? [{ key: "origin", label: userPlace.label ?? "Perto de você", clear: clearMyLocation }] : city ? [{ key: "city", label: city, clear: () => setCity("") }] : []),
+    ...(period !== "todos" ? [{ key: "period", label: filters.find((filter) => filter.value === period)?.label ?? "Período", clear: () => setPeriod("todos") }] : []),
+    ...(discovery.category ? [{ key: "category", label: discovery.category, clear: () => setDiscovery((current) => ({ ...current, category: "", travelMinutes: null, travelDurations: {} })) }] : []),
+    ...(discovery.free ? [{ key: "free", label: "Grátis", clear: () => setDiscovery((current) => ({ ...current, free: false, travelMinutes: null, travelDurations: {} })) }] : []),
+    ...(discovery.maxPrice ? [{ key: "price", label: `Até R$ ${discovery.maxPrice}`, clear: () => setDiscovery((current) => ({ ...current, maxPrice: "", travelMinutes: null, travelDurations: {} })) }] : []),
+  ];
+  const resultCount = filteredEvents.length;
+  const query = search.trim();
+  const resultsTitle = query ? (loading ? "Buscando eventos…" : `${resultCount} evento${resultCount === 1 ? "" : "s"} para “${query}”`) : hasFeatured ? "Eventos em destaque" : "Próximos eventos";
+  const viewSwitch = (className: string) => <div role="group" aria-label="Modo de visualização" className={className}>
+    {([["mapa", "Mapa", MapIcon], ["lista", "Lista", List]] as const).map(([value, label, Icon]) => {
+      const active = value === "lista" ? listActive : !listActive;
+      return <button key={value} type="button" aria-pressed={active} onClick={() => chooseView(value)} className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground/80 hover:bg-muted"}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>;
+    })}
+  </div>;
 
   const handleQuickSearch = ({ location, period: selectedPeriod, category }: { location: string; period: Period; category: string }) => {
     const query = location.trim().slice(0, 100);
@@ -269,18 +309,18 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     setSearch(query);
     setPeriod(selectedPeriod);
     setDiscovery(current => ({ ...current, category: selectedCategory }));
-    if (window.matchMedia("(max-width: 767px)").matches) setSheetExpanded(true);
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    if (mobile) { setSheetExpanded(true); setFiltersOpen(false); }
     const url = new URL(window.location.href);
     const entries = { q: query, periodo: selectedPeriod === "todos" ? "" : selectedPeriod, categoria: selectedCategory };
     Object.entries(entries).forEach(([key, value]) => { if (value) url.searchParams.set(key, value); else url.searchParams.delete(key); });
     url.hash = "home-discovery";
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
-    const container = homeScrollContainer.current;
-    const target = document.getElementById("home-discovery");
-    if (!container || !target || !container.contains(target)) return;
-    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
-    container.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    const target = scrollToDiscovery();
+    if (!target) return;
     target.focus({ preventScroll: true });
+    // Mobile: the results list starts right under the compact search row, so show it from the top.
+    if (mobile) window.requestAnimationFrame(() => listScroll.current?.scrollTo({ top: 0 }));
   };
 
   return (
@@ -290,7 +330,11 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
       <div ref={homeScrollContainer} className={styles.scroller}>
       <LuxuryHomePresentation events={events} loading={loading} loadError={loadError} scrollContainer={homeScrollContainer} period={period} periodLinks={periodLinks} onPeriodChange={setPeriod} onQuickSearch={handleQuickSearch} searchValue={search} categoryValue={discovery.category} />
       <section id="home-discovery" tabIndex={-1} aria-label="Explorar eventos no mapa" className={`${styles.main} ${sheetExpanded ? styles.mainExpanded : ""} relative min-h-0 flex-1 md:min-h-[520px] md:grid md:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:grid-cols-[minmax(400px,480px)_minmax(0,1fr)]`}>
-        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet md:relative md:inset-auto md:z-30 md:rounded-r-[2rem] md:rounded-tl-none md:border-r md:border-t-0 md:shadow-[18px_0_48px_-28px_hsl(var(--foreground)/0.28)]`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); sheetToggle.current?.focus(); } }}>
+        {/* Mobile: the view switch sits in its own bar, in normal flow, so it never covers the map, the consent card or the list. */}
+        <div className={`${styles.viewBar} flex items-center border-b border-border bg-background px-4 md:hidden`}>
+          {viewSwitch("flex rounded-full border border-border bg-card p-1 shadow-surface")}
+        </div>
+        <section className={`${styles.sheet} absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[1.75rem] border-t border-border bg-card shadow-sheet md:relative md:inset-auto md:z-30 md:rounded-r-[2rem] md:rounded-tl-none md:border-r md:border-t-0 md:shadow-[18px_0_48px_-28px_hsl(var(--foreground)/0.28)]`} onKeyDown={(event) => { if (event.key === "Escape" && sheetExpanded && window.matchMedia("(max-width: 767px)").matches) { setSheetExpanded(false); window.requestAnimationFrame(() => sheetToggle.current?.focus()); } }}>
           <button ref={sheetToggle} type="button" aria-expanded={sheetExpanded} aria-controls="discovery-panel-content" aria-label={sheetExpanded ? "Recolher busca e lista de eventos" : "Expandir busca, filtros e lista de eventos"} onClick={() => setSheetExpanded((value) => !value)} onTouchStart={(event) => { touchStart.current = event.touches[0].clientY; }} onTouchCancel={() => { touchStart.current = null; }} onTouchEnd={(event) => { if (touchStart.current !== null) { const delta = event.changedTouches[0].clientY - touchStart.current; if (Math.abs(delta) > 55) setSheetExpanded(delta < 0); touchStart.current = null; } }} className={`${styles.sheetToggle} shrink-0 touch-none px-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:hidden`}>
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-muted-foreground/30" />
             <span className="flex items-center gap-3">
@@ -300,9 +344,9 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
             </span>
           </button>
           <div ref={listScroll} id="discovery-panel-content" className={`${styles.sheetContent} ${sheetExpanded ? styles.sheetContentExpanded : ""} min-h-0 flex-1 flex-col overflow-y-auto`}>
-          <div className="relative isolate px-5 pb-4 pt-2 md:px-8 md:pt-7">
+          <div className="relative isolate flex flex-col px-5 pb-3 pt-4 md:block md:px-8 md:pb-4 md:pt-7">
             <svg aria-hidden="true" viewBox="0 0 160 120" fill="none" className="pointer-events-none absolute -left-10 -top-14 -z-10 hidden h-32 w-44 text-cta md:block"><path d="M4 112C30 58 78 22 156 8" stroke="currentColor" strokeWidth="10" strokeLinecap="round" opacity=".55" /></svg>
-            <div className="relative flex items-start justify-between gap-3">
+            <div id="discovery-location" className={`relative order-3 mt-4 items-start justify-between gap-3 md:mt-0 md:flex ${filtersOpen ? "flex" : "hidden"}`}>
               <LocationPicker
                 cities={cities}
                 city={city}
@@ -320,21 +364,30 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
                 {loadError ? "Atualização pendente" : discovery.origin ? "Perto de você" : "Eventos por perto"}
               </span>
             </div>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-[1.1] tracking-tight md:mt-6 md:text-[2.5rem]">
+            <h2 className="mt-6 hidden text-[1.75rem] font-bold leading-[1.1] tracking-tight md:block md:text-[2.5rem]">
               Escolha como viver a{" "}
               <span className="relative inline-block text-[#4E7A00] dark:text-cta">cidade<svg aria-hidden="true" viewBox="0 0 140 14" preserveAspectRatio="none" className="absolute -bottom-2 left-0 h-3 w-full text-cta"><path d="M3 9C34 4 70 3 137 6M10 12c30-3 62-4 104-3" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none" /></svg></span>
             </h2>
             <p className="mt-3 hidden text-[15px] leading-6 text-muted-foreground md:block">Explore a agenda e encontre o que combina com você.</p>
-            <label className="mt-5 flex h-12 items-center gap-3 rounded-2xl border border-border bg-muted/60 px-4 transition-colors focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20 md:h-14">
+            <div className="order-1 flex items-center gap-2 md:mt-5 md:block">
+            <label className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-2xl border border-border bg-muted/60 px-4 transition-colors focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20 md:h-14">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <input id="home-discovery-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento ou lugar…" aria-label="Buscar evento ou lugar" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
               {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4 text-muted-foreground" /></button>}
             </label>
-            <div role="group" aria-label="Período" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:px-0">
+              <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} aria-controls="discovery-location discovery-period discovery-categories-block discovery-more-filters" className={`inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card md:hidden ${filtersOpen ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}>
+                <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />Filtros
+                {activeFilterCount > 0 && <><span aria-hidden="true" className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold leading-none text-primary-foreground">{activeFilterCount}</span><span className="sr-only">, {activeFilterCount} {activeFilterCount === 1 ? "ativo" : "ativos"}</span></>}
+              </button>
+            </div>
+            {!filtersOpen && appliedChips.length > 0 && <ul aria-label="Filtros aplicados" className="order-2 -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:hidden">
+              {appliedChips.map((chip) => <li key={chip.key} className="shrink-0"><button type="button" onClick={chip.clear} aria-label={`Remover filtro ${chip.label}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-cta-foreground/10 bg-cta py-2 pl-4 pr-3 text-xs font-semibold text-cta-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">{chip.label}<X aria-hidden="true" className="h-3.5 w-3.5" /></button></li>)}
+            </ul>}
+            <div id="discovery-period" role="group" aria-label="Período" className={`order-4 -mx-5 mt-4 gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:flex md:px-0 ${filtersOpen ? "flex" : "hidden"}`}>
               {filters.map((filter) => <button key={filter.value} type="button" onClick={() => setPeriod(filter.value)} aria-pressed={period === filter.value} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${period === filter.value ? "border border-cta-foreground/10 bg-cta text-cta-foreground shadow-sm" : "border border-border bg-card text-foreground/80 hover:border-primary/30"}`}>{filter.value !== "todos" && <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />}{filter.label}</button>)}
             </div>
           </div>
-          {categories.length > 0 && <div className="px-5 pb-4 md:px-8">
+          {categories.length > 0 && <div id="discovery-categories-block" className={`px-5 pb-4 md:block md:px-8 ${hasActiveFilters && !filtersOpen ? "hidden" : ""}`}>
             <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><LayoutGrid aria-hidden="true" className="h-4 w-4" /> Categorias populares</h3>
               {categories.length > 5 && <button type="button" aria-expanded={showAllCategories} aria-controls="discovery-categories" onClick={() => setShowAllCategories((value) => !value)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-xs font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{showAllCategories ? "Ver menos" : "Ver todas"} <ArrowRight aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${showAllCategories ? "-rotate-90" : ""}`} /></button>}
@@ -350,9 +403,9 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
               })}
             </div>
           </div>}
-          <div className="shrink-0 px-5 pb-3 md:px-8"><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
+          <div id="discovery-more-filters" className={`shrink-0 px-5 pb-3 md:block md:px-8 ${filtersOpen ? "" : "hidden"}`}><PublicEventFilters events={events} value={discovery} onChange={setDiscovery} onOpen={() => setSheetExpanded(true)} /></div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="mx-5 flex items-center justify-between border-t border-border py-4 md:mx-8"><h2 className="flex items-center gap-2 text-sm font-semibold"><Star aria-hidden="true" className="h-4 w-4" />{hasFeatured ? "Eventos em destaque" : "Próximos eventos"}</h2><span className="text-xs text-muted-foreground">{filteredEvents.length} {filteredEvents.length === 1 ? "encontrado" : "encontrados"}</span></div>
+            <div className="mx-5 flex items-center justify-between border-t border-border py-4 md:mx-8"><h2 id="discovery-results" className="flex min-w-0 items-center gap-2 text-sm font-semibold"><Star aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{resultsTitle}</span></h2>{!query && <span className="shrink-0 text-xs text-muted-foreground">{filteredEvents.length} {filteredEvents.length === 1 ? "encontrado" : "encontrados"}</span>}</div>
             <div className="flex-1 space-y-2 px-4 pb-6 md:px-6">
               {loading && <div role="status" className="space-y-2"><span className="sr-only">Carregando eventos…</span>{[0, 1, 2].map((item) => <div key={item} aria-hidden="true" className="relative flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-2"><div className="h-[72px] w-[104px] shrink-0 rounded-xl bg-muted" /><div className="flex min-w-0 flex-1 flex-col justify-center gap-3"><div className="h-2.5 w-20 rounded bg-muted" /><div className="h-3.5 w-4/5 rounded bg-muted" /><div className="h-3 w-3/5 rounded bg-muted" /></div><LoadingShimmer className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/20" /></div>)}</div>}
               {loadError && <div role="alert" className="rounded-2xl border border-border bg-muted/40 p-5 text-sm leading-6 text-muted-foreground"><p>{events.length ? "Não foi possível atualizar. Os eventos exibidos podem estar desatualizados." : "Não foi possível carregar os eventos."}</p><button type="button" onClick={() => { setLoading(true); setRetry(count => count + 1); }} className="mt-3 min-h-11 rounded-xl border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Tentar novamente</button></div>}
@@ -368,12 +421,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
           </div>
         </section>
         <section className={`${sheetExpanded ? styles.mapExpanded : styles.map} relative isolate overflow-hidden bg-muted md:-ml-8`} aria-label="Mapa dos eventos">
-          <div role="group" aria-label="Modo de visualização" className="absolute left-3 top-3 z-40 flex rounded-full border border-border bg-card/95 p-1 shadow-surface backdrop-blur md:left-12 md:top-5">
-            {([["mapa", "Mapa", MapIcon], ["lista", "Lista", List]] as const).map(([value, label, Icon]) => {
-              const active = value === "lista" ? listActive : !listActive;
-              return <button key={value} type="button" aria-pressed={active} onClick={() => chooseView(value)} className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground/80 hover:bg-muted"}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>;
-            })}
-          </div>
+          {viewSwitch("absolute left-12 top-5 z-40 hidden rounded-full border border-border bg-card/95 p-1 shadow-surface backdrop-blur md:flex")}
           <Mapa events={filteredEvents} userOrigin={userPlace ? discovery.origin : null} selectedId={selectedId} highlightedId={highlightedId} onSelectEvent={handleMapSelect} onHighlightEvent={setHighlightedId} />
           {view === "lista" && !compact && <div className="absolute inset-0 z-30 overflow-y-auto bg-background px-6 pb-10 pt-24 md:pl-14">
             <h2 className="sr-only">Lista de eventos</h2>
