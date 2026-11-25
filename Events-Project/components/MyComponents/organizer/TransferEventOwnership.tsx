@@ -28,7 +28,7 @@ export function TransferEventOwnership() {
     }
   }
 
-  return <section aria-labelledby={`${id}-title`} className="rounded-2xl border border-border bg-card p-4 shadow-surface sm:p-6">
+  return <section aria-labelledby={`${id}-title`} className="rounded-[22px] border border-border bg-card p-4 sm:p-6 shadow-[var(--em-shadow-card)]">
     <div className="flex items-start gap-3"><ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden="true" /><div><h2 id={`${id}-title`} className="text-xl font-semibold">Transferir evento para o organizador</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Use após confirmar a identidade de quem reivindicou o evento. A conta de destino precisa ser Promotor; a mudança fica registrada no histórico do evento.</p></div></div>
     <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
       <div><label htmlFor={`${id}-event`} className="mb-2 block text-sm font-medium">Link ou ID do evento</label><Input id={`${id}-event`} value={eventValue} onChange={event => { setEventValue(event.target.value); setResult(null); }} autoCapitalize="none" spellCheck={false} placeholder="https://.../eventos/... ou ID" aria-describedby={`${id}-event-help`} /><p id={`${id}-event-help`} className="mt-1 text-xs text-muted-foreground">Cole o endereço da página do evento.</p></div>

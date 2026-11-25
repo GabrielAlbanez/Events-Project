@@ -80,22 +80,22 @@ export default function EventsCreated() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col items-center px-4 pb-6 pt-4 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-      <FadeInView className="mb-4 w-full sm:mb-8"><header className="flex flex-wrap items-start justify-between gap-5"><div className="flex min-w-0 items-start gap-4"><div className="min-w-0"><p className="mb-2 hidden text-xs font-semibold uppercase tracking-[0.18em] text-brand sm:block">Explore o EventMap</p><h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">Agenda de eventos</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground sm:mt-3 sm:text-base">Encontre experiências e organize seus próximos dias.</p></div></div><Button asChild variant="outline" className="max-sm:hidden"><Link href="/#home-discovery"><MapPin className="h-4 w-4" aria-hidden="true" />Explorar no mapa</Link></Button></header></FadeInView>
+    <div className="em-page mx-auto flex min-h-full w-full max-w-7xl flex-col items-center px-4 pb-6 pt-4 sm:px-6 sm:py-8 lg:px-10 lg:py-10" data-decor="ring">
+      <FadeInView className="mb-4 w-full sm:mb-8"><header className="flex flex-wrap items-start justify-between gap-5"><div className="flex min-w-0 items-start gap-4"><div className="min-w-0"><p className="em-eyebrow hidden sm:block">Explore o EventMap</p><h1 className="em-title sm:mt-3">Agenda de eventos</h1><p className="em-subtitle mt-1 sm:mt-3">Encontre experiências e organize seus próximos dias.</p></div></div><Button asChild variant="outline" className="max-sm:hidden"><Link href="/#home-discovery"><MapPin className="h-4 w-4" aria-hidden="true" />Explorar no mapa</Link></Button></header></FadeInView>
       {!socketConnected && <div className="mb-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><p role="status">Atualizações automáticas indisponíveis. Atualize a lista para ver mudanças.</p><Button type="button" variant="outline" disabled={isLoading} onClick={() => void fetchEvents()}>Atualizar lista</Button></div>}
       {isLoading ? (
         <div role="status" aria-live="polite" aria-busy="true" className="w-full space-y-5">
           <span className="sr-only">Carregando eventos...</span>
-          <div aria-hidden="true" className="h-14 rounded-2xl border border-border bg-card" />
+          <div aria-hidden="true" className="h-14 rounded-[22px] border border-border bg-card shadow-[var(--em-shadow-card)]" />
           <div aria-hidden="true" className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }, (_, index) => <div key={index} className="overflow-hidden rounded-2xl border border-border bg-card shadow-surface">
+            {Array.from({ length: 6 }, (_, index) => <div key={index} className="overflow-hidden rounded-[22px] border border-border bg-card shadow-[var(--em-shadow-card)]">
               <div className="relative aspect-video overflow-hidden bg-muted"><LoadingShimmer className="h-full w-full text-brand/20" /></div>
               <div className="space-y-3 p-5"><div className="h-3 w-1/3 rounded-full bg-muted" /><div className="h-5 w-4/5 rounded-full bg-muted" /><div className="h-3 w-full rounded-full bg-muted" /><div className="h-3 w-2/3 rounded-full bg-muted" /><div className="pt-3"><div className="h-4 w-1/3 rounded-full bg-primary/10" /></div></div>
             </div>)}
           </div>
         </div>
       ) : error ? (
-        <div role="alert" className="flex min-h-80 w-full flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-surface"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="h-6 w-6" aria-hidden="true" /></span><h2 className="text-xl font-semibold tracking-tight">A agenda está indisponível</h2><p className="max-w-md text-sm leading-6 text-muted-foreground">{error}</p><Button type="button" variant="outline" onClick={() => { setIsLoading(true); void fetchEvents(); }}>Tentar novamente</Button></div>
+        <div role="alert" className="flex min-h-80 w-full flex-col items-center justify-center gap-4 rounded-[22px] border border-border bg-card p-6 text-center shadow-[var(--em-shadow-card)]"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="h-6 w-6" aria-hidden="true" /></span><h2 className="text-xl font-semibold tracking-tight">A agenda está indisponível</h2><p className="max-w-md text-sm leading-6 text-muted-foreground">{error}</p><Button type="button" variant="outline" onClick={() => { setIsLoading(true); void fetchEvents(); }}>Tentar novamente</Button></div>
       ) : (
         <>
           {/* Mobile: search first, then one compact row with map, filters and view; from sm up: filters, then search. */}

@@ -60,7 +60,7 @@ export default function PendingPromotionReminder({ userId }: { userId: string })
                   <p className="break-words text-sm font-medium">{item.event.nome}</p>
                   <p className="text-xs opacity-80"><span className="font-mono">{item.code}</span> · {item.days} dias · {formatPromotionAmount(item.amountCents)} · criado em {formatPromotionDate(item.createdAt)}</p>
                 </div>
-                <Link href={`/myEvents/${encodeURIComponent(item.event.id)}/destaque`} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-amber-900 underline underline-offset-4 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-100 dark:hover:text-amber-50">
+                <Link href={`/myEvents/${encodeURIComponent(item.event.id)}/destaque`} className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-sm font-semibold text-amber-900 underline underline-offset-4 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-100 dark:hover:text-amber-50">
                   Abrir pedido<span className="sr-only"> de {item.event.nome}</span><ArrowRight className="size-4" aria-hidden="true" />
                 </Link>
               </li>

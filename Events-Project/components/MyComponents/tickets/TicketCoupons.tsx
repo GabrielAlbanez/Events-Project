@@ -24,8 +24,8 @@ type TicketCouponsProps = {
 const EXAMPLE_PRICE_CENTS = 5000;
 const notify = (text: string, type: "success" | "error" | "info" = "success") => { if (text) toast(text, { type, toastId: `coupons:${text}` }); };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
-const field = "min-h-11 w-full min-w-0 rounded-xl border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive";
-const smallAction = "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50";
+const field = "min-h-11 w-full min-w-0 rounded-2xl border bg-card px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive";
+const smallAction = "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50";
 const emptyForm = (eventId: string): CouponFormValues => ({ eventId, code: "", kind: "percent", value: "", maxUses: "", expiresAt: "" });
 
 async function copyText(text: string): Promise<boolean> {
@@ -149,7 +149,7 @@ export default function TicketCoupons({ eventId, eventName, priceCents, siteOrig
 
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild>
-      <button type="button" className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", triggerClassName)}>
+      <button type="button" className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", triggerClassName)}>
         <TicketPercent className="size-4 shrink-0" aria-hidden="true" />{triggerLabel}
       </button>
     </DialogTrigger>
@@ -167,7 +167,7 @@ export default function TicketCoupons({ eventId, eventName, priceCents, siteOrig
         </p>
       </section>
 
-      <form onSubmit={create} noValidate aria-labelledby={`${ids}-new`} className="space-y-4 rounded-2xl border bg-card p-4 sm:p-5">
+      <form onSubmit={create} noValidate aria-labelledby={`${ids}-new`} className="space-y-4 rounded-[22px] border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">
         <h3 id={`${ids}-new`} className="flex items-center gap-2 text-base font-semibold"><Plus className="size-4 text-brand" aria-hidden="true" />Novo cupom</h3>
         <div className="space-y-1.5">
           <label htmlFor={`${ids}-code`} className="block text-sm font-medium">Código</label>
@@ -181,7 +181,7 @@ export default function TicketCoupons({ eventId, eventName, priceCents, siteOrig
           <legend className="text-sm font-medium">Desconto</legend>
           <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
             <div className="grid grid-cols-2 rounded-xl border p-1">
-              {([["percent", "Porcentagem"], ["amount", "Valor (R$)"]] as const).map(([kind, label]) => <label key={kind} className={cn("flex min-h-9 cursor-pointer items-center justify-center rounded-lg px-3 text-sm font-medium has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary", form.kind === kind ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+              {([["percent", "Porcentagem"], ["amount", "Valor (R$)"]] as const).map(([kind, label]) => <label key={kind} className={cn("flex min-h-9 cursor-pointer items-center justify-center rounded-full px-3 text-sm font-medium has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary", form.kind === kind ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
                 <input type="radio" name={`${ids}-kind`} value={kind} checked={form.kind === kind} onChange={() => update("kind", kind)} className="sr-only" />{label}
               </label>)}
             </div>
@@ -213,7 +213,7 @@ export default function TicketCoupons({ eventId, eventName, priceCents, siteOrig
         </div>
 
         <p aria-live="polite" className={formError ? "text-sm text-destructive" : "sr-only"}>{formError}</p>
-        <button type="submit" disabled={creating} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+        <button type="submit" disabled={creating} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60 sm:w-auto">
           {creating ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}Criar cupom
         </button>
       </form>
@@ -226,7 +226,7 @@ export default function TicketCoupons({ eventId, eventName, priceCents, siteOrig
               : coupons && <ul className="space-y-3">{coupons.map((coupon) => {
                 const status = couponStatus(coupon, now);
                 const link = origin ? couponShareUrl(origin, eventId, coupon.code) : null;
-                return <li key={coupon.id} className={cn("rounded-2xl border bg-card p-4", !coupon.active && "bg-muted/30")}>
+                return <li key={coupon.id} className={cn("rounded-[22px] border bg-card p-4 shadow-[var(--em-shadow-card)]", !coupon.active && "bg-muted/30")}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2"><Tag className="size-4 shrink-0 text-brand" aria-hidden="true" /><span className="break-all font-mono text-base font-semibold">{coupon.code}</span><span className="text-sm font-medium">{couponDiscountLabel(coupon)}</span></p>

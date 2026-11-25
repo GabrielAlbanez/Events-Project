@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { organizerLimits, type OrganizerInterest } from "@/lib/organizer/schema";
 import { eventCategories } from "@/types/features";
 
-const selectClass = "flex h-11 w-full rounded-xl border border-input bg-background px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 md:text-sm";
+const selectClass = "flex h-11 w-full rounded-2xl border border-input bg-card px-3 text-base transition-colors motion-reduce:transition-none hover:border-ring/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 md:text-sm";
 type Values = { brandName: string; city: string; eventType: string; link: string; message: string };
 const empty: Values = { brandName: "", city: "", eventType: "", link: "", message: "" };
 const showFormError = (message: string) => toast.error(message, { toastId: `organizer-request:${message}` });

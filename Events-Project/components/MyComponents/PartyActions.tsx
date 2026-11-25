@@ -5,8 +5,8 @@ import { Flag, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const partyButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
-export const partyInput = "block min-h-11 w-full rounded-xl border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const partyButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+export const partyInput = "block min-h-11 w-full rounded-2xl border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 type Action = (payload: Record<string, unknown>) => Promise<boolean>;
 function PartySelect({ value, change, label, options }: { value: string; change: (value: string) => void; label: string; options: { value: string; label: string }[] }) {
   return <Select value={value} onValueChange={change}><SelectTrigger aria-label={label} className="mt-2 min-h-11 rounded-xl bg-background"><SelectValue /></SelectTrigger><SelectContent className="z-[90] max-h-[min(320px,var(--radix-select-content-available-height))] max-w-[calc(100vw_-_2rem)] rounded-xl">{options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10 rounded-lg">{option.label}</SelectItem>)}</SelectContent></Select>;

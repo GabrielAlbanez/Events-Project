@@ -22,6 +22,7 @@ import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
 import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
 import { OrganizerAccessCard } from "@/components/MyComponents/organizer/OrganizerAccessCard";
+import { Highlight } from "@/components/ui/highlight";
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
@@ -194,15 +195,15 @@ export default function Profile() {
     return <div className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></div>;
   }
   if (!account) {
-    return <div className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center"><h1 className="text-2xl font-semibold tracking-tight">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></div>;
+    return <div className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-[22px] border bg-card p-8 text-center shadow-[var(--em-shadow-card)]"><h1 className="em-title em-title-sm">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></div>;
   }
 
   return (
-    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="em-page min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-start gap-4">
           
-          <FadeInView className="min-w-0"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">Minha conta</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
+          <FadeInView className="min-w-0"><div><p className="em-eyebrow">Minha conta</p><h1 className="em-title mt-3">Meu <Highlight>perfil</Highlight></h1><p className="em-subtitle mt-3">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">

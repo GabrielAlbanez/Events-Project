@@ -8,6 +8,7 @@ import { OrganizerRequestPanel } from "@/components/MyComponents/organizer/Organ
 import { authOptions } from "@/lib/auth/options";
 import { authPathWithReturn } from "@/lib/authReturn";
 import { MAX_FEATURED_ON_TOP, PROMOTION_PACKAGES, formatPromotionAmount } from "@/lib/promotions";
+import { Highlight } from "@/components/ui/highlight";
 
 export const metadata: Metadata = {
   title: "Para organizadores",
@@ -57,19 +58,19 @@ const faq = [
 ] as const;
 
 const linkClass = "rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const primaryCta = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cta px-5 font-semibold text-cta-foreground shadow-sm transition-colors hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
-const secondaryCta = "inline-flex min-h-12 items-center justify-center rounded-xl border border-input bg-background px-5 font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
+const primaryCta = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-cta px-5 font-semibold text-cta-foreground shadow-sm transition-colors hover:bg-cta/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
+const secondaryCta = "inline-flex min-h-12 items-center justify-center rounded-full border border-input bg-background px-5 font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
 
 export default async function ForOrganizersPage() {
   const session = await getServerSession(authOptions).catch(() => null);
   const signedIn = Boolean(session?.user?.id);
   return <div className="w-full min-w-0">
     <div className="mx-auto max-w-6xl space-y-20 px-4 py-10 sm:px-6 sm:py-14 lg:px-10">
-      <section aria-labelledby="org-hero" className="relative overflow-hidden rounded-3xl border border-border bg-card px-5 py-10 shadow-surface sm:px-10 sm:py-14">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand/10 blur-3xl" />
+      <section aria-labelledby="org-hero" className="relative overflow-hidden rounded-[26px] border border-border bg-card px-5 py-10 sm:px-10 sm:py-14 shadow-[var(--em-shadow-card)]">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-28 -top-32 h-80 w-80 rounded-full border-[70px] border-cta opacity-50 dark:opacity-25" />
         <div className="relative max-w-2xl">
-          <p className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand"><Sparkles className="h-4 w-4" aria-hidden="true" /> Para organizadores</p>
-          <h1 id="org-hero" className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-5xl">Seu evento no mapa de quem procura o que fazer</h1>
+          <p className="em-eyebrow"><Sparkles className="h-4 w-4" aria-hidden="true" /> Para organizadores</p>
+          <h1 id="org-hero" className="em-title mt-4 text-[clamp(34px,4.6vw,56px)]">Seu evento no <Highlight>mapa</Highlight> de quem procura o que fazer</h1>
           <p className="mt-5 text-base leading-7 text-muted-foreground sm:text-lg">Publique eventos, receba inscrições com lotação e lista de espera, faça check-in por QR com sua equipe e veja quem realmente compareceu.</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href="#pedir-acesso" className={primaryCta}><UserPlus className="h-4 w-4" aria-hidden="true" /> Pedir acesso de organizador</a>
@@ -85,7 +86,7 @@ export default async function ForOrganizersPage() {
           <p className="mt-3 leading-7 text-muted-foreground">Recursos disponíveis agora para contas de organizador.</p>
         </div>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map(({ icon: Icon, title, text }) => <li key={title} className="rounded-2xl border border-border bg-card p-5 shadow-surface">
+          {features.map(({ icon: Icon, title, text }) => <li key={title} className="rounded-[22px] border border-border bg-card p-5 shadow-[var(--em-shadow-card)]">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand"><Icon className="h-5 w-5" aria-hidden="true" /></span>
             <h3 className="mt-4 font-semibold">{title}</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
@@ -118,7 +119,7 @@ export default async function ForOrganizersPage() {
             </ul>
             <a href="#pedir-acesso" className={`${primaryCta} mt-6 self-start`}>Pedir acesso</a>
           </article>
-          <article aria-labelledby="plan-pro" className="flex flex-col rounded-2xl border border-border bg-card p-6 shadow-surface">
+          <article aria-labelledby="plan-pro" className="flex flex-col rounded-[22px] border border-border bg-card p-6 shadow-[var(--em-shadow-card)]">
             <p className="text-sm font-semibold text-muted-foreground">Em definição</p>
             <h3 id="plan-pro" className="mt-2 text-xl font-semibold">Pro e Enterprise</h3>
             <p className="mt-4 text-sm leading-6 text-muted-foreground">Para quem faz eventos com frequência, produtoras com vários eventos e instituições com agenda oficial. Entre na lista para ajudar a definir o que entra em cada plano e ser avisado quando estiverem disponíveis.</p>
@@ -133,7 +134,7 @@ export default async function ForOrganizersPage() {
         </div>
       </section>
 
-      <section id="destaque" aria-labelledby="org-highlight" className="scroll-mt-24 space-y-8 rounded-3xl border border-border bg-card p-5 shadow-surface sm:p-10">
+      <section id="destaque" aria-labelledby="org-highlight" className="scroll-mt-24 space-y-8 rounded-[26px] border border-border bg-card p-5 sm:p-10 shadow-[var(--em-shadow-card)]">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
           <div>
             <FeaturedBadge />
@@ -149,7 +150,7 @@ export default async function ForOrganizersPage() {
           <div>
             <h3 className="sr-only">Pacotes de destaque</h3>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              {PROMOTION_PACKAGES.map(item => <li key={item.id} className="rounded-2xl border border-border bg-background p-5">
+              {PROMOTION_PACKAGES.map(item => <li key={item.id} className="rounded-[22px] border border-border bg-background p-5">
                 <p className="font-semibold">{item.label} de destaque</p>
                 <p className="mt-1 text-3xl font-bold tracking-tight">{formatPromotionAmount(item.amountCents)}</p>
                 <p className="mt-1 text-sm text-muted-foreground">Pagamento único via Pix</p>
@@ -179,7 +180,7 @@ export default async function ForOrganizersPage() {
         </div>
       </section>
 
-      <section id="pedir-acesso" aria-labelledby="org-request" className="scroll-mt-24 grid gap-8 rounded-3xl border border-border bg-card p-5 shadow-surface sm:p-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <section id="pedir-acesso" aria-labelledby="org-request" className="scroll-mt-24 grid gap-8 rounded-[26px] border border-border bg-card p-5 sm:p-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] shadow-[var(--em-shadow-card)]">
         <div>
           <h2 id="org-request" className="text-2xl font-bold tracking-tight sm:text-3xl">Pedir acesso de organizador</h2>
           <p className="mt-3 leading-7 text-muted-foreground">Conte um pouco sobre você e seus eventos. A equipe do EventMap analisa cada pedido e responde pela central de notificações.</p>
@@ -190,7 +191,7 @@ export default async function ForOrganizersPage() {
 
       <section aria-labelledby="org-faq" className="mx-auto max-w-3xl space-y-6">
         <h2 id="org-faq" className="text-2xl font-bold tracking-tight sm:text-3xl">Perguntas frequentes</h2>
-        <div className="divide-y divide-border rounded-2xl border border-border bg-card">
+        <div className="divide-y divide-border rounded-[22px] border border-border bg-card shadow-[var(--em-shadow-card)]">
           {faq.map(item => <details key={item.q} className="group">
             <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               {item.q}

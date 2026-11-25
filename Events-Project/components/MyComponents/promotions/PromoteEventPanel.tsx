@@ -79,7 +79,7 @@ function HighlightResult({ result, unavailable }: { result: PromotionHighlightRe
     { label: "Cliques em ingressos", during: result.during.ticketClicks, before: result.before.ticketClicks, change: result.change.ticketClicks },
   ] : [];
   return (
-    <section aria-labelledby="result-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+    <section aria-labelledby="result-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><BarChart3 className="size-5" aria-hidden="true" /></span>
@@ -177,23 +177,23 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
   const selectedPackage = overview?.packages.find((item) => item.id === selected) ?? overview?.packages[0];
 
   return (
-    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="em-page min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10" data-decor="ring">
       <div className="mx-auto max-w-3xl space-y-6">
         <header>
           <Link href="/myEvents" className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">← Meus eventos</Link>
-          <p className="mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand"><Sparkles className="size-4" aria-hidden="true" />Destaque patrocinado</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Destacar evento</h1>
+          <p className="em-eyebrow mt-2 flex items-center gap-2"><Sparkles className="size-4" aria-hidden="true" />Destaque patrocinado</p>
+          <h1 className="em-title mt-3">Destacar <span className="em-highlight">evento<svg viewBox="0 0 240 24" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M4 19 C 70 9, 150 4, 236 7" /></svg></span></h1>
           {overview && <p className="mt-2 break-words text-base text-muted-foreground">{overview.event.nome}</p>}
         </header>
 
         {loading ? (
           <div role="status" aria-busy="true" className="space-y-4">
             <span className="sr-only">Carregando destaque...</span>
-            <div aria-hidden="true" className="h-24 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" />
-            <div aria-hidden="true" className="grid gap-3 sm:grid-cols-2"><div className="h-32 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" /><div className="h-32 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" /></div>
+            <div aria-hidden="true" className="h-24 animate-pulse rounded-[22px] border bg-card motion-reduce:animate-none shadow-[var(--em-shadow-card)]" />
+            <div aria-hidden="true" className="grid gap-3 sm:grid-cols-2"><div className="h-32 animate-pulse rounded-[22px] border bg-card motion-reduce:animate-none shadow-[var(--em-shadow-card)]" /><div className="h-32 animate-pulse rounded-[22px] border bg-card motion-reduce:animate-none shadow-[var(--em-shadow-card)]" /></div>
           </div>
         ) : error || !overview ? (
-          <div role="alert" className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-8 text-center shadow-surface">
+          <div role="alert" className="flex flex-col items-center gap-4 rounded-[22px] border bg-card p-8 text-center shadow-[var(--em-shadow-card)]">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-6" aria-hidden="true" /></span>
             <p className="max-w-md text-sm leading-6">{error || loadError}</p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -203,7 +203,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
           </div>
         ) : (
           <>
-            <section aria-label="Onde o destaque aparece" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+            <section aria-label="Onde o destaque aparece" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <div className="flex flex-wrap items-center gap-3"><FeaturedBadge /><p className="text-sm text-muted-foreground">É assim que o selo aparece para o público.</p></div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">O evento aparece no topo da agenda e em &quot;Mais eventos para descobrir&quot; na página inicial, e ganha um pin maior no mapa <MapPin className="inline size-4 align-text-bottom text-brand" aria-hidden="true" />. Até três destaques ficam no topo ao mesmo tempo, por data.</p>
             </section>
@@ -225,7 +225,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
             )}
 
             {open?.status === "PENDING_PAYMENT" ? (
-              <section aria-labelledby="pix-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+              <section aria-labelledby="pix-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="pix-title" className="text-xl font-semibold">Pague com Pix</h2><p className="mt-1 text-sm text-muted-foreground">Pacote de {open.days} dias · pedido criado em {formatPromotionDate(open.createdAt)}</p></div><StatusPill item={open} /></div>
                 <PaymentSteps current={1} />
                 <dl className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -247,13 +247,13 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
                 </form>
               </section>
             ) : open?.status === "AWAITING_REVIEW" ? (
-              <section aria-labelledby="review-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+              <section aria-labelledby="review-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><Clock3 className="size-5" aria-hidden="true" /></span><div><h2 id="review-title" className="text-xl font-semibold">Pagamento em análise</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Pedido {open.code} · {open.days} dias · {formatPromotionAmount(open.amountCents)}. Vamos conferir o Pix e avisar você por notificação.</p></div></div><StatusPill item={open} /></div>
                 <PaymentSteps current={3} />
                 {open.payerNote && <p className="mt-4 break-words rounded-xl border bg-background p-3 text-sm"><span className="text-muted-foreground">Sua observação: </span>{open.payerNote}</p>}
               </section>
             ) : (
-              <section aria-labelledby="packages-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+              <section aria-labelledby="packages-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
                 <h2 id="packages-title" className="text-xl font-semibold">Escolha o pacote</h2>
                 <p className="mt-1 text-sm text-muted-foreground">O destaque começa quando confirmarmos o pagamento.</p>
                 <fieldset className="mt-5" disabled={Boolean(overview.blockedReason) || Boolean(busy)}>
@@ -280,7 +280,7 @@ export default function PromoteEventPanel({ eventId }: { eventId: string }) {
               </section>
             )}
 
-            <section aria-labelledby="history-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+            <section aria-labelledby="history-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <h2 id="history-title" className="text-lg font-semibold">Pedidos deste evento</h2>
               {overview.history.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum pedido ainda.</p> : (
                 <ul className="mt-3 divide-y">

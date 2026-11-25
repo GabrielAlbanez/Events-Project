@@ -76,7 +76,7 @@ export default function AdminPromotions() {
     const unpaidOrder = item.status === "PENDING_PAYMENT";
     const stale = unpaidOrder && isStalePromotionOrder(item.createdAt, new Date());
     return (
-      <li key={item.id} className="rounded-2xl border bg-card p-5 shadow-surface">
+      <li key={item.id} className="rounded-[22px] border bg-card p-5 shadow-[var(--em-shadow-card)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <Link href={`/eventos/${encodeURIComponent(item.event.id)}`} className="break-words text-lg font-semibold hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{item.event.nome}</Link>
@@ -128,9 +128,9 @@ export default function AdminPromotions() {
 
 
         {loading && !queue.length && !unpaid.length && !active.length ? (
-          <div role="status" aria-busy="true" className="space-y-3"><span className="sr-only">Carregando destaques...</span>{[0, 1].map((index) => <div key={index} aria-hidden="true" className="h-36 animate-pulse rounded-2xl border bg-card motion-reduce:animate-none" />)}</div>
+          <div role="status" aria-busy="true" className="space-y-3"><span className="sr-only">Carregando destaques...</span>{[0, 1].map((index) => <div key={index} aria-hidden="true" className="h-36 animate-pulse rounded-[22px] border bg-card motion-reduce:animate-none shadow-[var(--em-shadow-card)]" />)}</div>
         ) : error ? (
-          <div role="alert" className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-8 text-center shadow-surface">
+          <div role="alert" className="flex flex-col items-center gap-4 rounded-[22px] border bg-card p-8 text-center shadow-[var(--em-shadow-card)]">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-6" aria-hidden="true" /></span>
             <p className="max-w-md text-sm leading-6">{error}</p>
             <Button type="button" className="min-h-11 rounded-xl" onClick={() => void load()}>Tentar novamente</Button>
@@ -140,7 +140,7 @@ export default function AdminPromotions() {
             <section aria-labelledby="queue-title" aria-busy={loading} className="space-y-3">
               <h2 id="queue-title" className="text-xl font-semibold">Aguardando confirmação <span className="font-normal text-muted-foreground">· {queue.length}</span></h2>
               {queue.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-card p-8 text-center"><Inbox className="size-8 text-brand" aria-hidden="true" /><p className="font-medium">Nenhum pagamento para conferir</p><p className="text-sm text-muted-foreground">Quando um organizador avisar que pagou, o pedido aparece aqui.</p></div>
+                <div className="flex flex-col items-center gap-2 rounded-[22px] border border-dashed bg-card p-8 text-center"><Inbox className="size-8 text-brand" aria-hidden="true" /><p className="font-medium">Nenhum pagamento para conferir</p><p className="text-sm text-muted-foreground">Quando um organizador avisar que pagou, o pedido aparece aqui.</p></div>
               ) : (
                 <ul className="space-y-3">
                   {queue.map((item) => renderOrder(item))}
@@ -154,7 +154,7 @@ export default function AdminPromotions() {
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">O organizador ainda não clicou em &ldquo;Já paguei&rdquo;. Verifique se chegou um Pix com o identificador e o valor do pedido: se chegou, você pode confirmar daqui; se não, aguarde ou recuse. Pedidos com mais de {STALE_PROMOTION_ORDER_HOURS} horas aparecem como &ldquo;Pedido antigo&rdquo;.</p>
               </div>
               {unpaid.length === 0 ? (
-                <p className="rounded-2xl border border-dashed bg-card p-5 text-sm text-muted-foreground">Nenhum pedido aguardando pagamento.</p>
+                <p className="rounded-[22px] border border-dashed bg-card p-5 text-sm text-muted-foreground">Nenhum pedido aguardando pagamento.</p>
               ) : (
                 <ul className="space-y-3">
                   {unpaid.map((item) => renderOrder(item))}
@@ -162,7 +162,7 @@ export default function AdminPromotions() {
               )}
             </section>
 
-            <section aria-labelledby="active-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+            <section aria-labelledby="active-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <h2 id="active-title" className="text-xl font-semibold">Destaques ativos e agendados <span className="font-normal text-muted-foreground">· {active.length}</span></h2>
               {active.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum destaque ativo no momento.</p> : (
                 <ul className="mt-3 divide-y">

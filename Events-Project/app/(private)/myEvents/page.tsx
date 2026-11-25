@@ -13,6 +13,7 @@ import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
 import { StaggerList } from "@/components/animations/StaggerList";
 import PendingPromotionReminder from "@/components/MyComponents/promotions/PendingPromotionReminder";
+import { Highlight } from "@/components/ui/highlight";
 
 type StatusFilter = "all" | EventStatus;
 type HistoryEntry = {
@@ -130,7 +131,7 @@ export default function MyEvents() {
   const pendingCount = events.filter((event) => event.status === "PENDING").length;
 
   return (
-    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="em-page min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="relative isolate flex flex-wrap items-start justify-between gap-5 overflow-hidden rounded-3xl border bg-card/80 p-5 shadow-sm sm:p-6">
           <ParallaxCard
@@ -146,16 +147,16 @@ export default function MyEvents() {
           <div className="relative z-10 flex min-w-0 items-start gap-4">
             
             <FadeInView className="min-w-0">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">Painel de eventos</p>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meus eventos</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
+              <p className="em-eyebrow">Painel de eventos</p>
+              <h1 className="em-title mt-3">Meus <Highlight>eventos</Highlight></h1>
+              <p className="em-subtitle mt-3">Acompanhe cada etapa, edite rascunhos e responda aos pedidos de correção.</p>
             </FadeInView>
           </div>
           <div className="relative z-10 flex flex-wrap gap-2">
-            <Link href="/myEvents/pagamentos" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <Link href="/myEvents/pagamentos" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border bg-background px-5 py-2.5 font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Pagamentos
             </Link>
-            <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <Link href="/CriarEvento" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-cta px-5 py-2.5 font-semibold text-cta-foreground shadow-sm transition-opacity hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               <Plus className="size-4" aria-hidden="true" /> Criar evento
             </Link>
           </div>
@@ -165,15 +166,15 @@ export default function MyEvents() {
 
         {!isLoading && !error && events.length > 0 && (
           <StaggerList className="grid gap-3 sm:grid-cols-3" itemClassName="h-full">
-            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Total de eventos</p><p className="mt-1 text-2xl font-bold">{events.length}</p></div>
-            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Publicados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{publishedCount}</p></div>
-            <div className="h-full rounded-2xl border bg-card p-4 shadow-sm"><p className="text-sm text-muted-foreground">Em análise</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p></div>
+            <div className="h-full rounded-[22px] border bg-card p-4 shadow-[var(--em-shadow-card)]"><p className="text-sm text-muted-foreground">Total de eventos</p><p className="mt-1 text-2xl font-bold">{events.length}</p></div>
+            <div className="h-full rounded-[22px] border bg-card p-4 shadow-[var(--em-shadow-card)]"><p className="text-sm text-muted-foreground">Publicados</p><p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{publishedCount}</p></div>
+            <div className="h-full rounded-[22px] border bg-card p-4 shadow-[var(--em-shadow-card)]"><p className="text-sm text-muted-foreground">Em análise</p><p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p></div>
           </StaggerList>
         )}
 
-        <section aria-labelledby="event-history-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+        <section aria-labelledby="event-history-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 id="event-history-title" className="text-xl font-semibold">Atividade recente</h2><p className="mt-1 text-sm text-muted-foreground">Um registro das últimas mudanças, inclusive de eventos excluídos.</p></div></div>
-          {historyLoading ? <p role="status" className="py-5 text-sm text-muted-foreground">Carregando atividade...</p> : historyError ? <div role="alert" className="py-3 text-sm"><p>{historyError}</p><button type="button" onClick={() => { setHistoryLoading(true); setHistoryRetry((count) => count + 1); }} className="mt-2 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div> : history.length === 0 ? <p className="py-5 text-sm text-muted-foreground">Quando você criar ou atualizar um evento, as mudanças aparecerão aqui.</p> : <ol className="divide-y divide-border">{history.slice(0, 6).map((entry) => {
+          {historyLoading ? <p role="status" className="py-5 text-sm text-muted-foreground">Carregando atividade...</p> : historyError ? <div role="alert" className="py-3 text-sm"><p>{historyError}</p><button type="button" onClick={() => { setHistoryLoading(true); setHistoryRetry((count) => count + 1); }} className="mt-2 inline-flex min-h-11 items-center rounded-full font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div> : history.length === 0 ? <p className="py-5 text-sm text-muted-foreground">Quando você criar ou atualizar um evento, as mudanças aparecerão aqui.</p> : <ol className="divide-y divide-border">{history.slice(0, 6).map((entry) => {
             const Icon = entry.action === "VALIDATED" ? CheckCircle2 : entry.action === "DELETED" ? Trash2 : Clock3;
             const actionLabel = historyLabels[entry.action];
             const date = new Date(entry.createdAt);
@@ -182,11 +183,11 @@ export default function MyEvents() {
         </section>
 
         {events.length > 0 && !error && (
-          <section aria-label="Filtrar eventos" className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <section aria-label="Filtrar eventos" className="rounded-[22px] border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">
             <label htmlFor="event-search" className="text-sm font-medium">Encontre um evento</label>
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <input id="event-search" type="search" placeholder="Busque por nome, descrição ou endereço" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-xl border bg-background pl-10 pr-4 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary" />
+              <input id="event-search" type="search" placeholder="Busque por nome, descrição ou endereço" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-[22px] border bg-card pl-10 pr-4 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary shadow-[var(--em-shadow-card)]" />
             </div>
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
               {filters.map((filter) => (
@@ -199,21 +200,21 @@ export default function MyEvents() {
         )}
 
         {isLoading ? (
-          <div role="status" className="rounded-2xl border bg-card p-10 text-center text-muted-foreground">Carregando seus eventos...</div>
+          <div role="status" className="rounded-[22px] border bg-card p-10 text-center text-muted-foreground shadow-[var(--em-shadow-card)]">Carregando seus eventos...</div>
         ) : error ? (
-          <div role="alert" className="rounded-2xl border bg-card p-10 text-center"><p>{error}</p><button type="button" onClick={() => { setIsLoading(true); setRetryCount((count) => count + 1); }} className="mt-4 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div>
+          <div role="alert" className="rounded-[22px] border bg-card p-10 text-center shadow-[var(--em-shadow-card)]"><p>{error}</p><button type="button" onClick={() => { setIsLoading(true); setRetryCount((count) => count + 1); }} className="mt-4 inline-flex min-h-11 items-center rounded-full font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Tentar novamente</button></div>
         ) : events.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-8 text-center sm:p-12">
+          <div className="rounded-[22px] border border-dashed bg-card p-8 text-center sm:p-12">
             <CalendarDays className="mx-auto size-10 text-brand" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">Seu primeiro evento começa aqui</h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Crie um evento para compartilhar informações, imagens e localização com o público.</p>
-            <Link href="/CriarEvento" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Criar meu primeiro evento</Link>
+            <Link href="/CriarEvento" className="mt-5 inline-flex min-h-11 items-center rounded-full bg-cta px-5 font-semibold text-cta-foreground hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Criar meu primeiro evento</Link>
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
+          <div className="rounded-[22px] border border-dashed bg-card p-10 text-center">
             <h2 className="text-lg font-semibold">Nenhum evento corresponde aos filtros</h2>
             <p className="mt-2 text-muted-foreground">Tente outro termo ou veja todos os eventos.</p>
-            <button type="button" onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} className="mt-4 inline-flex min-h-11 items-center rounded-lg font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Limpar filtros</button>
+            <button type="button" onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} className="mt-4 inline-flex min-h-11 items-center rounded-full font-semibold text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Limpar filtros</button>
           </div>
         ) : (
           <section aria-label="Lista dos meus eventos">

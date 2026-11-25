@@ -29,8 +29,8 @@ type EventPromoKitProps = {
 };
 
 const notify = (text: string, type: "success" | "error" | "info" = "success") => toast(text, { type, toastId: `promo-kit:${text}` });
-const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50";
-const section = "space-y-3 rounded-2xl border bg-card p-4 sm:p-5";
+const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50";
+const section = "space-y-3 rounded-[22px] border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]";
 const sectionTitle = "flex items-center gap-2 text-base font-semibold";
 
 async function copyText(text: string): Promise<boolean> {
@@ -186,7 +186,7 @@ export default function EventPromoKit({ event, siteOrigin, triggerClassName, tri
   const disabled = !url;
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild>
-      <button type="button" className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 text-sm font-semibold text-brand hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", triggerClassName)}>
+      <button type="button" className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 text-sm font-semibold text-brand hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", triggerClassName)}>
         <Megaphone className="size-4 shrink-0" aria-hidden="true" />{triggerLabel}
       </button>
     </DialogTrigger>

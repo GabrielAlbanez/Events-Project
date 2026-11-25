@@ -14,7 +14,7 @@ type Sale = AdminTicketOverview["recent"][number];
 const notify = (text: string, type: "success" | "error") => { if (text) toast(text, { type, toastId: `admin-tickets:${text}` }); };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}`;
-const card = "rounded-2xl border bg-card p-5 shadow-surface";
+const card = "rounded-[22px] border bg-card p-5 shadow-[var(--em-shadow-card)]";
 
 /** Platform fee totals and the latest sales; admins may refund on behalf of an organizer. */
 export default function AdminTickets() {
@@ -69,7 +69,7 @@ export default function AdminTickets() {
               <div className={card}><dt className="text-sm text-muted-foreground">Líquido dos organizadores</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{formatTicketAmount(data.paid.grossCents - data.paid.feeCents)}</dd><dd className="text-xs text-muted-foreground">antes da tarifa do Mercado Pago</dd></div>
               <div className={card}><dt className="text-sm text-muted-foreground">Estornos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{formatTicketAmount(data.refunded.grossCents)}</dd><dd className="text-xs text-muted-foreground">{ticketCount(data.refunded.count)}</dd></div>
             </dl>
-            <section aria-labelledby="recent-sales-title" className="rounded-2xl border bg-card p-5 shadow-surface sm:p-6">
+            <section aria-labelledby="recent-sales-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <h2 id="recent-sales-title" className="text-xl font-semibold">Vendas recentes</h2>
               {data.recent.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma venda ainda.</p>
                 : <ul className="mt-3 divide-y">{data.recent.map((sale) => <li key={sale.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">

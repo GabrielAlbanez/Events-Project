@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { privacyConfig } from "@/lib/privacy";
+import { Highlight } from "@/components/ui/highlight";
 
 export const metadata: Metadata = { title: "Termos de Uso", description: "Regras de uso do EventMap para quem descobre eventos e para quem os organiza: conteúdo, moderação, responsabilidades e privacidade." };
 
@@ -24,12 +25,13 @@ const sections = [
 ] as const;
 
 export default function TermsPage() {
-  return <div className="w-full min-w-0">
+  return <div className="em-page w-full min-w-0" data-decor="ring">
     <div className="px-4 py-8 sm:px-6 lg:px-10">
     <article className="mx-auto max-w-3xl space-y-10 pb-12 [&_li]:leading-7 [&_p]:leading-7">
       <header className="space-y-4">
         <Link href="/" className={`inline-flex min-h-11 items-center ${linkClass}`}>← Voltar para explorar</Link>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Termos de Uso</h1>
+        <p className="em-eyebrow">EventMap</p>
+        <h1 className="em-title">Termos de <Highlight>Uso</Highlight></h1>
         <div role="note" className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
           <p className="font-semibold">{termsVersion.label}</p>
           <p>Este texto é uma minuta preparada pela equipe do produto e ainda não foi revisado por advogado. Ele descreve as regras de funcionamento atuais do EventMap e pode mudar após a validação jurídica.</p>

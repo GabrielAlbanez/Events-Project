@@ -3,20 +3,22 @@ import Link from "next/link";
 import { privacyConfig, privacyReady } from "@/lib/privacy";
 import { GoogleMapsPreference } from "@/components/MyComponents/GoogleMapsPreference";
 import { MetricPreference } from "@/components/MyComponents/MetricPreference";
+import { Highlight } from "@/components/ui/highlight";
 
 export const metadata: Metadata = { title: "Política de privacidade", description: "Saiba como o EventMap utiliza dados, cookies, localização e serviços de terceiros e como exercer seus direitos." };
 
 const linkClass = "rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function PrivacyPage() {
-  return <div className="w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10">
+  return <div className="em-page w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10" data-decor="ring">
     <article className="mx-auto max-w-3xl space-y-10 pb-12 [&_p]:leading-7 [&_li]:leading-7">
       <header className="space-y-4">
         <Link href="/" className={`inline-flex min-h-11 items-center ${linkClass}`}>← Voltar para explorar</Link>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Política de privacidade</h1>
+        <p className="em-eyebrow">EventMap</p>
+        <h1 className="em-title">Política de <Highlight>privacidade</Highlight></h1>
         <p className="text-base text-muted-foreground">O EventMap é um projeto de portfólio. Este aviso explica os dados utilizados para descobrir eventos, manter sua conta e participar das comunidades. Use apenas os dados necessários e evite informações sensíveis nas demonstrações.</p>
         <p className="text-sm text-muted-foreground">Atualizado em {privacyConfig.updatedAt}.</p>
-        <Link href="/privacidade/solicitacoes" className="inline-flex min-h-12 items-center rounded-xl bg-cta px-5 font-semibold text-cta-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Solicitar acesso, correção ou exclusão</Link>
+        <Link href="/privacidade/solicitacoes" className="inline-flex min-h-12 items-center rounded-full bg-cta px-5 font-semibold text-cta-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Solicitar acesso, correção ou exclusão</Link>
       </header>
 
       <section aria-labelledby="privacy-controller" className="space-y-4 rounded-2xl bg-muted/40 p-5 sm:p-7">

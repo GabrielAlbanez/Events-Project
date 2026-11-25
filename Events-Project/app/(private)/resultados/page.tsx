@@ -35,22 +35,22 @@ export default async function Resultados({ searchParams }: { searchParams: Resul
   const result = await getPromoterInsights({ period, ...(promoterId ? { promoterId } : {}) });
 
   return (
-    <div className="w-full min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="em-page w-full min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10" data-decor="ring">
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-brand">Painel de eventos</p>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Resultados</h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
+            <p className="em-eyebrow">Painel de eventos</p>
+            <h1 className="em-title mt-3">Resultados</h1>
+            <p className="em-subtitle mt-3">
               {result.ok && result.data.viewer.viewingOther
                 ? <>Resultados de <strong className="text-foreground">{result.data.promoter.name || "organizador"}</strong> (visão de administração).</>
                 : "Do primeiro olhar à entrada no evento: veja como as pessoas chegaram até você."}
             </p>
           </div>
-          <nav aria-label="Período" className="flex w-full flex-wrap gap-1 rounded-2xl border bg-card p-1 sm:w-auto">
+          <nav aria-label="Período" className="flex w-full flex-wrap gap-1 rounded-[22px] border bg-card p-1 sm:w-auto shadow-[var(--em-shadow-card)]">
             {INSIGHTS_PERIODS.map(option => (
               <Link key={option} href={periodHref(option, promoterId)} aria-current={option === period ? "page" : undefined} scroll={false}
-                className={`flex min-h-10 flex-1 items-center justify-center whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none sm:flex-none ${option === period ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                className={`flex min-h-10 flex-1 items-center justify-center whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none sm:flex-none ${option === period ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                 {insightsPeriodLabels[option]}
               </Link>
             ))}
@@ -58,7 +58,7 @@ export default async function Resultados({ searchParams }: { searchParams: Resul
         </header>
 
         {!result.ok ? (
-          <section role="alert" className="rounded-2xl border bg-card p-6 sm:p-8">
+          <section role="alert" className="rounded-[22px] border bg-card p-6 sm:p-8 shadow-[var(--em-shadow-card)]">
             <h2 className="text-lg font-semibold">{result.reason === "UNAVAILABLE" ? "Resultados indisponíveis no momento" : "Não foi possível abrir estes resultados"}</h2>
             <p className="mt-2 text-muted-foreground">{result.message}</p>
             <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold">
@@ -102,22 +102,22 @@ function ResultsBody({ data, period }: { data: PromoterInsights; period: Insight
       </section>
 
       {!hasEvents ? (
-        <section className="rounded-2xl border border-dashed bg-card p-8 text-center">
+        <section className="rounded-[22px] border border-dashed bg-card p-8 text-center">
           <BarChart3 className="mx-auto h-8 w-8 text-brand" aria-hidden="true" />
           <h2 className="mt-3 text-lg font-semibold">{data.viewer.viewingOther ? "Este organizador ainda não tem eventos" : "Seus resultados aparecem aqui"}</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{data.viewer.viewingOther ? "Quando houver eventos cadastrados nesta conta, os resultados aparecem aqui." : "Assim que você publicar um evento, mostramos visualizações, inscrições, check-ins e avaliações em um só lugar."}</p>
-          {!data.viewer.viewingOther && <Link href="/CriarEvento" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Criar evento</Link>}
+          {!data.viewer.viewingOther && <Link href="/CriarEvento" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-cta px-4 text-sm font-semibold text-cta-foreground hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Criar evento</Link>}
         </section>
       ) : (
         <>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <section aria-labelledby="funnel-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+            <section aria-labelledby="funnel-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <h2 id="funnel-title" className="text-xl font-semibold">Funil de todos os eventos</h2>
               <p className="mt-1 text-sm text-muted-foreground">Atividade registrada {periodText}.</p>
               <div className="mt-5"><FunnelChart stages={data.funnel} /></div>
               <p className="mt-4 text-xs leading-5 text-muted-foreground">“Taxa não comparável” aparece quando uma etapa supera a anterior: as etapas com * contam só parte do público.</p>
             </section>
-            <section aria-labelledby="daily-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+            <section aria-labelledby="daily-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <h2 id="daily-title" className="text-xl font-semibold">Visualizações por dia*</h2>
               <p className="mt-1 text-sm text-muted-foreground">{period === "all" ? "Últimos 30 dias." : `Últimos ${insightsPeriodLabels[period]}.`} Passe o cursor sobre as barras ou abra a tabela para ver cada dia.</p>
               <div className="mt-8"><DailyViewsChart points={data.daily} caption={`Visualizações por dia ${period === "all" ? "nos últimos 30 dias" : periodText}`} /></div>
@@ -125,7 +125,7 @@ function ResultsBody({ data, period }: { data: PromoterInsights; period: Insight
           </div>
 
           {data.top.length > 0 && (
-            <section aria-labelledby="top-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+            <section aria-labelledby="top-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
               <div className="flex items-center gap-2"><Trophy className="h-5 w-5 text-brand" aria-hidden="true" /><h2 id="top-title" className="text-xl font-semibold">Eventos em destaque</h2></div>
               <p className="mt-1 text-sm text-muted-foreground">Ordenados por inscrições, check-ins e favoritos {periodText}.</p>
               <ol className="mt-4 divide-y">
@@ -142,7 +142,7 @@ function ResultsBody({ data, period }: { data: PromoterInsights; period: Insight
             </section>
           )}
 
-          <section aria-labelledby="events-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <section aria-labelledby="events-title" className="rounded-[22px] border bg-card p-5 sm:p-6 shadow-[var(--em-shadow-card)]">
             <h2 id="events-title" className="text-xl font-semibold">Por evento</h2>
             <p className="mt-1 text-sm text-muted-foreground">Inscrições e favoritos feitos {periodText}, com o status atual de cada inscrição.</p>
             <ul className="mt-5 grid gap-4 md:grid-cols-2">
@@ -168,7 +168,7 @@ function ResultsBody({ data, period }: { data: PromoterInsights; period: Insight
 
 function Kpi({ icon: Icon, label, value, detail }: { icon: typeof Users; label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-sm">
+    <div className="rounded-[22px] border bg-card p-5 shadow-[var(--em-shadow-card)]">
       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-brand"><Icon className="h-5 w-5" aria-hidden="true" /></span>
       <p className="mt-4 text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums">{value}</p>

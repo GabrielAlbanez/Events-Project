@@ -50,10 +50,10 @@ export default function ClaimEventCta({ eventId, eventName }: ClaimEventCtaProps
   const intro = <><p className="flex items-center gap-2 text-sm font-semibold"><BadgeCheck className="h-4 w-4 text-brand" aria-hidden="true" /> Você organiza este evento?</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Este evento foi cadastrado pela equipe do EventMap. Se ele é seu, peça para administrá-lo.</p></>;
 
   if (status !== "authenticated" || !session?.user?.id) {
-    return <section aria-label="Reivindicar evento" className="rounded-2xl border border-border bg-card p-4 sm:p-5">{intro}<Button asChild variant="outline" className="mt-3"><Link href={authPathWithReturn("/login", `/eventos/${eventId}`)}>Entrar para reivindicar</Link></Button></section>;
+    return <section aria-label="Reivindicar evento" className="rounded-[22px] border border-border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">{intro}<Button asChild variant="outline" className="mt-3"><Link href={authPathWithReturn("/login", `/eventos/${eventId}`)}>Entrar para reivindicar</Link></Button></section>;
   }
 
-  return <section aria-label="Reivindicar evento" className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+  return <section aria-label="Reivindicar evento" className="rounded-[22px] border border-border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">
     {intro}
     {sent ? <p role="status" className="mt-3 flex items-start gap-2 text-sm text-foreground"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />{sent}</p> :
       <Dialog open={open} onOpenChange={value => { if (!pending) { setOpen(value); setFormError(""); } }}>

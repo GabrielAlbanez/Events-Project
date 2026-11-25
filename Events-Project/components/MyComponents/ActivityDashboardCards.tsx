@@ -14,7 +14,7 @@ export function ActivityCard({ icon: Icon, title, eyebrow, children, href, actio
     </div>
     <div className="my-4 flex-1 space-y-2 text-sm leading-6 text-muted-foreground">{children}</div>
     {quickActions && <div className="mb-3 flex flex-wrap gap-2">{quickActions}</div>}
-    <Link href={href} className="inline-flex min-h-11 items-center justify-between gap-3 rounded-xl border bg-background px-3 text-sm font-semibold transition hover:border-primary/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span>{action}</span><ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
+    <Link href={href} className="inline-flex min-h-11 items-center justify-between gap-3 rounded-full border bg-background px-3 text-sm font-semibold transition hover:border-primary/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span>{action}</span><ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link>
   </article>;
 }
 

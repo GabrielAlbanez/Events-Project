@@ -55,7 +55,7 @@ export function SimilarEvents({ items, title = "Eventos parecidos" }: { items: R
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Selecionados pela categoria, pelo organizador, pela distância ou por quem também salvou.</p>
           </div>
         </div>
-        <Link href="/EventsCreated" className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Ver agenda completa <span aria-hidden="true">&nbsp;→</span></Link>
+        <Link href="/EventsCreated" className="inline-flex min-h-11 items-center rounded-full text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Ver agenda completa <span aria-hidden="true">&nbsp;→</span></Link>
       </div>
       <ul aria-label={title} className="-mx-5 mt-3 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto px-5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
         {items.map(({ event, reason }) => {

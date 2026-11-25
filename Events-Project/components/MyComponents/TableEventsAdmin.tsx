@@ -192,7 +192,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
 
       <div className="space-y-3 lg:hidden" aria-label="Eventos para revisão">
         {eventList.map((event) => (
-          <article key={event.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-surface">
+          <article key={event.id} className="min-w-0 rounded-[22px] border border-border bg-card p-4 shadow-[var(--em-shadow-card)]">
             <div className="flex items-start gap-3">
               <Checkbox
                 className="shrink-0 py-2"

@@ -27,7 +27,7 @@ const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingre
 const netNote = "antes da tarifa do Mercado Pago";
 const RECENT_ORDERS = 5;
 const orderMoment = (order: SellerOrderView) => new Date(order.refundedAt ?? order.paidAt ?? 0).getTime();
-const metricClass = "rounded-2xl border bg-card p-4 shadow-surface";
+const metricClass = "rounded-[22px] border bg-card p-4 shadow-[var(--em-shadow-card)]";
 const salesExportError = "Não foi possível exportar as vendas. Tente novamente.";
 
 export default function PaymentsPanel({ connectStatus }: { connectStatus?: string }) {
@@ -145,12 +145,13 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
   const recentOrders = overview ? overview.events.flatMap((event) => event.orders.map((order) => ({ ...order, eventName: event.eventName }))).sort((a, b) => orderMoment(b) - orderMoment(a)).slice(0, RECENT_ORDERS) : [];
   const hasSales = Boolean(overview && (overview.totals.sold > 0 || overview.totals.refunded > 0));
 
-  return <div className="w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10">
+  return <div className="em-page w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10" data-decor="ring">
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-2">
         <Link href="/myEvents" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">← Meus eventos</Link>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Pagamentos</h1>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Conecte o Mercado Pago para vender por Pix e acompanhe aqui as vendas dos seus eventos. Quem compra só escaneia o QR Code ou copia o código Pix.</p>
+        <p className="em-eyebrow">Painel de eventos</p>
+        <h1 className="em-title"><span className="em-highlight">Pagamentos<svg viewBox="0 0 240 24" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M4 19 C 70 9, 150 4, 236 7" /></svg></span></h1>
+        <p className="em-subtitle">Conecte o Mercado Pago para vender por Pix e acompanhe aqui as vendas dos seus eventos. Quem compra só escaneia o QR Code ou copia o código Pix.</p>
       </header>
 
       {connectStatus === "connected" && <p role="status" className="flex items-start gap-2 rounded-2xl border border-emerald-600/30 bg-emerald-500/10 p-4 text-sm leading-6"><CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" /><span><strong className="font-semibold">Mercado Pago conectado.</strong> Se você estava criando um evento, pode fechar esta aba e voltar: seus dados continuam lá.</span></p>}
@@ -158,7 +159,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
       {loading && !overview ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Carregando pagamentos...</p>
         : failed && !overview ? <div role="alert" className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5"><p className="text-sm">Não foi possível carregar seus pagamentos agora.</p><Button type="button" variant="outline" onClick={() => void load()}>Tentar novamente</Button></div>
           : overview && <>
-            <section aria-labelledby="mp-account-title" className="rounded-2xl border bg-card p-4 shadow-surface sm:p-5">
+            <section aria-labelledby="mp-account-title" className="rounded-[22px] border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><Wallet className="size-5" aria-hidden="true" /></span>
@@ -213,7 +214,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
 
             {hasSales && <section aria-labelledby="events-title" className="space-y-4">
               <h2 id="events-title" className="text-xl font-semibold">Por evento</h2>
-              <ul className="space-y-4">{overview.events.map((event) => <li key={event.eventId} className="rounded-2xl border bg-card p-5 shadow-surface">
+              <ul className="space-y-4">{overview.events.map((event) => <li key={event.eventId} className="rounded-[22px] border bg-card p-5 shadow-[var(--em-shadow-card)]">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <h3 className="min-w-0 break-words font-semibold"><Link href={`/eventos/${encodeURIComponent(event.eventId)}`} className="hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{event.eventName}</Link></h3>
                   <div className="flex flex-wrap items-center gap-2"><TicketCoupons eventId={event.eventId} eventName={event.eventName} /></div>
@@ -242,7 +243,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
 
             {recentOrders.length > 0 && <section aria-labelledby="recent-title" className="space-y-4">
               <h2 id="recent-title" className="text-xl font-semibold">Pedidos recentes</h2>
-              <ul className="divide-y rounded-2xl border bg-card px-4 shadow-surface sm:px-5">{recentOrders.map((order) => <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+              <ul className="divide-y rounded-[22px] border bg-card px-4 sm:px-5 shadow-[var(--em-shadow-card)]">{recentOrders.map((order) => <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0 flex-1 basis-48">
                   <p className="break-words font-medium">{order.buyerName}</p>
                   <p className="break-words text-xs leading-5 text-muted-foreground">{order.eventName} · <span className="font-mono">{order.code}</span> · {ticketCount(order.quantity)}{order.refundedAt ? ` · estornado em ${dateTime.format(new Date(order.refundedAt))}` : order.paidAt ? ` · pago em ${dateTime.format(new Date(order.paidAt))}` : ""}</p>
@@ -256,7 +257,7 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
               </li>)}</ul>
             </section>}
 
-            <details className="rounded-2xl border bg-card px-4 shadow-surface sm:px-5">
+            <details className="rounded-[22px] border bg-card px-4 sm:px-5 shadow-[var(--em-shadow-card)]">
               <summary className="flex min-h-11 cursor-pointer items-center py-2 text-sm font-semibold">Como funciona a taxa de {TICKET_FEE_PERCENT}%</summary>
               <div className="border-t py-4">
                 <p className="text-sm leading-6 text-muted-foreground">Quem compra paga o preço anunciado. Na hora do Pix, o Mercado Pago divide o valor: {100 - TICKET_FEE_PERCENT}% vai para a sua conta e {TICKET_FEE_PERCENT}% fica com o EventMap. O Mercado Pago também desconta do seu valor a tarifa do Pix.</p>

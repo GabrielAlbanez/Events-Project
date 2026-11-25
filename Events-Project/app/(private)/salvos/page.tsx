@@ -7,6 +7,7 @@ import { Evento } from "@/types";
 import { getSavedEvents } from "@/app/(actions)/engagement/action";
 import { PersonalAgenda } from "@/components/MyComponents/PersonalAgenda";
 import { FadeInView } from "@/components/animations/FadeInView";
+import { Highlight } from "@/components/ui/highlight";
 export default function SavedEvents() {
  const { status, data: session } = useSession();
  const socket = useSocket();
@@ -54,5 +55,5 @@ export default function SavedEvents() {
    document.removeEventListener('visibilitychange', visible);
   };
  }, [socket, status, session?.user?.id]);
- return <div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10"><div className="mx-auto max-w-6xl space-y-6"><header className="flex items-start gap-4"><FadeInView><p className="text-sm font-semibold text-brand">Suas descobertas</p><h1 className="mt-1 text-3xl font-bold">Minha agenda</h1><p className="mt-2 text-muted-foreground">Seus próximos planos, lembretes e eventos salvos em um só lugar.</p></FadeInView></header>{loading ? <p role="status">Carregando sua agenda...</p> : status!=='authenticated' ? <div className="rounded-2xl border p-8"><p>Entre para salvar eventos e montar sua agenda.</p><Link href="/login" className="mt-3 inline-block text-brand underline">Entrar</Link></div> : error ? <div role="alert" className="rounded-2xl border p-6"><p>{error}</p><button type="button" className="mt-3 text-brand underline" onClick={()=>setRetry(value=>value+1)}>Tentar novamente</button></div> : <PersonalAgenda key={session?.user?.id} events={events} />}</div></div>;
+ return <div className="em-page w-full min-w-0 px-4 pb-10 pt-6 sm:px-6 sm:pt-10 lg:px-10"><div className="mx-auto max-w-6xl space-y-8"><header className="flex items-start gap-4"><FadeInView><p className="em-eyebrow">Suas descobertas</p><h1 className="em-title mt-3">Minha <Highlight>agenda</Highlight></h1><p className="em-subtitle mt-3">Seus próximos planos, lembretes e eventos salvos em um só lugar.</p></FadeInView></header>{loading ? <p role="status" className="em-state">Carregando sua agenda...</p> : status!=='authenticated' ? <div className="em-state"><p className="em-state-text">Entre para salvar eventos e montar sua agenda.</p><Link href="/login" className="em-btn em-btn-primary mt-1">Entrar</Link></div> : error ? <div role="alert" className="em-state" data-tone="error"><p className="em-state-text">{error}</p><button type="button" className="em-btn em-btn-outline mt-1" onClick={()=>setRetry(value=>value+1)}>Tentar novamente</button></div> : <PersonalAgenda key={session?.user?.id} events={events} />}</div></div>;
 }

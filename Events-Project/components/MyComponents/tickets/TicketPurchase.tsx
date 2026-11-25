@@ -13,7 +13,7 @@ import CheckInPass from "../CheckInPass";
 
 const POLL_MS = 4000;
 const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `tickets:${text}` }); };
-const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60";
+const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60";
 const primary = `${button} w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto`;
 const secondary = `${button} border border-border hover:bg-muted`;
 const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}`;
@@ -202,7 +202,7 @@ export default function TicketPurchase({ eventId, priceCents, approval, refreshK
       {loading && !purchase ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Consultando ingressos...</p>
         : loadError && !purchase ? <div className="space-y-2"><p role="alert" className="text-sm text-destructive">Não foi possível consultar os ingressos agora.</p><button type="button" onClick={() => void load()} className={secondary}>Tentar novamente</button></div>
           : paid ? <div className="space-y-3">
-            <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><TicketCheck aria-hidden="true" className="h-4 w-4" />Ingresso confirmado</p>
+            <p role="status" className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><TicketCheck aria-hidden="true" className="h-4 w-4" />Ingresso confirmado</p>
             <p className="text-sm leading-6 text-muted-foreground">{shownQuantity > 1 ? `Cada um dos ${shownQuantity} ingressos tem o próprio QR Code. Abra os demais em Meus ingressos.` : "Mostre o QR Code abaixo na entrada. Ele também fica em Meus ingressos."}</p>
             {sessionStatus === "authenticated" && <CheckInPass key={session?.user?.id} eventId={eventId} label={shownQuantity > 1 ? `Ingresso 1 de ${shownQuantity}` : undefined} />}
             <Link href="/ingressos" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Ver meus ingressos →</Link>
@@ -280,7 +280,7 @@ function Checkout({ order, remaining, onCopy }: { order: TicketOrderView; remain
         <label htmlFor={`pix-code-${order.id}`} className="block text-sm font-medium">Pix copia e cola</label>
         {/* Always stacked: the checkout lives in a narrow column on desktop and the code is long. */}
         <div className="flex flex-col gap-2">
-          <input id={`pix-code-${order.id}`} readOnly value={order.pixCopyPaste ?? ""} onFocus={(event) => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-xl border bg-background px-3 font-mono text-xs" />
+          <input id={`pix-code-${order.id}`} readOnly value={order.pixCopyPaste ?? ""} onFocus={(event) => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-2xl border bg-card px-3 font-mono text-xs" />
           <button type="button" onClick={onCopy} className={`${button} w-full bg-primary text-primary-foreground hover:bg-primary/90`}><Copy aria-hidden="true" className="h-4 w-4" />Copiar código</button>
         </div>
       </div>
@@ -326,7 +326,7 @@ function CouponField({ open, onOpen, value, onChange, applied, quantity, error, 
           <div className="flex gap-2">
             <input ref={inputRef} id={inputId} value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} placeholder="Ex.: AMIGOS10"
               aria-invalid={error ? true : undefined} aria-describedby={feedbackId}
-              className="min-h-11 w-full min-w-0 flex-1 rounded-xl border bg-background px-3 font-mono text-sm uppercase placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive" />
+              className="min-h-11 w-full min-w-0 flex-1 rounded-2xl border bg-card px-3 font-mono text-sm uppercase placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive" />
             <button type="submit" disabled={busy || disabled || !value.trim()} className={`${secondary} shrink-0`}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /><span className="sr-only">Validando cupom</span></> : "Aplicar"}</button>
           </div>
         </form>}

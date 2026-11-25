@@ -26,7 +26,7 @@ export default function PromoterError({ reset }: ErrorProps) {
     <div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         
-        <section aria-labelledby="page-error-title" aria-busy={pending} className="rounded-3xl border bg-card p-6 shadow-sm sm:p-10">
+        <section aria-labelledby="page-error-title" aria-busy={pending} className="rounded-[26px] border bg-card p-6 sm:p-10 shadow-[var(--em-shadow-card)]">
           <div role="alert">
             <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-brand">
               <AlertCircle className="h-6 w-6" aria-hidden="true" />

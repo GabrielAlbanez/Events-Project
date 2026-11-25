@@ -71,7 +71,7 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="flex min-h-[80vh] w-full items-center justify-center px-4 py-10 sm:px-6">
-      <section className="w-full max-w-lg rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-10" aria-busy={loading}>
+      <section className="w-full max-w-lg rounded-[26px] border bg-card p-6 text-center sm:p-10 shadow-[var(--em-shadow-card)]" aria-busy={loading}>
         <div role={loading || success ? "status" : "alert"} aria-live="polite">
           <FadeInView stationary><span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-brand">
             {loading ? <LoaderCircle className="h-7 w-7 motion-safe:animate-spin" aria-hidden="true" /> : success ? <CheckCircle className="h-7 w-7" aria-hidden="true" /> : <XCircle className="h-7 w-7" aria-hidden="true" />}

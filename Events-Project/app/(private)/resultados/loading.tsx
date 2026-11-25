@@ -8,11 +8,11 @@ export default function ResultsLoading() {
           <div className="h-9 w-56 rounded-xl bg-muted motion-safe:animate-pulse" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
-          {[0, 1, 2, 3].map(item => <div key={item} className="h-36 rounded-2xl border bg-card motion-safe:animate-pulse" />)}
+          {[0, 1, 2, 3].map(item => <div key={item} className="h-36 rounded-[22px] border bg-card motion-safe:animate-pulse shadow-[var(--em-shadow-card)]" />)}
         </div>
         <div className="grid gap-5 lg:grid-cols-2" aria-hidden="true">
-          <div className="h-72 rounded-2xl border bg-card motion-safe:animate-pulse" />
-          <div className="h-72 rounded-2xl border bg-card motion-safe:animate-pulse" />
+          <div className="h-72 rounded-[22px] border bg-card motion-safe:animate-pulse shadow-[var(--em-shadow-card)]" />
+          <div className="h-72 rounded-[22px] border bg-card motion-safe:animate-pulse shadow-[var(--em-shadow-card)]" />
         </div>
       </div>
     </div>

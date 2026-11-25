@@ -15,7 +15,7 @@ import { MessageList } from "./chat/MessageList";
 import { MessageInput } from "./chat/MessageInput";
 import styles from "./chat/Chat.module.css";
 
-const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function EventChatHub({ eventId }: { eventId: string }) {
   const { data: session, status } = useSession();

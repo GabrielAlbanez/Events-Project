@@ -35,7 +35,7 @@ export function EmbedShareBox({ snippet, calendarUrl, previewUrl, note }: EmbedS
   }
 
   return (
-    <section id="incorporar" aria-labelledby="embed-title" className="scroll-mt-24 rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+    <section id="incorporar" aria-labelledby="embed-title" className="scroll-mt-24 rounded-[22px] border bg-card p-5 sm:p-7 shadow-[var(--em-shadow-card)]">
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand"><Code2 className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0">
