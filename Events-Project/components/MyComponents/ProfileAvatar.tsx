@@ -32,6 +32,6 @@ function ProfileAvatarImage({ src: originalSource, name, className, size, decora
     return <span role={decorative ? undefined : "img"} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden", fallbackClassName ?? "bg-muted font-semibold text-muted-foreground", className)}><span aria-hidden="true">{initials}</span></span>;
   }
 
-  const image = <Image src={src} alt={decorative ? "" : label} aria-hidden={decorative || undefined} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!profileImageIsOptimized(src)} className={preview ? "h-full w-full rounded-[inherit] object-cover object-center" : className} onError={() => setFailedSource(src)} />;
+  const image = <Image src={src} alt={decorative ? "" : label} aria-hidden={decorative || undefined} width={size} height={size} referrerPolicy="no-referrer" unoptimized={!profileImageIsOptimized(src)} className={preview ? "h-full min-h-0 w-full min-w-0 rounded-[inherit] object-cover object-center" : cn("min-h-0 min-w-0", className)} onError={() => setFailedSource(src)} />;
   return preview ? <ProfilePhotoViewer src={src} label={label} className={className}>{image}</ProfilePhotoViewer> : image;
 }

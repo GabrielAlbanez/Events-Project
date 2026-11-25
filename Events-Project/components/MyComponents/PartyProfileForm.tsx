@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { Camera, Check, Heart, Loader2, Sparkles, UsersRound, X } from "lucide-react";
 import type { PartyIntent, PartyOwnProfile } from "@/types/partyConnections";
 import PartyAvatar from "./PartyAvatar";
+import { PhotoCropDialog } from "./PhotoCropDialog";
 import { partyButton, partyInput } from "./PartyActions";
 import { showsMobileBottomNav } from "./MobileBottomNav";
 
@@ -53,6 +54,7 @@ export default function PartyProfileForm({ profile, busy, eligible, act, global 
   const [reviewPending, setReviewPending] = useState(needsReview);
   const locked = useRef(false);
   const controller = useRef<AbortController | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   useEffect(() => { if (!photo) { setPreview(""); return; } const url = URL.createObjectURL(photo); setPreview(url); return () => URL.revokeObjectURL(url); }, [photo]);
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -195,7 +197,8 @@ export default function PartyProfileForm({ profile, busy, eligible, act, global 
             <p id="party-photo-help" className="text-xs text-muted-foreground">Opcional · JPG, PNG, WebP ou AVIF · até 4 MB. Enviada ao salvar.</p>
           </div>
         </div>
-        <input id="party-photo" type="file" accept="image/*" className="sr-only" aria-label="Escolher foto do perfil de conexões" aria-invalid={!!errors.photo} aria-describedby={errors.photo ? "party-photo-help party-photo-error" : "party-photo-help"} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!photoTypes.includes(file.type)) { setErrors(old => ({ ...old, photo: "Escolha uma imagem JPG, PNG, WebP ou AVIF." })); return; } if (file.size > maximumUploadImageBytes || !file.size) { setErrors(old => ({ ...old, photo: "Escolha uma imagem de até 4 MB." })); return; } edited("photo"); setPhoto(file); }} />
+        <input id="party-photo" type="file" accept="image/*" className="sr-only" aria-label="Escolher foto do perfil de conexões" aria-invalid={!!errors.photo} aria-describedby={errors.photo ? "party-photo-help party-photo-error" : "party-photo-help"} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!photoTypes.includes(file.type)) { setErrors(old => ({ ...old, photo: "Escolha uma imagem JPG, PNG, WebP ou AVIF." })); return; } if (file.size > maximumUploadImageBytes || !file.size) { setErrors(old => ({ ...old, photo: "Escolha uma imagem de até 4 MB." })); return; } setErrors(old => ({ ...old, photo: undefined })); setCropFile(file); }} />
+        <PhotoCropDialog file={cropFile} onCancel={() => setCropFile(null)} onConfirm={cropped => { setCropFile(null); edited("photo"); setPhoto(cropped); }} />
         {errors.photo && <p id="party-photo-error" role="alert" className={errorText}>{errors.photo}</p>}
       </div>
 

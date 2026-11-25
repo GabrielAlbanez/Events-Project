@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import * as z from "zod";
 import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
 import ModalUniversal from "@/components/MyComponents/ModalUniversal";
+import { PhotoCropDialog } from "@/components/MyComponents/PhotoCropDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -52,6 +53,7 @@ export default function Profile() {
   const imageController = useRef<AbortController | null>(null);
   useEffect(() => () => imageController.current?.abort(), []);
   const [profileImage, setProfileImage] = useState("");
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -145,10 +147,15 @@ export default function Profile() {
       return;
     }
     setImageError("");
+    setCropFile(file);
+    event.target.value = "";
+  };
+
+  const handleCroppedImage = (file: File) => {
+    setCropFile(null);
     setSelectedImage(file);
     setPreviewImage(URL.createObjectURL(file));
     setIsModalOpen(true);
-    event.target.value = "";
   };
 
   const closeImageModal = () => {
@@ -257,6 +264,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      <PhotoCropDialog file={cropFile} onCancel={() => setCropFile(null)} onConfirm={handleCroppedImage} />
       <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} pending={isImagePending} error={imageError} />
     </div>
   );

@@ -24,6 +24,7 @@ function harness(props = {}) {
     if (name === 'lucide-react') return new Proxy({}, { get: (_, name) => name });
     if (name.endsWith('PartyActions')) return { partyButton: '', partyInput: '' };
     if (name.endsWith('PartyAvatar')) return { default: 'avatar' };
+    if (name.endsWith('PhotoCropDialog')) return { PhotoCropDialog: 'photo-crop' };
     if (name === '@/lib/uploadLimits') return (() => { const loaded = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync('lib/uploadLimits.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(require, loaded, loaded.exports); return loaded.exports; })();
     throw new Error('Unexpected dependency: ' + name);
   };
@@ -138,7 +139,15 @@ function harness(props = {}) {
     p.field('party-photo').props.onChange({ target: { files: [{ type: 'image/png', size: 50 * 1024 * 1024 }], value: 'x' } }); p.render();
     assert.ok(p.alerts().some(message => message.includes('4 MB')), 'Oversized photo rejected');
     assert.ok(!p.has('Salvar perfil'), 'Rejected files do not create changes');
-    p.field('party-photo').props.onChange({ target: { files: [new Blob(['x'], { type: 'image/png' })], value: 'x' } }); p.render();
+    const picked = new Blob(['x'], { type: 'image/png' });
+    p.field('party-photo').props.onChange({ target: { files: [picked], value: 'x' } }); p.render();
+    const crop = () => p.nodes().find(node => node.type === 'photo-crop');
+    assert.equal(crop().props.file, picked, 'A valid photo opens the "Ajustar foto" step first');
+    assert.ok(!p.has('Salvar perfil'), 'Nothing changes until the crop is confirmed');
+    crop().props.onCancel(); p.render(); assert.equal(crop().props.file, null, 'Cancelling the crop keeps the old photo');
+    p.field('party-photo').props.onChange({ target: { files: [picked], value: 'x' } }); p.render();
+    crop().props.onConfirm(new Blob(['cropped'], { type: 'image/jpeg' })); p.render();
+    assert.equal(crop().props.file, null);
     assert.ok(p.has('Salvar perfil') && p.has('Remover foto'));
     p.button('Salvar perfil').props.onClick(); await p.flush(); await p.flush();
     assert.equal(uploads.length, 1); assert.equal(uploads[0].url, '/api/upload?purpose=party'); assert.equal(uploads[0].options.method, 'POST');

@@ -29,6 +29,7 @@ const OFFLINE_EXTRA = [
   "verify-conheca-landing.cjs",
   "verify-admin-review-ui.cjs",
   "verify-mercadopago-connect-ui.cjs",
+  "verify-profile-photo-viewer.cjs",
 ];
 
 // Scripts test:* que exigem banco, servidor HTTP em execução ou serviços externos.
