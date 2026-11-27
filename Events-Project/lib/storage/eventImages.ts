@@ -31,3 +31,20 @@ export async function removeEventImages(urls: readonly string[]): Promise<void> 
         await fs.unlink(path.join(process.cwd(), "public", url)).catch(() => undefined);
     }
 }
+/** Reads an uploaded cover ("/uploads/<uuid>.<ext>") from Blob or disk for the automatic triage. Never fetches other URLs. */
+export async function readEventImage(url: string): Promise<Buffer | null> {
+    const match = /^\/uploads\/([0-9a-f-]{36}\.(jpg|png|webp))$/.exec(url);
+    if (!match) return null;
+    try {
+        if (process.env.BLOB_READ_WRITE_TOKEN) {
+            const { readMedia } = await import("./blobMedia");
+            const image = await readMedia("uploads/" + match[1], maximumUploadImageBytes);
+            if (image) return image;
+        }
+        const image = await fs.readFile(path.join(process.cwd(), "public", "uploads", match[1]));
+        return image.length <= maximumUploadImageBytes ? image : null;
+    }
+    catch {
+        return null;
+    }
+}

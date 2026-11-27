@@ -8,7 +8,10 @@ import { publicEventSelect } from "@/lib/eventQueries";
 import { parseEventInput, parseTicketSettings } from "@/schemas/eventInput";
 import { ticketSettingsProblem } from "@/lib/services/tickets";
 import { Prisma, EventHistoryAction } from "@prisma/client";
-import { saveEventImage, removeEventImages } from "@/lib/storage/eventImages";
+import { saveEventImage, removeEventImages, readEventImage } from "@/lib/storage/eventImages";
+import { createHash } from "node:crypto";
+import { runEventTriage, organizerTrust, type TriageOutcome } from "@/lib/moderation/triage";
+import { reviewWithGemini } from "@/lib/moderation/gemini";
 import { uploadMultipartFits, uploadMultipartLimitMessage } from "@/lib/uploadLimits";
 async function actor(resolveCurrentUser: ResolveCurrentUser) {
     const user = await resolveCurrentUser();
@@ -52,14 +55,19 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const ticketProblem = await ticketSettingsProblem(prisma, existing?.userId ?? user.id, { ticketsEnabled: ticketSettings.ticketsEnabled, isFree: parsed.data.isFree, priceCents: parsed.data.priceCents, alreadyEnabled: Boolean(existing?.ticketsEnabled) });
         if (ticketProblem)
             return { success: false, message: ticketProblem };
+        // Paid sales start after the organizer's first event approved by the team (automatic triage trust above NEW).
+        if (ticketSettings.ticketsEnabled && !parsed.data.isFree && !existing?.ticketsEnabled && await organizerTrust(prisma, existing?.userId ?? user.id) === "NEW")
+            return { success: false, message: "A venda de ingressos é liberada depois que o seu primeiro evento for aprovado pela equipe. Publique este evento sem venda e ative depois." };
         // Approval of registrations: new events start with it on; older clients omit the field and keep the stored value.
         const approvalField = formData.get("requiresApproval");
         const requiresApproval = approvalField === null ? existing?.requiresApproval ?? true : approvalField === "true" || approvalField === "on";
         const bannerFile = formData.get("banner");
         let banner = existing?.banner ?? "";
+        let bannerHash = existing?.bannerHash ?? null;
         if (bannerFile instanceof File && bannerFile.size) {
             banner = await saveEventImage(bannerFile);
             savedFiles.push(banner);
+            bannerHash = createHash("sha256").update(Buffer.from(await bannerFile.arrayBuffer())).digest("hex");
         }
         if (submit && !banner)
             return { success: false, message: "Adicione uma imagem de capa antes de enviar." };
@@ -78,7 +86,7 @@ async function save(formData: FormData, userId: string | null, eventId: string |
         const capacityGrew = liveUpdate && existing !== null && existing.capacity !== null && (parsed.data.capacity === null || parsed.data.capacity > existing.capacity);
         const evento = await prisma.$transaction(async (transaction) => {
             const reviewReset = liveUpdate ? {} : { validate: false, validatedAt: null, validatedBy: null, reviewNote: null };
-            const data = { ...parsed.data, ...ticketSettings, requiresApproval, banner, carrossel, status, ...reviewReset };
+            const data = { ...parsed.data, ...ticketSettings, requiresApproval, banner, bannerHash, carrossel, status, ...reviewReset };
             // Older clients omit these fields: preserve existing information until explicitly edited.
             if (existing) {
                 if (!formData.has("organizerName")) data.organizerName = existing.organizerName;
@@ -106,6 +114,16 @@ async function save(formData: FormData, userId: string | null, eventId: string |
             }
             return event;
         });
+        // Automatic triage: publishes, sends back for correction or asks an admin. A failure keeps the event PENDING for the admin.
+        let triage: TriageOutcome | null = null;
+        if (evento.status === "PENDING") {
+            try {
+                triage = await runEventTriage(evento.id, { readImage: readEventImage, review: input => reviewWithGemini(input) });
+            }
+            catch {
+                console.warn("event-triage-failed");
+            }
+        }
         if (capacityGrew) {
             try {
                 await reconcileEventWaitlist(evento.id);
@@ -114,7 +132,10 @@ async function save(formData: FormData, userId: string | null, eventId: string |
                 console.error("Waitlist reconciliation failed after an event update.");
             }
         }
-        return { success: true, message: liveUpdate ? "Alterações publicadas. O evento continua no ar." : status === "DRAFT" ? "Rascunho salvo." : "Evento enviado para revisão.", evento, published: liveUpdate, reviewReasons: sensitive };
+        const triageMessage = triage?.applied === "published" ? "Evento publicado! Ele passou na triagem automática e já está no mapa."
+            : triage?.applied === "changes" ? "O evento precisa de ajustes antes de publicar: " + triage.reasons.join(" ")
+            : "Evento enviado para revisão.";
+        return { success: true, message: liveUpdate ? "Alterações publicadas. O evento continua no ar." : status === "DRAFT" ? "Rascunho salvo." : triageMessage, evento, published: liveUpdate || triage?.applied === "published", reviewReasons: triage?.applied === "changes" ? triage.reasons : sensitive, triage: triage ? { verdict: triage.verdict, applied: triage.applied } : null };
     }
     catch (error) {
         await removeEventImages(savedFiles);

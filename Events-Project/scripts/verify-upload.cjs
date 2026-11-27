@@ -32,6 +32,7 @@ function load(file, dependencies) {
     "@/schemas/eventInput": { parseEventInput: () => { throw new Error("Oversized requests must stop before parsing or writes"); } },
     "@/lib/storage/eventImages": { saveEventImage: async () => { eventWrites++; }, removeEventImages: async () => {} },
     "@/lib/uploadLimits": limits,
+    "@/lib/moderation/triage": { runEventTriage: async () => null, organizerTrust: async () => "TRUSTED" }, "@/lib/moderation/gemini": { reviewWithGemini: async () => null },
   });
   const rejected = await events.salvarRascunho(gallery, "test", async () => ({ id: "test", role: "PROMOTER" }));
   assert.equal(rejected.success, false);

@@ -5,7 +5,7 @@ import type { ResolveCurrentUser } from "@/lib/services/authContext";
 import { suspensionActive } from "@/lib/services/userSuspension";
 import { sendOrganizerMail } from "./mail";
 import {
-  eventClaimSchema, firstFieldErrors, maxDailyEventClaims, organizerRequestSchema, organizerRequestWindowMs, transferOwnershipSchema,
+  eventClaimSchema, firstFieldErrors, maxDailyEventClaims, organizerActivationSchema, organizerRequestSchema, organizerRequestWindowMs, transferOwnershipSchema,
   type OrganizerActionResult, type OrganizerRequest,
 } from "./schema";
 
@@ -92,6 +92,48 @@ export async function submitOrganizerRequest(rawInput: unknown, resolveCurrentUs
     if (outcome === "limited") return { success: false, message: request.interest === "plans" ? "Seu interesse nos planos já foi registrado nas últimas 24 horas." : "Recebemos um pedido seu nas últimas 24 horas. A equipe vai analisar e responder pela sua central de notificações." };
     await notifyMailSafely(admins.map(admin => admin.email), interestTitles[request.interest], organizerRequestMail(account, request));
     return { success: true, message: request.interest === "plans" ? "Você entrou na lista de interesse. Avisaremos quando os planos estiverem definidos." : "Pedido enviado. A equipe vai analisar e você será avisado quando sua conta puder publicar eventos." };
+  } catch {
+    return genericError;
+  }
+}
+
+/**
+ * Self-service: a verified BASIC account becomes PROMOTER at once. Safe because every new event
+ * still starts PENDING and goes through admin review; admins are told so they can follow up.
+ */
+export async function activateOrganizer(rawInput: unknown, resolveCurrentUser: ResolveCurrentUser): Promise<OrganizerActionResult> {
+  const user = await resolveCurrentUser();
+  if (!user) return { success: false, message: "Entre na sua conta para ativar o acesso de organizador." };
+  const parsed = organizerActivationSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, message: "Revise os campos destacados.", fieldErrors: firstFieldErrors(parsed.error) };
+  if (user.role === "ADMIN" || user.role === "PROMOTER") return { success: false, message: "Sua conta já pode publicar eventos. Acesse Criar evento no menu." };
+  if (user.role !== "BASIC") return { success: false, message: "Sua conta não pode ativar o acesso de organizador." };
+  const { brandName, city } = parsed.data;
+  try {
+    const account = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true, email: true, emailVerified: true, accounts: { where: { provider: "google" }, select: { id: true }, take: 1 } },
+    });
+    if (!account?.email) return { success: false, message: "Sua conta precisa de um e-mail para publicar eventos." };
+    // Google verifies the address it hands over, so Google accounts count as verified.
+    if (account.emailVerified !== true && account.accounts.length === 0) return { success: false, message: "Confirme seu e-mail antes de publicar eventos. Procure a mensagem de confirmação na sua caixa de entrada." };
+    const email = account.email;
+    const who = account.name?.trim() || email;
+    const outcome = await prisma.$transaction(async tx => {
+      // Conditional on BASIC, so a stale session or a double click cannot promote twice.
+      const changed = await tx.user.updateMany({ where: { id: user.id, role: "BASIC" }, data: { role: "PROMOTER" } });
+      if (changed.count === 0) return "unchanged" as const;
+      await tx.userSuspensionAudit.create({ data: { actorId: user.id, userId: user.id, action: "ROLE_CHANGE", reason: "BASIC -> PROMOTER (autoatendimento)" } });
+      const admins = await tx.user.findMany({ where: { role: "ADMIN", suspendedAt: null }, select: { id: true, email: true } });
+      const adminNotice = notificationText([who, brandName, city].join(" · "), 160);
+      await createNotifications(tx, [
+        organizerPromotionNotice(user.id),
+        ...admins.map((admin): CreateNotificationInput => ({ userId: admin.id, type: "ADMIN", title: "Novo organizador (autoatendimento)", message: adminNotice, href: adminUserHref(email), groupKey: `organizer-self:${user.id}` })),
+      ]);
+      return "changed" as const;
+    });
+    if (outcome === "unchanged") return { success: false, message: "Sua conta já pode publicar eventos. Atualize a página e acesse Criar evento." };
+    return { success: true, message: "Pronto! Sua conta já pode publicar eventos. Cada evento passa por uma revisão rápida antes de aparecer no mapa." };
   } catch {
     return genericError;
   }

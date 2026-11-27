@@ -1,7 +1,11 @@
 import { createNotifications } from "@/lib/notifications/create";
-import { notificationCopy } from "@/lib/notifications/catalog";
+import { notificationCopy, notificationText } from "@/lib/notifications/catalog";
 import { Prisma, ReportStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { notifyEventAudience } from "@/lib/eventNotifications";
+
+/** Reports from this many different people take a published event offline until an admin reviews it. */
+export const REPORTS_TO_TAKE_DOWN = 3;
 
 const reasons = ["INCORRECT_INFORMATION", "INAPPROPRIATE_CONTENT", "SPAM", "OTHER"] as const;
 type ReportReason = typeof reasons[number];
@@ -21,6 +25,16 @@ export async function reportEvent(eventId: string, reporterId: string, input: { 
       const report = await tx.eventReport.create({ data: { eventId, reporterId, reason: input.reason, details: input.details.trim() }, select: { id: true, status: true } });
       const admins = await tx.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
       if (admins.length) await createNotifications(tx, admins.map(admin => ({ userId: admin.id, title: "Nova denúncia de evento", message: `O evento ${event.nome} recebeu uma denúncia.`, href: "/admin/reports" })).map(item => notificationCopy({ ...item, type: "ADMIN" as const })));
+      const reporters = await tx.eventReport.findMany({ where: { eventId, status: "PENDING" }, distinct: ["reporterId"], select: { reporterId: true } });
+      if (reporters.length >= REPORTS_TO_TAKE_DOWN) {
+        const note = `Retirado do ar automaticamente após denúncias de ${reporters.length} pessoas. A equipe vai analisar.`;
+        const changed = await tx.events.updateMany({ where: { id: eventId, status: "PUBLISHED" }, data: { status: "PENDING", validate: false, reviewNote: note } });
+        if (changed.count) {
+          await tx.eventHistory.create({ data: { eventId, eventName: event.nome, promoterId: event.userId, actorId: "system:reports", actorName: "Denúncias da comunidade", action: "UPDATED", note } });
+          await notifyEventAudience(tx, { ...event, status: "PENDING" }, { title: "Evento em revisão", message: "Seu evento recebeu denúncias e saiu do ar até a equipe analisar." });
+          if (admins.length) await createNotifications(tx, admins.map(admin => ({ userId: admin.id, type: "ADMIN" as const, priority: "high" as const, title: "Evento fora do ar por denúncias", message: notificationText(`${event.nome}: ${reporters.length} denúncias. Revise e decida.`, 160), href: "/admin/reports", groupKey: `reports-takedown:${eventId}` })));
+        }
+      }
       return report;
     });
   } catch (error) {
@@ -54,10 +68,16 @@ export async function reviewEventReport(reportId: string, adminId: string, input
     data: { status: input.status, resolutionNote: note, reviewedById: adminId, reviewedAt: new Date() },
   });
   if (!changed.count) throw new EventReportError("Denúncia já analisada ou inexistente.", 409);
-  return prisma.eventReport.findUniqueOrThrow({ where: { id: reportId }, select: {
+  const reviewed = await prisma.eventReport.findUniqueOrThrow({ where: { id: reportId }, select: {
     id: true, reason: true, details: true, status: true, createdAt: true, reviewedAt: true, resolutionNote: true,
-    event: { select: { id: true, nome: true, status: true } },
+    event: { select: { id: true, nome: true, status: true, userId: true } },
     reporter: { select: { id: true, name: true, email: true } },
     reviewer: { select: { id: true, name: true } },
   } });
+  // A confirmed report restarts the organizer's automatic-triage trust: their next event is reviewed by a person.
+  if (input.status === "RESOLVED" && reviewed.event.userId) {
+    await prisma.user.updateMany({ where: { id: reviewed.event.userId, role: { not: "ADMIN" } }, data: { organizerTrustResetAt: new Date() } }).catch(() => console.warn("trust-reset-failed"));
+  }
+  const { userId: _owner, ...event } = reviewed.event;
+  return { ...reviewed, event };
 }

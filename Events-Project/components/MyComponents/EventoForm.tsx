@@ -294,12 +294,24 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
             router.push("/myEvents");
             return;
           }
-          toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados para análise"}.`);
+          toast.success(`${occurrences} eventos ${draft ? "salvos como rascunho" : "enviados"}.`);
+        } else if (!draft && result.triage?.applied === "published" && result.evento?.id) {
+          // Automatic triage published it: show the public page right away.
+          toast.success(result.message || "Evento publicado!");
+          socket.emit("create-event");
+          router.push(`/eventos/${encodeURIComponent(result.evento.id)}`);
+          return;
+        } else if (!draft && result.triage?.applied === "changes" && result.evento?.id) {
+          // Sent back for correction: the edit page shows the review note on top of the form.
+          toast.warning(result.message || "O evento precisa de ajustes antes de publicar.", { autoClose: 10000 });
+          router.push(`/eventos/${encodeURIComponent(result.evento.id)}/editar`);
+          router.refresh();
+          return;
         } else if (isPublishedEdit) {
           // The server decides whether the event stayed online; its message says which.
           toast.success(result.message || "Alterações salvas.");
         } else {
-          toast.success(draft ? "Rascunho salvo com sucesso!" : "Evento enviado para análise!");
+          toast.success(draft ? "Rascunho salvo com sucesso!" : result.message || "Evento enviado para revisão.");
         }
         socket.emit("create-event");
         router.push("/myEvents");
@@ -336,6 +348,7 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           {draftRecovery.recovery && <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="Recuperar rascunho local"><h2 className="font-semibold">Você tem um rascunho neste navegador</h2><p className="mt-2 text-sm text-muted-foreground">Salvo em {new Date(draftRecovery.recovery.savedAt).toLocaleString("pt-BR")}. As imagens precisam ser selecionadas novamente. {draftRecovery.conflict ? "O evento foi atualizado desde este rascunho: recuperar substituirá os campos atuais. Confira antes de salvar." : "Recupere suas alterações ou descarte para continuar."}</p><div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={restoreDraft} disabled={fingerprint !== initialFingerprint.current || isPending}>Recuperar rascunho</Button><Button type="button" variant="ghost" onClick={draftRecovery.discard}>Descartar rascunho</Button></div>{fingerprint !== initialFingerprint.current && <p className="mt-2 text-xs text-muted-foreground">Você já editou o formulário. O rascunho anterior não substituirá essas alterações.</p>}</section>}
+          {initialEvent?.status === "CHANGES_REQUESTED" && initialEvent.reviewNote && <section role="alert" aria-labelledby="event-review-note-title" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5"><h2 id="event-review-note-title" className="flex items-center gap-2 font-semibold"><AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />Ajustes necessários antes de publicar</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{initialEvent.reviewNote}</p><p className="mt-2 text-xs text-muted-foreground">Corrija os pontos acima e envie o evento novamente.</p></section>}
           {draftRecovery.message && <p role="status" className="text-xs text-muted-foreground">{draftRecovery.message} · Alterações ainda não enviadas. Expira após 7 dias.</p>}
           <section className={sectionClass} aria-labelledby="event-details-title">
             <SectionHeading number="01" title="Apresente o evento" description="Ajude as pessoas a entender o que vai acontecer e por que participar." id="event-details-title" />
@@ -546,8 +559,8 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           </section>
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
-            {isPublishedEdit ? <div className="flex items-start gap-3" aria-live="polite">{reviewReasons.length ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" /> : <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" />}<div className="space-y-1 text-sm text-foreground">{reviewReasons.length ? <><p className="font-semibold">Estas alterações exigem nova revisão: {reviewReasons.join(", ")}.</p><p className="text-muted-foreground">Ao salvar, o evento sairá do ar até a aprovação. Inscritos e quem salvou o evento serão avisados.</p></> : <><p className="font-semibold">O evento continua no ar.</p><p className="text-muted-foreground">Descrição, imagens, categoria, informações práticas e aumento de vagas são publicados na hora. Nome, data, horário, local, link de ingressos, preço e redução de vagas passam por nova revisão.</p></>}</div></div> : <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><p className="text-sm text-foreground">Após o envio, o evento passa por validação antes de aparecer na busca e no mapa.</p></div>}
-            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? (isPublishedEdit ? "Salvando alterações..." : "Enviando evento...") : isPublishedEdit ? (reviewReasons.length ? "Salvar e enviar para revisão" : "Publicar alterações") : "Enviar para análise"}</Button></div>
+            {isPublishedEdit ? <div className="flex items-start gap-3" aria-live="polite">{reviewReasons.length ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" /> : <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" />}<div className="space-y-1 text-sm text-foreground">{reviewReasons.length ? <><p className="font-semibold">Estas alterações exigem nova revisão: {reviewReasons.join(", ")}.</p><p className="text-muted-foreground">Ao salvar, o evento sairá do ar até a aprovação. Inscritos e quem salvou o evento serão avisados.</p></> : <><p className="font-semibold">O evento continua no ar.</p><p className="text-muted-foreground">Descrição, imagens, categoria, informações práticas e aumento de vagas são publicados na hora. Nome, data, horário, local, link de ingressos, preço e redução de vagas passam por nova revisão.</p></>}</div></div> : <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0 text-brand" /><div className="space-y-1 text-sm text-foreground"><p className="font-semibold">Ao enviar, o evento passa por uma triagem automática.</p><p className="text-muted-foreground">Se estiver tudo certo, ele é publicado na hora. Se faltar algo, você recebe o que ajustar. Alguns eventos, como o primeiro de cada organizador, são conferidos pela equipe antes de aparecer no mapa.</p></div></div>}
+            <div className="mt-5 flex flex-wrap gap-3">{initialEvent?.status !== "PUBLISHED" && <Button type="button" variant="outline" disabled={isPending} onClick={handleDraft}>{isPending ? "Salvando..." : "Salvar rascunho"}</Button>}<Button type="submit" variant="cta" onClick={() => { saveMode.current = "submit"; }} disabled={isPending} className="w-full sm:w-auto sm:min-w-52">{isPending ? (isPublishedEdit ? "Salvando alterações..." : "Enviando evento...") : isPublishedEdit ? (reviewReasons.length ? "Salvar e enviar para revisão" : "Publicar alterações") : "Enviar evento"}</Button></div>
           </div>
         </div>
 

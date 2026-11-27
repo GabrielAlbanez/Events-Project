@@ -126,6 +126,13 @@ for (const text of ['role="tablist"', 'role="tab"', "aria-selected", "aria-contr
 assert.ok(workspace.includes('role="tabpanel"') && workspace.includes("SheetTitle") && workspace.includes("motion-reduce"));
 assert.ok(detail.includes('rel="noopener noreferrer"') && detail.includes("safeHref"));
 
+// Automatic triage: verdict badge in the row, full panel (reasons, trust, AI) in the detail; nothing without triage
+const triage = read("components/MyComponents/admin/AdminTriageBadge.tsx");
+for (const text of ["Publicado automaticamente", "Devolvido para correção", "Precisa da sua revisão", 'NEW: "Novo"', 'TESTING: "Em teste"', 'TRUSTED: "Confiável"', "Imagem conferida por IA", "triage.reasons.map"]) assert.ok(triage.includes(text), "triage shows " + text);
+assert.ok(!/🟢|🟡|🔴/u.test(triage), "triage uses icons, not emoji");
+assert.match(row, /\{event\.triage && <TriageBadge triage=\{event\.triage\} \/>\}/);
+assert.match(detail, /\{event\.triage && <TriagePanel triage=\{event\.triage\} eventId=\{event\.id\} \/>\}/);
+
 // Overview: zero values never render as a stat; progress comes only from confirmed decisions
 assert.deepEqual(queue.overviewStats({ imported: 0, withProblems: 0 }, 0), []);
 assert.deepEqual(queue.overviewStats({ imported: 2, withProblems: 0 }, 1).map(stat => stat.id), ["imported", "decided"]);

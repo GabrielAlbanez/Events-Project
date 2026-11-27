@@ -48,6 +48,13 @@ export const organizerRequestSchema = z.object({
   message: multiLine(organizerLimits.message),
   interest: z.enum(organizerInterests).default("access"),
 });
+/** Self-service activation: two quick fields for the admin notice plus explicit acceptance of the organizer rules. */
+export const organizerActivationSchema = z.object({
+  acceptTerms: z.literal(true, { errorMap: () => ({ message: "Aceite as regras para organizadores para continuar." }) }),
+  brandName: singleLine("o nome da produtora ou marca", 2, organizerLimits.brandName),
+  city: singleLine("a cidade", 2, organizerLimits.city),
+});
+export type OrganizerActivationInput = z.input<typeof organizerActivationSchema>;
 export type OrganizerRequestInput = z.input<typeof organizerRequestSchema>;
 export type OrganizerRequest = z.output<typeof organizerRequestSchema>;
 

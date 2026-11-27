@@ -19,6 +19,8 @@ model User {
   suspensionReason  String?
   suspendedById     String?
   sessionVersion    Int @default(0)
+  /// Set when an admin takes down or refuses an organizer's event: automatic triage trust restarts from NEW.
+  organizerTrustResetAt DateTime?
   image             String?
   accounts          Account[]
   sessions          Session[]
@@ -165,8 +167,12 @@ model Events {
   ticketOrders TicketOrder[]
   ticketPasses       TicketPass[]
   ticketCoupons TicketCoupon[]
+  /// SHA-256 of the uploaded cover: the automatic triage spots covers reused by another organizer.
+  bannerHash         String?
+  moderations        EventModeration[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
+  @@index([bannerHash])
   @@map("events")
 }
 
@@ -791,4 +797,19 @@ model TicketCoupon {
 
   @@unique([eventId, code])
   @@map("ticket_coupons")
+}
+
+/// One row per automatic triage run of a submitted event (GREEN publish, YELLOW correction, RED admin review).
+model EventModeration {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Events   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  verdict   String
+  trust     String
+  reasons   Json
+  aiUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@map("event_moderations")
 }

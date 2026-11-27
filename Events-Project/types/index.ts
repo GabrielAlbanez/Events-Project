@@ -58,9 +58,20 @@ export type Evento = {
   endTime?: string | null;
   timezone?: string;
   reviewNote?: string | null;
+  /** Latest automatic triage (admin listing only). */
+  triage?: EventTriageSummary | null;
   views?: number;
   ticketClicks?: number;
   favoriteCount?: number;
   /** Running paid highlight, computed on the server. Absent means not featured. */
   featured?: boolean;
 };
+
+/** Result of the automatic event triage shown to admins: GREEN published, YELLOW sent back, RED needs a person. */
+export interface EventTriageSummary {
+  verdict: "GREEN" | "YELLOW" | "RED";
+  trust: "NEW" | "TESTING" | "TRUSTED";
+  reasons: string[];
+  aiUsed: boolean;
+  createdAt: string;
+}

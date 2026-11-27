@@ -31,6 +31,7 @@ const OFFLINE_EXTRA = [
   "verify-mercadopago-connect-ui.cjs",
   "verify-profile-photo-viewer.cjs",
   "verify-install-app.cjs",
+  "verify-event-triage.cjs",
 ];
 
 // Scripts test:* que exigem banco, servidor HTTP em execução ou serviços externos.

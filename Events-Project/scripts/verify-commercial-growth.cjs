@@ -58,10 +58,11 @@ assert.equal(schema.eventClaimSchema.safeParse({ eventId: 'not-a-uuid', contact:
 const now = new Date('2026-11-18T12:00:00Z');
 function fakeDb(state) {
   const db = {
-    created: [], history: [], updates: [], locks: 0, mails: [],
+    created: [], history: [], updates: [], locks: 0, mails: [], roleChanges: [], audits: [],
     user: {
       findMany: async ({ where }) => state.users.filter(u => u.role === where.role && !u.suspendedAt).map(u => ({ id: u.id, email: u.email })),
-      findUnique: async ({ where }) => state.users.find(u => u.id === where.id) ?? null,
+      findUnique: async ({ where }) => { const u = state.users.find(u => u.id === where.id); return u ? { ...u, accounts: u.accounts ?? [] } : null; },
+      updateMany: async ({ where, data }) => { const u = state.users.find(u => u.id === where.id && u.role === where.role); if (!u) return { count: 0 }; Object.assign(u, data); db.roleChanges.push({ id: u.id, ...data }); return { count: 1 }; },
       findFirst: async ({ where }) => state.users.find(u => u.email.toLowerCase() === where.email.equals.toLowerCase()) ?? null,
     },
     notification: {
@@ -74,6 +75,7 @@ function fakeDb(state) {
       findUnique: async ({ where }) => { const e = state.events.find(ev => ev.id === where.id); return e ? { ...e } : null; },
       updateMany: async ({ where, data }) => { const e = state.events.find(ev => ev.id === where.id && ev.userId === where.userId); if (!e) return { count: 0 }; e.userId = data.userId; db.updates.push(data); return { count: 1 }; },
     },
+    userSuspensionAudit: { create: async ({ data }) => { db.audits.push(data); return data; } },
     eventHistory: { create: async ({ data }) => { db.history.push(data); return data; } },
     $queryRaw: async () => { db.locks++; return []; },
     $transaction: async fn => fn(db),
@@ -94,7 +96,9 @@ const baseState = () => ({
     { id: 'admin-1', role: 'ADMIN', email: 'a1@ex.com', name: 'Admin 1' },
     { id: 'admin-2', role: 'ADMIN', email: 'a2@ex.com', name: 'Admin 2' },
     { id: 'admin-off', role: 'ADMIN', email: 'off@ex.com', name: 'Off', suspendedAt: new Date() },
-    { id: 'basic', role: 'BASIC', email: 'basic+org@ex.com', name: 'Maria' },
+    { id: 'basic', role: 'BASIC', email: 'basic+org@ex.com', name: 'Maria', emailVerified: true },
+    { id: 'google', role: 'BASIC', email: 'g@ex.com', name: 'Gi', emailVerified: null, accounts: [{ id: 'acc' }] },
+    { id: 'unverified', role: 'BASIC', email: 'u@ex.com', name: 'Uli', emailVerified: false },
     { id: 'promoter', role: 'PROMOTER', email: 'promo@ex.com', name: 'Pro' },
   ],
   notifications: [],
@@ -151,6 +155,37 @@ const validRequest = { brandName: 'Coletivo', city: 'Campinas', eventType: 'Cult
     const failed = await svc.submitOrganizerRequest(validRequest, as({ id: 'basic', role: 'BASIC' }));
     assert.equal(failed.success, false); assert.ok(!/postgres|secret/.test(failed.message));
   }
+  // Self-service organizer activation (events still go through admin review)
+  {
+    const state = baseState(); const db = fakeDb(state); const svc = loadService(db);
+    const activation = { acceptTerms: true, brandName: '  Coletivo  Sarau ', city: 'Campinas' };
+    assert.match((await svc.activateOrganizer(activation, as(null))).message, /Entre/);
+    const invalid = await svc.activateOrganizer({ ...activation, acceptTerms: false }, as({ id: 'basic', role: 'BASIC' }));
+    assert.equal(invalid.success, false); assert.ok(invalid.fieldErrors.acceptTerms, 'terms must be accepted');
+    assert.equal((await svc.activateOrganizer(activation, as({ id: 'admin-1', role: 'ADMIN' }))).success, false);
+    assert.equal((await svc.activateOrganizer(activation, as({ id: 'promoter', role: 'PROMOTER' }))).success, false);
+    const unverified = await svc.activateOrganizer(activation, as({ id: 'unverified', role: 'BASIC' }));
+    assert.equal(unverified.success, false); assert.match(unverified.message, /confirm/i, 'unverified e-mail cannot self-activate');
+    assert.equal(db.roleChanges.length, 0, 'nothing changes before the checks pass');
+    const done = await svc.activateOrganizer(activation, as({ id: 'basic', role: 'BASIC' }));
+    assert.equal(done.success, true);
+    assert.deepEqual(db.roleChanges, [{ id: 'basic', role: 'PROMOTER' }]);
+    assert.equal(db.audits.length, 1); assert.equal(db.audits[0].actorId, 'basic'); assert.equal(db.audits[0].action, 'ROLE_CHANGE'); assert.match(db.audits[0].reason, /BASIC -> PROMOTER/); assert.match(db.audits[0].reason, /autoatendimento/);
+    const own = db.created.find(n => n.userId === 'basic');
+    assert.ok(own && own.href === '/CriarEvento' && own.groupKey === 'organizer-promoted:basic', 'the new organizer gets the welcome notice');
+    const adminNotes = db.created.filter(n => n.userId !== 'basic');
+    assert.equal(adminNotes.length, 2, 'active admins are told about the new organizer');
+    for (const n of adminNotes) { assert.equal(n.type, 'ADMIN'); assert.equal(n.groupKey, 'organizer-self:basic'); assert.equal(n.href, '/admin?q=basic%2Borg%40ex.com'); assert.ok(n.message.length <= 160); assert.match(n.message, /Coletivo Sarau/); }
+    const again = await svc.activateOrganizer(activation, as({ id: 'basic', role: 'BASIC' }));
+    assert.equal(again.success, false, 'a stale BASIC session cannot activate twice'); assert.equal(db.roleChanges.length, 1);
+    const google = await svc.activateOrganizer(activation, as({ id: 'google', role: 'BASIC' }));
+    assert.equal(google.success, true, 'Google accounts count as verified');
+  }
+  {
+    const state = baseState(); const db = fakeDb(state); db.$transaction = async () => { throw new Error('postgres://secret'); }; const svc = loadService(db);
+    const failed = await svc.activateOrganizer({ acceptTerms: true, brandName: 'Marca', city: 'SP' }, as({ id: 'basic', role: 'BASIC' }));
+    assert.equal(failed.success, false); assert.ok(!/postgres|secret/.test(failed.message));
+  }
   // Event claim
   {
     const state = baseState(); const db = fakeDb(state); const svc = loadService(db);
@@ -197,7 +232,7 @@ const validRequest = { brandName: 'Coletivo', city: 'Campinas', eventType: 'Cult
   const action = read('app/(actions)/organizer/action.ts');
   assert.match(action, /^"use server";/);
   assert.match(action, /allowImpersonation:\s*false/);
-  for (const name of ['requestOrganizerAccess', 'claimEventOwnership', 'transferEventOwnership']) assert.match(action, new RegExp(`export async function ${name}\\(`));
+  for (const name of ['requestOrganizerAccess', 'activateOrganizerAccess', 'claimEventOwnership', 'transferEventOwnership']) assert.match(action, new RegExp(`export async function ${name}\\(`));
 
   // ---------- routes ----------
   const roles = load('roles.ts');
@@ -219,9 +254,30 @@ const validRequest = { brandName: 'Coletivo', city: 'Campinas', eventType: 'Cult
   assert.match(register, /href="\/termos"/);
   const landing = read('app/(publicRoutes)/para-organizadores/page.tsx');
   assert.ok(!/R\$\s?\d|depoimento|testemunh/i.test(landing), 'no prices or testimonials');
-  assert.match(landing, /Piloto gratuito para organizadores selecionados/);
+  assert.match(landing, /Piloto gratuito para os primeiros organizadores/); assert.ok(!/organizadores selecionados/.test(landing));
+  assert.match(landing, /10% por ingresso vendido/); assert.ok(!/20%/.test(landing), 'ticket fee is 10% everywhere on the landing');
+  assert.match(landing, /triagem automática/);
+  const eventForm = read('components/MyComponents/EventoForm.tsx');
+  assert.match(eventForm, /: \"Enviar evento\"\}<\/Button>/); assert.ok(!/Enviar para análise|passa por validação antes de aparecer/.test(eventForm), 'form explains the automatic triage');
+  assert.match(eventForm, /Ao enviar, o evento passa por uma triagem automática\./);
+  assert.match(eventForm, /result\.triage\?\.applied === \"published\"/); assert.match(eventForm, /result\.triage\?\.applied === \"changes\"/);
+  assert.match(eventForm, /router\.push\(`\/eventos\/\$\{encodeURIComponent\(result\.evento\.id\)\}\/editar`\)/, 'changes go back to the edit page');
+  assert.match(eventForm, /initialEvent\?\.status === \"CHANGES_REQUESTED\" && initialEvent\.reviewNote/, 'the edit form shows the review note');
   assert.match(landing, /Pro e Enterprise/);
   assert.match(landing, /interest="plans"/); assert.match(landing, /interest="access"/);
+  assert.ok(!/analisa cada pedido|análise do pedido|aguarde aprovação/i.test(landing), 'landing reflects instant organizer activation');
+  assert.match(landing, /id="pedir-acesso"/); assert.match(landing, /id="planos"/);
+  const panel = read('components/MyComponents/organizer/OrganizerRequestPanel.tsx');
+  assert.match(panel, /import \{ OrganizerActivationForm \} from "\.\/OrganizerActivationForm";/);
+  assert.match(panel, /interest === "access" && role === "BASIC"\) return <OrganizerActivationForm \/>/, 'BASIC accounts activate instead of requesting');
+  assert.match(panel, /<OrganizerRequestForm interest=\{interest\} \/>/, 'plans interest keeps the request form');
+  const activationForm = read('components/MyComponents/organizer/OrganizerActivationForm.tsx');
+  assert.match(activationForm, /^"use client";/); assert.match(activationForm, /activateOrganizerAccess\(/); assert.match(activationForm, /await update\(/);
+  assert.match(activationForm, /router\.push\("\/CriarEvento\?boasvindas=1"\)/); assert.match(activationForm, /href="\/termos"/); assert.match(activationForm, /role="alert"/);
+  assert.match(read('components/MyComponents/organizer/OrganizerAccessCard.tsx'), /<OrganizerActivationForm \/>/);
+  const createPage = read('app/(private)/CriarEvento/page.tsx');
+  assert.ok(!/^"use client"/.test(createPage), 'create page stays a server component');
+  assert.match(createPage, /searchParams\?\.boasvindas === "1"/); assert.match(createPage, /Sua conta de organizador está ativa/); assert.match(createPage, /href="\/myEvents\/pagamentos"/);
   const profile = read('app/(private)/Profile/page.tsx');
   assert.match(profile, /maxLength=\{1000\}/); assert.ok(!/maxLength=\{600\}|\/600 caracteres/.test(profile), 'bio limit aligned to the service (1000)');
   assert.match(read('lib/services/promoters.ts'), /bio\.length > 1000/);

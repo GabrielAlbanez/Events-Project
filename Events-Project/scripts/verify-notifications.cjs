@@ -14,7 +14,7 @@ const id = '00000000-0000-4000-8000-000000000001';
   assert.throws(() => creator.validateNotification({...input,title:'x'.repeat(81)}));
   assert.throws(() => creator.validateNotification({...input,message:'x'.repeat(161)}));
   assert.throws(() => creator.validateNotification({...input,type:'INVALID'}));
-  const files = ['lib/eventNotifications.ts','lib/community/events.ts','lib/community/notifications.ts','lib/community/rooms.ts','lib/services/attendance.ts','lib/services/eventReports.ts','lib/partyConnections/actions.ts','server/notificationWorker.mts'];
+  const files = ['lib/eventNotifications.ts','lib/community/events.ts','lib/community/notifications.ts','lib/community/rooms.ts','lib/services/attendance.ts','lib/services/eventReports.ts','lib/partyConnections/actions.ts','server/notificationWorker.mts','lib/moderation/triage.ts'];
   let creatorSites=0;
   for(const file of files){const source=fs.readFileSync(file,'utf8');creatorSites+=(source.match(/await createNotification(?:s|Once)?\(/g)||[]).length;
     for(const title of ['Evento '+ 'x'.repeat(200),''])for(const message of ['x'.repeat(240),'']){
@@ -24,7 +24,8 @@ const id = '00000000-0000-4000-8000-000000000001';
     }
   }
   // 16 = 12 previous sites + registration approval (request to the organizer, decision to the attendee) + participant removed + readmitted.
-  assert.equal(creatorSites,16,'all sixteen creation sites must use shared normalization');
+  // 19 = 16 + reports takedown (admins) + automatic triage (admins on publish, admins on review).
+  assert.equal(creatorSites,19,'all nineteen creation sites must use shared normalization');
   const calls = [];
   const db = { notification: { create: async data => calls.push(data), createMany: async data => calls.push(data) } };
   await creator.createNotification(db,input);

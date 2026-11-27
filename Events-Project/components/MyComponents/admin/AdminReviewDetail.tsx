@@ -13,6 +13,7 @@ import { effectiveStatus, formatPrice, formatSchedule, organizerOf, reviewProble
 import { cn } from "@/lib/utils";
 import type { Evento } from "@/types";
 import { reviewEase, reviewSpring, statusAccent } from "./adminReviewTheme";
+import { TriagePanel } from "./AdminTriageBadge";
 
 const EventPublicActions = dynamic(() => import("@/components/MyComponents/EventPublicActions"), { ssr: false, loading: () => <p role="status" className="text-sm text-muted-foreground">Carregando...</p> });
 
@@ -63,6 +64,8 @@ function ReviewBody({ event, now }: { event: Evento; now: Date }) {
       </header>
 
       {event.reviewNote && <section className="border-l-[3px] border-amber-500 pl-3"><h3 className="text-xs font-semibold text-amber-900 dark:text-amber-300">Correção pedida ao promotor</h3><p className="mt-1 whitespace-pre-wrap break-words text-sm">{event.reviewNote}</p></section>}
+
+      {event.triage && <TriagePanel triage={event.triage} eventId={event.id} />}
 
       <section aria-labelledby={`review-checks-${event.id}`}>
         <h3 id={`review-checks-${event.id}`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conferência dos dados</h3>
