@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   });
   const promoters = Array.from(new Set(events.flatMap(event =>
     event.userId && (event.user?.role === "ADMIN" || event.user?.role === "PROMOTER") ? [event.userId] : [])));
-  return ["/", "/EventsCreated",
+  return ["/", "/EventsCreated", "/conheca",
     ...events.flatMap(event => {
       const path = "/eventos/" + encodeURIComponent(event.id);
       return [path, path + "/comunidade"];

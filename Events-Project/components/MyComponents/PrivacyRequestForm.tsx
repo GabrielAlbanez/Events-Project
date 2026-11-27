@@ -25,7 +25,7 @@ export function PrivacyRequestForm({ contactEmail }: { contactEmail: string }) {
       <Textarea id="privacy-request-details" value={details} onChange={event => setDetails(event.target.value)} maxLength={1500} rows={5} aria-describedby="privacy-request-help" placeholder="Conte somente o necessário para entendermos sua solicitação." className="resize-y" />
       <p id="privacy-request-help" className="text-sm leading-6 text-muted-foreground">Não envie senha, documento de identidade, dados de saúde ou mensagens de outras pessoas. Este texto fica nesta página até você abrir o aplicativo de e-mail.</p>
     </div>
-    <Button asChild variant="cta" className="min-h-12 rounded-xl"><a href={href}>Preparar e-mail de solicitação</a></Button>
+    <Button asChild variant="cta" className="min-h-12"><a href={href}>Preparar e-mail de solicitação</a></Button>
     <p className="text-sm leading-6 text-muted-foreground">O botão abre seu aplicativo de e-mail. Confira o conteúdo e envie por lá; clicar aqui não envia nem registra um pedido. Se o aplicativo não abrir, escreva diretamente para <a href={`mailto:${contactEmail}`} className="break-all font-medium text-brand underline underline-offset-4">{contactEmail}</a>.</p>
   </div>;
 }

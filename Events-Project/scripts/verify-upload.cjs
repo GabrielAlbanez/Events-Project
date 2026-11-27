@@ -28,7 +28,7 @@ function load(file, dependencies) {
   let eventWrites = 0;
   const events = load("lib/services/events.ts", {
     "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async () => ({ id: "test", role: "PROMOTER" }) }, $transaction: async () => { eventWrites++; } } },
-    "@/lib/eventScheduleChanges": {}, "@/lib/eventNotifications": {}, "@/lib/eventQueries": {},
+    "@/lib/eventScheduleChanges": {}, "@/lib/eventNotifications": {}, "@/lib/eventQueries": {}, "@/lib/services/attendance": {}, "@/lib/services/tickets": {},
     "@/schemas/eventInput": { parseEventInput: () => { throw new Error("Oversized requests must stop before parsing or writes"); } },
     "@/lib/storage/eventImages": { saveEventImage: async () => { eventWrites++; }, removeEventImages: async () => {} },
     "@/lib/uploadLimits": limits,

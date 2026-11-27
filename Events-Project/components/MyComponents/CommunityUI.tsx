@@ -6,7 +6,7 @@ import type { CommunityRealtimeStatus } from "@/hooks/useCommunityRealtime";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const communityInput = "min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const communityInput = "min-h-11 w-full min-w-0 rounded-2xl border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const CommunityOnlineContext = createContext(true);
 export const useCommunityInteractions = () => useContext(CommunityOnlineContext);
 export function CommunityInteractionBoundary({ online, children }: { online: boolean; children: ReactNode }) {
@@ -14,7 +14,7 @@ export function CommunityInteractionBoundary({ online, children }: { online: boo
 }
 
 export function CommunityCard({ title, description, children }: { title?: string; description?: string; children: ReactNode }) {
-  return <section className="min-w-0 rounded-2xl border bg-card p-4 shadow-sm sm:p-6">{title && <h2 className="text-lg font-semibold tracking-tight">{title}</h2>}{description && <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>}<div className={title ? "mt-4 space-y-4" : "space-y-4"}>{children}</div></section>;
+  return <section className="min-w-0 rounded-[22px] border bg-card p-4 sm:p-6 shadow-[var(--em-shadow-card)]">{title && <h2 className="text-lg font-semibold tracking-tight">{title}</h2>}{description && <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>}<div className={title ? "mt-4 space-y-4" : "space-y-4"}>{children}</div></section>;
 }
 
 export function CommunityField({ name, label, type = "text", required = true, maxLength = 500, defaultValue, placeholder }: { name: string; label: string; type?: string; required?: boolean; maxLength?: number; defaultValue?: string; placeholder?: string }) {
@@ -48,7 +48,7 @@ export function CommunityForm({ children, submit, busy, onSubmit, reset = true }
       setError(cause instanceof Error && !(cause instanceof RangeError) ? cause.message : "Confira os campos, incluindo a data e o horário.");
     }
   }
-  return <form onSubmit={event => void handleSubmit(event)} className="space-y-3"><fieldset key={resetVersion} disabled={busy} className="min-w-0 space-y-3 disabled:opacity-60">{children}<Button type="submit" disabled={busy || !online} className="min-h-11 rounded-xl">{busy ? "Salvando..." : submit}</Button></fieldset>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</form>;
+  return <form onSubmit={event => void handleSubmit(event)} className="space-y-3"><fieldset key={resetVersion} disabled={busy} className="min-w-0 space-y-3 disabled:opacity-60">{children}<Button type="submit" disabled={busy || !online} className="min-h-11">{busy ? "Salvando..." : submit}</Button></fieldset>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</form>;
 }
 
 export function CommunityEmpty({ children }: { children: ReactNode }) {
@@ -61,7 +61,7 @@ export function CommunityBadge({ children }: { children: ReactNode }) {
 
 export function CommunityAction({ children, busy, onClick }: { children: ReactNode; busy: boolean; onClick: () => void }) {
   const online = useCommunityInteractions();
-  return <Button type="button" variant="outline" disabled={busy || !online} onClick={onClick} className="min-h-11 max-w-full whitespace-normal rounded-xl">{children}</Button>;
+  return <Button type="button" variant="outline" disabled={busy || !online} onClick={onClick} className="min-h-11 max-w-full whitespace-normal">{children}</Button>;
 }
 
 export function CommunityStaleBanner({ error, hasData, online, refreshing, refresh }: { error: string; hasData: boolean; online: boolean; refreshing: boolean; refresh: () => void }) {

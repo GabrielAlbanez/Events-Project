@@ -10,18 +10,20 @@ import { toast } from "react-toastify";
 import * as z from "zod";
 import resetDataProfile from "@/app/(actions)/resetDataProfile/action";
 import ModalUniversal from "@/components/MyComponents/ModalUniversal";
+import { PhotoCropDialog } from "@/components/MyComponents/PhotoCropDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useSocket } from "@/context/SocketContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { determineDefaultAvatar } from "@/utils/avatarUtils";
 import { getMyPublicProfile, updatePromoterProfile } from "@/app/(actions)/engagement/action";
 import { Textarea } from "@/components/ui/textarea";
 import { FadeInView } from "@/components/animations/FadeInView";
 import { ParallaxCard } from "@/components/animations/ParallaxCard";
 import { ProfileAvatar } from "@/components/MyComponents/ProfileAvatar";
+import { OrganizerAccessCard } from "@/components/MyComponents/organizer/OrganizerAccessCard";
+import { Highlight } from "@/components/ui/highlight";
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Informe pelo menos 2 caracteres."),
@@ -51,6 +53,7 @@ export default function Profile() {
   const imageController = useRef<AbortController | null>(null);
   useEffect(() => () => imageController.current?.abort(), []);
   const [profileImage, setProfileImage] = useState("");
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,7 +70,7 @@ export default function Profile() {
   useEffect(() => {
     if (!user.data) return;
     form.reset({ name: user.data.name || "", password: "", newPassword: "" });
-    setProfileImage(user.data.image || determineDefaultAvatar(user.data.name));
+    setProfileImage(user.data.image || "");
   }, [user.data, form]);
 
   useEffect(() => () => {
@@ -94,12 +97,12 @@ export default function Profile() {
       catch { setPublicProfileError("Use um link completo começando com https://."); return; }
     }
     setPublicProfileSaving(true);
+    setPublicProfileError("");
     try {
       const result = await updatePromoterProfile({ bio: bio.trim(), contactUrl: contactUrl.trim() });
-      if (!result.success) { setPublicProfileError(result.message); return; }
-      setPublicProfileError("");
+      if (!result.success) { toast.error(result.message, { toastId: `public-profile:${result.message}` }); return; }
       toast.success("Perfil público atualizado.");
-    } catch { setPublicProfileError("Não foi possível salvar o perfil público."); }
+    } catch { toast.error("Não foi possível salvar o perfil público.", { toastId: "public-profile:save" }); }
     finally { setPublicProfileSaving(false); }
   };
 
@@ -144,10 +147,15 @@ export default function Profile() {
       return;
     }
     setImageError("");
+    setCropFile(file);
+    event.target.value = "";
+  };
+
+  const handleCroppedImage = (file: File) => {
+    setCropFile(null);
     setSelectedImage(file);
     setPreviewImage(URL.createObjectURL(file));
     setIsModalOpen(true);
-    event.target.value = "";
   };
 
   const closeImageModal = () => {
@@ -191,18 +199,18 @@ export default function Profile() {
   };
 
   if (user.status === "loading") {
-    return <main className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></main>;
+    return <div className="flex flex-1 items-center justify-center p-6"><p role="status" className="text-muted-foreground">Carregando perfil...</p></div>;
   }
   if (!account) {
-    return <main className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center"><h1 className="text-2xl font-semibold tracking-tight">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></main>;
+    return <div className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-[22px] border bg-card p-8 text-center shadow-[var(--em-shadow-card)]"><h1 className="em-title em-title-sm">Seu perfil no EventMap</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Entre na sua conta para consultar e atualizar suas informações.</p><Button asChild className="mt-5"><Link href="/login?callbackUrl=%2FProfile">Entrar na minha conta</Link></Button></div></div>;
   }
 
   return (
-    <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="em-page min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-start gap-4">
           
-          <FadeInView className="min-w-0"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">Minha conta</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meu perfil</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
+          <FadeInView className="min-w-0"><div><p className="em-eyebrow">Minha conta</p><h1 className="em-title mt-3">Meu <Highlight>perfil</Highlight></h1><p className="em-subtitle mt-3">Mantenha suas informações e sua foto atualizadas.</p></div></FadeInView>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
@@ -220,7 +228,7 @@ export default function Profile() {
               </ParallaxCard>
             </div>
             <CardContent className="relative px-6 pb-6 pt-0">
-              <ProfileAvatar preview src={profileImage || determineDefaultAvatar(account.name)} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
+              <ProfileAvatar preview src={profileImage || null} name={account.name} size={96} className="-mt-12 h-24 w-24 rounded-2xl border-4 border-card bg-muted object-cover shadow-surface" />
               <h2 className="mt-4 break-words text-xl font-semibold">{account.name || "Seu nome"}</h2>
               <p className="mt-1 break-all text-sm text-muted-foreground">{account.email}</p>
               <div className="mt-5">
@@ -232,8 +240,9 @@ export default function Profile() {
           </Card>
 
           <div className="min-w-0 space-y-6">
-            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil de conexões</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Um perfil para conhecer pessoas nos eventos. Edite suas informações e escolha separadamente onde participar.</p><Button asChild className="mt-4 min-h-11"><Link href="/perfil-conexoes">Editar perfil de conexões</Link></Button></CardContent></Card>
-            {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={600} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/600 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
+            <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil de conexões</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Um perfil para conhecer pessoas nos eventos. Edite suas informações e escolha separadamente onde participar.</p><div className="mt-4 flex flex-wrap gap-2"><Button asChild className="min-h-11"><Link href="/perfil-conexoes">Editar perfil de conexões</Link></Button><Button asChild variant="outline" className="min-h-11"><Link href="/conversas">Ver conversas</Link></Button></div></CardContent></Card>
+            {account.role === "BASIC" && <OrganizerAccessCard />}
+            {account.role === "PROMOTER" && <Card className="rounded-2xl shadow-surface"><CardContent className="p-5 sm:p-7"><h2 className="text-xl font-semibold">Perfil público do promotor</h2><p className="mt-1 text-sm text-muted-foreground">Apresente quem organiza seus eventos e informe um canal de contato.</p>{publicProfileLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">Carregando perfil público...</p> : <div className="mt-5 space-y-4"><div><label htmlFor="promoter-bio" className="mb-2 block text-sm font-medium">Sobre você</label><Textarea id="promoter-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1000} rows={5} placeholder="Conte sua experiência e o tipo de eventos que organiza." /><p className="mt-1 text-xs text-muted-foreground">{bio.length}/1000 caracteres</p></div><div><label htmlFor="promoter-contact" className="mb-2 block text-sm font-medium">Link de contato</label><Input id="promoter-contact" type="url" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} placeholder="https://seusite.com/contato" /><p className="mt-1 text-xs text-muted-foreground">Pode ser seu site ou uma página de contato pública.</p></div>{publicProfileError && <p role="alert" className="text-sm text-destructive">{publicProfileError}</p>}<Button type="button" onClick={() => void savePublicProfile()} disabled={publicProfileSaving}>{publicProfileSaving ? "Salvando..." : "Salvar perfil público"}</Button></div>}</CardContent></Card>}
             <Card className="rounded-2xl shadow-surface">
               <CardContent className="p-5 sm:p-7">
                 <div className="mb-6 flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-brand" /><div><h2 className="text-xl font-semibold">Dados pessoais</h2><p className="mt-1 text-sm text-muted-foreground">Atualize seu nome de exibição. Seu email identifica esta conta.</p></div></div>
@@ -255,7 +264,8 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      <PhotoCropDialog file={cropFile} onCancel={() => setCropFile(null)} onConfirm={handleCroppedImage} />
       <ModalUniversal open={isModalOpen} onClose={closeImageModal} title="Confirmar foto do perfil" imageSrc={previewImage} onConfirm={handleConfirmImage} pending={isImagePending} error={imageError} />
-    </main>
+    </div>
   );
 }

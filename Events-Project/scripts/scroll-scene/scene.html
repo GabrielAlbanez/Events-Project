@@ -1,0 +1,28 @@
+<!doctype html>
+<!--
+  Cena "Do mapa à porta do evento" — ferramenta de autoria (dev-time), não é publicada para o usuário.
+  Abra no navegador para ver um quadro: scene.html?t=0.5&variant=dark&layout=desktop
+  Parâmetros: t ∈ [0,1], variant = light | dark, layout = desktop | mobile.
+  Também expõe window.renderFrame(t) e window.sceneReady (Promise) para scripts/scroll-scene/render-frames.cjs.
+  Sem CDN: só o JS local e a fonte Geist do app.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cena de rolagem</title>
+  <style>
+    @font-face {
+      font-family: "Geist";
+      src: url("../../app/fonts/GeistVF.woff") format("woff");
+      font-weight: 100 900;
+    }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #f4f6fb; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <script src="./scene.js"></script>
+</body>
+</html>

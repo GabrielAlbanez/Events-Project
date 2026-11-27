@@ -24,6 +24,15 @@
   border-color: hsl(var(--primary) / 25%);
 }
 
+/* Form and action errors replaced inline banners: a tinted border keeps severity readable without a heavy red box. */
+.container :global(.Toastify__toast--error) {
+  border-color: hsl(var(--destructive) / 35%);
+}
+
+.container :global(.Toastify__toast--warning) {
+  border-color: rgb(245 158 11 / 40%);
+}
+
 .container :global(.Toastify__toast-body) {
   margin: 0;
   padding: 0;
@@ -42,6 +51,10 @@
 
 .container :global(.Toastify__toast--error) :global(.Toastify__toast-icon) {
   color: hsl(var(--destructive));
+}
+
+.container :global(.Toastify__toast--warning) :global(.Toastify__toast-icon) {
+  color: rgb(217 119 6);
 }
 
 .close {

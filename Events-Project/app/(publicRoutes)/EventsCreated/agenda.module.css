@@ -1,0 +1,33 @@
+/* Public agenda: home design language (hand-drawn highlight, search card, pills). */
+.title { position:relative; display:block; width:fit-content; max-width:100%; white-space:nowrap; font-size:clamp(30px,8.4vw,40px); line-height:1.04; }
+@media (min-width:640px) { .title { font-size:clamp(40px,5vw,60px); } }
+/* The asserted heading text stays one text node; the lime stroke sits under its last word ("eventos"). */
+.titleUnderline { position:absolute; right:0; bottom:-.14em; width:42%; height:.24em; overflow:visible; pointer-events:none; }
+.titleUnderline path { fill:none; stroke:hsl(var(--cta)); stroke-width:max(3px,.07em); stroke-linecap:round; vector-effect:non-scaling-stroke; }
+
+.search { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid hsl(var(--border)/.8); border-radius:24px; background:hsl(var(--card)); box-shadow:0 22px 44px -24px hsl(var(--foreground)/.22),0 2px 6px hsl(var(--foreground)/.04); }
+:global(.dark) .search { box-shadow:0 1px 2px rgb(0 0 0/.3),0 18px 40px -24px rgb(0 0 0/.6); }
+.field { position:relative; display:flex; flex:1; align-items:center; gap:12px; min-width:0; min-height:56px; padding:4px 8px 4px 14px; border-radius:16px; cursor:text; }
+.field:focus-within { box-shadow:inset 0 0 0 2px hsl(var(--ring)); }
+.fieldIcon { flex:none; color:hsl(var(--brand)); }
+.fieldStack { display:flex; flex:1; flex-direction:column; min-width:0; gap:1px; }
+.fieldLabel { font-size:12.5px; line-height:1.4; font-weight:650; color:hsl(var(--foreground)); }
+.field input { width:100%; min-height:28px; padding:0; border:0; outline:0; background:transparent; color:hsl(var(--foreground)); font-size:15px; text-overflow:ellipsis; }
+.field input::placeholder { color:hsl(var(--muted-foreground)); opacity:1; }
+.field input::-webkit-search-cancel-button { -webkit-appearance:none; appearance:none; }
+.clear { display:inline-flex; flex:none; align-items:center; justify-content:center; width:44px; height:44px; border-radius:999px; color:hsl(var(--muted-foreground)); }
+.clear:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
+.clear:focus-visible,.mapButton:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:2px; }
+.mapButton { display:inline-flex; flex:none; align-items:center; justify-content:center; gap:9px; min-width:56px; min-height:56px; padding:0 22px; border-radius:18px; background:hsl(var(--cta)); color:hsl(var(--cta-foreground)); font-size:15px; font-weight:650; white-space:nowrap; text-decoration:none; transition:transform .2s,filter .2s; }
+.mapButton:hover { transform:translateY(-1px); filter:brightness(1.05); }
+@media (max-width:639px) { .mapButton { padding:0; } .mapButtonLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } }
+
+/* Horizontal pill rows: scroll-snap on mobile, wrap from sm. */
+.chipRow { display:flex; gap:8px; margin:0 -16px; padding:2px 16px 4px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; scroll-padding-inline:16px; scrollbar-width:none; list-style:none; }
+.chipRow::-webkit-scrollbar { display:none; }
+.chipRow > * { flex:none; scroll-snap-align:start; }
+@media (min-width:640px) { .chipRow { flex-wrap:wrap; margin:0; padding:2px 0 4px; overflow:visible; } }
+
+.liveDot { width:8px; height:8px; border-radius:999px; background:#22c55e; box-shadow:0 0 0 3px rgb(34 197 94/.18); }
+
+@media (prefers-reduced-motion:reduce) { .mapButton { transition:none; } .mapButton:hover { transform:none; } }

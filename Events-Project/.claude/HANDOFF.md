@@ -1,43 +1,38 @@
-# HANDOFF — 2026-11-04
+Status: CONCLUÍDO
+# HANDOFF — 2026-11-18 — Produto comercial
 ## Tarefa original
-“ok faça tudo isto” — executar o plano para validar, publicar e apresentar o EventMap no portfólio.
-## Objetivo final / critério de pronto
-Validar com duas contas e no mobile, integrar a busca inicial e a sidebar à main, publicar uma prévia com banco persistente e WebSocket e gravar a demonstração.
-## Já concluído
-- AdminAiEvents.tsx, service.ts e verify-ai-events.cjs — busca inicial imediata após ativação e intervalo de uma hora nas execuções seguintes.
-- app-sidebar.tsx — destaque verde-lima para navegação e novo evento.
-- docs/validacao-e-publicacao.md — roteiro de deploy e demonstração.
-- Build, testes do importador e de reconexão e TypeScript do servidor passaram.
+Missão "transformar o EventMap em produto comercial de alto valor": auditoria com 7 agentes (produto, UX/UI, front-end, back-end, IA, monetização, QA), priorização P0/P1/P2, implementação, validação, relatório final.
+## Critério de pronto
+Melhorias P0 e P1 selecionadas implementadas sem regressão; tsc, lint, build e suítes offline passando; commit e push na branch da tarefa; relatório final.
 ## Estado atual
-- Parei exatamente em: verificar o processo na porta 3100 após tentar reiniciar com a compilação nova. A ferramenta truncou a saída por limite de contexto.
-- Código está: compilando. Smoke HTTP retornou 500 no servidor anterior, em vez do 403 esperado. A origem do 500 precisa de confirmação.
-- Tarefa: PENDENTE. Retomar: validação e publicação do EventMap.
-## Próximos passos (em ordem)
-1. Verificar a porta 3100 e repetir o smoke HTTP autenticado com a nova compilação.
-2. Validar aprovação e notificação no banco de testes e no navegador. Revisar mobile e os dois temas.
-3. Validar o diff, conferir origin/main, integrar e confirmar o push autorizado.
-4. Configurar prévia em hospedagem disponível com Node persistente e banco isolado, validar reinício e WebSocket, gravar demo e entregar link.
-## Decisões tomadas e motivos
-Usar o checkout canônico em C:/Users/gabri/EventsApp/repository/Events-Project. Publicação exige aprovação individual. A prévia precisa manter o processo ativo para executar a busca por hora.
-## Arquivos relevantes
-components/MyComponents/AdminAiEvents.tsx, components/ui/app-sidebar.tsx, lib/aiEvents/service.ts, scripts/verify-ai-events.cjs, docs/validacao-e-publicacao.md.
-## Comandos para rodar/testar
-npm run test:ai-events; npm run test:realtime; npm run test:features:http com FEATURE_HTTP_URL=http://127.0.0.1:3100; npm run test:ai-events:db apenas no banco de testes; npm run lint; npx tsc --noEmit --incremental false; npx tsc --project tsconfig.server.json; npm run build.
-## Problemas em aberto / dúvidas
-Sem hospedagem conectada para a prévia. Smoke autenticado, QA mobile, publicação e gravação pendentes.
+- Worktree: C:/Users/gabri/AppData/Local/Temp/eventmap-main-20261118 (branch codex/produto-comercial-20261118, base origin/main 1f536cd).
+- Base: tsc, lint e 12 suítes offline passando antes de qualquer mudança.
+- Fase 1 (auditoria) concluída: 7 relatórios em docs/produto-comercial/ (84 oportunidades).
+- Fase 2: 1ª rodada (wf_7dc31809-e83) caiu no limite de 5h em 19/11 ~04h; só G (CI + test:offline) concluiu. A–F deixaram trabalho parcial no disco (43 arquivos alterados + novos), não revisado.
+- 19/11 08:50: A–F relançados como agentes avulsos (Workflow indisponível na sessão retomada) com instrução de retomar o parcial; prompts em C:/Users/gabri/EventsApp/painel-agentes/prompts/. Revisor de cada pacote a lançar quando o build terminar (review-*.md).
+- Próximo: aplicar integration_notes (ClaimEventCta e SimilarEvents na página do evento, frame-ancestors /embed, scripts no package.json), validar tudo, build, commit e push.
+## Decisões e motivos
+- Sem mudança de schema Prisma neste ciclo (o banco do .env pode ser de produção; o mobile exige SQL equivalente).
+- Nenhum script :db/:http; nenhuma escrita no banco.
+- Não existe "skill da Meta" instalada; usar .codex/frontend-agent.md e as skills eventmap-* (zip do usuário).
+## Como rodar e testar
+npm run dev:socket; npx tsc --noEmit --incremental false; npm run lint; npm run build; npm run test:features etc. (ver eventmap-validate).
+## Atualização 19/11 manhã
+- Builds A–F concluídos (relatórios em C:/Users/gabri/EventsApp/painel-agentes/prompts/report-*.md).
+- Revisões: B pronto-com-notas, D pronto-com-notas. Em revisão: A, C (+ aviso de promoção e troca dos testes de segurança), E (+ embed sem chrome, SiteFooter global, ClaimEventCta), F (+ react.cache seguro p/ loaders, verify-upload).
+- Integração restante e testes a ajustar: painel-agentes/prompts/INTEGRACAO-pendente.md.
+- Próximo: quando revisões terminarem → aplicar integração restante, reiniciar dev server, test:offline, tsc, lint, build, revisão do diff, commit/push, relatório final.
 
-## Atualização da retomada — 2026-11-04
-- Smoke HTTP autenticado, aprovação no PostgreSQL com rollback, lint e TypeScript passaram. Sidebar alternou os dois temas a 390 px sem overflow horizontal.
-- GitHub confirmou main em 54d5c18.
-- Destino escolhido para a prévia: Vercel. A aba está na tela de login do GitHub, aguardando o usuário. Depois, importar o repositório e configurar um banco separado para a prévia. Adaptação do Socket.IO, agendamento e gravação seguem pendentes.
+## Checkpoint 19/11 09:22 — limite de 5h atingido de novo (volta às 13:40)
+- Revisões concluídas: A, B, D, E (todas "pronto com observações"; correções aplicadas por elas).
+- Revisões INTERROMPIDAS pelo limite: C (segurança) e F (descoberta). Trabalho salvo; retomar enviando mensagem aos mesmos agentes (SendMessage) ou relançar com prompts/review-C-*.md e review-F-*.md + report-C/F-*.md.
+  - C ainda devia: aviso de promoção em alterRoleUser (D) + mover scripts/security-platform-proposed/* sobre verify-account-security.cjs e verify-registration-security.cjs.
+  - F ainda devia: react.cache seguro em lib/eventQueries.ts, investigar verify-upload ("Cannot find module @/lib/services/attendance").
+- Integração feita pelo coordenador: contexto de comunicados em lib/community/events.ts; capa (banner) agora é mudança sensível (eventScheduleChanges + events.ts + EventoForm); testes atualizados e PASSANDO: verify-event-platform, verify-notifications, verify-notification-worker, verify-home-realtime, verify-portfolio-home, verify-agenda-complements. tsc 0 erros, lint ok.
+- Falta (ordem): 1) terminar revisões C e F; 2) converter <main>→<div> nos 24 arquivos de PENDING_MAIN_CONVERSION (scripts/verify-frontend-foundation.cjs) e esvaziar a lista; HomeDiscoveryClient usa <section id="home-discovery" tabIndex={-1}>; login-form.tsx também tem <main>; 3) link "Fazer check-in" p/ equipe na comunidade; 4) SimilarEvents na página do evento (nota F4); 5) loading próprio para /myEvents/[id]/checkin; 6) reiniciar dev server; node scripts/run-offline-tests.cjs; tsc; tsc server; lint; npm run build; 7) revisar diff, commit e push na branch codex/produto-comercial-20261118; 8) relatório final (docs/produto-comercial/00-relatorio-final.md).
+- Detalhes: C:/Users/gabri/EventsApp/painel-agentes/prompts/INTEGRACAO-pendente.md e report-*.md.
 
-## Deploy Vercel — 2026-11-04
-- Projeto events-project, banco isolado eventmap-preview-db, DATABASE_URL sensível e NEXTAUTH_SECRET próprio.
-- Deploy da main 54d5c18 ficou Ready. Migrações passaram e home e tela de login abriram em https://events-project-lake.vercel.app.
-- Código e banco locais preservados. Pendentes: eventos na prévia, login completo, Maps, Socket.IO, agendamento e gravação.
-
-## Validação pública — 2026-11-04
-- A home exibe 0 eventos e informa ausência da chave Maps. A página /demonstracao abre com três eventos fictícios próprios, sem gravar dados no banco.
-- /api/auth/providers lista credenciais e Google. A tentativa pelo botão Google não chegou ao domínio do Google, e o login completo permanece pendente.
-- /socket.io retorna 404 no deploy Next.js. Os workers iniciam em server.mts. Vercel Hobby aceita Cron apenas diário.
-- Retomar com configuração Google (cliente OAuth e chave Maps para o domínio público), conta de demonstração no banco isolado e destino para o Node persistente ou adaptação do transporte e agendamento. Validar com duas contas e gravar após a prévia completa.
+## Conclusão 19/11
+- Revisões C/F tinham aplicado suas integrações antes do corte; coordenador concluiu: <main> único (29 arquivos), SimilarEvents, link de check-in da equipe, verify-upload.
+- Verificação final: tsc 0, tsc server 0, lint 0, test:offline 51/51, build exit 0, smoke HTTP ok.
+- Relatório: docs/produto-comercial/00-relatorio-final.md.

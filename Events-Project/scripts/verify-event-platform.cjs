@@ -38,6 +38,19 @@ async function run(){
  assert.equal(getSessionRole({id:"test",role:"ADMIN"}),"ADMIN");
  assert.equal(canAccessPath("BASIC","/eventos/test/editar"),false);
  assert.equal(canAccessPath("PROMOTER","/eventos/test/editar"),true);
+for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),true);
+for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/test/destaque"),false);
+assert.equal(canAccessPath("PROMOTER","/myEvents/a/b/destaque"),false);
+// Ticket sales routes (a missing entry once redirected organizers home).
+for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/pagamentos"),true);
+for(const role of ["BASIC","GUEST"])assert.equal(canAccessPath(role,"/myEvents/pagamentos"),false);
+for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/ingressos"),true);
+assert.equal(canAccessPath("GUEST","/ingressos"),false);
+assert.equal(canAccessPath("ADMIN","/admin/ingressos"),true);
+for(const role of ["BASIC","PROMOTER"])assert.equal(canAccessPath(role,"/admin/ingressos"),false);
+const {routeShowsOwnRealtimeStatus}=load("lib/realtimeRoutes.ts");
+for(const route of ["/eventos/e1/chat","/eventos/e1/conexoes/m1"])assert.equal(routeShowsOwnRealtimeStatus(route),true,route);
+for(const route of ["/","/eventos/e1","/eventos/e1/conexoes","/EventsCreated",null])assert.equal(routeShowsOwnRealtimeStatus(route),false,String(route));
  for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/atividade"),true);
  assert.equal(canAccessPath("GUEST","/atividade"),false);
  assert.equal(canAccessPath("BASIC","/atividade/private"),false);
@@ -57,8 +70,9 @@ async function run(){
   for(const role of ["GUEST","BASIC","PROMOTER"])assert.equal(canAccessPath(role,route),false);
   assert.equal(canAccessPath("ADMIN",route),true);
  }
- for(const role of ["GUEST","BASIC"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),false);
- for(const role of ["PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),true);
+ // Team check-in: any signed-in account may open the page; the check-in API enforces owner/admin/team access.
+ assert.equal(canAccessPath("GUEST","/myEvents/test/checkin"),false);
+ for(const role of ["BASIC","PROMOTER","ADMIN"])assert.equal(canAccessPath(role,"/myEvents/test/checkin"),true);
  assert.equal(isPublicPath("/eventos/test"),true);
  assert.equal(isPublicPath("/privacidade"),true);
  assert.equal(isPublicPath("/privacidade/solicitacoes"),true);
@@ -124,7 +138,8 @@ async function run(){
   const approved=await validation.validateEvents([saved.evento.id],admin.id);assert.equal(approved.validatedEventIds.length,1);
   const publicEvent=await queries.getPublicEvent(saved.evento.id);assert.equal(publicEvent.status,"PUBLISHED");
   for(const [key,value] of Object.entries(practical))assert.equal(publicEvent[key],value);
-  for(const person of [publicEvent.user,publicEvent.validator])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
+  assert.equal(Object.hasOwn(publicEvent,"validator"),false,"reviewer identity is not public");
+  for(const person of [publicEvent.user])for(const key of ["password","email","accounts","sessions","role"])assert.equal(Object.hasOwn(person,key),false);
   activeUser=basic;const notices=await engagement.getNotifications();assert.ok(notices.some(item=>item.title==="Evento publicado"));assert.ok(notices.every(item=>!item.message.includes("Corrigir")));
   phase="favorites reminders and edits";assert.equal((await engagement.toggleFavorite(saved.evento.id)).saved,true);
   assert.equal((await engagement.setEventReminder(saved.evento.id,60)).success,true);

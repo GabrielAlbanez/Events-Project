@@ -39,22 +39,45 @@ function load(file, dependencies) {
   assert.equal(verified, true);
   for (const name of ["user", "password", "email", "token"]) assert.equal(Object.hasOwn(result, name), false);
 
-  let user = { id: "test", emailVerified: false, password: "placeholder" }, comparisons = 0;
+  // Credentials login now runs through lib/services/credentials.ts (rate limit, case-insensitive
+  // lookup, password check before account state). Wrong credentials return null; a correct
+  // password on an unverified account raises the whitelisted EmailNotVerified code.
+  let user = { id: "test", email: "temporary@example.invalid", emailVerified: false, password: "placeholder" }, comparisons = 0;
+  const rateRows = [];
+  const credentialsPrisma = {
+    user: { findMany: async () => (user ? [user] : []) },
+    verificationToken: {
+      count: async ({ where }) => rateRows.filter(row => row === where.identifier).length,
+      create: async ({ data }) => { rateRows.push(data.identifier); return data; },
+      deleteMany: async () => ({ count: 0 }),
+    },
+  };
+  const bcryptMock = { __esModule: true, default: { compare: async (password, hash) => { comparisons++; return password === hash; } } };
+  const accountAccess = require("./load-account-access.cjs");
+  const credentialsService = load("lib/services/credentials.ts", {
+    "@/lib/prisma": { __esModule: true, default: credentialsPrisma },
+    bcrypt: bcryptMock,
+    "@prisma/client": {},
+    "@/lib/auth/accountAccess": accountAccess,
+    "@/lib/auth/errorMessages": load("lib/auth/errorMessages.ts", {}),
+    "@/lib/rateLimit": load("lib/rateLimit.ts", { "node:crypto": require("node:crypto") }),
+  });
   const { authOptions } = load("lib/auth/options.ts", {
-    "@/lib/auth/accountAccess": require("./load-account-access.cjs"),
+    "@/lib/auth/accountAccess": accountAccess,
     "@/lib/auth/impersonation": require("./load-impersonation.cjs"),
     "@/lib/auth/googleProfileImage": require("./load-google-profile-image.cjs"),
     "@/lib/auth/sessionCredential": require("./load-session-credential.cjs"),
     "@/lib/prisma": { __esModule: true, default: { user: { findUnique: async () => user } } },
     "@next-auth/prisma-adapter": { PrismaAdapter: () => ({}) },
-    bcrypt: { __esModule: true, default: { compare: async () => { comparisons++; return true; } } },
+    "@/lib/services/credentials": credentialsService,
+    "@/lib/rateLimit": load("lib/rateLimit.ts", { "node:crypto": require("node:crypto") }),
   });
   const authorize = authOptions.providers.find(provider => provider.options?.name === "Credentials").options.authorize;
-  assert.equal(await authorize({ email: "temporary@example.invalid", password: "placeholder" }), null);
-  assert.equal(comparisons, 0);
+  await assert.rejects(authorize({ email: "temporary@example.invalid", password: "placeholder" }), error => error.message === "EmailNotVerified");
+  assert.equal(await authorize({ email: "temporary@example.invalid", password: "wrong" }), null);
   user.emailVerified = true;
-  assert.equal((await authorize({ email: "temporary@example.invalid", password: "placeholder" })).id, "test");
+  assert.equal((await authorize({ email: "Temporary@Example.invalid", password: "placeholder" })).id, "test");
   user = null;
   assert.equal(await authorize({ email: "temporary@example.invalid", password: "placeholder" }), null);
-  console.log("PASS: email verification expiry, single consumption, safe response and direct unverified-login denial");
+  console.log("PASS: email verification expiry, single consumption, safe response and direct unverified-login denial (whitelisted code)");
 })().catch(() => { console.error("FAIL: account security verification"); process.exitCode = 1; });

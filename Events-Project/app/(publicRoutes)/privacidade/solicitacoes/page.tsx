@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PrivacyRequestForm } from "@/components/MyComponents/PrivacyRequestForm";
 import { privacyConfig } from "@/lib/privacy";
+import { Highlight } from "@/components/ui/highlight";
 
 export const metadata: Metadata = { title: "Seus dados e direitos", description: "Como solicitar acesso, correção ou exclusão dos seus dados no EventMap." };
 
 export default function PrivacyRequestsPage() {
-  return <div className="w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10">
+  return <div className="em-page w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10" data-decor="ring">
     <article className="mx-auto max-w-3xl space-y-10 pb-12">
       <header className="space-y-4">
         <Link href="/privacidade" className="inline-flex min-h-11 items-center rounded-md font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">← Política de privacidade</Link>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Seus dados e direitos</h1>
+        <p className="em-eyebrow">EventMap</p>
+        <h1 className="em-title">Seus dados e <Highlight>direitos</Highlight></h1>
         <p className="text-base leading-7 text-muted-foreground">Peça informações sobre seus dados, corrija o que estiver errado ou solicite exclusão. Você não precisa entrar na conta para entrar em contato.</p>
       </header>
       <section aria-labelledby="privacy-request-title" className="space-y-5 rounded-2xl bg-muted/40 p-5 sm:p-7">

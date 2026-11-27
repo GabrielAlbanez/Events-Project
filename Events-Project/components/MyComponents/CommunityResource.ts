@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 
+export const COMMUNITY_SAVED_MESSAGE = "Alteração salva.";
+
 export function useCommunityResource<T>(url: string) {
   const { data: session, status } = useSession();
   const identity = url + ":" + status + ":" + (session?.user?.id ?? "anonymous") + ":" + (session?.user?.role ?? "guest");
@@ -75,7 +77,7 @@ export function useCommunityResource<T>(url: string) {
       }
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message || "Não foi possível salvar. Tente novamente.");
-      if (active.current && currentIdentity.current === identity) { setMessage("Alteração salva."); await fetchSnapshot("own"); }
+      if (active.current && currentIdentity.current === identity) { setMessage(COMMUNITY_SAVED_MESSAGE); await fetchSnapshot("own"); }
       return active.current && currentIdentity.current === identity;
     } catch (cause) {
       if (active.current && currentIdentity.current === identity) setMessage(controller.signal.aborted || cause instanceof TypeError || cause instanceof SyntaxError ? "Não foi possível confirmar o envio. Confira se a alteração foi salva antes de reenviar. Seu texto foi preservado." : cause instanceof Error ? cause.message : "Não foi possível confirmar o envio. Confira se a alteração foi salva antes de reenviar.");

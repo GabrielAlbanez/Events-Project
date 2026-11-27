@@ -3,20 +3,22 @@ import Link from "next/link";
 import { privacyConfig, privacyReady } from "@/lib/privacy";
 import { GoogleMapsPreference } from "@/components/MyComponents/GoogleMapsPreference";
 import { MetricPreference } from "@/components/MyComponents/MetricPreference";
+import { Highlight } from "@/components/ui/highlight";
 
 export const metadata: Metadata = { title: "Política de privacidade", description: "Saiba como o EventMap utiliza dados, cookies, localização e serviços de terceiros e como exercer seus direitos." };
 
 const linkClass = "rounded-sm font-medium text-brand underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function PrivacyPage() {
-  return <div className="w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10">
+  return <div className="em-page w-full min-w-0 px-4 py-8 sm:px-6 lg:px-10" data-decor="ring">
     <article className="mx-auto max-w-3xl space-y-10 pb-12 [&_p]:leading-7 [&_li]:leading-7">
       <header className="space-y-4">
         <Link href="/" className={`inline-flex min-h-11 items-center ${linkClass}`}>← Voltar para explorar</Link>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Política de privacidade</h1>
+        <p className="em-eyebrow">EventMap</p>
+        <h1 className="em-title">Política de <Highlight>privacidade</Highlight></h1>
         <p className="text-base text-muted-foreground">O EventMap é um projeto de portfólio. Este aviso explica os dados utilizados para descobrir eventos, manter sua conta e participar das comunidades. Use apenas os dados necessários e evite informações sensíveis nas demonstrações.</p>
         <p className="text-sm text-muted-foreground">Atualizado em {privacyConfig.updatedAt}.</p>
-        <Link href="/privacidade/solicitacoes" className="inline-flex min-h-12 items-center rounded-xl bg-cta px-5 font-semibold text-cta-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Solicitar acesso, correção ou exclusão</Link>
+        <Link href="/privacidade/solicitacoes" className="inline-flex min-h-12 items-center rounded-full bg-cta px-5 font-semibold text-cta-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">Solicitar acesso, correção ou exclusão</Link>
       </header>
 
       <section aria-labelledby="privacy-controller" className="space-y-4 rounded-2xl bg-muted/40 p-5 sm:p-7">
@@ -42,6 +44,7 @@ export default function PrivacyPage() {
       <section aria-labelledby="privacy-providers" className="space-y-4">
         <h2 id="privacy-providers" className="text-xl font-semibold">Serviços de terceiros</h2>
         <p className="text-muted-foreground">O funcionamento utiliza hospedagem e banco de dados, entrega de e-mails transacionais e serviços de notificação. O acesso pelo Google utiliza a autenticação desse fornecedor; mapas, sugestões de endereço e trajetos usam Google Maps quando ativados. Esses serviços podem receber dados técnicos como IP, navegador e informações necessárias à operação escolhida.</p>
+        <p className="text-muted-foreground">Na compra de ingressos pelo EventMap, o pagamento por Pix é processado pelo Mercado Pago, que recebe seu nome, e-mail, o valor e os dados do pagamento para gerar o Pix, confirmar o pagamento e fazer estornos. O organizador do evento recebe o valor na conta dele no Mercado Pago. O EventMap guarda o registro do pedido (valor, situação e datas) como registro financeiro. Consulte a <a href="https://www.mercadopago.com.br/privacidade" target="_blank" rel="noopener noreferrer" className={linkClass}>política de privacidade do Mercado Pago (abre em outra aba)</a>.</p>
         <p className="text-muted-foreground">Ao abrir ingressos, calendários ou páginas externas, confira os avisos do serviço de destino. Dados podem ser processados em outros países, conforme a infraestrutura contratada; o responsável deve observar os mecanismos de transferência internacional previstos na LGPD e informar os fornecedores aplicáveis mediante solicitação.</p>
         <p className="text-muted-foreground">Consulte a <a href="https://policies.google.com/privacy?hl=pt-BR" target="_blank" rel="noopener noreferrer" className={linkClass}>política de privacidade do Google (abre em outra aba)</a>.</p>
       </section>

@@ -23,10 +23,10 @@ export default function ResultsError({ reset }: ErrorProps) {
   }
 
   return (
-    <main className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="w-full min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         
-        <section aria-labelledby="page-error-title" aria-busy={pending} className="rounded-3xl border bg-card p-6 shadow-sm sm:p-10">
+        <section aria-labelledby="page-error-title" aria-busy={pending} className="rounded-[26px] border bg-card p-6 sm:p-10 shadow-[var(--em-shadow-card)]">
           <div role="alert">
             <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-brand">
               <AlertCircle className="h-6 w-6" aria-hidden="true" />
@@ -36,17 +36,17 @@ export default function ResultsError({ reset }: ErrorProps) {
             <p className="mt-3 max-w-xl leading-7 text-muted-foreground">O painel encontrou uma falha ao carregar. Tente novamente ou acompanhe seus eventos enquanto isso.</p>
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11 rounded-xl">
+            <Button type="button" size="lg" disabled={pending} onClick={retry} className="min-h-11">
               <RotateCcw aria-hidden="true" />
               {pending ? "Tentando novamente..." : "Tentar novamente"}
             </Button>
-            <Button asChild variant="outline" size="lg" className="min-h-11 rounded-xl">
+            <Button asChild variant="outline" size="lg" className="min-h-11">
               <Link href="/myEvents">Ver meus eventos</Link>
             </Button>
           </div>
           <p role="status" className="sr-only">{pending ? "Carregando a página novamente." : ""}</p>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

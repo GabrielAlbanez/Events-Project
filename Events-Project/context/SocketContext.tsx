@@ -6,6 +6,10 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 
 import Link from "next/link";
 
+import { usePathname } from "next/navigation";
+
+import { routeShowsOwnRealtimeStatus } from "@/lib/realtimeRoutes";
+
 import { signOut, useSession } from "next-auth/react";
 
 import type { Socket } from "socket.io-client";
@@ -41,21 +45,25 @@ function RealtimeConnectionNotice({ waiting }: { waiting: boolean }) {
     };
   }, [waiting, retryCount]);
 
+  // Discreet corner pill: full sentences stay available to screen readers; timers and retry logic are unchanged.
   return (
-    <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed inset-x-4 top-[calc(var(--site-header-height,76px)+0.5rem)] z-40 flex justify-center">
+    <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed right-3 top-[calc(var(--site-header-height,76px)+0.5rem)] z-40 flex max-w-[calc(100vw-1.5rem)] justify-end sm:right-4">
       {waiting && phase !== "hidden" && (
-        <div className="max-w-sm space-y-2 rounded-xl border bg-card px-4 py-3 text-center text-sm text-card-foreground shadow-md">
-          {phase === "connecting" ? <p>Conectando atualizações em tempo real. Você pode continuar navegando.</p> : <>
-            <p className="font-medium">Atualizações em tempo real temporariamente indisponíveis.</p>
-            <p>Você pode continuar consultando os eventos. Chat, notificações e outras mudanças ao vivo podem demorar a aparecer.</p>
-            <button type="button" onClick={() => {
-              if (socket.connected) return;
-              setPhase("connecting");
-              setRetryCount(count => count + 1);
-              socket.disconnect();
-              socket.connect();
-            }} className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Tentar reconectar</button>
-          </>}
+        phase === "connecting" ? <p className="inline-flex items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
+          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+          <span aria-hidden="true">Conectando ao vivo</span>
+          <span className="sr-only">Conectando atualizações em tempo real. Você pode continuar navegando.</span>
+        </p> : <div className="inline-flex items-center gap-1 rounded-full border bg-card/95 py-0.5 pl-3 pr-0.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
+          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/60" />
+          <span aria-hidden="true" className="ml-1">Ao vivo pausado</span>
+          <span className="sr-only">Atualizações em tempo real temporariamente indisponíveis. Você pode continuar consultando os eventos. Chat, notificações e outras mudanças ao vivo podem demorar a aparecer.</span>
+          <button type="button" onClick={() => {
+            if (socket.connected) return;
+            setPhase("connecting");
+            setRetryCount(count => count + 1);
+            socket.disconnect();
+            socket.connect();
+          }} className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-full px-3 font-semibold text-brand hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Reconectar</button>
         </div>
       )}
     </div>
@@ -67,6 +75,8 @@ function RealtimeConnectionNotice({ waiting }: { waiting: boolean }) {
 export function SocketProvider({ children }: { children: ReactNode }) {
 
   const { data: session, status, update } = useSession();
+
+  const pathname = usePathname();
 
   const userId = session?.user?.id;
 
@@ -392,7 +402,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       <SocketStatusContext.Provider value={isConnected}>
 
-        <RealtimeConnectionNotice waiting={status !== "loading" && !sessionError && !removalPending && !isConnected} />
+        <RealtimeConnectionNotice waiting={status !== "loading" && !sessionError && !removalPending && !isConnected && !routeShowsOwnRealtimeStatus(pathname)} />
 
         {removalPending ? <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/95 p-6" role="alertdialog" aria-modal="true" aria-labelledby="account-removed-title" aria-describedby="account-removed-description"><div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-6 shadow-xl"><h2 id="account-removed-title" tabIndex={-1} ref={node => node?.focus()} className="text-xl font-semibold outline-none">{revokedReason === "account-suspended" ? "Sua conta foi suspensa" : revokedReason === "account-removed" ? "Sua conta foi banida do site" : "Sessão encerrada por segurança"}</h2><p id="account-removed-description" className="mt-3 text-sm leading-relaxed text-muted-foreground">{revokedReason === "account-suspended" ? "O acesso foi suspenso pelo administrador. Estamos encerrando sua sessão com segurança." : revokedReason === "account-removed" ? "O administrador removeu sua conta. Estamos encerrando sua sessão com segurança." : "Estamos encerrando esta sessão. Entre novamente para continuar."}</p><p role="status" className="mt-5 text-sm font-medium text-primary">Desconectando...</p></div></div> : children}
 

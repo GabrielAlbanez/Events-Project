@@ -7,6 +7,8 @@ import { Search, UserRound } from "lucide-react";
 import { useEffect, useState, type MouseEvent } from "react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { BrandLogo } from "./BrandLogo";
+import NotificationBell from "./NotificationBell";
+import ConversationsLink from "./ConversationsLink";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
@@ -15,6 +17,8 @@ export function SiteHeader() {
   const { setOpen, setOpenMobile } = useSidebar();
   const [mapActive, setMapActive] = useState(false);
   const authenticated = status === "authenticated" && Boolean(session?.user?.id);
+  // Quem ainda não publica eventos (visitante ou conta BASIC) vê o atalho comercial.
+  const showOrganizers = status === "unauthenticated" || (authenticated && session?.user?.role === "BASIC");
 
   useEffect(() => {
     const sync = () => setMapActive(pathname === "/" && ["#home-discovery", "#home-discovery-search"].includes(window.location.hash));
@@ -55,10 +59,14 @@ export function SiteHeader() {
         <Link href="/" onClick={openHome} aria-current={pathname === "/" && !mapActive ? "page" : undefined}>Descobrir</Link>
         <Link href="/EventsCreated" aria-current={pathname === "/EventsCreated" ? "page" : undefined}>Agenda</Link>
         <Link href="/#home-discovery" onClick={event => openDiscovery(event)} aria-current={pathname === "/" && mapActive ? "location" : undefined}>Mapa</Link>
+        <Link href="/conheca" aria-current={pathname === "/conheca" ? "page" : undefined}>Como funciona</Link>
       </nav>
       <div className={styles.actions}>
+        {showOrganizers && <Link href="/para-organizadores" className={styles.organizers} aria-current={pathname === "/para-organizadores" ? "page" : undefined}>Para organizadores</Link>}
         <Link href="/#home-discovery-search" onClick={event => openDiscovery(event, true)} className={styles.search} aria-label="Buscar eventos no mapa" title="Buscar eventos"><Search size={20} aria-hidden="true" /></Link>
-        {status === "loading" ? <span className={styles.accountLoading} role="status" aria-label="Carregando conta" /> : authenticated ? <Link href="/Profile" className={styles.account}><UserRound size={18} aria-hidden="true" /><span>Minha conta</span></Link> : <>
+        {authenticated && <ConversationsLink />}
+        {authenticated && <NotificationBell />}
+        {status === "loading" ? <span className={styles.accountLoading} role="status" aria-label="Carregando conta" /> : authenticated ? <Link href="/Profile" className={styles.account} aria-label="Minha conta" aria-current={pathname === "/Profile" ? "page" : undefined}><UserRound size={18} aria-hidden="true" /><span>Minha conta</span></Link> : <>
           <a href="/login" onClick={closeMenu} className={styles.login} aria-label="Entrar na plataforma"><UserRound size={18} aria-hidden="true" /><span>Entrar</span></a>
           <a href="/register" onClick={closeMenu} className={styles.signup}>Criar conta</a>
         </>}

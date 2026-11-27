@@ -39,13 +39,21 @@ export type Evento = {
   lat?: number | null;
   lng?: number | null;
   validate: boolean;
-  validator: PublicPerson | null;
+  /** Reviewer name; only loaded for the organizer's own event list, never in the public catalog. */
+  validator?: Pick<PublicPerson, "name"> | null;
   userId?: string | null;
   status?: EventStatus;
   category?: string;
   isFree?: boolean;
   priceCents?: number;
   capacity?: number | null;
+  /** EventMap ticket sales (Pix via Mercado Pago); only loaded where the organizer edits the event. */
+  ticketsEnabled?: boolean;
+  ticketCapacity?: number | null;
+  /** Organizer approves each registration (EventMap-created events only); only loaded where the organizer edits the event. */
+  requiresApproval?: boolean;
+  /** Requests waiting for the organizer; only loaded in the organizer's own event list. */
+  pendingRequests?: number;
   startTime?: string | null;
   endTime?: string | null;
   timezone?: string;
@@ -53,4 +61,6 @@ export type Evento = {
   views?: number;
   ticketClicks?: number;
   favoriteCount?: number;
+  /** Running paid highlight, computed on the server. Absent means not featured. */
+  featured?: boolean;
 };

@@ -31,7 +31,7 @@ export function LogoutButton() {
   };
 
   return (
-    <Button variant="outline" className="mt-3 w-full rounded-xl" onClick={handleLogout}>
+    <Button variant="outline" className="mt-3 w-full" onClick={handleLogout}>
       Sair da conta
     </Button>
   );

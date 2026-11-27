@@ -23,6 +23,7 @@ import { deleteEvents } from "@/app/(actions)/deleteEvents/action";
 import { useSocket } from "@/context/SocketContext";
 import { solicitarCorrecao } from "@/app/(actions)/eventos/actions";
 import { eventStatusLabels, type EventStatus } from "@/types/features";
+import { importedBadge } from "@/lib/aiEvents/sources";
 
 interface TableEventsProps {
   events: Evento[];
@@ -191,7 +192,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
 
       <div className="space-y-3 lg:hidden" aria-label="Eventos para revisão">
         {eventList.map((event) => (
-          <article key={event.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-surface">
+          <article key={event.id} className="min-w-0 rounded-[22px] border border-border bg-card p-4 shadow-[var(--em-shadow-card)]">
             <div className="flex items-start gap-3">
               <Checkbox
                 className="shrink-0 py-2"
@@ -202,6 +203,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
               />
               <div className="min-w-0 flex-1 space-y-2">
                 <h3 className="break-words text-base font-semibold leading-snug text-foreground">{event.nome}</h3>
+                {event.aiImport && <span className="mt-1 inline-flex w-fit rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">{importedBadge(event.aiImport.sourceUrl)}</span>}
                 <Chip
                   color={event.status === "PUBLISHED" ? "success" : event.status === "CHANGES_REQUESTED" ? "danger" : "warning"}
                   size="sm"
@@ -245,7 +247,7 @@ const TableEventsAdmin: React.FC<TableEventsProps> = ({
                 />
               </TableCell>
               {/* Nome do evento */}
-              <TableCell>{event.nome}</TableCell>
+              <TableCell><span className="block">{event.nome}</span>{event.aiImport && <span className="mt-1 inline-flex w-fit rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">{importedBadge(event.aiImport.sourceUrl)}</span>}</TableCell>
               {/* Endereço do evento */}
               <TableCell>{event.endereco}</TableCell>
               {/* Status de verificação */}

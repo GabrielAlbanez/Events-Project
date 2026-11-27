@@ -57,6 +57,8 @@ export async function validateEvents(eventIds: string[], adminId: string) {
       await notifyEventAudience(transaction, { ...event, status: "PUBLISHED" }, { title: "Evento publicado", message: event.nome + " foi aprovado e está disponível no EventMap.", includeFollowers: true });
       changedIds.push(event.id);
     }
+    // Eventos importados: a origem acompanha a validação feita na fila normal.
+    if (changedIds.length) await transaction.aiEventCandidate.updateMany({ where: { eventId: { in: changedIds } }, data: { status: "PUBLISHED", approvedBy: adminId, approvedAt: validatedAt } });
     return changedIds;
   });
 

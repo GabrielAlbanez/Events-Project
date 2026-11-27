@@ -58,6 +58,11 @@ model User {
   partyReportsTo PartyReport[] @relation("PartyReportTo")
   impersonationsStarted ImpersonationSession[] @relation("ImpersonationAdmin")
   impersonationsReceived ImpersonationSession[] @relation("ImpersonationTarget")
+  promotionsRequested EventPromotion[] @relation("PromotionRequester")
+  promotionsReviewed  EventPromotion[] @relation("PromotionReviewer")
+  mercadoPagoAccount  MercadoPagoAccount?
+  ticketsBought       TicketOrder[] @relation("TicketBuyer")
+  ticketsSold         TicketOrder[] @relation("TicketSeller")
 }
 
 model ImpersonationSession {
@@ -125,6 +130,8 @@ model Events {
   category           String                @default("Outros")
   isFree             Boolean               @default(false)
   priceCents         Int                   @default(0)
+  ticketsEnabled     Boolean               @default(false)
+  ticketCapacity     Int?
   lat                Float?
   lng                Float?
   startTime          String?
@@ -137,6 +144,8 @@ model Events {
   favorites          Favorite[]
   metrics            EventMetric[]
   capacity           Int?
+  /// Promoter-created events: registrations wait for the organizer. Ignored for imported events (aiImport).
+  requiresApproval   Boolean               @default(false)
   registrations      EventRegistration[]
   recurrenceSeriesId String?
   recurrenceSeries   EventSeries?          @relation(fields: [recurrenceSeriesId], references: [id], onDelete: SetNull)
@@ -152,6 +161,10 @@ model Events {
   partyLikes PartyLike[]
   partyReports PartyReport[]
   aiImport AiEventCandidate?
+  promotions EventPromotion[]
+  ticketOrders TicketOrder[]
+  ticketPasses       TicketPass[]
+  ticketCoupons TicketCoupon[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
   @@map("events")
@@ -182,6 +195,9 @@ enum RegistrationStatus {
   WAITLISTED
   CANCELLED
   CHECKED_IN
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model AiEventAutomation {
@@ -342,6 +358,9 @@ model Follow {
 }
 
 model Notification {
+  type      String    @default("SYSTEM")
+  priority  String    @default("normal")
+  groupKey  String?
   id        String    @id @default(uuid())
   userId    String
   title     String
@@ -353,6 +372,7 @@ model Notification {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
   @@index([pushedAt])
 }
 
@@ -639,4 +659,136 @@ model UserSuspensionAudit {
   createdAt DateTime @default(now())
   @@index([userId, createdAt])
   @@index([actorId, createdAt])
+}
+enum PromotionStatus {
+  PENDING_PAYMENT
+  AWAITING_REVIEW
+  ACTIVE
+  REJECTED
+  CANCELLED
+}
+
+/// Paid highlight (Pix manual + admin review). Active = ACTIVE and startsAt <= now < endsAt, computed on read.
+model EventPromotion {
+  id          String          @id @default(uuid())
+  eventId     String
+  userId      String
+  packageId   String
+  days        Int
+  amountCents Int
+  status      PromotionStatus @default(PENDING_PAYMENT)
+  payerNote   String?
+  reviewNote  String?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  event       Events          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User            @relation("PromotionRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer    User?           @relation("PromotionReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([status, endsAt])
+  @@map("event_promotions")
+}
+
+/// Organizer's Mercado Pago account connected by OAuth (marketplace). Tokens are AES-256-GCM encrypted; never sent to clients or logs.
+model MercadoPagoAccount {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  mpUserId        String
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mercado_pago_accounts")
+}
+
+/// Tickets 2..N of a paid order, each with its own QR Code. Ticket 1 is the buyer's EventRegistration.
+model TicketPass {
+  id          String           @id @default(uuid())
+  orderId     String
+  eventId     String
+  position    Int
+  status      TicketPassStatus @default(VALID)
+  checkedInAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  order       TicketOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  event       Events           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, position])
+  @@index([eventId, status])
+  @@map("ticket_passes")
+}
+
+enum TicketPassStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
+enum TicketOrderStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+/// One Pix ticket per buyer per event. PENDING orders reserve a seat until expiresAt; PAID creates/activates the EventRegistration.
+model TicketOrder {
+  id           String            @id @default(uuid())
+  eventId      String
+  buyerId      String
+  sellerId     String
+  /// Price of one ticket. Order total = unitCents * quantity; feeCents is the fee of the whole order.
+  unitCents    Int
+  quantity     Int               @default(1)
+  feeCents     Int
+  status       TicketOrderStatus @default(PENDING)
+  mpPaymentId  String?           @unique
+  pixCopyPaste String?
+  pixQrBase64  String?
+  expiresAt    DateTime
+  paidAt       DateTime?
+  refundedAt   DateTime?
+  couponId     String?
+  discountCents Int              @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  coupon       TicketCoupon?     @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  event        Events            @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  buyer        User              @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller       User              @relation("TicketSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  passes       TicketPass[]
+
+  @@index([eventId, status])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, status])
+  @@map("ticket_orders")
+}
+
+/// Discount code created by the event owner. Never deleted from the UI (deactivated instead); uses are counted from orders.
+model TicketCoupon {
+  id             String        @id @default(uuid())
+  eventId        String
+  code           String
+  percentOff     Int?
+  amountOffCents Int?
+  maxUses        Int?
+  expiresAt      DateTime?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  event          Events        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orders         TicketOrder[]
+
+  @@unique([eventId, code])
+  @@map("ticket_coupons")
 }

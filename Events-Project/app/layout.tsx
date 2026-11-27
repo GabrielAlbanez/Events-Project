@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   description: "Encontre eventos, explore novos lugares e viva experiências que combinam com você.",
   applicationName: "EventMap",
   keywords: ["eventos", "agenda", "mapa", "experiências", "São Paulo"],
+  // Home Screen install (iOS needs it for web push); the manifest lives in app/manifest.ts.
+  appleWebApp: { capable: true, title: "EventMap", statusBarStyle: "default" },
 };
 
 export default function RootLayout({

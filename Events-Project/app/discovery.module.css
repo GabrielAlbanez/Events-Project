@@ -1,7 +1,7 @@
 .shell {
   position: relative;
   height: calc(100vh - var(--site-header-height, 76px));
-  height: calc(100dvh - var(--site-header-height, 76px));
+  height: calc(100dvh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
   overflow: hidden;
 }
 
@@ -15,20 +15,39 @@
 }
 
 .main {
-  height: calc(100dvh - var(--site-header-height, 76px));
+  height: calc(100dvh - var(--site-header-height, 76px) - var(--mobile-nav-space, 0px));
   flex: none;
   scroll-margin-top: 16px;
-  --discovery-sheet-height: calc(104px + env(safe-area-inset-bottom, 0px));
+  /* The mobile bottom nav already covers the safe area; only the uncovered remainder is added. */
+  --discovery-safe-area: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--mobile-nav-space, 0px)));
+  --discovery-sheet-height: calc(104px + var(--discovery-safe-area));
+  /* Mobile "Mapa | Lista" bar, in normal flow above the map/list (0 on desktop, where it lives over the map). */
+  --discovery-bar-height: 60px;
   overflow: hidden;
 }
 
+.viewBar {
+  height: var(--discovery-bar-height);
+}
+
+/* Mobile "Lista": the sheet becomes the whole results view below the bar; the map region is not shown behind it. */
 .mainExpanded {
-  --discovery-sheet-height: 78%;
+  --discovery-sheet-height: calc(100% - var(--discovery-bar-height));
+}
+
+.mainExpanded .sheet {
+  border-top-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mainExpanded .sheetToggle {
+  display: none;
 }
 
 .sheet {
   height: var(--discovery-sheet-height);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--discovery-safe-area, env(safe-area-inset-bottom, 0px));
 }
 
 .sheetToggle {
@@ -46,15 +65,31 @@
   display: flex;
 }
 
-/* Both regions use the same container, including Safari's dynamic viewport. */
-.map,
+/* Mobile "Mapa": the map (or its consent card) fills what the bar and the collapsed sheet leave, so nothing overlaps. */
+.map {
+  height: calc(100% - var(--discovery-sheet-height) - var(--discovery-bar-height));
+}
+
 .mapExpanded {
-  height: calc(100% - var(--discovery-sheet-height));
+  display: none;
 }
 
 @media (min-width: 768px) {
+  .main {
+    --discovery-bar-height: 0px;
+  }
+
   .sheet {
     padding-bottom: 0;
+  }
+
+  .mainExpanded .sheet {
+    border-radius: 0 2rem 2rem 0;
+    box-shadow: 18px 0 48px -28px hsl(var(--foreground) / 0.28);
+  }
+
+  .mapExpanded {
+    display: block;
   }
 
   .sheetContent {

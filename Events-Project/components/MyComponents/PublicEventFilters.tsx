@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import { Evento } from "@/types";
 import { useGoogleMaps } from "./GoogleMapsLoader";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
@@ -26,9 +27,11 @@ type PublicEventFiltersProps = {
  value: DiscoveryFilter;
  onChange: (value: DiscoveryFilter) => void;
  onOpen?: () => void;
+ /** Below sm, collapse to a "Filtros" pill that fits a toolbar row and spans the row when open. From sm up nothing changes. */
+ compact?: boolean;
 };
 
-export default function PublicEventFilters({ events, value, onChange, onOpen }: PublicEventFiltersProps) {
+export default function PublicEventFilters({ events, value, onChange, onOpen, compact = false }: PublicEventFiltersProps) {
  const [locationMessage, setLocationMessage] = useState("");
  const [travelChoice, setTravelChoice] = useState("");
  const [travelLoading, setTravelLoading] = useState(false);
@@ -36,7 +39,10 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
  const { isLoaded: mapsLoaded, enabled: mapsEnabled } = useGoogleMaps();
  const generation = useRef(0);
  const currentValue = useRef(value);
- if (currentValue.current !== value) { currentValue.current = value; generation.current++; }
+ // Latest-value ref (idempotent during render). A pending location/travel reply is stale when the
+ // generation moved or when the filters it was started with are no longer the current ones.
+ currentValue.current = value;
+ const isCurrent = (request: number, startedWith: DiscoveryFilter) => request === generation.current && currentValue.current === startedWith;
  useEffect(() => () => { generation.current++; }, []);
  const eventSignature = events.map((event) => `${event.id}:${event.lat ?? ""}:${event.lng ?? ""}`).join("|");
  const previousEventSignature = useRef(eventSignature);
@@ -62,7 +68,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
 
  async function calculateTravel() {
   if (!travelChoice) { onChange({ ...value, travelMinutes: null, travelDurations: {} }); setTravelMessage(""); return; }
-  const request = ++generation.current;
+  const request = ++generation.current, startedWith = value;
   setTravelLoading(true);
   setTravelMessage("");
   try {
@@ -74,7 +80,7 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     { timeout: 10000, maximumAge: 60000 }
    ));
    const candidates = filterDiscovery(events, { ...value, travelMinutes: null, travelDurations: {} }).filter((event) => event.lat != null && event.lng != null).sort((a,b) => directDistance(location,a)-directDistance(location,b)).slice(0,25);
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    if (candidates.length === 0) throw new TravelFilterError("Nenhum evento com localização está disponível para o cálculo.");
    let matrix: Awaited<ReturnType<RouteMatrixLibrary["RouteMatrix"]["computeRouteMatrix"]>>["matrix"];
    try {
@@ -92,26 +98,29 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
     throw new TravelFilterError(routesUnavailableMessage);
    }
    const durations: Record<string,number> = {};
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    matrix.rows[0]?.items.forEach((item,index) => {
     if (item.condition === "ROUTE_EXISTS" && item.durationMillis != null) durations[candidates[index].id] = Math.ceil(item.durationMillis/60000);
    });
    onChange({ ...currentValue.current, origin: location, travelMinutes: Number(travelChoice), travelDurations: durations });
    setTravelMessage(`Tempo de carro calculado para ${candidates.length} evento${candidates.length === 1 ? "" : "s"} mais próximo${candidates.length === 1 ? "" : "s"}.${events.length > candidates.length ? " Os demais não entram neste filtro." : ""}`);
   } catch (error) {
-   if (request !== generation.current) return;
+   if (!isCurrent(request, startedWith)) return;
    setTravelMessage(error instanceof TravelFilterError ? error.message : routesUnavailableMessage);
   } finally {
+   // Only a newer request owns the spinner; a filter change made outside must not leave it stuck.
    if (request === generation.current) setTravelLoading(false);
   }
  }
 
+ const activeFilters = [value.category, value.free, value.maxPrice, value.radius, value.travelMinutes !== null].filter(Boolean).length;
  return (
-  <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group rounded-2xl border border-border bg-card p-4">
-   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground marker:hidden focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-    <span aria-hidden="true" className="text-brand transition-transform group-open:rotate-90">▸</span>
-    <span>Mais filtros</span>
-    <span className="ml-auto text-xs font-normal text-muted-foreground">Categoria, preço e localização</span>
+  <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className={compact ? "group min-w-0 open:order-last open:basis-full open:rounded-2xl open:border open:border-border open:bg-card open:p-3 sm:rounded-2xl sm:border sm:border-border sm:bg-card sm:p-4 sm:open:p-4" : "group rounded-2xl border border-border bg-card p-4"}>
+   <summary className={compact ? "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground marker:hidden group-open:border-transparent group-open:px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:rounded-md sm:border-0 sm:bg-transparent sm:px-0 sm:group-open:px-0 [&::-webkit-details-marker]:hidden" : "flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground marker:hidden focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"}>
+    {compact && <span className="flex items-center gap-2 sm:hidden"><SlidersHorizontal aria-hidden="true" className="h-4 w-4 text-brand" />Filtros{activeFilters > 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">{activeFilters}<span className="sr-only"> {activeFilters === 1 ? "filtro ativo" : "filtros ativos"}</span></span>}</span>}
+    <span aria-hidden="true" className={(compact ? "hidden sm:inline " : "") + "text-brand transition-transform group-open:rotate-90"}>▸</span>
+    <span className={compact ? "hidden sm:inline" : undefined}>Mais filtros</span>
+    <span className={(compact ? "hidden sm:inline " : "") + "ml-auto text-xs font-normal text-muted-foreground"}>Categoria, preço e localização</span>
    </summary>
 
    <div className="mt-4 grid min-w-0 gap-4 border-t border-border pt-4 sm:grid-cols-2">
@@ -154,13 +163,13 @@ export default function PublicEventFilters({ events, value, onChange, onOpen }: 
        const radius = value.radius;
        if (!navigator.geolocation) { setLocationMessage("Este navegador não oferece localização. Use os outros filtros."); return; }
        setLocationMessage("Obtendo localização...");
-       const request = ++generation.current;
+       const request = ++generation.current, startedWith = value;
        navigator.geolocation.getCurrentPosition(position => {
-        if (request !== generation.current) return;
+        if (!isCurrent(request, startedWith)) return;
         setLocationMessage("Localização aplicada ao filtro.");
         changeOtherFilter({ ...currentValue.current, radius, origin: { lat: position.coords.latitude, lng: position.coords.longitude } });
        }, () => {
-        if (request !== generation.current) return;
+        if (!isCurrent(request, startedWith)) return;
         changeOtherFilter({ ...currentValue.current, radius: "" });
         setLocationMessage("Não foi possível obter a localização. Permita o acesso no navegador ou use os outros filtros.");
        }, { timeout: 10000, maximumAge: 60000 });

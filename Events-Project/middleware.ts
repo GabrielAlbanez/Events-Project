@@ -3,6 +3,13 @@ import { getToken } from "next-auth/jwt";
 import { canAccessPath, getSessionRole, isPublicPath } from "@/lib/authPolicy";
 import { authPathWithReturn } from "@/lib/authReturn";
 
+/** Auth redirects depend on the session cookie, so shared caches must never store them. */
+function authRedirect(url: URL): NextResponse {
+  const response = NextResponse.redirect(url);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // A JWT can outlive its account/session. Auth pages validate it on the server.
@@ -13,14 +20,14 @@ export async function middleware(request: NextRequest) {
   if (isPublicPath(pathname)) return NextResponse.next();
 
   if (role === "GUEST") {
-    return NextResponse.redirect(new URL(authPathWithReturn("/login", pathname + request.nextUrl.search), request.url));
+    return authRedirect(new URL(authPathWithReturn("/login", pathname + request.nextUrl.search), request.url));
   }
 
   return canAccessPath(role, pathname)
     ? NextResponse.next()
-    : NextResponse.redirect(new URL("/", request.url));
+    : authRedirect(new URL("/", request.url));
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/Profile", "/perfil-conexoes", "/CriarEvento", "/myEvents/:path*", "/resultados", "/salvos", "/notificacoes", "/atividade", "/salas/:path*", "/eventos/:path*", "/login", "/register"],
+  matcher: ["/admin/:path*", "/Profile", "/perfil-conexoes", "/CriarEvento", "/myEvents/:path*", "/resultados", "/salvos", "/notificacoes", "/ingressos", "/atividade", "/salas/:path*", "/conversas", "/conversas/:path*", "/eventos/:path*", "/login", "/register"],
 };

@@ -146,6 +146,331 @@ body {
   }
 }
 
+/*
+ * EventMap design system (approved Nov/2026 home + map look), shared by every screen.
+ * Tokens: cards 22px, inputs 16px, pills 999px, tiles 14px, layered shadows, lime CTA, primary links.
+ */
+:root {
+  --em-radius-card: 22px;
+  --em-radius-banner: 28px;
+  --em-radius-field: 16px;
+  --em-radius-tile: 14px;
+  --em-shadow-card: 0 1px 2px hsl(var(--foreground) / 0.04), 0 14px 34px -22px hsl(var(--foreground) / 0.22);
+  --em-shadow-elevated: 0 2px 4px hsl(var(--foreground) / 0.05), 0 26px 48px -26px hsl(var(--foreground) / 0.3);
+  --em-highlight-ink: #4E7A00;
+  --em-decoration-opacity: 0.5;
+}
+.dark {
+  --em-shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 18px 40px -24px rgb(0 0 0 / 0.6);
+  --em-shadow-elevated: 0 2px 4px rgb(0 0 0 / 0.35), 0 26px 48px -24px rgb(0 0 0 / 0.7);
+  --em-highlight-ink: hsl(var(--cta));
+  --em-decoration-opacity: 0.22;
+}
+
+@layer components {
+  /* Page shell: clipped lime ring + blob decorations, never causing horizontal scroll. */
+  .em-page {
+    position: relative;
+    isolation: isolate;
+    overflow-x: clip;
+  }
+  .em-page::before,
+  .em-page::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .em-page::before {
+    top: -170px;
+    right: -230px;
+    width: 440px;
+    aspect-ratio: 1;
+    border: 110px solid hsl(var(--cta));
+    border-radius: 50%;
+    opacity: calc(var(--em-decoration-opacity) * 0.6);
+  }
+  .em-page::after {
+    top: 220px;
+    left: -120px;
+    width: 220px;
+    height: 160px;
+    border-radius: 46% 54% 36% 64% / 58% 38% 62% 42%;
+    background: hsl(var(--cta));
+    opacity: calc(var(--em-decoration-opacity) * 0.22);
+    transform: rotate(-14deg);
+  }
+  .em-page[data-decor="none"]::before,
+  .em-page[data-decor="none"]::after,
+  .em-page[data-decor="ring"]::after {
+    display: none;
+  }
+  @media (max-width: 639px) {
+    .em-page::before { top: -120px; right: -170px; width: 280px; border-width: 66px; }
+    .em-page::after { display: none; }
+  }
+
+  /* Section header pieces. */
+  .em-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    color: hsl(var(--brand));
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .em-eyebrow::before {
+    content: "";
+    flex: none;
+    width: 18px;
+    height: 3px;
+    border-radius: 999px;
+    background: hsl(var(--cta));
+  }
+  .em-title {
+    margin: 0;
+    color: hsl(var(--foreground));
+    font-size: clamp(30px, 3.4vw, 46px);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+  .em-title-sm {
+    font-size: clamp(24px, 2.4vw, 32px);
+  }
+  .em-subtitle {
+    margin: 0;
+    max-width: 62ch;
+    color: hsl(var(--muted-foreground));
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  .em-highlight {
+    position: relative;
+    display: inline-block;
+    color: var(--em-highlight-ink);
+    white-space: nowrap;
+  }
+  .em-highlight > svg {
+    position: absolute;
+    left: 2%;
+    bottom: -0.16em;
+    width: 98%;
+    height: 0.24em;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .em-highlight > svg path {
+    fill: none;
+    stroke: hsl(var(--cta));
+    stroke-width: max(3px, 0.07em);
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .em-on-dark .em-highlight { color: hsl(var(--cta)); }
+
+  /* Surfaces. */
+  .em-surface,
+  .em-surface-elevated {
+    border: 1px solid hsl(var(--border) / 0.85);
+    border-radius: var(--em-radius-card);
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    box-shadow: var(--em-shadow-card);
+  }
+  .em-surface-elevated {
+    box-shadow: var(--em-shadow-elevated);
+  }
+  .em-tile {
+    border: 1px solid hsl(var(--border) / 0.85);
+    border-radius: var(--em-radius-tile);
+    background: hsl(var(--muted) / 0.5);
+  }
+  .em-banner-dark {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: var(--em-radius-banner);
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
+    box-shadow: 0 30px 60px -36px hsl(var(--foreground) / 0.55);
+  }
+  .dark .em-banner-dark {
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    box-shadow: 0 30px 60px -36px rgb(0 0 0 / 0.7);
+  }
+  .em-banner-dark .em-highlight { color: hsl(var(--cta)); }
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .em-surface-interactive {
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+    .em-surface-interactive:hover {
+      transform: translateY(-3px);
+      border-color: hsl(var(--primary) / 0.28);
+      box-shadow: var(--em-shadow-elevated);
+    }
+  }
+
+  /* Pill buttons. */
+  .em-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 20px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 14.5px;
+    font-weight: 650;
+    line-height: 1.25;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: filter 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .em-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  .em-btn:disabled, .em-btn[aria-disabled="true"] { opacity: 0.55; pointer-events: none; }
+  .em-btn-primary { background: hsl(var(--cta)); border-color: hsl(var(--cta)); color: hsl(var(--cta-foreground)); }
+  .em-btn-primary:hover { filter: brightness(1.05); }
+  .em-btn-outline { background: hsl(var(--card)); border-color: hsl(var(--border)); color: hsl(var(--foreground)); }
+  .em-btn-outline:hover { border-color: hsl(var(--primary) / 0.5); background: hsl(var(--primary) / 0.06); }
+  .em-btn-ghost { background: transparent; color: hsl(var(--brand)); }
+  .em-btn-ghost:hover { background: hsl(var(--primary) / 0.08); }
+
+  /* Text link with arrow ("Ver todos →"). */
+  .em-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    color: hsl(var(--brand));
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .em-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .em-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; border-radius: 6px; }
+
+  /* Fields (native inputs, selects and textareas outside the shared components). */
+  .em-field {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 16px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--em-radius-field);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    font-size: 16px;
+    transition: border-color 0.16s, box-shadow 0.16s;
+  }
+  .em-field:hover { border-color: hsl(var(--ring) / 0.4); }
+  .em-field:focus-visible { outline: none; border-color: hsl(var(--ring)); box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25); }
+
+  /* Chips and segmented control. */
+  .em-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 0.16s, border-color 0.16s;
+  }
+  .em-chip:hover { border-color: hsl(var(--primary) / 0.45); }
+  .em-chip[aria-pressed="true"], .em-chip[aria-current], .em-chip[data-active="true"] {
+    background: hsl(var(--cta));
+    border-color: hsl(var(--cta));
+    color: hsl(var(--cta-foreground));
+  }
+  .em-chip:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  .em-segmented {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--card));
+  }
+  .em-segmented > * {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    color: hsl(var(--muted-foreground));
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .em-segmented > [aria-pressed="true"], .em-segmented > [aria-selected="true"], .em-segmented > [aria-current], .em-segmented > [data-state="active"] {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  /* Empty, error and loading states. */
+  .em-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 36px 24px;
+    border: 1px dashed hsl(var(--border));
+    border-radius: var(--em-radius-card);
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+  }
+  .em-state[data-tone="error"] { border-style: solid; border-color: hsl(var(--destructive) / 0.3); background: hsl(var(--destructive) / 0.05); }
+  .em-state-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--brand));
+  }
+  .em-state[data-tone="error"] .em-state-icon { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+  .em-state-title { margin: 0; color: hsl(var(--foreground)); font-size: 20px; font-weight: 700; letter-spacing: -0.025em; }
+  .em-state-text { margin: 0; max-width: 48ch; font-size: 15px; line-height: 1.6; }
+
+  /* Feature-card icon tile. */
+  .em-icon-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: hsl(var(--cta));
+    color: hsl(var(--cta-foreground));
+  }
+  .em-icon-tile[data-tone="blue"] { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+  .em-icon-tile[data-tone="soft"] { background: hsl(var(--primary) / 0.1); color: hsl(var(--brand)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .em-btn, .em-chip, .em-field, .em-surface-interactive { transition: none; }
+}
+
 /* Motion is opt-in so maps, overlays and layout containers keep their own behavior. */
 :root {
   --em-motion-feedback: 150ms;
@@ -172,6 +497,15 @@ body {
     border-color: hsl(var(--ring) / 0.55);
   }
 
+  /* Card lift uses the standalone translate property, so it composes with Framer Motion transforms. */
+  .em-motion-lift {
+    transition: translate var(--em-motion-surface) var(--em-motion-arrival), box-shadow var(--em-motion-surface) ease;
+  }
+
+  .em-motion-lift:has(:focus-visible) {
+    translate: 0 -2px;
+  }
+
   .em-motion-waypoint > svg {
     transition: translate var(--em-motion-surface) var(--em-motion-arrival);
   }
@@ -184,6 +518,10 @@ body {
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .em-motion-card:hover {
     border-color: hsl(var(--ring) / 0.55);
+  }
+
+  .em-motion-lift:hover {
+    translate: 0 -2px;
   }
 
   .em-motion-waypoint:hover > svg {
@@ -199,4 +537,90 @@ body {
   .em-motion-card:hover .em-motion-cover {
     scale: 1.025;
   }
+}
+
+/* Organizer promotion kit: printable poster (A4), shown only while printing from the kit. */
+#em-promo-poster {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  body.em-printing-poster > :not(#em-promo-poster) {
+    display: none !important;
+  }
+
+  body.em-printing-poster {
+    background: #fff !important;
+  }
+
+  body.em-printing-poster #em-promo-poster {
+    display: flex;
+    min-height: calc(297mm - 28mm);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6mm;
+    color: #070b1f;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    text-align: center;
+    break-inside: avoid;
+  }
+
+  #em-promo-poster .em-poster-kicker {
+    font-size: 14pt;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #1b36d4;
+  }
+
+  #em-promo-poster .em-poster-title {
+    max-width: 90%;
+    font-size: 38pt;
+    font-weight: 700;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+  }
+
+  #em-promo-poster .em-poster-line {
+    font-size: 16pt;
+  }
+
+  #em-promo-poster .em-poster-price {
+    font-size: 18pt;
+    font-weight: 700;
+  }
+
+  #em-promo-poster .em-poster-qr {
+    width: 85mm;
+    height: 85mm;
+    margin-top: 4mm;
+  }
+
+  #em-promo-poster .em-poster-cta {
+    font-size: 14pt;
+    font-weight: 600;
+  }
+
+  #em-promo-poster .em-poster-url {
+    font-size: 13pt;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+}
+
+/* Map pin hover: the date tag grows from the pin tip into a floating event card, then bobs gently. Transform/opacity only. */
+.event-pin-float { transform-origin: 50% 100%; animation: event-pin-morph .34s cubic-bezier(.2,.9,.3,1.15) both; }
+.event-pin-float__card { animation: event-pin-bob 3.2s ease-in-out .4s infinite; }
+@keyframes event-pin-morph { from { opacity: 0; transform: scale(.16) translateY(6px); } 45% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes event-pin-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) { .event-pin-float, .event-pin-float__card { animation: none; } }
+
+/* iOS Safari zooms into any focused field under 16px; keep touch fields at 16px so tapping an input never zooms the page. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea { font-size: max(16px, 1em) !important; }
 }

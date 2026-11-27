@@ -1,32 +1,101 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Bookmark, Share2, CalendarPlus, Flag, TicketCheck, Users } from "lucide-react";
+import { Bookmark, Share2, CalendarPlus, CircleSlash, Flag, Hourglass, TicketCheck, Users, ExternalLink, BadgeCheck } from "lucide-react";
 import { getFavoriteState, toggleFavorite, setEventReminder, toggleFollow } from "@/app/(actions)/engagement/action";
 import CheckInPass from "./CheckInPass";
+import TicketPurchase, { type TicketApproval } from "./tickets/TicketPurchase";
 import EventPeoplePreview from "./EventPeoplePreview";
 import { hasMetricConsent, METRIC_CONSENT_EVENT } from "@/lib/metricConsent";
+import { RegistrationStatusBadge, type RegistrationStatus } from "@/components/ui/status-badge";
+import { PopIcon } from "@/components/animations/PopIcon";
+import { toast } from "react-toastify";
+import { useRegistrationLive } from "@/hooks/useRegistrationLive";
+import { useSocketStatus } from "@/context/SocketContext";
 
-type Registration = { id: string; status: "CONFIRMED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED"; createdAt: string; checkedInAt: string | null };
-type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null };
+// PENDING / APPROVED / REJECTED exist only on events where the organizer approves each participant (requiresApproval).
+type Registration = { id: string; status: RegistrationStatus; createdAt: string; checkedInAt: string | null };
+type RegistrationState = { capacity: number | null; confirmedCount: number; waitingCount: number; registration: Registration | null; requiresApproval?: boolean; ticketSale?: boolean; ticketSalesPaused?: boolean };
+type RequestStatus = Extract<RegistrationStatus, "PENDING" | "APPROVED" | "REJECTED">;
+const requestStatusOf = (status: RegistrationStatus | undefined): RequestStatus | null => status === "PENDING" || status === "APPROVED" || status === "REJECTED" ? status : null;
 type ApiError = { message?: string };
+// Action results are shown as toasts; toastId keyed by text avoids stacking the same message twice.
+const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `event-actions:${text}` }); };
+// fetch rejects with TypeError when offline; only messages written by us reach the user.
+const actionError = (error: unknown, fallback: string) => error instanceof TypeError ? "Sem conexão. Verifique sua internet e tente novamente." : error instanceof Error && error.name === "Error" && error.message ? error.message : fallback;
+// Every registration answer ends in a message, including an OK whose status did not change.
+function registrationOutcome(method: "POST" | "DELETE", previous: RegistrationStatus | undefined, next: RegistrationStatus | undefined, wasRequest: boolean): { text: string; type: "success" | "error" } {
+  if (method === "DELETE") return !next || next === "CANCELLED" ? { text: wasRequest ? "Pedido cancelado." : "Inscrição cancelada.", type: "success" } : { text: "Sua inscrição continua ativa. Atualize a página e tente novamente.", type: "error" };
+  const unchanged = previous === next;
+  switch (next) {
+    case "PENDING": return { text: unchanged ? "Seu pedido já foi enviado e aguarda a resposta da organização." : "Pedido enviado. Avisaremos quando a organização responder.", type: "success" };
+    case "APPROVED": return { text: "Sua participação já está aprovada. Compre seu ingresso para garantir a vaga.", type: "success" };
+    case "CONFIRMED": return { text: unchanged ? "Sua presença já estava confirmada." : "Presença confirmada.", type: "success" };
+    case "WAITLISTED": return { text: unchanged ? "Você já está na lista de espera." : "Você entrou na lista de espera. Avisaremos se surgir uma vaga.", type: "success" };
+    case "CHECKED_IN": return { text: "Sua entrada neste evento já foi registrada.", type: "success" };
+    case "REJECTED": return { text: "Sua participação não foi aprovada pela organização deste evento.", type: "error" };
+    default: return { text: "Não foi possível confirmar sua inscrição. Atualize a página e tente novamente.", type: "error" };
+  }
+}
 
-export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree }: { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean }) {
+// Compared before applying a background read, so an identical answer changes nothing on screen.
+const registrationSnapshot = (state: RegistrationState) => JSON.stringify([state.capacity, state.confirmedCount, state.waitingCount, state.requiresApproval, state.ticketSale, state.ticketSalesPaused, state.registration?.id, state.registration?.status, state.registration?.checkedInAt]);
+/** Discreet notice for a change made by someone else while this page is open. */
+function remoteChangeNotice(previous: RegistrationStatus | undefined, next: RegistrationStatus | undefined): string {
+  if (!previous || !next || previous === next) return "";
+  if (next === "REJECTED") return previous === "PENDING" ? "Sua participação não foi aprovada pela organização deste evento." : "A organização removeu sua participação neste evento.";
+  if (previous === "REJECTED") return next === "APPROVED" ? "A organização readmitiu você. Compre seu ingresso para garantir a vaga." : next === "WAITLISTED" ? "A organização readmitiu você na lista de espera." : next === "CONFIRMED" ? "A organização readmitiu você. Sua presença está confirmada." : "";
+  if (previous === "PENDING") return next === "APPROVED" ? "Sua participação foi aprovada. Compre seu ingresso para garantir a vaga." : next === "WAITLISTED" ? "Sua participação foi aprovada e você está na lista de espera." : next === "CONFIRMED" ? "Sua participação foi aprovada. Presença confirmada." : "";
+  if (previous === "WAITLISTED" && next === "CONFIRMED") return "Abriu uma vaga: sua presença foi confirmada.";
+  if (next === "CHECKED_IN") return "Sua entrada foi registrada.";
+  return "";
+}
+
+export const registrationPrivacyNotice = "Ao confirmar, seu nome e e-mail ficam visíveis para a organização do evento.";
+export const approvalPrivacyNotice = "Ao pedir para participar, seu nome e e-mail ficam visíveis para a organização do evento.";
+
+type EventPublicActionsProps = { eventId: string; ticketUrl?: string; eventStatus?: string; isFree?: boolean; priceLabel?: string; googleCalendarUrl?: string | null; /** Fixed mobile CTA bar for the full event page; pass false inside drawers or overlays. */ stickyBar?: boolean; /** Set when EventMap sells this event's tickets (Pix): replaces the free registration with the checkout. */ ticketSale?: { priceCents: number }; /** Resolved on the server by the event page, so participation actions never flash for the organizer. */ viewerIsOwner?: boolean; /** For client-only surfaces: compared with the session user once it loads. */ ownerId?: string | null };
+
+export default function EventPublicActions({ eventId, ticketUrl, eventStatus, isFree, priceLabel, googleCalendarUrl, stickyBar = true, ticketSale, viewerIsOwner, ownerId }: EventPublicActionsProps) {
   const { status, data: session } = useSession();
+  const socketConnected = useSocketStatus();
+  const isOwner = viewerIsOwner ?? (status === "authenticated" && Boolean(ownerId) && session?.user?.id === ownerId);
+  // Without a server answer, participation stays hidden until the session says who is viewing.
+  const ownershipPending = viewerIsOwner === undefined && Boolean(ownerId) && status === "loading";
+  const showParticipation = !isOwner && !ownershipPending;
   const [saved, setSaved] = useState(false);
+  // Incremented only after a confirmed user action, so loading the saved state never animates.
+  const [savePulse, setSavePulse] = useState(0);
+  const [registrationPulse, setRegistrationPulse] = useState(0);
   const [reminder, setReminder] = useState<number | null>(null);
-  const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState<RegistrationState | null>(null);
   const [registrationLoading, setRegistrationLoading] = useState(true);
   const [registrationPending, setRegistrationPending] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
+  // Bumped after a registration change so the ticket panel re-reads its purchase state (approval gate).
+  const [ticketRefresh, setTicketRefresh] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("INCORRECT_INFORMATION");
   const [reportDetails, setReportDetails] = useState("");
   const [reportPending, setReportPending] = useState(false);
-  const [reportMessage, setReportMessage] = useState("");
   const [pending, startTransition] = useTransition();
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Latest applied state and read order: an answer older than the last confirmed action is dropped.
+  const registrationRef = useRef<RegistrationState | null>(null);
+  const changingRegistration = useRef(false);
+  const registrationRead = useRef(0);
+  const registrationApplied = useRef(0);
+  const registrationFloor = useRef(0);
+  const [panelOutOfView, setPanelOutOfView] = useState(false);
+  useEffect(() => {
+    // The mobile CTA bar appears only after the full actions panel scrolls away, so actions never show twice.
+    const panel = panelRef.current;
+    if (!panel || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setPanelOutOfView(!entry.isIntersecting));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const recordView = () => {
       if (!hasMetricConsent()) return;
@@ -39,98 +108,209 @@ export default function EventPublicActions({ eventId, ticketUrl, eventStatus, is
   useEffect(() => {
     let active = true;
     if (status !== "authenticated") { setSaved(false); setReminder(null); return; }
-    getFavoriteState(eventId).then(result => { if (active) { setSaved(result.saved); setReminder(result.reminderMinutes); } }).catch(() => { if (active) setMessage("Não foi possível consultar sua agenda."); });
+    getFavoriteState(eventId).then(result => { if (active) { setSaved(result.saved); setReminder(result.reminderMinutes); } }).catch(() => { if (active) notify("Não foi possível consultar sua agenda.", "error"); });
     return () => { active = false; };
   }, [eventId, status, session?.user?.id]);
   useEffect(() => {
+    if (!showParticipation) { setRegistrationLoading(false); return; }
     const controller = new AbortController();
+    registrationFloor.current = registrationRead.current;
+    const read = ++registrationRead.current;
+    registrationRef.current = null;
     setRegistrationLoading(true);
     fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Não foi possível consultar as vagas.");
         return response.json() as Promise<RegistrationState>;
       })
-      .then((result) => { setRegistration(result); setRegistrationError(""); })
+      .then((result) => { if (read < registrationApplied.current) return; registrationApplied.current = read; registrationRef.current = result; setRegistration(result); setRegistrationError(""); })
       .catch(() => { if (!controller.signal.aborted) setRegistrationError("Não foi possível consultar as vagas. Tente atualizar a página."); })
       .finally(() => { if (!controller.signal.aborted) setRegistrationLoading(false); });
     return () => controller.abort();
-  }, [eventId, status, session?.user?.id]);
-  async function changeRegistration(method: "POST" | "DELETE") {
-    setRegistrationPending(true);
+  }, [eventId, status, session?.user?.id, showParticipation]);
+  const refreshRegistrationLive = useCallback(async () => {
+    if (changingRegistration.current) return;
+    const read = ++registrationRead.current;
+    const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { cache: "no-store" });
+    if (!response.ok) return;
+    const next = await response.json().catch(() => null) as RegistrationState | null;
+    if (!next || typeof next.confirmedCount !== "number" || changingRegistration.current || read <= registrationFloor.current || read < registrationApplied.current) return;
+    registrationApplied.current = read;
     setRegistrationError("");
+    const previous = registrationRef.current;
+    if (previous && registrationSnapshot(previous) === registrationSnapshot(next)) return;
+    registrationRef.current = next;
+    setRegistration(next);
+    if (!previous) return;
+    setTicketRefresh(value => value + 1);
+    notify(remoteChangeNotice(previous.registration?.status, next.registration?.status), "info");
+  }, [eventId]);
+  async function changeRegistration(method: "POST" | "DELETE") {
+    if (changingRegistration.current) return;
+    changingRegistration.current = true;
+    setRegistrationPending(true);
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { method });
-      const result = await response.json() as ApiError;
+      const result = await response.json().catch(() => ({})) as ApiError;
+      registrationFloor.current = registrationRead.current;
       if (!response.ok) throw new Error(result.message || "Não foi possível atualizar sua inscrição.");
-      const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`);
-      if (!latest.ok) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
-      setRegistration(await latest.json() as RegistrationState);
+      const previousStatus = registration?.registration?.status;
+      const wasRequest = Boolean(registration?.requiresApproval) || requestStatusOf(previousStatus) !== null;
+      // The change is already saved here: a failed re-read must not suggest trying again.
+      const latest = await fetch(`/api/events/${encodeURIComponent(eventId)}/registration`, { cache: "no-store" }).catch(() => null);
+      const next = latest?.ok ? await latest.json().catch(() => null) as RegistrationState | null : null;
+      if (!next) throw new Error("Inscrição alterada. Atualize a página para conferir o estado.");
+      registrationRef.current = next;
+      setRegistration(next);
+      setTicketRefresh(value => value + 1);
+      const outcome = registrationOutcome(method, previousStatus, next.registration?.status, wasRequest);
+      if (method === "POST" && outcome.type === "success" && previousStatus !== next.registration?.status) setRegistrationPulse(value => value + 1);
+      notify(outcome.text, outcome.type);
     } catch (error) {
-      setRegistrationError(error instanceof Error ? error.message : "Não foi possível atualizar sua inscrição.");
+      notify(actionError(error, "Não foi possível atualizar sua inscrição."), "error");
     } finally {
+      changingRegistration.current = false;
       setRegistrationPending(false);
     }
   }
   async function submitReport() {
     setReportPending(true);
-    setReportMessage("");
     try {
       const response = await fetch(`/api/events/${encodeURIComponent(eventId)}/reports`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reportReason, details: reportDetails.trim() }),
       });
-      const result = await response.json() as ApiError;
+      const result = await response.json().catch(() => ({})) as ApiError;
       if (!response.ok) throw new Error(result.message || "Não foi possível enviar a denúncia.");
-      setReportMessage("Denúncia enviada para análise. Obrigado por nos avisar.");
+      notify("Denúncia enviada para análise. Obrigado por nos avisar.", "success");
       setReportDetails("");
       setReportOpen(false);
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : "Não foi possível enviar a denúncia.");
+      notify(actionError(error, "Não foi possível enviar a denúncia."), "error");
     } finally {
       setReportPending(false);
     }
   }
   async function share() {
     const url = new URL('/eventos/' + encodeURIComponent(eventId), window.location.origin).href;
-    try { if (navigator.share) await navigator.share({ title: "Evento no EventMap", url }); else { await navigator.clipboard.writeText(url); setMessage("Link do evento copiado."); } }
-    catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage("Não foi possível compartilhar. Copie o endereço desta página."); }
+    try { if (navigator.share) await navigator.share({ title: "Evento no EventMap", url }); else { await navigator.clipboard.writeText(url); notify("Link do evento copiado.", "success"); } }
+    catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) notify("Não foi possível compartilhar. Copie o endereço desta página.", "error"); }
   }
+  const toggleSave = () => startTransition(async () => { try { const result = await toggleFavorite(eventId); notify(result.message, result.success ? "success" : "error"); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (result.saved) setSavePulse(value => value + 1); else setReminder(null); } } catch { notify("Não foi possível salvar. Tente novamente.", "error"); } });
   const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}`)}`;
   const hasExternalTickets = Boolean(ticketUrl && /^https?:\/\//i.test(ticketUrl));
-  const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
-  return <div className="space-y-3">
-    {eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-      <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
+  const trackTicket = () => { if (!hasMetricConsent()) return; void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); };
+  const registrationOpen = eventStatus !== "CANCELLED" && eventStatus !== "ENDED";
+  // Visitors only need seat counters; signed-in people also get socket signals, so polling is just a fallback.
+  useRegistrationLive({ refresh: refreshRegistrationLive, intervalMs: status !== "authenticated" ? 60000 : socketConnected ? 20000 : 15000, enabled: showParticipation && registrationOpen && status !== "loading" });
+  const activeRegistration = registration?.registration && registration.registration.status !== "CANCELLED" ? registration.registration : null;
+  const waitlistOnly = Boolean(registration && registration.capacity !== null && registration.confirmedCount >= registration.capacity);
+  // Drawers/modals don't pass ticketSale; when EventMap sells this event's tickets they link to the checkout instead of the free RSVP.
+  const sellsElsewhere = !ticketSale && Boolean(registration?.ticketSale);
+  // EventMap sells this event but payments are paused: neither checkout nor free RSVP.
+  const salesPaused = !ticketSale && Boolean(registration?.ticketSalesPaused);
+  const canRegister = registrationOpen && !registrationLoading && Boolean(registration) && !activeRegistration && !sellsElsewhere && !salesPaused;
+  // Organizer approval: the visitor asks to participate; paid events unlock the purchase only after APPROVED.
+  const requiresApproval = Boolean(registration?.requiresApproval);
+  const requestStatus = requestStatusOf(registration?.registration?.status);
+  const joinLabel = requiresApproval ? "Pedir para participar" : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença";
+  const joiningLabel = requiresApproval ? "Enviando pedido..." : "Confirmando...";
+  const privacyNotice = requiresApproval ? approvalPrivacyNotice : null;
+  const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:border-primary/50 hover:bg-primary/[0.06] disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
+  // Mobile: equal-width two-column grid with short labels; from sm up the original inline buttons.
+  const tile = `${button.replace(" px-4 ", " px-2 sm:px-4 ")} min-w-0 flex-1 basis-[calc(50%-0.25rem)] whitespace-nowrap sm:flex-none sm:basis-auto sm:whitespace-normal`;
+  const iconButton = button.replace(" px-4 ", " w-11 shrink-0 px-0 ");
+  const primaryButton = `${button} border-cta bg-cta text-cta-foreground hover:!border-cta hover:!bg-cta hover:brightness-105`;
+  const requestButton = <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={primaryButton}>{registrationPending ? joiningLabel : "Pedir para participar"}</button>;
+  const cancelRequestButton = <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar pedido"}</button>;
+  // Status of a request, paired with an icon and text (never color alone).
+  const requestNotice = requestStatus === "PENDING"
+    ? <div className="space-y-1"><p role="status" className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300"><PopIcon pulse={registrationPulse}><Hourglass aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /></PopIcon><span>Pedido enviado — aguardando aprovação da organização</span></p><p className="text-sm leading-6 text-muted-foreground">Você recebe um aviso quando a organização responder.</p></div>
+    : requestStatus === "REJECTED"
+      ? <p role="status" className="flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted-foreground"><CircleSlash aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span>Sua participação não foi aprovada pela organização deste evento.</span></p>
+      : requestStatus === "APPROVED"
+        ? <p role="status" className="flex items-start gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><BadgeCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span>Participação aprovada — compre seu ingresso</span></p>
+        : null;
+  // Paid approval events: the ticket panel shows this instead of the buy button until the request is approved.
+  const ticketApproval: TicketApproval | undefined = requiresApproval ? {
+    notice: requestStatus === "APPROVED" ? requestNotice : null,
+    action: registrationLoading && !registration ? <p role="status" className="text-sm text-muted-foreground">Consultando sua inscrição...</p>
+      : registrationError && !registration ? <p role="alert" className="text-sm text-destructive">{registrationError}</p>
+        : requestStatus === "PENDING" ? <>{requestNotice}{cancelRequestButton}</>
+          : requestStatus === "REJECTED" ? requestNotice
+            : <>
+              <p className="text-sm leading-6 text-muted-foreground">A organização aprova cada participante. Peça para participar: a compra do ingresso é liberada depois da aprovação.</p>
+              {requestButton}
+              <p className="text-xs leading-5 text-muted-foreground">{approvalPrivacyNotice} <Link href="/privacidade" className="font-medium text-brand underline-offset-4 hover:underline">Saiba mais</Link></p>
+            </>,
+  } : undefined;
+  const stickyAction = ticketSale && registrationOpen
+    ? activeRegistration && requestStatus !== "APPROVED" ? null : <a href="#ticket-title" className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>{requiresApproval && requestStatus !== "APPROVED" ? "Pedir para participar" : "Comprar ingresso"}</a>
+    : canRegister
+    ? status === "authenticated"
+      ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? joiningLabel : requiresApproval ? "Pedir para participar" : waitlistOnly ? "Entrar na lista de espera" : "Confirmar presença"}</button>
+      : status === "unauthenticated" ? <Link href={loginHref} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>{requiresApproval ? "Pedir para participar" : "Confirmar presença"}</Link> : null
+    : registrationOpen && hasExternalTickets && !isFree
+      ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Comprar ingresso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
+      : registrationOpen && hasExternalTickets
+        ? <a href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket} className={`${button} shrink-0 border-primary bg-primary text-primary-foreground`}>Ver acesso ↗<span className="sr-only"> no site do organizador (abre em nova aba)</span></a>
+        : null;
+  const showStickyBar = showParticipation && stickyBar && panelOutOfView && (Boolean(stickyAction) || Boolean(activeRegistration && registrationOpen));
+  useEffect(() => {
+    // The global footer reads this variable to stay clear of the fixed bar (mobile only, see ClientProviders).
+    if (!showStickyBar) return;
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty("--event-cta-space", "8rem");
+    return () => { rootStyle.removeProperty("--event-cta-space"); };
+  }, [showStickyBar]);
+  return <div ref={panelRef} className="space-y-3">
+    {showParticipation && ticketSale && registrationOpen && <TicketPurchase eventId={eventId} priceCents={ticketSale.priceCents} approval={ticketApproval} refreshKey={ticketRefresh} />}
+    {showParticipation && sellsElsewhere && registrationOpen && <Link href={`/eventos/${encodeURIComponent(eventId)}#ticket-title`} className={`${button} w-full border-primary bg-primary text-primary-foreground hover:bg-primary/90`}><TicketCheck aria-hidden="true" className="h-4 w-4" />{activeRegistration && !requestStatus ? "Ver meu ingresso" : requiresApproval && requestStatus !== "APPROVED" ? requestStatus ? "Ver meu pedido" : "Pedir para participar" : `Comprar ingresso${priceLabel ? ` · ${priceLabel}` : ""}`}</Link>}
+    {showParticipation && salesPaused && registrationOpen && !activeRegistration && <p role="status" className="flex items-start gap-2 rounded-2xl border bg-muted/30 p-4 text-sm leading-6"><TicketCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />As vendas deste evento estão pausadas no momento.</p>}
+    {ownershipPending && <p role="status" className="rounded-[18px] border bg-muted/30 p-4 text-sm text-muted-foreground">Carregando opções do evento...</p>}
+    {showParticipation && !ticketSale && !sellsElsewhere && !salesPaused && eventStatus !== "CANCELLED" && eventStatus !== "ENDED" && <section aria-labelledby="registration-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+      <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 h-5 w-5 text-brand" /><div><h2 id="registration-title" className="font-semibold">Participar deste evento</h2><p className="mt-1 text-sm text-muted-foreground">{requiresApproval ? `A organização aprova cada participante. Peça para participar e acompanhe a resposta aqui.${hasExternalTickets && !isFree ? " A compra e as regras do ingresso ficam no site do organizador." : ""}` : isFree ? "Inscrição gratuita pelo EventMap. Confirme sua presença e acompanhe sua inscrição aqui." : hasExternalTickets ? "Confirme sua presença no EventMap. A compra e as regras do ingresso ficam no site do organizador; esta confirmação não substitui o ingresso." : "Confirme sua presença no EventMap. Consulte as informações do organizador sobre ingresso e acesso."}</p></div></div>
       {registrationLoading ? <p role="status" className="mt-4 text-sm text-muted-foreground">Consultando vagas...</p> : registrationError && !registration ? <p role="alert" className="mt-4 text-sm text-destructive">{registrationError}</p> : registration && <div className="mt-4 space-y-3">
         <p className="text-sm text-muted-foreground">{registration.confirmedCount} {registration.confirmedCount === 1 ? "presença confirmada" : "presenças confirmadas"}{registration.capacity !== null ? ` de ${registration.capacity} ${registration.capacity === 1 ? "vaga" : "vagas"}` : ""}{registration.waitingCount > 0 ? ` · ${registration.waitingCount} na lista de espera` : ""}</p>
-        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><TicketCheck className="h-4 w-4" />{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : null}
+        {registration.registration?.status === "CONFIRMED" || registration.registration?.status === "CHECKED_IN" ? <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><PopIcon pulse={registrationPulse}><TicketCheck className="h-4 w-4" /></PopIcon>{registration.registration.status === "CHECKED_IN" ? "Entrada registrada" : "Presença confirmada"}</p> : registration.registration?.status === "WAITLISTED" ? <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Você está na lista de espera. Avisaremos se surgir uma vaga.</p> : requestNotice}
         {registration.registration?.status === "CONFIRMED" && <p className="text-sm leading-6 text-muted-foreground">{hasExternalTickets && !isFree ? "Próximo passo: confira e adquira seu ingresso no site do organizador. Você pode consultar sua presença e o passe do EventMap nesta página." : "Próximo passo: consulte seu passe abaixo e confira o local e o horário do evento. Volte a esta página para acompanhar sua inscrição."}</p>}
         {status === "authenticated" && registration.registration?.status === "CONFIRMED" && <CheckInPass key={session?.user?.id} eventId={eventId} />}
-        {status === "authenticated" ? registration.registration?.status === "CHECKED_IN" ? null : registration.registration && registration.registration.status !== "CANCELLED" ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar inscrição"}</button> : <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? "Confirmando..." : registration.capacity !== null && registration.confirmedCount >= registration.capacity ? "Entrar na lista de espera" : "Confirmar presença"}</button> : <Link href={loginHref} className={`${button} bg-primary text-primary-foreground`}>Entre para confirmar presença</Link>}
+        {status === "authenticated" ? registration.registration?.status === "CHECKED_IN" || requestStatus === "REJECTED" ? null : requestStatus ? cancelRequestButton : registration.registration && registration.registration.status !== "CANCELLED" ? <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("DELETE")} className={button}>{registrationPending ? "Atualizando..." : "Cancelar inscrição"}</button> : <button type="button" disabled={registrationPending} onClick={() => void changeRegistration("POST")} className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}>{registrationPending ? joiningLabel : joinLabel}</button> : <Link href={loginHref} className={`${button} bg-primary text-primary-foreground`}>{requiresApproval ? "Entre para pedir para participar" : "Entre para confirmar presença"}</Link>}
+        {!activeRegistration && <p className="text-xs leading-5 text-muted-foreground">{privacyNotice ?? <>{registrationPrivacyNotice}</>} <Link href="/privacidade" className="font-medium text-brand underline-offset-4 hover:underline">Saiba mais</Link></p>}
       </div>}
       {registrationError && registration && <p role="alert" className="mt-3 text-sm text-destructive">{registrationError}</p>}
     </section>}
     {eventStatus === "PUBLISHED" && <EventPeoplePreview eventId={eventId} />}
     <div className="flex flex-wrap gap-2">
-      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={button} onClick={() => startTransition(async () => { try { const result = await toggleFavorite(eventId); setMessage(result.message); if (result.success && typeof result.saved === "boolean") { setSaved(result.saved); if (!result.saved) setReminder(null); } } catch { setMessage("Não foi possível salvar. Tente novamente."); } })}><Bookmark className="h-4 w-4" />{saved ? "Salvo na minha agenda" : "Salvar evento"}</button> : <Link className={button} href={loginHref}>Entrar para salvar</Link>}
-      <button type="button" onClick={() => void share()} className={button}><Share2 className="h-4 w-4" />Compartilhar</button>
-      <a className={button} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" />Adicionar ao calendário</a>
-      {ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " bg-primary text-primary-foreground"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={() => { if (!hasMetricConsent()) return; void fetch('/api/event-engagement/' + encodeURIComponent(eventId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ticket" }), keepalive: true }).catch(() => undefined); }}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
+      {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} className={tile} onClick={toggleSave}><PopIcon pulse={savePulse}><Bookmark className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></PopIcon><span className="sm:hidden">{saved ? "Salvo" : "Salvar"}</span><span className="hidden sm:inline">{saved ? "Salvo na minha agenda" : "Salvar evento"}</span></button> : <Link className={tile} href={loginHref}><Bookmark className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="sm:hidden">Salvar<span className="sr-only"> (entrar na conta)</span></span><span className="hidden sm:inline">Entrar para salvar</span></Link>}
+      <button type="button" onClick={() => void share()} className={tile}><Share2 className="h-4 w-4" aria-hidden="true" />Compartilhar</button>
+      <a className={tile} href={'/api/event-calendar/' + encodeURIComponent(eventId)}><CalendarPlus className="h-4 w-4" aria-hidden="true" /><span className="sm:hidden">Calendário<span className="sr-only"> (arquivo .ics)</span></span><span className="hidden sm:inline">Adicionar ao calendário (.ics)</span></a>
+      {googleCalendarUrl && <a className={tile} href={googleCalendarUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden="true" /><span aria-hidden="true"><span className="sm:hidden">Google</span><span className="hidden sm:inline">Google Agenda</span></span><span className="sr-only">Google Agenda (abre em nova aba)</span></a>}
+      {showParticipation && ticketUrl && /^https?:\/\//i.test(ticketUrl) && <a className={button + " order-first basis-full bg-primary text-primary-foreground sm:order-none sm:basis-auto"} href={ticketUrl} target="_blank" rel="noopener noreferrer" onClick={trackTicket}>{isFree ? "Consultar acesso no site do organizador ↗" : "Comprar ingresso no site do organizador ↗"}</a>}
     </div>
-    {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); setMessage(result.message); if (result.success) setReminder(minutes); } catch { setMessage("Não foi possível configurar o lembrete."); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
-    {status === "authenticated" && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
-      {reportOpen && <div className="mt-3 max-w-xl space-y-3 rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">Sua denúncia será analisada pela equipe de moderação.</p><label htmlFor="report-reason" className="block text-sm font-medium">Motivo</label><select id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="INCORRECT_INFORMATION">Informações incorretas</option><option value="INAPPROPRIATE_CONTENT">Conteúdo inadequado</option><option value="SPAM">Spam ou fraude</option><option value="OTHER">Outro motivo</option></select><label htmlFor="report-details" className="block text-sm font-medium">Descreva o problema</label><textarea id="report-details" value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Explique o que precisa ser verificado" className="w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /><button type="button" disabled={reportPending || reportDetails.trim().length < 5} onClick={() => void submitReport()} className={`${button} bg-primary text-primary-foreground disabled:opacity-50`}>{reportPending ? "Enviando..." : "Enviar denúncia"}</button></div>}
-      {reportMessage && <p role="status" className="mt-2 text-sm">{reportMessage}</p>}
+    {saved && <label className="flex flex-wrap items-center gap-3 text-sm">Lembrete na plataforma<select aria-label="Quando receber o lembrete" className="min-h-11 rounded-2xl border bg-card px-3" disabled={pending} value={reminder ?? "none"} onChange={e => { const minutes = e.target.value === "none" ? null : Number(e.target.value); startTransition(async () => { try { const result = await setEventReminder(eventId, minutes); notify(result.message, result.success ? "success" : "error"); if (result.success) setReminder(minutes); } catch { notify("Não foi possível configurar o lembrete.", "error"); } }); }}><option value="none">Sem lembrete</option><option value="60">1 hora antes</option><option value="1440">1 dia antes</option></select><span className="text-xs text-muted-foreground">Acompanhe os avisos ao acessar o site.</span></label>}
+    {status === "authenticated" && !isOwner && eventStatus === "PUBLISHED" && <div className="pt-2"><button type="button" aria-expanded={reportOpen} onClick={() => setReportOpen((open) => !open)} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Flag className="h-4 w-4" />Denunciar informações do evento</button>
+      {reportOpen && <div className="mt-3 max-w-xl space-y-3 rounded-[18px] border bg-card p-4"><p className="text-sm text-muted-foreground">Sua denúncia será analisada pela equipe de moderação.</p><label htmlFor="report-reason" className="block text-sm font-medium">Motivo</label><select id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="INCORRECT_INFORMATION">Informações incorretas</option><option value="INAPPROPRIATE_CONTENT">Conteúdo inadequado</option><option value="SPAM">Spam ou fraude</option><option value="OTHER">Outro motivo</option></select><label htmlFor="report-details" className="block text-sm font-medium">Descreva o problema</label><textarea id="report-details" value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Explique o que precisa ser verificado" className="w-full rounded-xl border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /><button type="button" disabled={reportPending || reportDetails.trim().length < 5} onClick={() => void submitReport()} className={`${button} bg-primary text-primary-foreground disabled:opacity-50`}>{reportPending ? "Enviando..." : "Enviar denúncia"}</button></div>}
     </div>}
-    <p role="status" className="text-sm text-muted-foreground">{message}</p>
+    {showStickyBar && <div role="region" aria-label="Ação rápida do evento" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_hsl(var(--foreground)/0.08)] xl:hidden">
+      <div className="mx-auto flex max-w-xl items-center gap-3">
+        <div className="min-w-0 flex-1">
+          {activeRegistration && registrationOpen ? <RegistrationStatusBadge status={activeRegistration.status} /> : priceLabel ? <p className="truncate text-sm font-semibold">{priceLabel}</p> : null}
+          {activeRegistration && registrationOpen ? <a href={ticketSale ? "#ticket-title" : "#registration-title"} className="mt-1 block text-xs font-medium text-brand underline-offset-4 hover:underline">{requestStatus ? "Ver meu pedido" : ticketSale ? "Ver meu ingresso" : "Ver minha inscrição"}</a> : registration && registration.capacity !== null ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{waitlistOnly ? "Vagas esgotadas · lista de espera aberta" : `${Math.max(registration.capacity - registration.confirmedCount, 0)} vagas restantes`}</p> : null}
+        </div>
+        {status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Salvo na minha agenda" : "Salvar evento"} className={iconButton}><Bookmark aria-hidden="true" className={saved ? "h-4 w-4 fill-current" : "h-4 w-4"} /></button> : status === "unauthenticated" ? <Link href={loginHref} aria-label="Entrar para salvar" className={iconButton}><Bookmark aria-hidden="true" className="h-4 w-4" /></Link> : null}
+        <button type="button" onClick={() => void share()} aria-label="Compartilhar evento" className={iconButton}><Share2 aria-hidden="true" className="h-4 w-4" /></button>
+        {stickyAction}
+      </div>
+      {canRegister && !ticketSale && <p className="mx-auto mt-2 max-w-xl text-[11px] leading-4 text-muted-foreground">{privacyNotice ?? <>{registrationPrivacyNotice}</>}</p>}
+    </div>}
   </div>;
 }
 export function FollowPromoter({ promoterId, following, count }: { promoterId: string; following: boolean; count: number }) {
   const { status } = useSession();
   const [isFollowing, setFollowing] = useState(following);
   const [followers, setFollowers] = useState(count);
-  const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  return <div className="space-y-2"><p className="text-sm text-muted-foreground">{followers} seguidores</p>{status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={isFollowing} className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground" onClick={() => startTransition(async () => { try { const result = await toggleFollow(promoterId); setMessage(result.message); if (result.success && typeof result.following === "boolean") { setFollowers(value => value + (result.following === isFollowing ? 0 : result.following ? 1 : -1)); setFollowing(result.following); } } catch { setMessage("Não foi possível atualizar. Tente novamente."); } })}>{isFollowing ? "Seguindo · deixar de seguir" : "Seguir organizador"}</button> : <Link href="/login" className="text-brand underline">Entre para seguir este organizador</Link>}<p role="status" className="text-sm">{message}</p></div>;
+  return <div className="space-y-2"><p className="text-sm text-muted-foreground">{followers} seguidores</p>{status === "authenticated" ? <button type="button" disabled={pending} aria-pressed={isFollowing} className="min-h-11 rounded-full bg-cta px-5 text-sm font-semibold text-cta-foreground" onClick={() => startTransition(async () => { try { const result = await toggleFollow(promoterId); notify(result.message, result.success ? "success" : "error"); if (result.success && typeof result.following === "boolean") { setFollowers(value => value + (result.following === isFollowing ? 0 : result.following ? 1 : -1)); setFollowing(result.following); } } catch { notify("Não foi possível atualizar. Tente novamente.", "error"); } })}>{isFollowing ? "Seguindo · deixar de seguir" : "Seguir organizador"}</button> : <Link href="/login" className="text-brand underline">Entre para seguir este organizador</Link>}</div>;
 }

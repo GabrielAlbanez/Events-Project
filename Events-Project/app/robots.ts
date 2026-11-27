@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/admin", "/Profile", "/CriarEvento", "/myEvents", "/salvos", "/notificacoes", "/atividade", "/salas", "/perfil-conexoes", "/resultados", "/eventos/*/editar", "/eventos/*/chat", "/eventos/*/conexoes"],
+      disallow: ["/api/", "/admin", "/Profile", "/CriarEvento", "/myEvents", "/salvos", "/notificacoes", "/ingressos", "/atividade", "/salas", "/perfil-conexoes", "/resultados", "/eventos/*/editar", "/eventos/*/chat", "/eventos/*/conexoes"],
     },
     sitemap: new URL("/sitemap.xml", publicSiteUrl()).href,
   };

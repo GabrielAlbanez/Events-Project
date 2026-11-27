@@ -1,0 +1,335 @@
+"use client";
+
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { toast } from "react-toastify";
+import { CheckCircle2, Clock3, Copy, Loader2, Minus, Plus, Tag, Ticket, TicketCheck } from "lucide-react";
+import { createTicketOrder, getTicketOrderStatus, getTicketPurchaseState, previewTicketCoupon } from "@/app/(actions)/tickets/action";
+import type { TicketCouponPreview, TicketOrderView, TicketPurchaseState } from "@/lib/services/tickets";
+import { TICKET_MAX_PER_ORDER, formatTicketAmount, normalizeCouponCode } from "@/lib/tickets";
+import { COUPON_QUERY_PARAM, couponCodeFromSearch } from "@/lib/ticketCoupons";
+import CheckInPass from "../CheckInPass";
+
+const POLL_MS = 4000;
+const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `tickets:${text}` }); };
+const button = "em-motion-press inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60";
+const primary = `${button} w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto`;
+const secondary = `${button} border border-border hover:bg-muted`;
+const ticketCount = (quantity: number) => `${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}`;
+
+function formatRemaining(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Events where the organizer approves each participant: the request UI lives with the registration (EventPublicActions). */
+export type TicketApproval = {
+  /** Shown instead of the buy button while the purchase state is "approval" (request button or request status). */
+  action: ReactNode;
+  /** Shown above the buy button once the participation is approved. */
+  notice: ReactNode | null;
+};
+type TicketPurchaseProps = { eventId: string; priceCents: number; approval?: TicketApproval; /** Changing it reloads the purchase state (e.g. after a request). */ refreshKey?: number };
+
+/** EventMap checkout: Pix QR + copy-and-paste, 30-minute countdown and automatic confirmation (status polled every ~4s). */
+export default function TicketPurchase({ eventId, priceCents, approval, refreshKey = 0 }: TicketPurchaseProps) {
+  const { status: sessionStatus, data: session } = useSession();
+  const [purchase, setPurchase] = useState<TicketPurchaseState | null>(null);
+  const [order, setOrder] = useState<TicketOrderView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const checking = useRef(false);
+  // Coupon: previewed on the server; only an applied coupon is sent with the order.
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<TicketCouponPreview | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [urlCoupon, setUrlCoupon] = useState<string | null>(null);
+  const urlCouponTried = useRef(false);
+  const [quantity, setQuantity] = useState(1);
+  const maxQuantity = Math.max(1, Math.min(TICKET_MAX_PER_ORDER, purchase?.maxQuantity ?? 1));
+  const selectedQuantity = Math.min(quantity, maxQuantity);
+  // The coupon preview is per ticket: every amount before the order exists is unit x quantity.
+  const unitCents = appliedCoupon ? appliedCoupon.finalCents : purchase?.priceCents ?? priceCents;
+  const price = formatTicketAmount(unitCents * selectedQuantity);
+  // Once an order exists, its own quantity and total are the truth.
+  const activeOrder = order?.status === "PENDING" || order?.status === "PAID" ? order : null;
+  const shownQuantity = activeOrder?.quantity ?? selectedQuantity;
+  const shownUnitCents = activeOrder?.unitCents ?? unitCents;
+  const shownTotal = formatTicketAmount(activeOrder?.totalCents ?? unitCents * selectedQuantity);
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(`/eventos/${eventId}${urlCoupon ? `?${COUPON_QUERY_PARAM}=${urlCoupon}` : ""}`)}`;
+
+  useEffect(() => {
+    // Shared links (?cupom=CODE) pre-fill the coupon. Read once on mount: no Suspense boundary needed for useSearchParams.
+    const code = couponCodeFromSearch(window.location.search);
+    if (!code) return;
+    setUrlCoupon(code);
+    setCouponInput(code);
+    setCouponOpen(true);
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getTicketPurchaseState(eventId);
+      if (!result.success) throw new Error(result.message);
+      setPurchase(result.data);
+      setOrder(result.data.order);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    if (sessionStatus === "loading") return;
+    void load();
+  }, [load, sessionStatus, session?.user?.id, refreshKey]);
+
+  const refreshOrder = useCallback(async (orderId: string) => {
+    if (checking.current) return;
+    checking.current = true;
+    try {
+      const result = await getTicketOrderStatus({ orderId });
+      if (!result.success) return;
+      setOrder((previous) => {
+        if (previous?.status === "PENDING" && result.data.status === "PAID") notify("Pagamento confirmado! Seu ingresso está pronto.", "success");
+        return result.data;
+      });
+      if (result.data.status === "PAID") setPurchase((current) => (current ? { ...current, state: "owned", order: result.data } : current));
+    } catch {
+      // Transient failure: the next poll tries again.
+    } finally {
+      checking.current = false;
+    }
+  }, []);
+
+  const pendingId = order?.status === "PENDING" ? order.id : null;
+  useEffect(() => {
+    if (!pendingId) return;
+    const poll = window.setInterval(() => { if (document.visibilityState === "visible") void refreshOrder(pendingId); }, POLL_MS);
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => { window.clearInterval(poll); window.clearInterval(tick); };
+  }, [pendingId, refreshOrder]);
+
+  const remaining = order ? new Date(order.expiresAt).getTime() - now : 0;
+  const expiredLocally = order?.status === "PENDING" && remaining <= 0;
+  useEffect(() => {
+    // At the deadline, ask the server once more: it confirms a last-second payment or marks the order expired.
+    if (expiredLocally && pendingId) void refreshOrder(pendingId);
+  }, [expiredLocally, pendingId, refreshOrder]);
+
+  const applyCoupon = useCallback(async (raw: string) => {
+    const code = normalizeCouponCode(raw);
+    if (!code) { setCouponError("Confira o código: use de 3 a 20 letras, números, - ou _."); return; }
+    setCouponBusy(true);
+    setCouponError("");
+    try {
+      const result = await previewTicketCoupon({ eventId, code });
+      if (result.success) { setAppliedCoupon(result.data); setCouponInput(result.data.code); }
+      else { setAppliedCoupon(null); setCouponError(result.message || "Cupom inválido para este evento."); }
+    } catch {
+      setCouponError("Não foi possível validar o cupom agora. Tente novamente.");
+    } finally {
+      setCouponBusy(false);
+    }
+  }, [eventId]);
+
+  const canUseCoupon = purchase?.state === "available" || purchase?.state === "pending";
+  useEffect(() => {
+    // A shared coupon is applied once, as soon as this visitor can actually buy.
+    if (!urlCoupon || !canUseCoupon || urlCouponTried.current) return;
+    urlCouponTried.current = true;
+    void applyCoupon(urlCoupon);
+  }, [urlCoupon, canUseCoupon, applyCoupon]);
+
+  function submitCoupon(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!couponBusy) void applyCoupon(couponInput);
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null);
+    setCouponError("");
+    setCouponInput("");
+  }
+
+  async function buy() {
+    setBusy(true);
+    try {
+      const result = await createTicketOrder({ eventId, quantity: selectedQuantity, ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}) });
+      notify(result.message, result.success ? "info" : "error");
+      if (result.success) { setNow(Date.now()); setOrder(result.data); }
+      else void load();
+    } catch {
+      notify("Não foi possível gerar o Pix agora. Tente novamente.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyCode() {
+    if (!order?.pixCopyPaste) return;
+    try {
+      await navigator.clipboard.writeText(order.pixCopyPaste);
+      notify("Código Pix copiado. Cole no app do seu banco.", "success");
+    } catch {
+      notify("Não foi possível copiar. Selecione o código e copie manualmente.", "error");
+    }
+  }
+
+  const paid = order?.status === "PAID" || purchase?.state === "owned";
+  const ended = order && (order.status === "EXPIRED" || order.status === "CANCELLED");
+
+  return <section aria-labelledby="ticket-title" className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+    <div className="flex items-start gap-3">
+      <Ticket aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+      <div className="min-w-0 flex-1">
+        <h2 id="ticket-title" className="font-semibold">Ingresso</h2>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold tracking-tight tabular-nums">{appliedCoupon && !activeOrder && <s className="text-base font-medium text-muted-foreground line-through"><span className="sr-only">De </span>{formatTicketAmount(appliedCoupon.priceCents * selectedQuantity)}</s>}<span>{appliedCoupon && !activeOrder && <span className="sr-only">por </span>}{shownTotal}</span></p>
+        {shownQuantity > 1 && <p className="mt-0.5 text-sm font-medium text-muted-foreground tabular-nums">Total de {ticketCount(shownQuantity)} · {formatTicketAmount(shownUnitCents)} cada</p>}
+        <p className="mt-1 text-sm text-muted-foreground">Pagamento por Pix, processado pelo Mercado Pago. O ingresso é confirmado automaticamente e vira seu QR Code de entrada.</p>
+      </div>
+    </div>
+
+    <div className="mt-4 space-y-3">
+      {loading && !purchase ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Consultando ingressos...</p>
+        : loadError && !purchase ? <div className="space-y-2"><p role="alert" className="text-sm text-destructive">Não foi possível consultar os ingressos agora.</p><button type="button" onClick={() => void load()} className={secondary}>Tentar novamente</button></div>
+          : paid ? <div className="space-y-3">
+            <p role="status" className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><TicketCheck aria-hidden="true" className="h-4 w-4" />Ingresso confirmado</p>
+            <p className="text-sm leading-6 text-muted-foreground">{shownQuantity > 1 ? `Cada um dos ${shownQuantity} ingressos tem o próprio QR Code. Abra os demais em Meus ingressos.` : "Mostre o QR Code abaixo na entrada. Ele também fica em Meus ingressos."}</p>
+            {sessionStatus === "authenticated" && <CheckInPass key={session?.user?.id} eventId={eventId} label={shownQuantity > 1 ? `Ingresso 1 de ${shownQuantity}` : undefined} />}
+            <Link href="/ingressos" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Ver meus ingressos →</Link>
+          </div>
+            : order?.status === "PENDING" ? <Checkout order={order} remaining={remaining} onCopy={() => void copyCode()} />
+              : purchase && <PurchaseAction purchase={purchase} approval={approval} ended={Boolean(ended)} busy={busy} price={price} quantity={selectedQuantity} maxQuantity={maxQuantity} onQuantity={setQuantity} loginHref={loginHref} onBuy={() => void buy()} pendingCoupon={urlCoupon}
+                coupon={<CouponField open={couponOpen} onOpen={() => setCouponOpen(true)} value={couponInput} onChange={(value) => { setCouponInput(value); if (couponError) setCouponError(""); }} applied={appliedCoupon} quantity={selectedQuantity} error={couponError} busy={couponBusy} disabled={busy} onSubmit={submitCoupon} onRemove={removeCoupon} />} />}
+    </div>
+  </section>;
+}
+
+type PurchaseActionProps = { purchase: TicketPurchaseState; approval?: TicketApproval; ended: boolean; busy: boolean; price: string; quantity: number; maxQuantity: number; onQuantity: (quantity: number) => void; loginHref: string; onBuy: () => void; coupon: ReactNode; pendingCoupon: string | null };
+
+function PurchaseAction({ purchase, approval, ended, busy, price, quantity, maxQuantity, onQuantity, loginHref, onBuy, coupon, pendingCoupon }: PurchaseActionProps) {
+  const seats = purchase.seatsLeft;
+  const seatsText = seats != null && seats > 0 ? <p className="text-xs text-muted-foreground">{seats === 1 ? "Último ingresso disponível" : `${seats} ingressos disponíveis`}</p> : null;
+  switch (purchase.state) {
+    case "login":
+      return <div className="space-y-2"><Link href={loginHref} className={primary}>{approval ? "Entre para pedir para participar" : `Entre para comprar — ${price}`}</Link>{approval && <p className="text-sm text-muted-foreground">A organização aprova cada participante; a compra é liberada depois da aprovação.</p>}{pendingCoupon && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Tag aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /><span>O cupom <span className="font-mono font-semibold text-foreground">{pendingCoupon}</span> será conferido depois que você entrar.</span></p>}{seatsText}</div>;
+    case "available":
+    case "pending":
+      return <div className="space-y-2">
+        {approval?.notice}
+        {ended && <p role="status" className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">O Pix anterior expirou sem pagamento. Gere um novo para continuar.</p>}
+        <QuantityStepper value={quantity} max={maxQuantity} seatsLeft={seats} disabled={busy} onChange={onQuantity} />
+        {coupon}
+        <button type="button" disabled={busy} onClick={onBuy} className={primary}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />Gerando Pix...</> : `Comprar ${quantity > 1 ? ticketCount(quantity) : "ingresso"} — ${price}`}</button>
+        <p className="text-sm leading-6 text-muted-foreground">Basta escanear o QR Code ou copiar o código Pix no app do seu banco. Você não precisa de conta no Mercado Pago.</p>
+        {purchase.message && <p className="text-sm text-muted-foreground">{purchase.message} <Link href="/Profile" className="font-medium text-brand underline-offset-4 hover:underline">Ir para minha conta</Link></p>}
+        {seatsText}
+        <p className="text-xs leading-5 text-muted-foreground">Ao comprar, seu nome e e-mail ficam visíveis para a organização do evento. Reembolsos são feitos pelo organizador, inclusive no prazo de 7 dias para desistência. <Link href="/termos#ingressos" className="font-medium text-brand underline-offset-4 hover:underline">Ver regras</Link></p>
+      </div>;
+    case "approval":
+      // Organizer approval comes first: no buy button until the request is approved.
+      return approval ? <div className="space-y-3">{approval.action}</div> : <p role="status" className="text-sm text-muted-foreground">{purchase.message || "A organização precisa aprovar sua participação antes da compra."}</p>;
+    case "sold_out":
+      return <p role="status" className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold">Ingressos esgotados</p>;
+    case "own_event":
+      return <p className="text-sm text-muted-foreground">Este é o seu evento. Acompanhe as vendas em <Link href="/myEvents/pagamentos" className="font-medium text-brand underline-offset-4 hover:underline">Pagamentos</Link>.</p>;
+    default:
+      return <p role="status" className="text-sm text-muted-foreground">{purchase.message || "A venda de ingressos não está disponível agora."}</p>;
+  }
+}
+
+/** One Pix order holds up to maxQuantity tickets; the limit reflects both the per-order cap and the seats left. */
+function QuantityStepper({ value, max, seatsLeft, disabled, onChange }: { value: number; max: number; seatsLeft: number | null; disabled: boolean; onChange: (quantity: number) => void }) {
+  const labelId = useId();
+  const step = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40";
+  const limitText = seatsLeft != null && seatsLeft <= max ? (seatsLeft === 1 ? "Só resta 1 ingresso." : `Só restam ${seatsLeft} ingressos.`) : `Limite de ${max} por pedido.`;
+  return <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-primary/15 bg-background/60 p-2 pl-3">
+    <div className="min-w-0">
+      <p id={labelId} className="text-sm font-medium">Quantidade</p>
+      {value >= max && max > 1 && <p className="text-xs text-muted-foreground">{limitText}</p>}
+    </div>
+    <div role="group" aria-labelledby={labelId} className="flex items-center gap-1">
+      <button type="button" aria-label="Diminuir quantidade de ingressos" disabled={disabled || value <= 1} onClick={() => onChange(Math.max(1, value - 1))} className={step}><Minus aria-hidden="true" className="h-4 w-4" /></button>
+      <output aria-live="polite" aria-label={`${ticketCount(value)} selecionados`} className="w-8 text-center text-base font-semibold tabular-nums">{value}</output>
+      <button type="button" aria-label="Aumentar quantidade de ingressos" disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + 1))} className={step}><Plus aria-hidden="true" className="h-4 w-4" /></button>
+    </div>
+  </div>;
+}
+
+function Checkout({ order, remaining, onCopy }: { order: TicketOrderView; remaining: number; onCopy: () => void }) {
+  const ready = Boolean(order.pixCopyPaste && order.pixQrBase64);
+  return <div className="space-y-4 border-t border-primary/15 pt-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p role="status" className="flex items-center gap-2 text-sm font-semibold"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-brand motion-reduce:animate-none" />Aguardando pagamento</p>
+      <p className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-sm font-semibold tabular-nums text-amber-800 dark:text-amber-300"><Clock3 aria-hidden="true" className="h-4 w-4" /><span className="sr-only">Tempo restante para pagar:</span>{formatRemaining(remaining)}</p>
+    </div>
+    {ready ? <>
+      <p className="text-center text-sm font-medium leading-6">Basta escanear o QR Code ou copiar o código Pix no app do seu banco. Você não precisa de conta no Mercado Pago.</p>
+      {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from Mercado Pago, not optimizable */}
+      <img src={`data:image/png;base64,${order.pixQrBase64}`} alt={`QR Code do Pix para o pedido ${order.code}`} width={220} height={220} className="mx-auto block h-[220px] w-[220px] rounded-xl bg-white p-2" />
+      <div className="space-y-2">
+        <label htmlFor={`pix-code-${order.id}`} className="block text-sm font-medium">Pix copia e cola</label>
+        {/* Always stacked: the checkout lives in a narrow column on desktop and the code is long. */}
+        <div className="flex flex-col gap-2">
+          <input id={`pix-code-${order.id}`} readOnly value={order.pixCopyPaste ?? ""} onFocus={(event) => event.currentTarget.select()} className="min-h-11 w-full min-w-0 rounded-2xl border bg-card px-3 font-mono text-xs" />
+          <button type="button" onClick={onCopy} className={`${button} w-full bg-primary text-primary-foreground hover:bg-primary/90`}><Copy aria-hidden="true" className="h-4 w-4" />Copiar código</button>
+        </div>
+      </div>
+    </> : <p className="text-sm text-muted-foreground">Gerando o QR Code do Pix...</p>}
+    <dl className="flex items-baseline justify-between gap-3 rounded-xl border border-primary/15 bg-background/60 px-3 py-2 text-sm"><div><dt className="text-xs text-muted-foreground">Quantidade</dt><dd className="font-semibold">{ticketCount(order.quantity)}</dd></div><div className="text-right"><dt className="text-xs text-muted-foreground">Total do Pix</dt><dd className="text-base font-semibold tabular-nums">{formatTicketAmount(order.totalCents)}</dd></div></dl>
+    <ol className="space-y-1.5 text-sm text-muted-foreground">
+      <li className="flex gap-2"><span aria-hidden="true" className="font-semibold text-foreground">1.</span>Abra o app do seu banco e escolha pagar com Pix.</li>
+      <li className="flex gap-2"><span aria-hidden="true" className="font-semibold text-foreground">2.</span>Leia o QR Code ou cole o código copiado.</li>
+      <li className="flex gap-2"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />Pronto: esta página confirma sozinha em alguns segundos.</li>
+    </ol>
+    <p className="text-xs text-muted-foreground">Pedido <span className="font-mono">{order.code}</span> · o Pix vale por 30 minutos.</p>
+  </div>;
+}
+
+type CouponFieldProps = {
+  open: boolean; onOpen: () => void; value: string; onChange: (value: string) => void; applied: TicketCouponPreview | null; quantity: number;
+  error: string; busy: boolean; disabled: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onRemove: () => void;
+};
+
+/** Discreet coupon entry: behind a link, validated on the server, feedback announced politely. */
+function CouponField({ open, onOpen, value, onChange, applied, quantity, error, busy, disabled, onSubmit, onRemove }: CouponFieldProps) {
+  const ids = useId();
+  const inputId = `${ids}-coupon`;
+  const feedbackId = `${ids}-coupon-feedback`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const link = "inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-60";
+  return <div className="space-y-1">
+    {applied ? <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <p className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300"><Tag aria-hidden="true" className="h-4 w-4 shrink-0" /><span>Cupom <span className="font-mono">{applied.code}</span> aplicado</span></p>
+        <button type="button" onClick={onRemove} disabled={disabled} className={link}>Remover<span className="sr-only"> cupom {applied.code}</span></button>
+      </div>
+      <dl className="mt-1 grid grid-cols-3 gap-2 tabular-nums">
+        <div><dt className="text-xs text-muted-foreground">Preço</dt><dd className="text-muted-foreground line-through">{formatTicketAmount(applied.priceCents * quantity)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Desconto</dt><dd className="font-medium">−{formatTicketAmount(applied.discountCents * quantity)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Você paga</dt><dd className="font-semibold">{formatTicketAmount(applied.finalCents * quantity)}</dd></div>
+      </dl>
+      {quantity > 1 && <p className="mt-1 text-xs text-muted-foreground tabular-nums">Desconto por ingresso: {formatTicketAmount(applied.discountCents)} · {quantity} × {formatTicketAmount(applied.finalCents)}</p>}
+    </div>
+      : !open ? <button type="button" onClick={() => { onOpen(); window.requestAnimationFrame(() => inputRef.current?.focus()); }} aria-expanded="false" className={link}>Tem um cupom?</button>
+        : <form onSubmit={onSubmit} noValidate className="space-y-1.5">
+          <label htmlFor={inputId} className="block text-sm font-medium">Cupom de desconto</label>
+          <div className="flex gap-2">
+            <input ref={inputRef} id={inputId} value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} placeholder="Ex.: AMIGOS10"
+              aria-invalid={error ? true : undefined} aria-describedby={feedbackId}
+              className="min-h-11 w-full min-w-0 flex-1 rounded-2xl border bg-card px-3 font-mono text-sm uppercase placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-[invalid=true]:border-destructive" />
+            <button type="submit" disabled={busy || disabled || !value.trim()} className={`${secondary} shrink-0`}>{busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /><span className="sr-only">Validando cupom</span></> : "Aplicar"}</button>
+          </div>
+        </form>}
+    <p id={feedbackId} aria-live="polite" className={error ? "text-sm text-destructive" : "sr-only"}>{error || (applied ? `Cupom ${applied.code} aplicado. Você paga ${formatTicketAmount(applied.finalCents * quantity)}.` : "")}</p>
+  </div>;
+}

@@ -6,7 +6,7 @@ import { ArrowUpRight, Users } from "lucide-react";
 import type { PartyConnectionsSnapshot } from "@/types/partyConnections";
 import PartyAvatar from "./PartyAvatar";
 
-const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
+const action = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
 
 export default function EventPeoplePreview({ eventId }: { eventId: string }) {
   const { status, data: session } = useSession();
@@ -46,7 +46,7 @@ function PeoplePreview({ eventId, status }: { eventId: string; status: "loading"
     }
   }
 
-  return <section aria-labelledby={`${id}-title`} className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+  return <section aria-labelledby={`${id}-title`} className="rounded-[22px] border border-border bg-card p-4 sm:p-5 shadow-[var(--em-shadow-card)]">
     <div className="flex items-start gap-3"><Users aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-brand" /><div className="min-w-0"><h2 id={`${id}-title`} className="font-semibold">Quem também vai?</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Conheça participantes que escolheram aparecer nas conexões deste evento.</p></div></div>
     {status === "unauthenticated" ? <Link href="/login" className={`${action} mt-4`}>Entre para conhecer participantes</Link> : <button type="button" disabled={status === "loading" || loading} aria-expanded={opened} aria-controls={`${id}-people`} onClick={() => void load()} className={`${action} mt-4`}>{loading ? "Consultando conexões…" : opened ? "Atualizar participantes" : "Ver participantes"}</button>}
     {opened && <div id={`${id}-people`} aria-busy={loading} className="mt-4 space-y-3">
