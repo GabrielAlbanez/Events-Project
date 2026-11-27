@@ -315,7 +315,7 @@ export function AdminReviewWorkspace({ adminId, events, onEventsChange, isLoadin
       <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
 
       {/* Actions sit at the bottom edge: the global realtime pill is fixed at the band's top-right corner. */}
-      <header className="relative mb-3 overflow-hidden rounded-2xl bg-primary text-white shadow-[0_18px_40px_-24px_hsl(var(--primary))] dark:bg-[hsl(226_62%_21%)] dark:shadow-none dark:ring-1 dark:ring-white/10">
+      <header className="relative mb-3 overflow-hidden rounded-[22px] bg-primary text-white shadow-[0_18px_40px_-24px_hsl(var(--primary))] dark:bg-[hsl(226_62%_21%)] dark:shadow-none dark:ring-1 dark:ring-white/10">
         <div className="flex flex-col gap-3 px-4 pb-5 pt-3.5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/85">Central de revisão</p>
@@ -336,7 +336,7 @@ export function AdminReviewWorkspace({ adminId, events, onEventsChange, isLoadin
         {showProgress && <div role="progressbar" aria-label="Decisões desta sessão" aria-valuemin={0} aria-valuemax={decidedCount + summary.pending} aria-valuenow={decidedCount} className="absolute inset-x-0 bottom-0 h-1 bg-white/20"><m.div initial={false} animate={{ scaleX: progress }} transition={{ duration: 0.5, ease: reviewEase }} style={{ transformOrigin: "left" }} className="h-full w-full bg-cta" /></div>}
       </header>
 
-      {!socketConnected && <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" /><p role="status">Atualizações automáticas indisponíveis. Atualize a lista para ver mudanças.</p></div>}
+      {!socketConnected && <div className="mb-3 flex items-center gap-2 rounded-[18px] border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" /><p role="status">Atualizações automáticas indisponíveis. Atualize a lista para ver mudanças.</p></div>}
 
       {isLoading ? <QueueSkeleton /> : error && !events.length ? <div role="alert" className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-[22px] border border-border bg-card p-6 text-center shadow-[var(--em-shadow-card)]"><AlertCircle className="h-6 w-6 text-destructive" aria-hidden="true" /><h2 className="text-lg font-semibold">A fila está indisponível</h2><p className="max-w-md text-sm text-muted-foreground">{error}</p><Button type="button" variant="outline" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Tentando..." : "Tentar novamente"}</Button></div> : <>
         {error && <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm"><p>Não foi possível atualizar. Exibindo os últimos dados carregados.</p><Button type="button" variant="ghost" disabled={refreshing} onClick={() => void refresh()}>Tentar novamente</Button></div>}
