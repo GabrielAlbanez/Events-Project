@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MERCADOPAGO_CHANNEL, MERCADOPAGO_CONNECTED_MESSAGE } from "./MercadoPagoConnectCard";
 import TicketCoupons from "./TicketCoupons";
+import PixDiagnosticsCard from "./PixDiagnosticsCard";
 
 const notify = (text: string, type: "success" | "error" | "info") => { if (text) toast(text, { type, toastId: `payments:${text}` }); };
 const connectMessages: Record<string, { text: string; type: "success" | "error" | "info" }> = {
@@ -189,6 +190,8 @@ export default function PaymentsPanel({ connectStatus }: { connectStatus?: strin
                 </div>
               </div>}
             </section>
+
+            {overview.configured && overview.account && <PixDiagnosticsCard onSwitchAccount={() => setConfirmDisconnect(true)} onReconnect={() => void connect()} disabled={busy !== null} />}
 
             <section aria-labelledby="sales-title" className="space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

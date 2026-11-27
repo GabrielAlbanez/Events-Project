@@ -10,6 +10,10 @@ export type MercadoPagoTokens = { accessToken: string; refreshToken: string; exp
 export type PixPaymentInput = {
   orderId: string; amountCents: number; feeCents: number; description: string; payerEmail: string;
   notificationUrl: string | null; expiresAt: Date;
+  /** Defaults to `orderId` (which is always the idempotency key). Diagnostics use `diagnostic:<click id>`. */
+  externalReference?: string;
+  /** Small flat metadata stored by Mercado Pago with the payment (never personal data). */
+  metadata?: Record<string, string | boolean>;
 };
 export type PixPayment = { paymentId: string; status: string; qrCode: string; qrCodeBase64: string };
 export type MercadoPagoPayment = {
@@ -145,10 +149,11 @@ export async function createMercadoPagoPixPayment(apiBase: string, accessToken: 
       application_fee: reais(input.feeCents),
       description: input.description.slice(0, 120),
       payment_method_id: "pix",
-      external_reference: input.orderId,
+      external_reference: input.externalReference ?? input.orderId,
       date_of_expiration: mercadoPagoDate(input.expiresAt),
       payer: { email: input.payerEmail },
       ...(input.notificationUrl ? { notification_url: input.notificationUrl } : {}),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
     }),
   }, "payment_create");
   const data = (body.point_of_interaction as { transaction_data?: { qr_code?: unknown; qr_code_base64?: unknown } } | undefined)?.transaction_data;
@@ -164,6 +169,53 @@ export async function getMercadoPagoAccountLabel(apiBase: string, accessToken: s
   const body = await request(fetchImpl, `${apiBase}/users/me`, { method: "GET", headers: authHeaders(accessToken) }, "user_me");
   const label = [body.email, body.nickname].find((value): value is string => typeof value === "string" && value.trim().length > 0);
   return label ? label.trim().slice(0, 120) : null;
+}
+
+export type MercadoPagoUser = { id: string | null; label: string | null };
+
+/** The account behind a token: its numeric user id and its e-mail or nickname (shown only to that account's organizer). */
+export async function getMercadoPagoUser(apiBase: string, accessToken: string, fetchImpl: MpFetch = fetch): Promise<MercadoPagoUser> {
+  const body = await request(fetchImpl, `${apiBase}/users/me`, { method: "GET", headers: authHeaders(accessToken) }, "user_me");
+  const label = [body.email, body.nickname].find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const id = typeof body.id === "number" || typeof body.id === "string" ? String(body.id) : "";
+  return { id: /^\d{1,20}$/.test(id) ? id : null, label: label ? label.trim().slice(0, 120) : null };
+}
+
+/**
+ * User id of the account that OWNS the EventMap application: `POST /oauth/token` with `grant_type=client_credentials`
+ * returns a token of the app owner, and its `user_id` (or `/users/me` with that token) is the platform account.
+ * The token is used only here and never stored or returned.
+ */
+export async function getMercadoPagoPlatformUserId(config: MercadoPagoConfig, fetchImpl: MpFetch = fetch): Promise<string> {
+  const body = await request(fetchImpl, `${config.apiBase}/oauth/token`, {
+    method: "POST", headers: jsonHeaders,
+    body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret, grant_type: "client_credentials" }),
+  }, "oauth_client_credentials");
+  const direct = typeof body.user_id === "number" || typeof body.user_id === "string" ? String(body.user_id) : "";
+  if (/^\d{1,20}$/.test(direct)) return direct;
+  if (typeof body.access_token !== "string" || !body.access_token) throw new MercadoPagoError("oauth_client_credentials_invalid_response");
+  const owner = await getMercadoPagoUser(config.apiBase, body.access_token, fetchImpl);
+  if (!owner.id) throw new MercadoPagoError("oauth_client_credentials_invalid_response");
+  return owner.id;
+}
+
+/** Ids of the payment methods Mercado Pago lists for the token's account (e.g. "pix"). */
+export async function listMercadoPagoPaymentMethodIds(apiBase: string, accessToken: string, fetchImpl: MpFetch = fetch): Promise<string[]> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${apiBase}/v1/payment_methods`, { method: "GET", headers: authHeaders(accessToken), signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+  } catch {
+    throw new MercadoPagoError("payment_methods_network");
+  }
+  if (!response.ok) {
+    const error = new MercadoPagoError("payment_methods", response.status);
+    error.causes = await causeCodes(response);
+    throw error;
+  }
+  let body: unknown;
+  try { body = await response.json(); } catch { throw new MercadoPagoError("payment_methods_invalid_response", response.status); }
+  if (!Array.isArray(body)) throw new MercadoPagoError("payment_methods_invalid_response", response.status);
+  return body.map((item) => (item && typeof item === "object" ? (item as { id?: unknown }).id : null)).filter((id): id is string => typeof id === "string" && /^[a-z0-9_]{1,40}$/.test(id));
 }
 
 export async function getMercadoPagoPayment(apiBase: string, accessToken: string, paymentId: string, fetchImpl: MpFetch = fetch): Promise<MercadoPagoPayment> {

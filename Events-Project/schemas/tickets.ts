@@ -27,3 +27,10 @@ export type TicketOrderInput = z.infer<typeof ticketOrderSchema>;
 export type CreateTicketCouponInput = z.infer<typeof createTicketCouponSchema>;
 export type TicketCouponPreviewInput = z.infer<typeof ticketCouponPreviewSchema>;
 export type TicketCouponToggleInput = z.infer<typeof ticketCouponToggleSchema>;
+
+/** "Verificar agora" (read-only checks) or "Testar recebimento" (R$ 1,00 Pix, cancelled at once). `clientId` = one click. */
+export const pixDiagnosticsSchema = z.object({
+  action: z.enum(["check", "test"]),
+  clientId: z.string().trim().uuid(),
+}).strict();
+export type PixDiagnosticsInput = z.infer<typeof pixDiagnosticsSchema>;

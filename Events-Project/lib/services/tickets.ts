@@ -23,7 +23,8 @@ type Env = Record<string, string | undefined>;
 /** Everything external is injectable so the offline suite never touches the network or the real clock. */
 export type TicketDeps = { fetch?: MpFetch; now?: () => Date; env?: Env; statusCheckIntervalMs?: number; reconcileIntervalMs?: number };
 type Resolved = { fetch: MpFetch; now: () => Date; env: Env; statusCheckIntervalMs: number; reconcileIntervalMs: number };
-const resolveDeps = (deps: TicketDeps = {}): Resolved => ({
+export type ResolvedTicketDeps = Resolved;
+export const resolveDeps = (deps: TicketDeps = {}): Resolved => ({
   fetch: deps.fetch ?? ((input, init) => fetch(input, init)),
   now: deps.now ?? (() => new Date()),
   env: deps.env ?? process.env,
@@ -66,7 +67,7 @@ const notConfigured = "Os pagamentos ainda não foram configurados no EventMap."
 const genericError = { success: false as const, message: "Não foi possível concluir agora. Tente novamente em alguns minutos." };
 const approvalRequired = "A organização precisa aprovar sua participação antes da compra. Peça para participar na página do evento.";
 /** What failed while creating a Pix, for the logs only: the stage, HTTP status and provider codes. No tokens or personal data. */
-function pixFailureDetail(error: unknown): string {
+export function pixFailureDetail(error: unknown): string {
   if (error instanceof MercadoPagoError) return `stage=${error.code} status=${error.status ?? "-"} causes=${error.causes.join(",") || "-"}`;
   if (error instanceof TicketConfigError) return "stage=config";
   if (error instanceof Error && /^SELLER_[A-Z_]+$/.test(error.message)) return `stage=${error.message.toLowerCase()}`;
@@ -74,9 +75,11 @@ function pixFailureDetail(error: unknown): string {
 }
 
 /** Mercado Pago code 2059: "You cannot use application_fee with this payment" (e.g. the seller connected the platform's own account). */
-const FEE_REFUSED_CAUSE = "2059";
+export const FEE_REFUSED_CAUSE = "2059";
+/** external_reference prefix of the organizer's Pix self-test payments (lib/services/pixDiagnostics.ts). */
+export const DIAGNOSTIC_REFERENCE_PREFIX = "diagnostic:";
 const feeRefusedError = { success: false as const, message: "Este evento não está recebendo Pix no momento. A organização já foi avisada para ajustar a conta de recebimento." };
-const feeRefusedKey = (sellerId: string, connectedAt: Date | string) => `mp-fee-refused:${sellerId}:${new Date(connectedAt).getTime()}`;
+export const feeRefusedKey = (sellerId: string, connectedAt: Date | string) => `mp-fee-refused:${sellerId}:${new Date(connectedAt).getTime()}`;
 
 /** Tells the organizer once per connection; reconnecting another account starts a new key, so the warning clears. */
 async function notifyFeeRefused(sellerId: string): Promise<void> {
@@ -129,7 +132,7 @@ async function serializable<T>(work: (tx: Prisma.TransactionClient) => Promise<T
 }
 
 /** True when the stored tokens can no longer be used (refresh rejected, or expired without a successful refresh). */
-function accountNeedsReconnect(expiresAt: Date, now: Date): boolean {
+export function accountNeedsReconnect(expiresAt: Date, now: Date): boolean {
   return new Date(expiresAt).getTime() <= now.getTime();
 }
 
@@ -140,7 +143,7 @@ function eventHasEnded(event: { dataInicio: string; dataFim: string; endTime: st
   return Boolean(end && end.getTime() <= now.getTime());
 }
 
-function configuration(d: Resolved): MercadoPagoConfig | null {
+export function configuration(d: Resolved): MercadoPagoConfig | null {
   return ticketPaymentsConfigured(d.env) ? mercadoPagoConfig(d.env) : null;
 }
 
@@ -225,7 +228,7 @@ async function markNeedsReconnect(sellerId: string, refreshTokenEnc: string, now
 }
 
 /** Seller access token, refreshed when it expires within a week. Never leaves the server. */
-async function sellerAccessToken(sellerId: string, config: MercadoPagoConfig, d: Resolved): Promise<string> {
+export async function sellerAccessToken(sellerId: string, config: MercadoPagoConfig, d: Resolved): Promise<string> {
   const account = await prisma.mercadoPagoAccount.findUnique({ where: { userId: sellerId }, select: accountSelect });
   if (!account) throw new Error("SELLER_NOT_CONNECTED");
   const now = d.now();
@@ -867,6 +870,11 @@ async function adoptUnknownPayment(paymentId: string, mpUserId: string | null, c
   if (!account) return;
   const token = await sellerAccessToken(account.userId, config, d);
   const payment = await getMercadoPagoPayment(config.apiBase, token, paymentId, d.fetch);
+  // "Testar recebimento" payments (cancelled right away) are never orders: nothing to adopt or sync.
+  if (payment.externalReference?.startsWith(DIAGNOSTIC_REFERENCE_PREFIX)) {
+    console.warn("ticket-webhook-diagnostic-ignored");
+    return;
+  }
   if (payment.id !== paymentId || !payment.externalReference || payment.externalReference.length > 64) return;
   const order = await prisma.ticketOrder.findFirst({ where: { id: payment.externalReference, sellerId: account.userId, mpPaymentId: null }, select: orderSelect });
   if (!order) return;
