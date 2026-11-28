@@ -32,6 +32,7 @@ const OFFLINE_EXTRA = [
   "verify-profile-photo-viewer.cjs",
   "verify-install-app.cjs",
   "verify-event-triage.cjs",
+  "verify-ai-events-gemini.cjs",
 ];
 
 // Scripts test:* que exigem banco, servidor HTTP em execução ou serviços externos.

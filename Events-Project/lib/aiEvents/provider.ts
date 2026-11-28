@@ -1,5 +1,7 @@
 import { publicCatalogUrl } from "./catalog";
-import { ticket360EventLinks } from "./sources";
+import { platformOf, ticket360EventLinks } from "./sources";
+import { geminiEventLinks, pageTextOf } from "./gemini";
+import { geminiEnabled } from "../gemini/client";
 export { publicCatalogUrl } from "./catalog";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
@@ -18,6 +20,8 @@ export interface VerifiedEventImport {
   name: string;
   startDate: string;
   address: string;
+  /** Visible page text for the description writer. Never hashed, never stored. */
+  pageText?: string;
   event: {
     nome: string; descricao: string; banner: string; carrossel: string[];
     dataInicio: string; dataFim: string; linkParaCompra: string; endereco: string;
@@ -27,10 +31,13 @@ export interface VerifiedEventImport {
 }
 type SourceDocument = { url: string; body: string };
 interface ProviderDependencies {
-  readSource?: (url: string, timeoutMs?: number) => Promise<SourceDocument>;
+  readSource?: (url: string, timeoutMs?: number, anyHost?: boolean) => Promise<SourceDocument>;
   now?: () => Date;
+  /** Candidate links suggested by Gemini's Google Search; null turns this reader off. */
+  findLinks?: ((city: string, timeoutMs: number) => Promise<string[]>) | null;
 }
-export interface DiscoveredSource { url: string; platform: string; verified?: VerifiedEventImport }
+/** openHost: suggested by Gemini, so any public HTTPS site; it still must publish Event JSON-LD. */
+export interface DiscoveredSource { url: string; platform: string; verified?: VerifiedEventImport; openHost?: boolean }
 export interface DiscoveryResult { sources: DiscoveredSource[]; sourceErrors: { platform: string; message: string }[]; partial: boolean }
 export interface DiscoveryOptions { alreadyKnown?: (url: string) => Promise<boolean>; deadline: number; concurrency?: number }
 /** Busca imediata: cada leitura tem 8 s, para caber no orçamento de 45 s da requisição. */
@@ -38,6 +45,9 @@ const IMMEDIATE_TIMEOUT_MS = 8000;
 /** Limite de cada leitura: nunca passa do tempo restante da busca. */
 export const readBudget = (deadline: number): number => Math.max(1, Math.min(IMMEDIATE_TIMEOUT_MS, deadline - Date.now()));
 const TICKET360_MAX_PAGES = 20;
+export const GEMINI_PLATFORM = "Pesquisa Google (Gemini)";
+/** The grounded search usually answers in 5-20 s; the page checks need the rest of the budget. */
+const GEMINI_SEARCH_TIMEOUT_MS = 25_000;
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 const normalized = (value: string): string => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g, "");
@@ -45,12 +55,16 @@ function plain(value: unknown): string {
   return text(value).replace(/<[^>]*>/g, " ").replace(/&(?:amp|quot|apos|lt|gt|nbsp);/g, token => ({ "&amp;": "&", "&quot;": '"', "&apos;": "'", "&lt;": "<", "&gt;": ">", "&nbsp;": " " })[token] ?? " ").replace(/\s+/g, " ").trim();
 }
 
-/** Only curated public ticketing/cultural sources. */
-export function canonicalSourceUrl(value: string): string {
+/** Curated public ticketing/cultural sources. anyHost (Gemini suggestions) allows any public HTTPS host name. */
+export function canonicalSourceUrl(value: string, options: { anyHost?: boolean } = {}): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new Error("Use uma página HTTPS de uma das fontes permitidas."); }
   const host = url.hostname.toLowerCase();
-  if (value.length > 2048 || /[\u0000-\u0020\\]/.test(value) || url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") || !AI_EVENT_SOURCE_DOMAINS.some(domain => host === domain || host.endsWith("." + domain))) {
+  // Host names only (no IP literals or internal names); readOfficialSource still checks every resolved address.
+  const allowedHost = options.anyHost
+    ? /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host) && !/\.(?:local|localhost|internal|lan|home|corp)$/.test(host)
+    : AI_EVENT_SOURCE_DOMAINS.some(domain => host === domain || host.endsWith("." + domain));
+  if (value.length > 2048 || /[\u0000-\u0020\\]/.test(value) || url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") || !allowedHost) {
     throw new Error("Use uma página HTTPS de uma das fontes permitidas.");
   }
   url.hash = "";
@@ -72,8 +86,8 @@ export function isPublicSourceAddress(address: string): boolean {
   return false;
 }
 
-async function readOfficialSource(initialUrl: string, timeoutMs: number = SOURCE_TIMEOUT_MS): Promise<SourceDocument> {
-  let current = canonicalSourceUrl(initialUrl);
+async function readOfficialSource(initialUrl: string, timeoutMs: number = SOURCE_TIMEOUT_MS, anyHost = false): Promise<SourceDocument> {
+  let current = canonicalSourceUrl(initialUrl, { anyHost });
   for (let redirects = 0; redirects <= 3; redirects++) {
     const url = new URL(current);
     let dnsTimer: ReturnType<typeof setTimeout> | undefined;
@@ -120,7 +134,7 @@ async function readOfficialSource(initialUrl: string, timeoutMs: number = SOURCE
       outgoing.end();
     });
     if (!result.location) return { url: current, body: result.body };
-    current = canonicalSourceUrl(new URL(result.location, current).toString());
+    current = canonicalSourceUrl(new URL(result.location, current).toString(), { anyHost });
   }
   throw new Error("A fonte redirecionou muitas vezes. Use a página final do evento.");
 }
@@ -169,9 +183,9 @@ function localParts(value: Date, timezone: string): { date: string; time: string
 }
 
 /** Facts come from the publisher's Event JSON-LD, not from model-generated prose. */
-export function parseOfficialEvent(body: string, sourceUrl: string, requestedCity: string | undefined, now: Date): VerifiedEventImport {
-  const canonical = canonicalSourceUrl(sourceUrl), nodes = eventNodes(body);
-  const matching = nodes.filter(node => { try { return canonicalSourceUrl(text(node.url) || text(node["@id"])) === canonical; } catch { return false; } });
+export function parseOfficialEvent(body: string, sourceUrl: string, requestedCity: string | undefined, now: Date, options: { anyHost?: boolean } = {}): VerifiedEventImport {
+  const canonical = canonicalSourceUrl(sourceUrl, options), nodes = eventNodes(body);
+  const matching = nodes.filter(node => { try { return canonicalSourceUrl(text(node.url) || text(node["@id"]), options) === canonical; } catch { return false; } });
   const node = matching.length === 1 ? matching[0] : nodes.length === 1 ? nodes[0] : null;
   if (!node) throw new Error(nodes.length ? "A página contém vários eventos. Use uma fonte específica para um único evento." : INCOMPLETE_ERROR);
   if (/cancelled|postponed|onlineeventattendance/i.test(text(node.eventStatus) + " " + text(node.eventAttendanceMode))) throw new Error("A fonte não confirma um evento presencial com data vigente.");
@@ -201,7 +215,7 @@ export function parseOfficialEvent(body: string, sourceUrl: string, requestedCit
   if (priceCents > 100000000) throw new Error(INCOMPLETE_ERROR);
   let banner = "/branding/eventmap-event-placeholder.svg";
   const image = Array.isArray(node.image) ? node.image[0] : node.image;
-  try { banner = canonicalSourceUrl(text(image) || text(record(image)?.url)); } catch { /* Explicitly illustrative owned fallback, not an invented event photo. */ }
+  try { banner = canonicalSourceUrl(text(image) || text(record(image)?.url), options); } catch { /* Explicitly illustrative owned fallback, not an invented event photo. */ }
   const geo = record(location?.geo), latitude = Number(geo?.latitude), longitude = Number(geo?.longitude);
   const hasGeo = geo?.latitude != null && geo?.longitude != null && Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
   const types = (Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]]).map(text).join(" ");
@@ -232,15 +246,15 @@ export function publicEventLinks(body: string, catalogUrl: string): string[] {
 }
 
 /** Publisher-specific public JSON adapter. Require explicit ISO instants and admission facts. */
-export function parsePublicEvent(body: string, sourceUrl: string, city: string | undefined, now: Date): VerifiedEventImport {
-  const canonical = canonicalSourceUrl(sourceUrl), host = new URL(canonical).hostname;
+export function parsePublicEvent(body: string, sourceUrl: string, city: string | undefined, now: Date, options: { anyHost?: boolean } = {}): VerifiedEventImport {
+  const canonical = canonicalSourceUrl(sourceUrl, options), host = new URL(canonical).hostname;
   const script = /<script\b(?=[^>]*\bid=["']__NEXT_DATA__["'])[^>]*>([\s\S]*?)<\/script\s*>/i.exec(body);
-  if (!(host === "www.sympla.com.br" || host === "sympla.com.br") || !script) return parseOfficialEvent(body, canonical, city, now);
+  if (!(host === "www.sympla.com.br" || host === "sympla.com.br") || !script) return parseOfficialEvent(body, canonical, city, now, options);
   let root: Record<string, unknown> | null;
   try { root = record(JSON.parse(script[1])); } catch { throw new Error(INCOMPLETE_ERROR); }
   const hydration = record(record(record(root?.props)?.pageProps)?.hydrationData);
   const event = record(record(hydration?.eventHydration)?.event);
-  if (!event) return parseOfficialEvent(body, canonical, city, now);
+  if (!event) return parseOfficialEvent(body, canonical, city, now, options);
   if (event.published !== true || event.cancelled === true || event.privateEvent === true || event.onlineInfo) throw new Error("A fonte não confirma um evento público presencial vigente.");
   if (canonicalSourceUrl(text(event.newUrl)) !== canonical || !canonical.endsWith("/" + String(event.id))) throw new Error(INCOMPLETE_ERROR);
   const address = record(event.eventsAddress);
@@ -264,21 +278,27 @@ export function parsePublicEvent(body: string, sourceUrl: string, city: string |
       addressCountry: address?.country,
     } },
   };
-  return parseOfficialEvent(JSON.stringify(node), canonical, city, now);
+  return { ...parseOfficialEvent(JSON.stringify(node), canonical, city, now), pageText: description };
 }
 
 export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
   const now = dependencies.now ?? (() => new Date());
   const readSource = dependencies.readSource ?? readOfficialSource;
-  async function inspect(url: string, city?: string, timeoutMs?: number): Promise<VerifiedEventImport> {
-    const canonical = canonicalSourceUrl(url);
+  const findLinks = dependencies.findLinks === undefined
+    ? (geminiEnabled() ? (city: string, timeoutMs: number) => geminiEventLinks(city, { timeoutMs }) : null)
+    : dependencies.findLinks;
+  /** anyHost only for links Gemini suggested or already stored candidates; pasted links stay on the curated list. */
+  async function inspect(url: string, city?: string, timeoutMs?: number, anyHost = false): Promise<VerifiedEventImport> {
+    const options = { anyHost };
+    const canonical = canonicalSourceUrl(url, options);
     let source: SourceDocument;
-    try { source = await readSource(canonical, timeoutMs); } catch { throw new Error(SOURCE_ERROR); }
-    return parsePublicEvent(source.body, canonicalSourceUrl(source.url), city, now());
+    try { source = await readSource(canonical, timeoutMs, anyHost); } catch { throw new Error(SOURCE_ERROR); }
+    const verified = parsePublicEvent(source.body, canonicalSourceUrl(source.url, options), city, now(), options);
+    return { ...verified, pageText: [verified.pageText, pageTextOf(source.body)].filter(Boolean).join("\n").slice(0, 8000) };
   }
 
   /** Links candidatos por plataforma. Cada leitor falha sozinho, sem derrubar os demais. */
-  const catalogReaders: { platform: string; links: (city: string, deadline: number) => Promise<string[]> }[] = [
+  const catalogReaders: { platform: string; openHost?: boolean; links: (city: string, deadline: number) => Promise<string[]> }[] = [
     { platform: "Sympla", links: async (city, deadline) => {
       const catalog = publicCatalogUrl(city), links: string[] = [];
       for (let page = 1; page <= 4 && Date.now() < deadline; page++) {
@@ -303,19 +323,26 @@ export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
     } },
   ];
 
+  const geminiReader = findLinks ? [{ platform: GEMINI_PLATFORM, openHost: true, links: async (city: string, deadline: number) => {
+    const links = await findLinks(city, Math.max(1, Math.min(GEMINI_SEARCH_TIMEOUT_MS, deadline - Date.now() - 10_000)));
+    const valid = links.flatMap(link => { try { return [canonicalSourceUrl(link, { anyHost: true })]; } catch { return []; } });
+    if (!valid.length) throw new Error(SOURCE_ERROR);
+    return valid;
+  } }] : [];
+
   async function discoverAllSources(city: string, max: number, options: DiscoveryOptions): Promise<DiscoveryResult> {
     const limit = Math.min(5, Math.max(1, Math.floor(max)));
     const sourceErrors: DiscoveryResult["sourceErrors"] = [];
     let partial = false;
     const expired = () => { if (Date.now() >= options.deadline) partial = true; return partial; };
-    const lists = await Promise.all(catalogReaders.map(async reader => {
-      try { return { platform: reader.platform, links: await reader.links(city, options.deadline) }; }
-      catch { sourceErrors.push({ platform: reader.platform, message: `${reader.platform} indisponível agora.` }); return { platform: reader.platform, links: [] as string[] }; }
+    const lists = await Promise.all([...catalogReaders, ...geminiReader].map(async reader => {
+      try { return { platform: reader.platform, openHost: Boolean(reader.openHost), links: await reader.links(city, options.deadline) }; }
+      catch { sourceErrors.push({ platform: reader.platform, message: `${reader.platform} indisponível agora.` }); return { platform: reader.platform, openHost: Boolean(reader.openHost), links: [] as string[] }; }
     }));
     // Intercala as plataformas para que uma não ocupe todas as vagas.
     const queue: DiscoveredSource[] = [];
     for (let index = 0; lists.some(list => index < list.links.length); index++) {
-      for (const list of lists) if (index < list.links.length) queue.push({ url: list.links[index], platform: list.platform });
+      for (const list of lists) if (index < list.links.length) queue.push({ url: list.links[index], platform: list.platform, openHost: list.openHost });
     }
     const found: DiscoveredSource[] = [];
     const seen = new Set<string>();
@@ -326,11 +353,11 @@ export function createAiEventProvider(dependencies: ProviderDependencies = {}) {
         if (seen.has(item.url) || await options.alreadyKnown?.(item.url)) continue;
         seen.add(item.url);
         let event: VerifiedEventImport;
-        try { event = await inspect(item.url, city, readBudget(options.deadline)); } catch { continue; }
+        try { event = await inspect(item.url, city, readBudget(options.deadline), Boolean(item.openHost)); } catch { continue; }
         const known = await options.alreadyKnown?.(event.sourceUrl);
         // Sem await entre a checagem e o push: leitores paralelos não ultrapassam o limite.
         if (known || expired() || found.length >= limit || found.some(source => source.url === event.sourceUrl)) continue;
-        found.push({ url: event.sourceUrl, platform: item.platform, verified: event });
+        found.push({ url: event.sourceUrl, platform: item.openHost ? platformOf(event.sourceUrl).label : item.platform, verified: event, openHost: item.openHost });
       }
     };
     if (!expired()) await Promise.all(Array.from({ length: Math.max(1, options.concurrency ?? 4) }, worker));

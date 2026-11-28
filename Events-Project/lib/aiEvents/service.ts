@@ -6,6 +6,7 @@ import { parseEventInput } from "../../schemas/eventInput";
 import type { AiEventAction } from "../../schemas/aiEvents";
 import { aiConfigured, canonicalSourceUrl, discoverAllSources, discoverEventSources, inspectEventSource, publicCatalogUrl, readBudget, type DiscoveredSource, type VerifiedEventImport } from "./provider";
 import { platformOf } from "./sources";
+import { enrichEventWithGemini, type EnrichInput, type EnrichedEvent } from "./gemini";
 
 export interface AiEventsDependencies {
   configured: typeof aiConfigured;
@@ -13,8 +14,24 @@ export interface AiEventsDependencies {
   discoverAll: typeof discoverAllSources;
   inspect: typeof inspectEventSource;
   now: () => Date;
+  /** Gemini description/category writer. Optional: without it the official template text stays. */
+  enrich?: (input: EnrichInput, timeoutMs: number) => Promise<EnrichedEvent | null>;
 }
-const defaults: AiEventsDependencies = { configured: aiConfigured, discover: discoverEventSources, discoverAll: discoverAllSources, inspect: inspectEventSource, now: () => new Date() };
+const defaults: AiEventsDependencies = { configured: aiConfigured, discover: discoverEventSources, discoverAll: discoverAllSources, inspect: inspectEventSource, now: () => new Date(), enrich: (input, timeoutMs) => enrichEventWithGemini(input, { timeoutMs }) };
+const ENRICH_TIMEOUT_MS = 12_000;
+
+/**
+ * Gemini rewrites only the description and category. Dates, address, price and the source hash
+ * stay exactly as verified from the official page; any failure keeps the official text.
+ */
+async function withEnrichment(verified: VerifiedEventImport, deps: AiEventsDependencies, deadline?: number): Promise<VerifiedEventImport> {
+  if (!deps.enrich || !verified.pageText) return verified;
+  const remaining = deadline === undefined ? ENRICH_TIMEOUT_MS : deadline - Date.now() - 2000;
+  if (remaining < 3000) return verified;
+  const result = await deps.enrich({ name: verified.name, address: verified.address, startDate: verified.startDate, category: verified.event.category, pageText: verified.pageText }, Math.min(ENRICH_TIMEOUT_MS, remaining)).catch(() => null);
+  if (!result) return verified;
+  return { ...verified, event: { ...verified.event, descricao: result.descricao || verified.event.descricao, category: result.category || verified.event.category } };
+}
 const CONFIG_ID = "default";
 const HOUR = 60 * 60 * 1000;
 const LEASE = 10 * 60 * 1000;
@@ -81,6 +98,7 @@ export async function importSources(db: PrismaClient, actorId: string, runId: st
     let verified: VerifiedEventImport;
     try { verified = source.verified ?? await deps.inspect(source.url, city, deadline === undefined ? undefined : readBudget(deadline)); }
     catch { items.push({ url: source.url, platform, outcome: "failed" }); continue; }
+    verified = await withEnrichment(verified, deps, deadline);
     let data: ReturnType<typeof validatedEvent>;
     try { data = validatedEvent(verified, deps.now()); }
     catch { items.push({ url: source.url, platform, outcome: "invalid", name: verified.name }); continue; }
@@ -215,7 +233,7 @@ async function approve(db: PrismaClient, actorId: string, id: string, deps: AiEv
   // Só propostas antigas, nunca vinculadas a um evento. Aprovar não publica: cria o evento pendente de validação.
   if (!candidate || candidate.status !== "PENDING" || candidate.eventId) throw new AiEventsError(409, "A proposta já foi analisada ou não existe.");
   // Re-read the official source outside a database transaction. Consent is to the reviewed facts.
-  const verified = await deps.inspect(candidate.sourceUrl);
+  const verified = await withEnrichment(await deps.inspect(candidate.sourceUrl, undefined, undefined, true), deps);
   const eventData = validatedEvent(verified, deps.now());
   if (verified.sourceHash !== candidate.sourceHash) {
     await transaction(db, async tx => {
