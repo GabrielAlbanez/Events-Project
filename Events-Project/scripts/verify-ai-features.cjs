@@ -82,6 +82,31 @@ section("summary.requires-three-lines", async () => {
   assert.equal(await features.eventSummary(input, { env: ENV, fetch: answer({ oQueE: "", paraQuem: "x", oQueLevar: "y" }) }), null);
 });
 
+section("client.fast-model-then-fallback", async () => {
+  const client = load("lib/gemini/client.ts");
+  const req = { system: "s", parts: [{ text: "x" }] };
+  const urls = [];
+  const flaky = status => async (url, init) => { urls.push(url); if (urls.length === 1) return { ok: false, status, json: async () => ({}) }; return answer("ok")(url, init); };
+  assert.equal(await client.geminiText(req, { env: ENV, fetch: flaky(503) }), "ok");
+  assert.match(urls[0], /models\/gemini-flash-lite-latest:/, "rápido primeiro");
+  assert.match(urls[1], /models\/gemini-flash-latest:/, "outro modelo na falha");
+  urls.length = 0;
+  assert.equal(await client.geminiText(req, { env: ENV, fetch: flaky(429) }), "ok", "cota do modelo rápido → tenta o outro");
+  urls.length = 0;
+  assert.equal(await client.geminiText(req, { env: ENV, fetch: flaky(400) }), null, "pedido inválido não repete");
+  assert.equal(urls.length, 1);
+  urls.length = 0;
+  // Primeiro modelo trava: o tempo dele acaba antes do total e o segundo responde.
+  const hang = async (url, init) => { urls.push(url); if (urls.length === 1) return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(new Error("abort")))); return answer("ok")(url, init); };
+  const started = Date.now();
+  assert.equal(await client.geminiText(req, { env: ENV, fetch: hang, timeoutMs: 6000 }), "ok");
+  assert.ok(Date.now() - started < 6000, "cabe no tempo total");
+  urls.length = 0;
+  await client.geminiText(req, { env: { ...ENV, GEMINI_MODEL: "meu-modelo", GEMINI_FALLBACK_MODEL: "meu-modelo" }, fetch: flaky(503) });
+  assert.equal(urls.length, 1, "modelos iguais não repetem");
+  assert.match(urls[0], /models\/meu-modelo:/);
+});
+
 // ---------- service ----------
 function memoryDb(events = []) {
   const tokens = [];

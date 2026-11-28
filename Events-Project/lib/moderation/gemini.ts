@@ -1,3 +1,5 @@
+import { geminiText, type GeminiFetch } from "../gemini/client";
+
 /**
  * Optional second opinion from Google's Gemini API (free tier). Turned on by GEMINI_API_KEY.
  * Sends only public event content (name, description, category, cover image), never data about
@@ -11,7 +13,6 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
 export interface AiDeps { env?: Record<string, string | undefined>; fetch?: FetchLike; timeoutMs?: number }
 
 const categories: AiCategory[] = ["ok", "mismatch", "low_quality", "adult", "violence", "hate", "scam", "other"];
-export const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 const MAX_REASON = 300;
 
 const instructions = [
@@ -35,38 +36,14 @@ const responseSchema = {
 };
 
 export async function reviewWithGemini(input: AiReviewInput, deps: AiDeps = {}): Promise<AiVerdict | null> {
-  const env = deps.env ?? process.env;
-  const key = env.GEMINI_API_KEY?.trim();
-  if (!key) return null;
-  const model = (env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL).replace(/[^\w.-]/g, "");
-  const doFetch = deps.fetch ?? (fetch as unknown as FetchLike);
-  const eventText = `Nome: ${input.name.slice(0, 160)}\nCategoria: ${input.category.slice(0, 80)}\nDescrição: ${input.description.slice(0, 3000)}`;
+  const eventText = `Nome: ${input.name.slice(0, 160)}
+Categoria: ${input.category.slice(0, 80)}
+Descrição: ${input.description.slice(0, 3000)}`;
   const parts: Array<Record<string, unknown>> = [{ text: eventText }];
   if (input.image) parts.push({ inline_data: { mime_type: input.image.mime, data: input.image.bytes.toString("base64") } });
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? 12000);
-  try {
-    const response = await doFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: instructions }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema },
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      console.warn("event-triage-ai", `status=${response.status ?? "unknown"}`);
-      return null;
-    }
-    return parseVerdict(await response.json());
-  } catch {
-    console.warn("event-triage-ai", "status=failed");
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  // Shared client: fast model first, one fallback model, key only in a header, status-only logs.
+  const text = await geminiText({ system: instructions, parts, schema: responseSchema }, { env: deps.env, fetch: deps.fetch as GeminiFetch | undefined, timeoutMs: deps.timeoutMs ?? 12000 }, "event-triage-ai");
+  return text === null ? null : parseVerdict({ candidates: [{ content: { parts: [{ text }] } }] });
 }
 
 function parseVerdict(body: unknown): AiVerdict | null {
