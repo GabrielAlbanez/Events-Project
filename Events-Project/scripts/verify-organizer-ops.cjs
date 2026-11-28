@@ -84,7 +84,7 @@ function checkSensitiveFields() {
   const form = read("components/MyComponents/EventoForm.tsx");
   assert.match(form, /sensitiveEventChanges/);
   assert.match(form, /Isso enviará o evento para nova revisão e ele sairá do ar até a aprovação\./);
-  assert.match(form, /onSubmit\(values, true\)/, "the review warning requires an explicit confirmation");
+  assert.match(form, /onSubmit\(values, true(?:, true)?\)/, "the review warning requires an explicit confirmation");
   console.log("PASS organizer-ops: sensitive vs live edits for published events (legacy dates, capacity increase/reduction, price, organizer) and confirmation UX wiring");
 }
 

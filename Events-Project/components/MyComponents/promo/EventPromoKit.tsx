@@ -19,6 +19,7 @@ import {
   type PromoEvent,
   type PromoVariantId,
 } from "@/lib/promoKit";
+import { EventAiPromoCopy } from "@/components/MyComponents/ai/EventAiPromoCopy";
 
 type EventPromoKitProps = {
   event: PromoEvent;
@@ -143,6 +144,11 @@ export default function EventPromoKit({ event, siteOrigin, triggerClassName, tri
     }
   }
 
+  async function handleCopyAiText(text: string, success: string) {
+    if (await copyText(text)) notify(success);
+    else notify("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.", "error");
+  }
+
   async function handleShare() {
     if (!url) return;
     try {
@@ -223,6 +229,8 @@ export default function EventPromoKit({ event, siteOrigin, triggerClassName, tri
         </div>
         {url && <p className="break-all text-xs text-muted-foreground">Link do evento: <span className="font-medium text-foreground">{url}</span></p>}
       </section>
+
+      {event.status === "PUBLISHED" && <EventAiPromoCopy eventId={event.id} onCopy={handleCopyAiText} sectionClassName={section} sectionTitleClassName={sectionTitle} actionClassName={action} />}
 
       <div className="grid gap-5 md:grid-cols-2">
         <section aria-labelledby={`${ids}-qr-title`} className={section}>

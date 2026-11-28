@@ -17,6 +17,8 @@ import { LoadingShimmer } from "@/components/animations/LoadingShimmer";
 import { HomeEventImage } from "@/components/MyComponents/home/HomeEventImage";
 import { DayMonthBlock, FeaturedTag, categoryVisual, eventCity, resolveCity } from "@/components/MyComponents/home/discoveryVisuals";
 import { prioritizeFeatured } from "@/lib/promotions";
+import { AiSearchBox } from "@/components/MyComponents/ai/AiSearchBox";
+import type { SearchIntent } from "@/types/ai";
 
 const filters: { label: string; value: Period }[] = [
   { label: "Todos", value: "todos" },
@@ -252,6 +254,23 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
     events.forEach((event) => { if (event.category) counts.set(event.category, (counts.get(event.category) ?? 0) + 1); });
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR")).map(([name]) => name);
   }, [events]);
+  /** "Buscar com IA" asked for "perto de mim": only then does clearing it also drop the location. */
+  const aiNearMe = useRef(false);
+  const applyAiSearch = (intent: SearchIntent) => {
+    const price = intent.preco.replace(",", ".").trim();
+    setSearch(intent.q.trim().slice(0, 100));
+    setPeriod(filters.some((filter) => filter.value === intent.periodo) ? intent.periodo : "todos");
+    setDiscovery((current) => ({ ...current, category: categories.includes(intent.categoria) ? intent.categoria : "", free: intent.gratis,
+      maxPrice: /^\d{1,6}(?:\.\d{1,2})?$/.test(price) ? price : "", travelMinutes: null, travelDurations: {} }));
+    // Same explicit-click geolocation as the "Sua localização" button (the AI submit is the click).
+    if (intent.nearMe && !discovery.origin) { aiNearMe.current = true; void locateMe(); }
+  };
+  const clearAiSearch = () => {
+    setSearch("");
+    setPeriod("todos");
+    setDiscovery((current) => ({ ...current, category: "", free: false, maxPrice: "", travelMinutes: null, travelDurations: {} }));
+    if (aiNearMe.current) { aiNearMe.current = false; clearMyLocation(); }
+  };
   const pickCategory = (category: string) => setDiscovery((current) => ({ ...current, category: current.category === category ? "" : category, travelMinutes: null, travelDurations: {} }));
   const listActive = compact ? sheetExpanded : view === "lista";
   const chooseView = (next: "mapa" | "lista") => {
@@ -380,6 +399,7 @@ export default function HomeDiscoveryClient({ initialEvents }: HomeDiscoveryClie
                 {activeFilterCount > 0 && <><span aria-hidden="true" className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold leading-none text-primary-foreground">{activeFilterCount}</span><span className="sr-only">, {activeFilterCount} {activeFilterCount === 1 ? "ativo" : "ativos"}</span></>}
               </button>
             </div>
+            <AiSearchBox className="order-2" categories={categories} onApply={applyAiSearch} onClear={clearAiSearch} />
             {!filtersOpen && appliedChips.length > 0 && <ul aria-label="Filtros aplicados" className="order-2 -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:hidden">
               {appliedChips.map((chip) => <li key={chip.key} className="shrink-0"><button type="button" onClick={chip.clear} aria-label={`Remover filtro ${chip.label}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-cta-foreground/10 bg-cta py-2 pl-4 pr-3 text-xs font-semibold text-cta-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">{chip.label}<X aria-hidden="true" className="h-3.5 w-3.5" /></button></li>)}
             </ul>}

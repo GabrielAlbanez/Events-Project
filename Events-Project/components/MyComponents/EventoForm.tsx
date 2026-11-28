@@ -29,6 +29,10 @@ import { useGoogleMaps } from "./GoogleMapsLoader";
 import { PlaceSearchCombobox } from "./PlaceAutocomplete";
 import { eventTimeError, normalizeEventTime } from "@/schemas/eventInput";
 import { GoogleMapsPreference } from "./GoogleMapsPreference";
+import { eventTipsAction } from "@/app/(actions)/ai/action";
+import type { EventDraftSuggestion } from "@/types/ai";
+import { EventAiDraftDialog, type DraftField } from "./ai/EventAiDraftDialog";
+import { EventAiTipsDialog } from "./ai/EventAiTipsDialog";
 
 type EventoFormData = {
   nome: string;
@@ -113,6 +117,9 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
   const [addressNeedsPick, setAddressNeedsPick] = useState(false);
   const saveMode = useRef<"draft" | "submit">("submit");
   const [reviewPrompt, setReviewPrompt] = useState<EventoFormData | null>(null);
+  // "Dicas antes de enviar": shown before the submission; never blocks it.
+  const [tipsReview, setTipsReview] = useState<{ values: EventoFormData; reviewConfirmed: boolean; loading: boolean; tips: string[]; aiUsed: boolean } | null>(null);
+  const tipsRequest = useRef(0);
   const allValues = form.watch();
   const isPublishedEdit = initialEvent?.status === "PUBLISHED";
   const reviewReasons = publishedReviewReasons(initialEvent, allValues, dateRange, coordinates, !!banner);
@@ -187,7 +194,128 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     if (form.getValues("endTime")) void form.trigger("endTime");
   }, [startValue, scheduleKey, form]);
 
-  const onSubmit = (values: EventoFormData, reviewConfirmed = false) => {
+  const showBannerFile = (file: File) => {
+    if (bannerUrlRef.current) URL.revokeObjectURL(bannerUrlRef.current);
+    const url = URL.createObjectURL(file);
+    bannerUrlRef.current = url;
+    setBannerUrl(url);
+    setBanner(file);
+  };
+
+  /** "Escrever com IA": only the areas the organizer kept checked are written; coordinates are never invented. */
+  const applyAiDraft = (suggestion: EventDraftSuggestion, fields: DraftField[], poster: File | null) => {
+    const set = (name: keyof EventoFormData, value: string | boolean) => form.setValue(name, value, { shouldDirty: true, shouldValidate: true });
+    let addressApplied = false;
+    for (const field of fields) {
+      switch (field) {
+        case "datas": {
+          if (!suggestion.dataInicio) break;
+          try {
+            const start = parseDate(suggestion.dataInicio);
+            const end = suggestion.dataFim ? parseDate(suggestion.dataFim) : start;
+            setDateRange(start.compare(end) <= 0 ? { start, end } : { start, end: start });
+            setDateError("");
+          } catch { /* invalid date from the AI: keep the current period */ }
+          break;
+        }
+        case "preco":
+          if (suggestion.isFree === true) set("isFree", true);
+          else if (suggestion.price) { set("isFree", false); set("price", suggestion.price); }
+          break;
+        case "endereco":
+          if (!suggestion.endereco?.trim()) break;
+          set("endereco", suggestion.endereco.trim().slice(0, 300));
+          setCoordinates(null);
+          // With the map search on, the text still needs a suggestion picked to confirm the place.
+          setAddressNeedsPick(mapsLoaded && addressMode === "search");
+          addressApplied = true;
+          break;
+        case "startTime":
+        case "endTime": {
+          const value = normalizeEventTime(suggestion[field]);
+          if (value) set(field, value);
+          break;
+        }
+        case "category":
+          if (suggestion.category && (eventCategories as readonly string[]).includes(suggestion.category)) set("category", suggestion.category);
+          break;
+        case "nome":
+          if (suggestion.nome?.trim()) set("nome", suggestion.nome.trim().slice(0, 100));
+          break;
+        case "descricao":
+          if (suggestion.descricao?.trim()) set("descricao", suggestion.descricao.trim().slice(0, 3000));
+          break;
+        case "organizerName":
+          if (suggestion.organizerName?.trim()) set("organizerName", suggestion.organizerName.trim().slice(0, 160));
+          break;
+        case "ageRating":
+          if (suggestion.ageRating?.trim()) set("ageRating", suggestion.ageRating.trim().slice(0, 80));
+          break;
+        case "LinkParaCompraIngresso":
+          if (suggestion.LinkParaCompraIngresso?.trim()) set("LinkParaCompraIngresso", suggestion.LinkParaCompraIngresso.trim());
+          break;
+      }
+    }
+    if (poster && !banner && !initialEvent?.banner && poster.size <= maximumUploadImageBytes) showBannerFile(poster);
+    toast.info(addressApplied ? "Sugestões aplicadas. Confirme o endereço no mapa e confira tudo antes de enviar." : "Sugestões aplicadas. Confira tudo antes de enviar.");
+  };
+
+  const aiFilled: Record<DraftField, boolean> = {
+    nome: Boolean(allValues.nome.trim()),
+    descricao: hasUsefulDescription(allValues.descricao),
+    category: Boolean(allValues.category),
+    datas: Boolean(dateRange),
+    startTime: Boolean(allValues.startTime),
+    endTime: Boolean(allValues.endTime),
+    endereco: Boolean(allValues.endereco.trim()),
+    preco: !allValues.isFree || Boolean(initialEvent),
+    organizerName: Boolean(allValues.organizerName.trim()),
+    ageRating: Boolean(allValues.ageRating.trim()),
+    LinkParaCompraIngresso: Boolean(allValues.LinkParaCompraIngresso.trim()),
+  };
+
+  const continueAfterTips = (values: EventoFormData, reviewConfirmed: boolean) => {
+    tipsRequest.current++;
+    setTipsReview(null);
+    saveMode.current = "submit";
+    onSubmit(values, reviewConfirmed, true);
+  };
+
+  /** Asks for tips; with none (or if the AI fails) the submission simply continues. */
+  const reviewWithAi = (values: EventoFormData, reviewConfirmed: boolean) => {
+    const current = ++tipsRequest.current;
+    setTipsReview({ values, reviewConfirmed, loading: true, tips: [], aiUsed: false });
+    const payload = new FormData();
+    payload.append("nome", values.nome.trim());
+    payload.append("descricao", values.descricao.trim());
+    payload.append("category", values.category);
+    payload.append("dataInicio", dateRange?.start.toString() ?? "");
+    payload.append("dataFim", dateRange?.end.toString() ?? "");
+    payload.append("endereco", values.endereco.trim());
+    payload.append("lat", coordinates ? String(coordinates.lat) : "");
+    payload.append("lng", coordinates ? String(coordinates.lng) : "");
+    payload.append("isFree", String(values.isFree));
+    payload.append("price", values.isFree ? "" : values.price.trim());
+    payload.append("ticketsEnabled", String(!values.isFree && values.ticketsEnabled));
+    payload.append("LinkParaCompraIngresso", values.LinkParaCompraIngresso.trim());
+    if (banner) {
+      payload.append("banner", banner);
+      if (!uploadMultipartFits(payload)) payload.delete("banner");
+    } else if (initialEvent?.banner?.startsWith("/uploads/")) payload.append("bannerUrl", initialEvent.banner);
+    const unavailable = () => {
+      if (current !== tipsRequest.current) return;
+      toast.info("Não foi possível revisar com IA agora. Enviando normalmente.", { toastId: "ai-tips-unavailable" });
+      continueAfterTips(values, reviewConfirmed);
+    };
+    eventTipsAction(payload).then((result) => {
+      if (current !== tipsRequest.current) return;
+      if (!result.ok) { unavailable(); return; }
+      if (result.data.tips.length === 0) { continueAfterTips(values, reviewConfirmed); return; }
+      setTipsReview({ values, reviewConfirmed, loading: false, tips: result.data.tips, aiUsed: result.data.aiUsed });
+    }).catch(unavailable);
+  };
+
+  const onSubmit = (values: EventoFormData, reviewConfirmed = false, tipsReviewed = false) => {
     const draft = saveMode.current === "draft";
     const timeError = timeErrorFor(values.startTime, values.endTime);
     if (timeError) {
@@ -225,6 +353,10 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
     }
     if (!data?.id) {
       toast.error("Entre na sua conta para criar um evento.");
+      return;
+    }
+    if (!draft && !tipsReviewed) {
+      reviewWithAi(values, reviewConfirmed);
       return;
     }
     // OPP-01: warn before a sensitive edit takes a published event offline for review.
@@ -341,15 +473,17 @@ export function EventoForm({ className, initialEvent, ...props }: EventoFormProp
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setReviewPrompt(null)}>Voltar e revisar</Button>
-            <Button type="button" variant="cta" disabled={isPending} onClick={() => { const values = reviewPrompt; setReviewPrompt(null); if (values) { saveMode.current = "submit"; onSubmit(values, true); } }}>Salvar e enviar para revisão</Button>
+            <Button type="button" variant="cta" disabled={isPending} onClick={() => { const values = reviewPrompt; setReviewPrompt(null); if (values) { saveMode.current = "submit"; onSubmit(values, true, true); } }}>Salvar e enviar para revisão</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <EventAiTipsDialog open={tipsReview !== null} loading={tipsReview?.loading ?? false} tips={tipsReview?.tips ?? []} aiUsed={tipsReview?.aiUsed ?? false} sending={isPending} onAdjust={() => { tipsRequest.current++; setTipsReview(null); }} onSendAnyway={() => { if (tipsReview) continueAfterTips(tipsReview.values, tipsReview.reviewConfirmed); }} />
       <form onSubmit={form.handleSubmit((values) => { saveMode.current = "submit"; onSubmit(values); })} className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] ${className ?? ""}`} {...props}>
         <div className="min-w-0 space-y-6">
           {draftRecovery.recovery && <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="Recuperar rascunho local"><h2 className="font-semibold">Você tem um rascunho neste navegador</h2><p className="mt-2 text-sm text-muted-foreground">Salvo em {new Date(draftRecovery.recovery.savedAt).toLocaleString("pt-BR")}. As imagens precisam ser selecionadas novamente. {draftRecovery.conflict ? "O evento foi atualizado desde este rascunho: recuperar substituirá os campos atuais. Confira antes de salvar." : "Recupere suas alterações ou descarte para continuar."}</p><div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={restoreDraft} disabled={fingerprint !== initialFingerprint.current || isPending}>Recuperar rascunho</Button><Button type="button" variant="ghost" onClick={draftRecovery.discard}>Descartar rascunho</Button></div>{fingerprint !== initialFingerprint.current && <p className="mt-2 text-xs text-muted-foreground">Você já editou o formulário. O rascunho anterior não substituirá essas alterações.</p>}</section>}
           {initialEvent?.status === "CHANGES_REQUESTED" && initialEvent.reviewNote && <section role="alert" aria-labelledby="event-review-note-title" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5"><h2 id="event-review-note-title" className="flex items-center gap-2 font-semibold"><AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />Ajustes necessários antes de publicar</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{initialEvent.reviewNote}</p><p className="mt-2 text-xs text-muted-foreground">Corrija os pontos acima e envie o evento novamente.</p></section>}
           {draftRecovery.message && <p role="status" className="text-xs text-muted-foreground">{draftRecovery.message} · Alterações ainda não enviadas. Expira após 7 dias.</p>}
+          <EventAiDraftDialog filled={aiFilled} hasBanner={Boolean(banner || initialEvent?.banner)} categories={eventCategories} disabled={isPending} onApply={applyAiDraft} />
           <section className={sectionClass} aria-labelledby="event-details-title">
             <SectionHeading number="01" title="Apresente o evento" description="Ajude as pessoas a entender o que vai acontecer e por que participar." id="event-details-title" />
             <div className="space-y-5">

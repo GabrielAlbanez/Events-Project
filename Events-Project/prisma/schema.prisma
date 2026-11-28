@@ -169,6 +169,8 @@ model Events {
   ticketCoupons TicketCoupon[]
   /// SHA-256 of the uploaded cover: the automatic triage spots covers reused by another organizer.
   bannerHash         String?
+  aiSummary          Json?
+  aiSummaryHash      String?
   moderations        EventModeration[]
 
   @@unique([recurrenceSeriesId, recurrenceIndex])
